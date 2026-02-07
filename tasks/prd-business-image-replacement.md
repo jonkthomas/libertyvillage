@@ -360,7 +360,7 @@ This loop continues until the code-reviewer reports zero image issues across the
 
 **IMPORTANT: Never pass downloaded image data inline into conversation context. Always save to file with a filename parameter. Track all progress here.**
 
-Progress: 50/76 complete
+Progress: 59/76 complete
 
 | # | Slug | Filename | Filepath | Source | Status |
 |---|------|----------|----------|--------|--------|
@@ -414,15 +414,15 @@ Progress: 50/76 complete
 | 48 | liberty-pooch | liberty-pooch.jpg | /public/images/businesses/ | libertypooch.ca (Squarespace CDN - dog walkers) | done |
 | 49 | woofstock-pet-supplies | woofstock-pet-supplies.jpg | /public/images/businesses/ | Wikimedia Commons (pet supply store) | done |
 | 50 | the-dog-house-grooming | the-dog-house-grooming.jpg | /public/images/businesses/ | Wikimedia Commons (dog grooming) | done |
-| 51 | spaces-liberty-village | spaces-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 52 | the-fueling-station | the-fueling-station.jpg | /public/images/businesses/ | — | pending |
-| 53 | wework-liberty-village | wework-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 54 | freshco-liberty-village | freshco-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 55 | shoppers-drug-mart-liberty-village | shoppers-drug-mart-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 56 | rexall-liberty-village | rexall-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 57 | scotiabank-liberty-village | scotiabank-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 58 | liberty-village-rbc | liberty-village-rbc.jpg | /public/images/businesses/ | — | pending |
-| 59 | king-west-dry-cleaners | king-west-dry-cleaners.jpg | /public/images/businesses/ | — | pending |
+| 51 | spaces-liberty-village | spaces-liberty-village.jpg | /public/images/businesses/ | assets.iwgplc.com (Cloudinary CDN - 80 Atlantic Ave) | done |
+| 52 | the-fueling-station | the-fueling-station.jpg | /public/images/businesses/ | libertyvillagetoronto.com (WordPress CDN - interior) | done |
+| 53 | wework-liberty-village | wework-liberty-village.jpg | /public/images/businesses/ | dr3h7ptpe31k5.cloudfront.net (Office Hub - 171 E Liberty St) | done |
+| 54 | freshco-liberty-village | freshco-liberty-village.jpg | /public/images/businesses/ | Wikimedia Commons (FreshCo storefront CC0) | done |
+| 55 | shoppers-drug-mart-liberty-village | shoppers-drug-mart-liberty-village.jpg | /public/images/businesses/ | retailinsider.b-cdn.net (Yonge-Dundas Square location) | done |
+| 56 | rexall-liberty-village | rexall-liberty-village.jpg | /public/images/businesses/ | Wikimedia Commons (Rexall Pharmacy storefront) | done |
+| 57 | scotiabank-liberty-village | scotiabank-liberty-village.jpg | /public/images/businesses/ | libertyvillagetoronto.com (LVBIA - 10 Liberty St) | done |
+| 58 | liberty-village-rbc | liberty-village-rbc.jpg | /public/images/businesses/ | rbc.com (newsroom - Royal Bank Plaza exterior) | done |
+| 59 | king-west-dry-cleaners | king-west-dry-cleaners.jpg | /public/images/businesses/ | kingwestcondo.com (King West Village Cleaners storefront) | done |
 | 60 | liberty-village-accounting | liberty-village-accounting.jpg | /public/images/businesses/ | — | pending |
 | 61 | real-estate-liberty-village | real-estate-liberty-village.jpg | /public/images/businesses/ | — | pending |
 | 62 | bike-share-liberty-village | bike-share-liberty-village.jpg | /public/images/businesses/ | — | pending |
