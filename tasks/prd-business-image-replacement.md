@@ -360,7 +360,7 @@ This loop continues until the code-reviewer reports zero image issues across the
 
 **IMPORTANT: Never pass downloaded image data inline into conversation context. Always save to file with a filename parameter. Track all progress here.**
 
-Progress: 18/76 complete
+Progress: 23/76 complete
 
 | # | Slug | Filename | Filepath | Source | Status |
 |---|------|----------|----------|--------|--------|
@@ -382,11 +382,11 @@ Progress: 18/76 complete
 | 16 | cibo-liberty-village | cibo-liberty-village.jpg | /public/images/businesses/ | cibowinebar.com (Squarespace CDN) | done |
 | 17 | left-field-brewery | left-field-brewery.jpg | /public/images/businesses/ | eventsource.ca | done |
 | 18 | sushi-liberty-village | sushi-liberty-village.jpg | /public/images/businesses/ | mikutoronto.com (Squarespace CDN) | done |
-| 19 | balzacs-coffee-liberty-village | balzacs-coffee-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 20 | louie-coffee-bar | louie-coffee-bar.jpg | /public/images/businesses/ | — | pending |
-| 21 | arvo-coffee | arvo-coffee.jpg | /public/images/businesses/ | — | pending |
-| 22 | dark-horse-espresso-liberty-village | dark-horse-espresso-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 23 | jimmys-coffee-liberty-village | jimmys-coffee-liberty-village.jpg | /public/images/businesses/ | — | pending |
+| 19 | balzacs-coffee-liberty-village | balzacs-coffee-liberty-village.jpg | /public/images/businesses/ | balzacs.com (Shopify CDN - Liberty Village poster) | done |
+| 20 | louie-coffee-bar | louie-coffee-bar.jpg | /public/images/businesses/ | louiecoffee.com (WordPress CDN) | done |
+| 21 | arvo-coffee | arvo-coffee.jpg | /public/images/businesses/ | blogTO (CloudFront CDN) | done |
+| 22 | dark-horse-espresso-liberty-village | dark-horse-espresso-liberty-village.jpg | /public/images/businesses/ | darkhorseespresso.com (Shopify CDN) | done |
+| 23 | jimmys-coffee-liberty-village | jimmys-coffee-liberty-village.jpg | /public/images/businesses/ | jimmyscoffee.ca (Squarespace CDN) | done |
 | 24 | goodlife-fitness-liberty-village | goodlife-fitness-liberty-village.jpg | /public/images/businesses/ | — | pending |
 | 25 | f45-training-liberty-village | f45-training-liberty-village.jpg | /public/images/businesses/ | — | pending |
 | 26 | altea-active | altea-active.jpg | /public/images/businesses/ | — | pending |
