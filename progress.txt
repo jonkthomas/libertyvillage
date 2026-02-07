@@ -1,0 +1,72 @@
+# Progress Log
+
+Started: Sat Feb  7 13:27:44 PST 2026
+Project: libertyvillage.so
+Goal: Unknown
+
+---
+
+## 2026-02-07 - US-001: Install sharp and create image optimization script
+
+**What I did:**
+- Verified sharp was already installed in devDependencies
+- Created `scripts/optimize-business-images.js` with cover/crop resize to 800x600
+- Progressive JPEG output at quality 80 with EXIF stripping
+- Tested on a real image: 1200x823 → 800x600, 227KB → 98KB
+- Verified skip logic works for already-optimized images
+- Confirmed all 76 existing fake images are handled gracefully (errors logged, script continues)
+- Typecheck passes
+
+**Learnings:**
+- All 76 business images are HTML documents (567 bytes each), not real JPEGs
+- sharp is already installed as a devDependency
+- Existing `scripts/optimize-images.js` handles general optimization but uses maxWidth only (no height crop), new script does 800x600 cover/crop specifically for businesses
+- `file` command reliably detects HTML-as-JPEG fakes
+
+## 2026-02-07 - US-002: Create image download helper script
+
+**What I did:**
+- Created `scripts/download-image.js` with two modes:
+  - Single: `--url <url> --slug <slug>` downloads one image
+  - Batch: `--batch <json_file>` processes array of {url, slug} objects
+- Script follows redirects (up to 5 hops) with browser-like User-Agent
+- Validates downloaded files using magic bytes (JPEG/PNG/WebP detection)
+- Deletes invalid files (HTML masquerading as images)
+- Auto-optimizes with sharp to 800x600 progressive JPEG at quality 80
+- Tested: single download, batch download, HTML rejection, redirect following
+
+**Learnings:**
+- Unsplash direct URLs work well for testing: `https://images.unsplash.com/photo-XXXX?w=800`
+- HTTP->HTTPS redirect following works correctly with the protocol detection logic
+- Magic bytes check catches HTML error pages that many servers return
+- sharp handles JPEG/PNG/WebP input and converts all to JPEG output seamlessly
+
+## 2026-02-07 - US-003: Download restaurant and dining images batch 1 (9 businesses)
+
+**What I did:**
+- Launched 9 parallel agents to search for image URLs for each business
+- Created batch JSON file and downloaded all 9 images using download-image.js
+- 8/9 succeeded on first attempt; 1 (impact-kitchen) required retry with different URL
+- Validated all 9 are real JPEG 800x600 progressive
+- Updated tracking log to 9/76 complete
+
+**Images downloaded:**
+- mildreds-temple-kitchen.jpg from mildreds.ca (Shopify CDN)
+- nodo-liberty-village.jpg from blogTO
+- chiang-mai-thai.jpg from official website (website-files CDN)
+- burger-drops.jpg from fcr.ca
+- impact-kitchen.jpg from Google (lh3.googleusercontent.com) — retry after blogTO returned HTML
+- local-public-eatery.jpg from localpubliceatery.com
+- school-restaurant.jpg from schoolrestaurant.ca (Squarespace CDN)
+- oeb-breakfast-co.jpg from eatoeb.com
+- brazen-head-irish-pub.jpg from simpleviewinc.com (Tourism Toronto)
+
+**Failed/retried:**
+- impact-kitchen.jpg — first attempt from blogTO returned HTML, retried with Google hosted image
+
+**Learnings:**
+- blogTO image URLs sometimes return HTML instead of images (possibly hotlink protection)
+- Google lh3.googleusercontent.com URLs work well as fallback for restaurant images
+- Parallel agent swarming works efficiently — all 9 URLs found in under 2 minutes
+- Batch download with download-image.js handles mixed success/failure gracefully
+
