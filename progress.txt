@@ -159,3 +159,36 @@ Goal: Unknown
 - Unsplash continues to be reliable fallback for businesses without specific Toronto presence (Precision Athletics)
 - 10/10 first-attempt success rate — batch download process is very reliable now
 
+## 2026-02-07 - US-007: Download health and medical images (10 businesses)
+
+**What I did:**
+- Launched 10 parallel agents to search for image URLs for each health/medical business
+- Created batch JSON file and downloaded all 10 images using download-image.js
+- 9/10 succeeded on first attempt; 1 (liberty-village-massage-therapy) required retry with different URL format
+- Validated all 10 are real JPEG 800x600 progressive
+- Updated tracking log to 43/76 complete
+
+**Images downloaded:**
+- liberty-village-dental.jpg from libertyvillagedental.com (WordPress CDN - office interior)
+- edition-dental.jpg from torontoobserver.ca (Toronto Observer - storefront banner photo)
+- liberty-village-physio.jpg from villagerehabteam.com (Squarespace CDN - clinic screenshot)
+- liberty-village-chiropractic.jpg from villagerehabteam.com (Squarespace CDN - chiropractic stock)
+- liberty-village-massage-therapy.jpg from myodetox.com (Webflow CDN - LV clinic photo)
+- liberty-village-optometry.jpg from seeandbeseeneyecare.com (WordPress CDN - LV location)
+- benchmark-optometry.jpg from Unsplash (modern eye care clinic stock)
+- liberty-village-family-medicine.jpg from libertyvillagetoronto.com (clinic front photo)
+- liberty-village-animal-hospital.jpg from libertyvillageanimalhospital.com (staff with dogs)
+- sweet-flour-bake-shop.jpg from sweetflour.ca (Shopify CDN - cookie gift box)
+
+**Failed/retried:**
+- liberty-village-massage-therapy.jpg — first attempt with .avif URL failed (not recognized as valid image by download script), retried with .jpg extension on same Webflow CDN path
+
+**Learnings:**
+- Webflow CDN stores images as AVIF but can serve them as JPEG by changing extension from .avif to .jpg
+- Village Rehab Team (villagerehabteam.com) covers multiple health disciplines at Liberty Village — good source for physio and chiro images
+- See & Be Seen Eye Care rebranded from Liberty Village Optometry — their WordPress site has location-specific images
+- BenchMark Optometry website doesn't resolve — fell back to Unsplash stock
+- Liberty Village Animal Hospital has a simple website with direct image URLs (no CDN)
+- libertyvillagetoronto.com community site has historical photos of local businesses
+- Toronto Observer had a good article about Edition Dental with usable storefront photo
+
