@@ -360,7 +360,7 @@ This loop continues until the code-reviewer reports zero image issues across the
 
 **IMPORTANT: Never pass downloaded image data inline into conversation context. Always save to file with a filename parameter. Track all progress here.**
 
-Progress: 33/76 complete
+Progress: 43/76 complete
 
 | # | Slug | Filename | Filepath | Source | Status |
 |---|------|----------|----------|--------|--------|
@@ -397,16 +397,16 @@ Progress: 33/76 complete
 | 31 | yoga-tree-liberty-village | yoga-tree-liberty-village.jpg | /public/images/businesses/ | blogTO (CloudFront CDN) | done |
 | 32 | studio-spin-liberty-village | studio-spin-liberty-village.jpg | /public/images/businesses/ | blogTO (CloudFront CDN - SpinCo studio) | done |
 | 33 | personal-training-liberty-village | personal-training-liberty-village.jpg | /public/images/businesses/ | Unsplash (personal training stock) | done |
-| 34 | liberty-village-dental | liberty-village-dental.jpg | /public/images/businesses/ | — | pending |
-| 35 | edition-dental | edition-dental.jpg | /public/images/businesses/ | — | pending |
-| 36 | liberty-village-physio | liberty-village-physio.jpg | /public/images/businesses/ | — | pending |
-| 37 | liberty-village-chiropractic | liberty-village-chiropractic.jpg | /public/images/businesses/ | — | pending |
-| 38 | liberty-village-massage-therapy | liberty-village-massage-therapy.jpg | /public/images/businesses/ | — | pending |
-| 39 | liberty-village-optometry | liberty-village-optometry.jpg | /public/images/businesses/ | — | pending |
-| 40 | benchmark-optometry | benchmark-optometry.jpg | /public/images/businesses/ | — | pending |
-| 41 | liberty-village-family-medicine | liberty-village-family-medicine.jpg | /public/images/businesses/ | — | pending |
-| 42 | liberty-village-animal-hospital | liberty-village-animal-hospital.jpg | /public/images/businesses/ | — | pending |
-| 43 | sweet-flour-bake-shop | sweet-flour-bake-shop.jpg | /public/images/businesses/ | — | pending |
+| 34 | liberty-village-dental | liberty-village-dental.jpg | /public/images/businesses/ | libertyvillagedental.com (WordPress CDN - office interior) | done |
+| 35 | edition-dental | edition-dental.jpg | /public/images/businesses/ | torontoobserver.ca (Toronto Observer - storefront banner) | done |
+| 36 | liberty-village-physio | liberty-village-physio.jpg | /public/images/businesses/ | villagerehabteam.com (Squarespace CDN - clinic) | done |
+| 37 | liberty-village-chiropractic | liberty-village-chiropractic.jpg | /public/images/businesses/ | villagerehabteam.com (Squarespace CDN - chiropractic) | done |
+| 38 | liberty-village-massage-therapy | liberty-village-massage-therapy.jpg | /public/images/businesses/ | myodetox.com (Webflow CDN - LV clinic) | done |
+| 39 | liberty-village-optometry | liberty-village-optometry.jpg | /public/images/businesses/ | seeandbeseeneyecare.com (WordPress CDN - LV location) | done |
+| 40 | benchmark-optometry | benchmark-optometry.jpg | /public/images/businesses/ | Unsplash (modern eye care clinic) | done |
+| 41 | liberty-village-family-medicine | liberty-village-family-medicine.jpg | /public/images/businesses/ | libertyvillagetoronto.com (clinic front) | done |
+| 42 | liberty-village-animal-hospital | liberty-village-animal-hospital.jpg | /public/images/businesses/ | libertyvillageanimalhospital.com (staff with dogs) | done |
+| 43 | sweet-flour-bake-shop | sweet-flour-bake-shop.jpg | /public/images/businesses/ | sweetflour.ca (Shopify CDN - cookie gift box) | done |
 | 44 | bsuite-hair-salon | bsuite-hair-salon.jpg | /public/images/businesses/ | — | pending |
 | 45 | lavish-hair-studio | lavish-hair-studio.jpg | /public/images/businesses/ | — | pending |
 | 46 | baz-and-banks-barber | baz-and-banks-barber.jpg | /public/images/businesses/ | — | pending |
