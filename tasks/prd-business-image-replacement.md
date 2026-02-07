@@ -360,7 +360,7 @@ This loop continues until the code-reviewer reports zero image issues across the
 
 **IMPORTANT: Never pass downloaded image data inline into conversation context. Always save to file with a filename parameter. Track all progress here.**
 
-Progress: 43/76 complete
+Progress: 50/76 complete
 
 | # | Slug | Filename | Filepath | Source | Status |
 |---|------|----------|----------|--------|--------|
@@ -407,13 +407,13 @@ Progress: 43/76 complete
 | 41 | liberty-village-family-medicine | liberty-village-family-medicine.jpg | /public/images/businesses/ | libertyvillagetoronto.com (clinic front) | done |
 | 42 | liberty-village-animal-hospital | liberty-village-animal-hospital.jpg | /public/images/businesses/ | libertyvillageanimalhospital.com (staff with dogs) | done |
 | 43 | sweet-flour-bake-shop | sweet-flour-bake-shop.jpg | /public/images/businesses/ | sweetflour.ca (Shopify CDN - cookie gift box) | done |
-| 44 | bsuite-hair-salon | bsuite-hair-salon.jpg | /public/images/businesses/ | — | pending |
-| 45 | lavish-hair-studio | lavish-hair-studio.jpg | /public/images/businesses/ | — | pending |
-| 46 | baz-and-banks-barber | baz-and-banks-barber.jpg | /public/images/businesses/ | — | pending |
-| 47 | tips-and-toes-nail-salon | tips-and-toes-nail-salon.jpg | /public/images/businesses/ | — | pending |
-| 48 | liberty-pooch | liberty-pooch.jpg | /public/images/businesses/ | — | pending |
-| 49 | woofstock-pet-supplies | woofstock-pet-supplies.jpg | /public/images/businesses/ | — | pending |
-| 50 | the-dog-house-grooming | the-dog-house-grooming.jpg | /public/images/businesses/ | — | pending |
+| 44 | bsuite-hair-salon | bsuite-hair-salon.jpg | /public/images/businesses/ | bsuite.ca (Squarespace CDN - salon interior) | done |
+| 45 | lavish-hair-studio | lavish-hair-studio.jpg | /public/images/businesses/ | Unsplash (warm hair salon interior) | done |
+| 46 | baz-and-banks-barber | baz-and-banks-barber.jpg | /public/images/businesses/ | viewthevibe.com (grand opening event photo) | done |
+| 47 | tips-and-toes-nail-salon | tips-and-toes-nail-salon.jpg | /public/images/businesses/ | Flickr CC BY 2.0 (nail salon interior) | done |
+| 48 | liberty-pooch | liberty-pooch.jpg | /public/images/businesses/ | libertypooch.ca (Squarespace CDN - dog walkers) | done |
+| 49 | woofstock-pet-supplies | woofstock-pet-supplies.jpg | /public/images/businesses/ | Wikimedia Commons (pet supply store) | done |
+| 50 | the-dog-house-grooming | the-dog-house-grooming.jpg | /public/images/businesses/ | Wikimedia Commons (dog grooming) | done |
 | 51 | spaces-liberty-village | spaces-liberty-village.jpg | /public/images/businesses/ | — | pending |
 | 52 | the-fueling-station | the-fueling-station.jpg | /public/images/businesses/ | — | pending |
 | 53 | wework-liberty-village | wework-liberty-village.jpg | /public/images/businesses/ | — | pending |
