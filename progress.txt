@@ -99,3 +99,29 @@ Goal: Unknown
 - Squarespace CDN URLs from official restaurant sites work reliably
 - WordPress CDN URLs (wp-content/uploads) are generally reliable for restaurant chains
 
+## 2026-02-07 - US-005: Download coffee shop images (5 businesses)
+
+**What I did:**
+- Launched 5 parallel agents to search for image URLs for each coffee shop
+- Created batch JSON file and downloaded all 5 images using download-image.js
+- All 5 succeeded on first attempt — no retries needed
+- Validated all 5 are real JPEG 800x600 progressive
+- Updated tracking log to 23/76 complete
+
+**Images downloaded:**
+- balzacs-coffee-liberty-village.jpg from balzacs.com (Shopify CDN - Liberty Village location poster)
+- louie-coffee-bar.jpg from louiecoffee.com (WordPress CDN)
+- arvo-coffee.jpg from blogTO (CloudFront CDN)
+- dark-horse-espresso-liberty-village.jpg from darkhorseespresso.com (Shopify CDN - interior shot)
+- jimmys-coffee-liberty-village.jpg from jimmyscoffee.ca (Squarespace CDN - Portland St storefront)
+
+**Failed/retried:**
+- None — all 5 succeeded on first attempt
+
+**Learnings:**
+- Balzac's has a specific Liberty Village location page with a poster image — great direct source
+- Shopify CDN URLs from official coffee shop sites work reliably (both Balzac's and Dark Horse use Shopify)
+- blogTO CloudFront CDN works well for Arvo Coffee (unlike previous issues with blogTO for restaurants)
+- Jimmy's Coffee doesn't have an actual Liberty Village location — used Portland St (nearest) storefront image
+- 5/5 first-attempt success rate continues the improving trend
+
