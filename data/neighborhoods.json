@@ -1,0 +1,726 @@
+[
+  {
+    "slug": "king-west",
+    "name": "King West",
+    "avgRent1BR": 2700,
+    "avgRent2BR": 3600,
+    "transitScore": 90,
+    "walkScore": 95,
+    "bikeScore": 80,
+    "population": 15000,
+    "medianAge": 30,
+    "medianIncome": 105000,
+    "vibe": "Toronto's nightlife and entertainment capital. Trendy bars, upscale restaurants, and a see-and-be-seen crowd along King Street.",
+    "bestFor": ["nightlife lovers", "young professionals", "foodies"],
+    "pros": ["Incredible restaurant scene", "Walkable to Financial District", "Vibrant nightlife", "King Street transit priority", "Dense retail and shopping options"],
+    "cons": ["Expensive rent", "Noisy on weekends", "Limited green space", "Tourist crowds"],
+    "distanceFromLV": 1.5,
+    "keyDifference": "King West is louder and pricier — LV gives you neighborhood charm at a lower price point.",
+    "verdict": {
+      "summary": "King West and Liberty Village are neighbors, but they feel different. King West is flashier with better nightlife but higher rent. Liberty Village offers more community feel, better value, and actual green space at Lamport Stadium.",
+      "lvWinsAt": ["More affordable rent", "Stronger community feel", "More green space", "Quieter streets"],
+      "theyWinAt": ["Better nightlife", "More walkable to downtown", "Better transit score", "More restaurant variety"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "King West commands a clear premium over Liberty Village. Expect to pay roughly $100 to $200 more per month for a comparable one-bedroom condo, and the gap widens for two-bedrooms. Groceries are similarly priced since both neighborhoods rely on the same Loblaws and Metro locations, but dining out in King West hits harder — entrees at the trendy King Street restaurants routinely run $25 to $40. Liberty Village has its own growing food scene, but everyday spots like cafes and takeout joints tend to be more reasonably priced. If you factor in the cost of nightlife, King West residents spend considerably more on weekends. For renters watching their budget, Liberty Village delivers a very similar urban lifestyle at a noticeably lower monthly cost.",
+      "transitAndCommute": "Both neighborhoods sit along the King streetcar corridor, but King West has a meaningful edge in transit access. The 504 King streetcar benefits from transit signal priority through the Entertainment District, and King West residents can walk to St. Andrew station in under ten minutes. Liberty Village relies more heavily on the 504 and the 63 Ossington bus, and the streetcar can bottleneck at the Dufferin Gates. The upcoming Ontario Line will not directly serve either neighborhood, but King West will have easier connections via the downtown core. Cyclists in both areas benefit from dedicated bike lanes along Richmond and Adelaide. For car commuters, Liberty Village has slightly easier access to the Gardiner Expressway, which can shave minutes off a westbound drive.",
+      "foodAndNightlife": "King West is hard to beat when it comes to dining and nightlife density. The strip between Bathurst and Spadina packs in dozens of acclaimed restaurants, rooftop patios, and cocktail bars. Liberty Village has seen strong growth in its food scene — spots like Mildred's Temple Kitchen and the assorted restaurants along Liberty Street hold their own — but the sheer variety in King West is on another level. For nightlife, there is no contest: King West is where Toronto goes out on Friday and Saturday nights. Liberty Village is more of a weeknight-pint-at-the-local-pub kind of place, which is either a pro or a con depending on your lifestyle. If curated dining experiences and bottle-service clubs matter to you, King West wins decisively.",
+      "safetyAndCommunity": "Liberty Village has a stronger sense of neighborhood identity than King West. The LV community is tight-knit, with active Facebook groups, local dog parks that double as social hubs, and seasonal events like the Liberty Village BIA street festivals. King West draws a more transient crowd — tourists, clubgoers, and short-term renters cycling through Airbnb-style units. Crime statistics are comparable for both areas, though King West sees more late-night incidents tied to its nightlife economy. Liberty Village feels safer after midnight simply because there are fewer intoxicated strangers roaming the streets. Families are rare in both neighborhoods, but Liberty Village has a slight edge with its proximity to park space and a calmer residential atmosphere during the day.",
+      "bestFor": "Choose King West if you are in your mid-twenties, working in finance or tech downtown, and your social life revolves around dining out and nightlife. The walkability to Bay Street and the Entertainment District is unmatched, and you will never run out of new restaurants to try. Choose Liberty Village if you want a similar urban condo lifestyle but prefer a neighborhood that actually feels like a neighborhood — with community events, familiar faces at the coffee shop, and a quieter evening atmosphere. Liberty Village is also the smarter financial pick, letting you save a couple hundred dollars a month without sacrificing much in terms of location or amenities. Both are excellent choices for young professionals in Toronto."
+    },
+    "faqs": [
+      {
+        "question": "Is Liberty Village cheaper than King West?",
+        "answer": "Yes, Liberty Village averages about $100 to $200 less per month for a one-bedroom. King West's premium location along King Street drives higher rents, while LV offers similar proximity to downtown at a better value."
+      },
+      {
+        "question": "Which neighborhood has better transit, King West or Liberty Village?",
+        "answer": "King West has the edge with a transit score of 90 versus Liberty Village's 78. King West residents can walk to St. Andrew subway station, while LV relies more on the 504 streetcar and buses. Both share the King streetcar corridor, but King West has faster connections to the subway."
+      },
+      {
+        "question": "Is King West or Liberty Village better for families?",
+        "answer": "Neither neighborhood is particularly family-oriented, but Liberty Village has a slight edge. LV offers more green space at Lamport Stadium Park and a quieter atmosphere, while King West's nightlife scene makes it less appealing for families with young children."
+      },
+      {
+        "question": "Can I walk between Liberty Village and King West?",
+        "answer": "Yes, they are adjacent neighborhoods separated by about 1.5 km. A walk from the centre of Liberty Village to King and Bathurst takes roughly 15 to 20 minutes. Many residents enjoy the permeability between the two areas for dining and socializing."
+      }
+    ]
+  },
+  {
+    "slug": "cityplace",
+    "name": "CityPlace",
+    "avgRent1BR": 2500,
+    "avgRent2BR": 3300,
+    "transitScore": 82,
+    "walkScore": 80,
+    "bikeScore": 70,
+    "population": 20000,
+    "medianAge": 29,
+    "medianIncome": 78000,
+    "vibe": "A dense cluster of glass condo towers near the waterfront. Functional and convenient, but often criticized for lacking soul or neighborhood character.",
+    "bestFor": ["budget-conscious commuters", "new-to-Toronto renters", "downtown workers"],
+    "pros": ["Lower rent than most downtown neighborhoods", "Close to Union Station", "Waterfront access", "Modern condo stock", "Near Scotiabank Arena and Rogers Centre"],
+    "cons": ["Lacks neighborhood character", "Wind tunnel effect between towers", "Limited local retail", "Overcrowded sidewalks and elevators"],
+    "distanceFromLV": 2.0,
+    "keyDifference": "CityPlace is cheaper but feels like a dormitory — Liberty Village has actual neighborhood identity and community.",
+    "verdict": {
+      "summary": "CityPlace offers lower rent and proximity to Union Station, but it trades away neighborhood character to get there. Liberty Village costs slightly more but delivers a genuine community with local businesses, green space, and a sense of place that CityPlace simply does not have.",
+      "lvWinsAt": ["Stronger community identity", "Better local retail and restaurants", "More green space", "Less wind and more livable streets"],
+      "theyWinAt": ["Lower average rent", "Closer to Union Station", "Waterfront proximity", "Newer building stock"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "CityPlace is one of the more affordable options in downtown Toronto, and it undercuts Liberty Village by roughly $100 per month on a one-bedroom. The savings come with trade-offs: CityPlace units tend to be smaller micro-condos in high-rise towers, so you are often getting less square footage per dollar. Groceries require a trip to the Loblaws at Queens Quay or Bathurst, and there are fewer casual dining options nearby, meaning you may spend more on delivery apps. Liberty Village has a denser cluster of local cafes, restaurants, and convenience stores within walking distance. When you account for quality of life and what your rent actually buys you in terms of livability, Liberty Village often represents the better overall value despite the slightly higher sticker price.",
+      "transitAndCommute": "CityPlace has a genuine advantage for anyone commuting via GO Transit or the TTC subway. Union Station is a 10 to 15 minute walk, and the 509 and 510 streetcars connect CityPlace to the broader streetcar network. Liberty Village relies on the 504 King and 63 Ossington routes, and the ride to Union Station takes about 20 minutes by streetcar. For cyclists, both neighborhoods connect to the Martin Goodman Trail and waterfront paths, though CityPlace has more direct access. Where Liberty Village gains ground is in westbound commuting — the Gardiner Expressway on-ramp at Dufferin is more accessible from LV, and the Exhibition GO station provides an alternative rail option. Overall, CityPlace wins for TTC and GO commuters, while LV is comparable for drivers and cyclists.",
+      "foodAndNightlife": "Liberty Village has a meaningfully better food and nightlife scene than CityPlace. LV has established local favorites like Mildred's Temple Kitchen, School, and a growing number of cafes and breweries along Liberty Street. CityPlace has a handful of chain restaurants and fast-casual spots, but nothing that qualifies as a dining destination. Nightlife in CityPlace is essentially nonexistent — residents head to King West or the Entertainment District for a night out, just as LV residents sometimes do. The difference is that Liberty Village has its own pubs and patios where you can have a quality evening without leaving the neighborhood. CityPlace functions more as a bedroom community for downtown, while Liberty Village operates as a self-contained neighborhood with its own culinary identity.",
+      "safetyAndCommunity": "Community is where Liberty Village pulls far ahead. CityPlace has long been criticized for feeling anonymous — the massive towers, transient renter population, and lack of ground-level retail create an environment where neighbors rarely know each other. Liberty Village has an active BIA, community Facebook groups with thousands of engaged members, dog parks that serve as social hubs, and seasonal festivals that bring residents together. Crime rates are similar in both areas, with petty property crime being the most common issue. CityPlace does experience more elevator-related frustrations and package theft due to building density. Liberty Village's lower-rise built form and mixed-use streetscape create a more human-scale environment that naturally fosters the kind of casual social interactions that build a real neighborhood.",
+      "bestFor": "Choose CityPlace if your number one priority is minimizing rent while staying close to Union Station. It is a functional place to live, and the waterfront access is a genuine perk for runners and cyclists. Choose Liberty Village if you want to actually enjoy your neighborhood — to have a local coffee shop where the barista knows your order, to walk your dog in a real park, and to feel like you belong to a community rather than just occupying a unit in a tower. Liberty Village is where you build a life in Toronto; CityPlace is where you sleep between shifts. That may sound harsh, but residents of both neighborhoods will generally agree with the distinction."
+    },
+    "faqs": [
+      {
+        "question": "Is CityPlace or Liberty Village better for first-time renters in Toronto?",
+        "answer": "CityPlace is cheaper, but Liberty Village is the better introduction to Toronto. LV has neighborhood character, local events, and a community that helps newcomers feel at home. CityPlace can feel isolating, especially for people new to the city."
+      },
+      {
+        "question": "Which is closer to downtown, CityPlace or Liberty Village?",
+        "answer": "CityPlace is closer to Union Station and the Financial District by about 10 minutes. However, Liberty Village offers better direct streetcar service along King Street and easier access to the west end of downtown."
+      },
+      {
+        "question": "Are CityPlace condos better than Liberty Village condos?",
+        "answer": "CityPlace condos are generally newer but smaller, often criticized for poor construction quality and tiny layouts. Liberty Village has a wider mix of converted lofts, mid-rise condos, and newer builds, offering more variety in unit styles and sizes."
+      },
+      {
+        "question": "Is CityPlace safe compared to Liberty Village?",
+        "answer": "Both neighborhoods have comparable safety profiles. CityPlace sees slightly more petty crime due to higher population density and proximity to the Gardiner underpass areas. Liberty Village benefits from a more engaged community that actively monitors neighborhood safety through local social media groups."
+      }
+    ]
+  },
+  {
+    "slug": "queen-west",
+    "name": "Queen West",
+    "avgRent1BR": 2650,
+    "avgRent2BR": 3500,
+    "transitScore": 92,
+    "walkScore": 97,
+    "bikeScore": 85,
+    "population": 18000,
+    "medianAge": 32,
+    "medianIncome": 95000,
+    "vibe": "Toronto's creative heartbeat. A vibrant mix of indie boutiques, galleries, vintage shops, and diverse restaurants stretching west from University Avenue.",
+    "bestFor": ["creatives and artists", "shoppers", "culture enthusiasts"],
+    "pros": ["Exceptional walkability", "Thriving arts and culture scene", "Diverse independent retail", "Excellent transit connections", "Iconic Toronto streetscape"],
+    "cons": ["Rent is rising fast", "Noisy main street", "Limited parking", "Increasing chain store presence"],
+    "distanceFromLV": 2.0,
+    "keyDifference": "Queen West is Toronto's creative boulevard — Liberty Village offers a similar artsy spirit with more affordable rent and a quieter residential feel.",
+    "verdict": {
+      "summary": "Queen West delivers unmatched walkability and cultural vibrancy, but it comes at a premium and can feel more like a commercial strip than a residential neighborhood. Liberty Village offers a calmer, more affordable version of the creative urban lifestyle with genuine neighborhood community.",
+      "lvWinsAt": ["More affordable rent", "Quieter residential streets", "Stronger community feel", "More green space"],
+      "theyWinAt": ["Superior walkability", "Better transit access", "More shopping and culture", "Higher bike score"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Queen West and Liberty Village are close in pricing, but Queen West has been trending upward faster. A one-bedroom on Queen West averages around $2,650, about $50 more than Liberty Village, but the real cost difference shows up in lifestyle spending. Queen West's independent boutiques and trendy cafes make it easy to overspend on a casual Saturday afternoon. Groceries are comparable — both neighborhoods have good access to major chains and independent shops. Liberty Village residents save money by having fewer temptations at their doorstep, which sounds like a joke but genuinely affects monthly budgets. If you are comparing apples to apples on rent alone, the gap is modest, but the total cost of living in Queen West trends higher because of the neighborhood's retail-heavy character.",
+      "transitAndCommute": "Queen West has a clear transit advantage with a score of 92 compared to Liberty Village's 78. The 501 Queen streetcar is one of the longest and most frequent routes in the TTC system, and the neighborhood sits between Osgoode and St. Patrick stations. Liberty Village is served by the 504 King streetcar and the 63 Ossington bus, but reaching a subway station requires a transfer or a longer walk. Cyclists will find Queen West slightly better connected, with dedicated lanes and direct east-west routes into the core. For drivers, neither neighborhood is ideal — Queen West has almost no parking, while Liberty Village at least offers some building parking and easier Gardiner access. The commute from Queen West to the Financial District is about 15 minutes by streetcar versus 25 from Liberty Village.",
+      "foodAndNightlife": "Queen West's food and nightlife scene is legendary. From the Drake Hotel to Byblos to countless independent eateries, the strip offers one of the densest concentrations of dining options in Canada. Liberty Village has carved out its own niche with spots like Mildred's Temple Kitchen and a growing number of breweries, but it cannot match Queen West's sheer volume or variety. Nightlife follows the same pattern — Queen West has everything from dive bars to upscale cocktail lounges, while Liberty Village offers a handful of solid local pubs. The trade-off is that Queen West's food scene is designed to attract visitors from across the city, which means crowded patios and long waits on weekends. Liberty Village's restaurants feel more like neighborhood joints where you can actually get a table.",
+      "safetyAndCommunity": "Liberty Village outperforms Queen West on community cohesion. Queen West is a commercial corridor first and a residential neighborhood second — the constant foot traffic from shoppers and tourists creates energy but dilutes the sense of local community. Liberty Village has a defined geographic boundary and a residential population that actively engages through local groups, dog park meetups, and BIA events. Safety is comparable, though Queen West's late-night bar scene generates more noise complaints and street-level incidents on weekends. Liberty Village feels more residential and secure after dark. Both neighborhoods attract a similar demographic of young professionals and creatives, but Liberty Village residents tend to know their neighbors, while Queen West residents are more likely to know their barista.",
+      "bestFor": "Choose Queen West if you live for Toronto's cultural pulse — gallery openings, indie music, vintage shopping, and being at the center of the city's creative energy. It is ideal for people who want to walk everywhere and never need a car. Choose Liberty Village if you want the creative, artsy vibe but in a neighborhood that actually feels like home. LV has the converted lofts, the local coffee culture, and the young professional crowd, but without the tourist foot traffic and weekend chaos of Queen Street. If you work from home and value a quieter daytime environment, Liberty Village is the better pick. If you thrive on street energy and constant stimulation, Queen West delivers that in spades."
+    },
+    "faqs": [
+      {
+        "question": "Is Liberty Village or Queen West more walkable?",
+        "answer": "Queen West is more walkable with a score of 97 versus Liberty Village's 85. Queen West has denser retail, more frequent transit, and direct subway access. Liberty Village is walkable within its boundaries but requires transit to reach amenities beyond the neighborhood."
+      },
+      {
+        "question": "Which neighborhood is better for young professionals?",
+        "answer": "Both are excellent for young professionals. Queen West suits those who prioritize nightlife, shopping, and cultural activities. Liberty Village appeals more to young professionals who want a community-oriented neighborhood with a slightly lower cost of living and quieter evenings."
+      },
+      {
+        "question": "Is Queen West getting too expensive?",
+        "answer": "Queen West rents have risen significantly over the past five years, and some long-time residents feel the neighborhood is losing its indie character to chain stores and luxury developments. Liberty Village offers a more stable and affordable alternative while maintaining a creative, youthful atmosphere."
+      },
+      {
+        "question": "Can I bike between Liberty Village and Queen West easily?",
+        "answer": "Yes, the bike ride takes about 8 to 12 minutes depending on your exact starting point. The route along Sudbury Street or Dovercourt Road connects the two neighborhoods with relatively bike-friendly streets. Many LV residents regularly cycle to Queen West for shopping and dining."
+      }
+    ]
+  },
+  {
+    "slug": "parkdale",
+    "name": "Parkdale",
+    "avgRent1BR": 2200,
+    "avgRent2BR": 2900,
+    "transitScore": 85,
+    "walkScore": 88,
+    "bikeScore": 78,
+    "population": 22000,
+    "medianAge": 35,
+    "medianIncome": 62000,
+    "vibe": "A gritty, diverse, and rapidly gentrifying neighborhood with a proud working-class history. Tibetan restaurants sit beside Jamaican patty shops and trendy new bars along Queen West.",
+    "bestFor": ["budget-conscious renters", "diversity seekers", "foodies exploring global cuisine"],
+    "pros": ["Most affordable rent near downtown", "Incredible cultural diversity", "Authentic global food scene", "Lakefront proximity", "Strong neighborhood activism"],
+    "cons": ["Higher crime rates in some pockets", "Gentrification tensions", "Some areas feel rough at night", "Aging housing stock"],
+    "distanceFromLV": 2.5,
+    "keyDifference": "Parkdale is grittier and cheaper with unmatched diversity — LV is more polished and homogeneous but feels safer and more predictable.",
+    "verdict": {
+      "summary": "Parkdale offers Toronto's best rent value near downtown and an authentically diverse community that Liberty Village cannot match. Liberty Village is safer, more polished, and has a stronger condo-oriented community, but it lacks Parkdale's cultural richness and affordability.",
+      "lvWinsAt": ["Safer streets", "More modern housing stock", "Stronger condo community", "Cleaner streetscape"],
+      "theyWinAt": ["Significantly cheaper rent", "Far more culturally diverse", "Better global food scene", "Lake Ontario access"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Parkdale is significantly cheaper than Liberty Village, with one-bedroom rents averaging $2,200 compared to LV's $2,600. That $400 monthly savings adds up to nearly $5,000 a year, which is meaningful for budget-conscious renters. The savings extend to dining — Parkdale's Tibetan momos, Jamaican patties, and Vietnamese pho come at prices that LV's trendier restaurants cannot match. Groceries are comparable, with both neighborhoods served by major chains and independent markets. However, Parkdale's housing stock skews older, with many units in converted Victorian houses that may lack modern amenities like in-suite laundry or central air. Liberty Village's newer condo buildings offer more predictable quality. The cost calculation ultimately depends on whether you prioritize saving money or modern conveniences.",
+      "transitAndCommute": "Both neighborhoods benefit from strong streetcar service, but Parkdale has a slight edge. The 501 Queen streetcar runs through Parkdale with high frequency, and the neighborhood sits between Exhibition and Dufferin Gate GO stations. Liberty Village relies on the 504 King streetcar, which can bottleneck at the Dufferin Gates during rush hour. Parkdale also has better north-south bus connections via the Dufferin and Lansdowne routes. For cyclists, both neighborhoods connect to the waterfront trail system, though Parkdale has more direct lake access. Liberty Village has easier Gardiner Expressway access for drivers. The planned Ontario Line will not directly serve either neighborhood, but both will benefit from reduced crowding on existing routes. Commute times to the Financial District are comparable at 25 to 30 minutes by transit.",
+      "foodAndNightlife": "Parkdale's food scene is one of Toronto's hidden gems and arguably more interesting than Liberty Village's. The neighborhood's immigrant communities have created an incredible concentration of affordable, authentic global cuisine — Tibetan, Ethiopian, Jamaican, Vietnamese, and more — all within a few blocks on Queen Street West. Liberty Village has solid restaurants but skews toward brunch spots and pub fare. For nightlife, Parkdale has evolved from dive bars into a mix of eclectic cocktail spots like Civil Liberties and Wrongbar. Liberty Village's nightlife is more subdued, centered on neighborhood pubs. If you value culinary adventure and discovering hole-in-the-wall gems, Parkdale is hard to beat. If you prefer polished, Instagram-ready brunch spots and reliable neighborhood locals, Liberty Village delivers.",
+      "safetyAndCommunity": "This is where Liberty Village and Parkdale diverge most sharply. Liberty Village feels noticeably safer, with well-lit streets, active condo security, and a homogeneous population of young professionals. Parkdale has higher rates of street-level crime, visible homelessness, and occasional drug-related incidents, particularly near Queen and Jameson. However, Parkdale's community activism is among the strongest in Toronto — residents organize fiercely around tenant rights, anti-gentrification efforts, and neighborhood safety. Liberty Village's community is engaged but in a different way, focused more on local events and social media groups than political organizing. Both neighborhoods have passionate residents, but the communities look and feel very different. LV is a condo community; Parkdale is a neighborhood in the deepest sense of the word.",
+      "bestFor": "Choose Parkdale if you want to save serious money on rent, experience Toronto's genuine cultural diversity, and do not mind a neighborhood that is rough around the edges. Parkdale rewards adventurous eaters and people who value authenticity over polish. Choose Liberty Village if you prioritize safety, modern amenities, and a predictable urban lifestyle. LV is ideal for young professionals who want a clean, well-maintained neighborhood with a strong community of peers. The choice often comes down to personality: Parkdale attracts people who love the messy vitality of real city life, while Liberty Village appeals to those who prefer their urban experience curated and comfortable."
+    },
+    "faqs": [
+      {
+        "question": "Is Parkdale safe compared to Liberty Village?",
+        "answer": "Liberty Village is generally considered safer than Parkdale. Parkdale has higher rates of petty crime and visible homelessness, particularly near Queen and Jameson. However, Parkdale has been improving steadily, and most long-term residents feel comfortable in the neighborhood."
+      },
+      {
+        "question": "How much cheaper is Parkdale than Liberty Village?",
+        "answer": "Parkdale averages about $400 less per month for a one-bedroom apartment. The savings are even larger if you compare similar-sized units, since Parkdale apartments in older buildings tend to be more spacious than Liberty Village condos."
+      },
+      {
+        "question": "Is Parkdale gentrifying?",
+        "answer": "Yes, Parkdale has been gentrifying steadily, with new cocktail bars and trendy restaurants appearing alongside the neighborhood's traditional businesses. Rents have risen significantly over the past decade, though Parkdale remains one of the most affordable neighborhoods near downtown Toronto."
+      },
+      {
+        "question": "Which neighborhood has better food, Parkdale or Liberty Village?",
+        "answer": "Parkdale has a more diverse and adventurous food scene with authentic global cuisine at lower prices. Liberty Village has solid restaurants but focuses more on brunch, pub fare, and contemporary Canadian dining. It depends on whether you prefer culinary exploration or reliable neighborhood favorites."
+      },
+      {
+        "question": "Can I walk from Parkdale to Liberty Village?",
+        "answer": "Yes, the walk takes about 25 to 35 minutes depending on your exact starting and ending points. The most direct route follows King Street or takes the waterfront trail. Many residents bike between the two neighborhoods in about 10 minutes."
+      }
+    ]
+  },
+  {
+    "slug": "junction",
+    "name": "The Junction",
+    "avgRent1BR": 2300,
+    "avgRent2BR": 3000,
+    "transitScore": 72,
+    "walkScore": 84,
+    "bikeScore": 75,
+    "population": 16000,
+    "medianAge": 34,
+    "medianIncome": 88000,
+    "vibe": "A former industrial district turned hip village. Independent coffee roasters, craft breweries, and vintage shops line Dundas West near Keele, with a strong buy-local ethos.",
+    "bestFor": ["craft beer enthusiasts", "young families", "indie retail lovers"],
+    "pros": ["Strong independent business scene", "More affordable than downtown", "Village-like feel within the city", "Growing food and brewery scene", "Heritage character homes"],
+    "cons": ["Farther from downtown core", "Limited subway access", "Fewer condo options", "Can feel quiet on weeknights"],
+    "distanceFromLV": 4.5,
+    "keyDifference": "The Junction offers a village feel with heritage homes — LV offers a modern condo lifestyle closer to downtown.",
+    "verdict": {
+      "summary": "The Junction appeals to people seeking a village atmosphere with heritage character and independent shops, while Liberty Village caters to condo-dwelling professionals who want to be closer to the action. Both have strong local identities, but they serve different lifestyle preferences.",
+      "lvWinsAt": ["Closer to downtown", "More modern housing", "Better transit score", "Higher walkability"],
+      "theyWinAt": ["More affordable rent", "Stronger indie retail scene", "Better for families", "Heritage architecture"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "The Junction undercuts Liberty Village on rent by about $300 per month for a one-bedroom, making it one of the better values in Toronto's west end. However, the housing type differs significantly — The Junction offers more traditional apartments and rented houses rather than LV's condo towers and converted lofts. Groceries and daily expenses are comparable, though The Junction's Dundas West strip has more independent shops where you might spend a bit more on artisanal goods. Dining out is slightly cheaper in The Junction, with a thriving pub and brewery scene that keeps prices reasonable. Liberty Village residents pay more in rent but benefit from newer buildings with modern amenities like gyms and concierge services. The Junction requires less rent but often means older building stock without the condo perks.",
+      "transitAndCommute": "Liberty Village has a slight transit edge over The Junction, primarily because of its proximity to the King streetcar and the Gardiner Expressway. The Junction is served by the 40 Junction bus and Dundas West streetcar, with the Dundas West station on the Bloor-Danforth line providing subway access. This gives The Junction a direct subway connection that Liberty Village lacks, but the subway station is a 10-minute walk from the heart of the neighborhood. Commute times to the Financial District run about 30 to 35 minutes from The Junction versus 25 minutes from Liberty Village. For cyclists, both neighborhoods offer decent infrastructure, though Liberty Village's flat terrain and proximity to waterfront trails make for an easier ride downtown. The Junction is better for northbound commuters heading to midtown or the university corridor.",
+      "foodAndNightlife": "Both neighborhoods have cultivated impressive local food scenes, but with different flavors. The Junction is a craft brewery paradise — Indie Alehouse, Shacklands, and Junction Craft Brewing anchor a thriving beer culture that Liberty Village cannot quite match. LV has its own breweries, but The Junction's concentration is special. For restaurants, both neighborhoods offer quality without pretension. The Junction leans into casual, chef-driven spots with a farm-to-table ethos, while Liberty Village has a broader range from brunch spots to pub fare. Nightlife is low-key in both areas — these are neighborhoods where you grab a few pints at a local spot, not where you go clubbing. If your ideal evening involves sampling a flight at a craft brewery and grabbing tacos, The Junction has a slight edge.",
+      "safetyAndCommunity": "Both Liberty Village and The Junction have strong community identities, but they manifest differently. The Junction has a decades-old neighborhood association and a proudly independent retail strip that residents actively support. Liberty Village has a younger, more digitally connected community that organizes through social media and the BIA. Safety is comparable — both are solidly middle-of-the-pack for Toronto. The Junction's residential streets feel quieter and more suburban, while Liberty Village has the urban bustle of a denser condo neighborhood. Families will find The Junction more accommodating, with better school options and more houses with yards. Liberty Village skews younger and more single, with a social scene built around condo living. Both communities rally around their local businesses, which gives each neighborhood a distinctive character.",
+      "bestFor": "Choose The Junction if you want a neighborhood that feels like a small town within the big city — somewhere with heritage homes, independent shops, and a strong brewery culture. It suits people who are willing to trade a longer commute for a more relaxed, village-like atmosphere and lower rent. Choose Liberty Village if you want modern condo living with a shorter commute to downtown and a young, professional social scene. LV is ideal for people who value convenience and urban amenities over heritage character. The Junction is where you go when you are ready to settle into a neighborhood for the long haul; Liberty Village is where you land when you want to be in the thick of Toronto's young professional energy."
+    },
+    "faqs": [
+      {
+        "question": "Is The Junction too far from downtown Toronto?",
+        "answer": "The Junction is about 30 to 35 minutes from the Financial District by transit, compared to about 25 minutes from Liberty Village. It is farther, but the Dundas West subway station provides direct subway access that Liberty Village lacks."
+      },
+      {
+        "question": "Is The Junction good for families compared to Liberty Village?",
+        "answer": "The Junction is significantly better for families, with more houses, yards, and access to schools. Liberty Village is predominantly a condo neighborhood designed for young professionals and couples. Families in The Junction also benefit from a quieter, more suburban-feeling residential environment."
+      },
+      {
+        "question": "Which has a better food scene, The Junction or Liberty Village?",
+        "answer": "Both have strong food scenes, but The Junction wins for craft beer and casual dining. Liberty Village has a broader range of restaurants and better brunch options. The choice depends on whether you prefer artisanal breweries and indie eateries or a more varied dining landscape."
+      },
+      {
+        "question": "Is rent cheaper in The Junction than Liberty Village?",
+        "answer": "Yes, The Junction averages about $300 less per month for a one-bedroom. However, Junction units are often in older buildings without the modern amenities found in Liberty Village condos, such as gyms, concierge service, and in-suite laundry."
+      }
+    ]
+  },
+  {
+    "slug": "leslieville",
+    "name": "Leslieville",
+    "avgRent1BR": 2400,
+    "avgRent2BR": 3100,
+    "transitScore": 80,
+    "walkScore": 89,
+    "bikeScore": 82,
+    "population": 20000,
+    "medianAge": 34,
+    "medianIncome": 92000,
+    "vibe": "The east end's darling neighborhood. A charming stretch of Queen East lined with indie cafes, brunch spots, design shops, and a growing family scene.",
+    "bestFor": ["brunch enthusiasts", "young families", "east-end loyalists"],
+    "pros": ["Charming main street with indie shops", "Family-friendly atmosphere", "Growing food scene", "Proximity to beaches and parks", "Character homes and lofts"],
+    "cons": ["Far from the west end", "Limited nightlife", "Streetcar commute can be slow", "Rising home prices"],
+    "distanceFromLV": 7.0,
+    "keyDifference": "Leslieville is LV's east-end mirror — similar vibe but with more families, character homes, and beach access.",
+    "verdict": {
+      "summary": "Leslieville and Liberty Village attract similar demographics but on opposite sides of the city. Leslieville offers more space, beach access, and a family-friendly environment, while Liberty Village provides a more central location, modern condos, and better access to the west end and downtown core.",
+      "lvWinsAt": ["Closer to downtown core", "More modern housing stock", "Better highway access", "Younger social scene"],
+      "theyWinAt": ["Beach and lake access", "More family-friendly", "Better bike infrastructure", "More charming streetscape"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Leslieville is moderately cheaper than Liberty Village for renters, with one-bedrooms averaging about $200 less per month. The savings are partly because Leslieville's rental stock includes more traditional apartments and basement units in addition to condos, providing more options across price points. Dining out costs are similar — both neighborhoods have a mix of casual spots and elevated restaurants. Groceries in Leslieville benefit from proximity to the East Chinatown markets, where fresh produce can be significantly cheaper. Liberty Village's cost of living is driven by its newer condo stock and proximity to the downtown west end. For buyers, Leslieville offers more houses and townhomes, though prices have climbed sharply. Overall, Leslieville provides more diverse housing at slightly lower price points.",
+      "transitAndCommute": "Transit is a tale of two streetcar routes. Liberty Village relies on the 504 King, while Leslieville depends on the 501 Queen and 504 King east of the Don Valley. Commute times to the Financial District are comparable — about 25 to 30 minutes from either neighborhood. The key difference is direction: LV commuters head east into downtown, while Leslieville commuters head west. Neither neighborhood has direct subway access, though the planned Ontario Line will significantly improve Leslieville's connectivity. Cyclists in Leslieville benefit from excellent east-west bike lanes and direct access to the Lower Don Trail. Liberty Village connects better to the Martin Goodman waterfront trail. For drivers, Liberty Village has easier Gardiner access heading west, while Leslieville benefits from the DVP for northbound commutes.",
+      "foodAndNightlife": "Both neighborhoods are brunch capitals, and the competition is fierce. Leslieville pioneered Toronto's brunch culture with spots like Lady Marmalade and Bonjour Brioche, while Liberty Village counters with Mildred's Temple Kitchen and School. For dinner, Leslieville has a slight edge in variety, with Queen East offering a long strip of diverse restaurants. Liberty Village's dining is more concentrated and tends toward pub fare and contemporary comfort food. Nightlife is quiet in both neighborhoods — these are places where people have dinner and a drink, not where they go clubbing. Leslieville's wine bars and cocktail spots have a slightly more refined feel, while LV's pubs are more casual. Both neighborhoods reward people who appreciate a good meal in a relaxed setting over bottle service and dance floors.",
+      "safetyAndCommunity": "Both neighborhoods score well on safety and community engagement, but the communities differ in composition. Leslieville has a larger family population, with stroller-friendly sidewalks, nearby schools, and kid-oriented businesses. Liberty Village skews younger and more single, with a social scene built around condo amenities and dog parks. Both have active online communities and engaged local business associations. Crime rates are comparable and low by Toronto standards. Leslieville's community is more established, with some families having been in the neighborhood for decades, while Liberty Village's community is newer and more transient as a rental-heavy condo neighborhood. Both foster a genuine sense of belonging, but Leslieville feels more like a settled residential neighborhood while LV feels more like an urban village in constant evolution.",
+      "bestFor": "Choose Leslieville if you love the idea of a charming east-end neighborhood with beach access, great brunch spots, and a family-friendly atmosphere. It is perfect for couples thinking about starting families and people who prefer character homes over condo towers. Choose Liberty Village if you want a central west-end location, modern condo living, and a younger social scene. LV is better for single professionals and couples who prioritize proximity to downtown and the Entertainment District. The choice often comes down to east versus west — both neighborhoods offer a similar quality of life, so pick the side of the city where your job, friends, and preferred hangouts are located."
+    },
+    "faqs": [
+      {
+        "question": "Is Leslieville or Liberty Village better for young families?",
+        "answer": "Leslieville is better for families, with more houses, yards, and access to schools and parks. Liberty Village is primarily a condo neighborhood geared toward young professionals and couples. Families in Leslieville also benefit from proximity to Woodbine Beach and the eastern beaches."
+      },
+      {
+        "question": "How long does it take to get from Leslieville to Liberty Village?",
+        "answer": "By transit, the trip takes about 35 to 45 minutes via the 501 or 504 streetcars. Driving takes 15 to 25 minutes depending on traffic. By bike, the waterfront trail connects the two neighborhoods in about 25 to 30 minutes."
+      },
+      {
+        "question": "Which neighborhood has better brunch, Leslieville or Liberty Village?",
+        "answer": "This is genuinely debatable. Leslieville has more brunch options concentrated along Queen East, including beloved spots like Lady Marmalade. Liberty Village counters with Mildred's Temple Kitchen and School. Both are among Toronto's top brunch neighborhoods."
+      },
+      {
+        "question": "Is Leslieville cheaper than Liberty Village?",
+        "answer": "Yes, Leslieville averages about $200 less per month for a one-bedroom rental. Leslieville also offers more variety in housing types, including traditional apartments and houses, while Liberty Village is predominantly condos."
+      }
+    ]
+  },
+  {
+    "slug": "ossington",
+    "name": "Ossington",
+    "avgRent1BR": 2550,
+    "avgRent2BR": 3400,
+    "transitScore": 86,
+    "walkScore": 93,
+    "bikeScore": 84,
+    "population": 12000,
+    "medianAge": 31,
+    "medianIncome": 90000,
+    "vibe": "A cocktail-bar-lined strip that has become one of Toronto's most celebrated nightlife and dining corridors. Trendy but intimate, with a curated cool that feels effortless.",
+    "bestFor": ["cocktail aficionados", "creative professionals", "nightlife enthusiasts"],
+    "pros": ["World-class cocktail bars", "Excellent restaurants", "High walkability", "Strong cycling infrastructure", "Cool without trying too hard"],
+    "cons": ["Noisy bar strip on weekends", "Limited green space", "Tight on parking", "Increasingly expensive"],
+    "distanceFromLV": 2.5,
+    "keyDifference": "Ossington is a nightlife corridor with excellent bars — LV is a residential neighborhood with a quieter, more community-driven lifestyle.",
+    "verdict": {
+      "summary": "Ossington is Toronto's cocktail and dining destination, offering an unmatched bar scene in a walkable, bikeable setting. Liberty Village trades nightlife prestige for neighborhood community, green space, and a calmer residential experience at a comparable price point.",
+      "lvWinsAt": ["More green space", "Quieter residential feel", "Stronger neighborhood community", "Better for remote workers"],
+      "theyWinAt": ["Superior bar and restaurant scene", "Higher walkability", "Better cycling infrastructure", "More central location"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Ossington and Liberty Village are remarkably close on rent, with Ossington's one-bedrooms averaging about $2,550 compared to LV's $2,600. This might make Ossington seem like a bargain, but the hidden costs add up. Living on one of Toronto's best bar strips means more nights out, more expensive cocktails, and more spontaneous dinner splurges. Ossington's restaurants and bars are excellent but not cheap — a cocktail at Bellwoods Brewery or Bar Raval runs $16 to $20. Liberty Village's dining scene is more casual and affordable for everyday meals. Housing quality is mixed in both areas: Ossington has older walk-up apartments alongside newer condos, while LV is predominantly modern condo stock. The net monthly cost of living is probably comparable, but Ossington's nightlife temptations can blow a budget fast.",
+      "transitAndCommute": "Ossington has a meaningful transit advantage thanks to the Ossington subway station on the Bloor-Danforth line. This gives residents direct subway access — something Liberty Village completely lacks. The 63 Ossington bus connects the strip to the subway, and Dundas streetcar service adds another option. Liberty Village's 504 King streetcar provides a direct but sometimes slow connection to the downtown core. Cyclists will love Ossington's central location and strong bike lane network along Shaw, Harbord, and the surrounding streets. Liberty Village connects to the waterfront trail but has fewer north-south bike options. For drivers, Liberty Village wins with easier Gardiner Expressway access. Overall, Ossington's subway proximity gives it a solid edge for daily commuters who rely on the TTC.",
+      "foodAndNightlife": "This is Ossington's defining strength. The strip between Dundas and Queen is packed with some of Toronto's best bars and restaurants — Bellwoods Brewery, Bar Raval, Union, PrettyUgly, and dozens more. It is a nationally recognized dining destination that draws people from across the GTA. Liberty Village has quality local spots but cannot compete with Ossington's density or prestige. For cocktail culture specifically, Ossington is arguably the best strip in Canada. Liberty Village's nightlife is neighborhood-level — a few good pubs where locals gather, but nothing that would make a best-of list. If food and drink are central to your lifestyle, Ossington is the clear winner. If you prefer a neighborhood where the local pub knows your name and you eat most meals at home, Liberty Village fits better.",
+      "safetyAndCommunity": "Liberty Village has a significantly stronger neighborhood community than Ossington. LV has a defined identity, active social media groups, community events, and a residential population that invests in the neighborhood. Ossington is more of a strip — a destination people visit rather than a self-contained neighborhood. The residential areas around Ossington are lovely, with tree-lined streets of Victorian houses, but the community identity is less defined. Safety is comparable, though Ossington sees more late-night noise and foot traffic from its bar scene. Liberty Village feels quieter and more residential after 10 PM. For people who value a strong sense of belonging and neighborhood identity, Liberty Village delivers in ways that the Ossington corridor, for all its coolness, does not.",
+      "bestFor": "Choose Ossington if your social life revolves around dining out, craft cocktails, and being close to Toronto's cultural pulse. It is ideal for creative professionals and social butterflies who want walkability, subway access, and an effortlessly cool neighborhood. Choose Liberty Village if you want a place that feels like home — with a real community, green space, and a calmer pace of life. LV suits remote workers, dog owners, and people who value their neighborhood as more than just a place to sleep between outings. Both neighborhoods attract a similar age demographic, but the lifestyle priorities differ: Ossington is for people who go out, and Liberty Village is for people who nest in."
+    },
+    "faqs": [
+      {
+        "question": "Is Ossington or Liberty Village better for nightlife?",
+        "answer": "Ossington wins this easily. The strip is one of Canada's best cocktail and dining destinations, with nationally recognized bars and restaurants. Liberty Village has solid neighborhood pubs but nothing comparable to Ossington's bar scene."
+      },
+      {
+        "question": "Is Ossington a good place to live or just to visit?",
+        "answer": "Both. The residential streets around the Ossington strip are beautiful, with tree-lined Victorian houses and a walkable layout. However, weekend noise from the bar scene can be an issue for light sleepers. Liberty Village offers a more consistently residential experience."
+      },
+      {
+        "question": "Does Ossington have subway access?",
+        "answer": "Yes, Ossington station on the Bloor-Danforth line is a short walk or bus ride from the strip. This is a major advantage over Liberty Village, which has no direct subway access and relies on streetcars and buses."
+      },
+      {
+        "question": "Which is more affordable, Ossington or Liberty Village?",
+        "answer": "Rent is nearly identical, with Ossington averaging about $50 less per month for a one-bedroom. However, the total cost of living in Ossington can be higher due to the temptation of its world-class dining and bar scene."
+      }
+    ]
+  },
+  {
+    "slug": "dundas-west",
+    "name": "Dundas West",
+    "avgRent1BR": 2400,
+    "avgRent2BR": 3200,
+    "transitScore": 84,
+    "walkScore": 91,
+    "bikeScore": 82,
+    "population": 14000,
+    "medianAge": 33,
+    "medianIncome": 85000,
+    "vibe": "An eclectic stretch where Portuguese bakeries meet trendy cocktail bars. A neighborhood in transition that balances old-Toronto charm with new-Toronto cool.",
+    "bestFor": ["culture lovers", "foodies on a budget", "community-oriented renters"],
+    "pros": ["Rich cultural mix of old and new", "Excellent bakeries and restaurants", "Dundas West subway access", "Active community feel", "Strong cycling infrastructure"],
+    "cons": ["Gentrification is changing the character", "Some areas feel transitional", "Limited parking", "Uneven sidewalk and streetscape quality"],
+    "distanceFromLV": 3.0,
+    "keyDifference": "Dundas West blends old Portuguese Toronto with new hipster culture — LV is a purpose-built modern neighborhood without that layered history.",
+    "verdict": {
+      "summary": "Dundas West offers cultural depth, subway access, and a walkable mix of old and new Toronto that Liberty Village cannot replicate. Liberty Village counters with modern housing, more green space, and a cohesive neighborhood identity that Dundas West's transitional character sometimes lacks.",
+      "lvWinsAt": ["More modern and consistent housing", "More green space", "Stronger neighborhood identity", "Cleaner streetscape"],
+      "theyWinAt": ["Subway access", "More walkable", "Richer cultural history", "More affordable rent"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Dundas West is about $200 cheaper per month than Liberty Village for a one-bedroom, and the savings extend to daily life. The neighborhood's Portuguese heritage means affordable bakeries, butcher shops, and casual restaurants that keep everyday food costs down. A pastel de nata at one of the Portuguese bakeries costs a fraction of a croissant at a trendy LV cafe. Liberty Village's cost of living reflects its newer condo stock and more curated retail environment. Housing in Dundas West varies widely — from renovated Victorian apartments to modern infill condos — while LV offers a more consistent condo experience with predictable amenities. For renters seeking the best value per dollar, Dundas West offers more bang for the buck, especially if you appreciate old-Toronto character over modern finishes.",
+      "transitAndCommute": "Dundas West has a clear transit advantage thanks to the Dundas West TTC station, which provides direct access to the Bloor-Danforth subway line. This is a game-changer for commuters — reaching Yonge and Bloor takes about 12 minutes by subway, while the same trip from Liberty Village involves a streetcar-to-subway transfer and takes roughly 30 minutes. The 505 Dundas streetcar adds another east-west option, and north-south bus routes along Lansdowne and Dufferin serve the area well. Liberty Village's transit relies on the 504 King streetcar and the 63 Ossington bus, with no direct subway access. For cyclists, both neighborhoods offer good infrastructure, though Dundas West's central location provides shorter rides to more destinations. Liberty Village's Gardiner access is better for drivers.",
+      "foodAndNightlife": "Dundas West's food scene is a fascinating mix of generations. Legacy Portuguese bakeries like Caldense and butcher shops sit alongside trendy newcomers serving elevated small plates and natural wines. This cultural layering creates a dining experience that Liberty Village, as a newer neighborhood, simply cannot offer. For nightlife, Dundas West connects seamlessly to the Ossington strip to the east, giving residents easy access to some of Toronto's best cocktail bars. Liberty Village has quality restaurants and pubs, but the scene is more homogeneous — brunch spots, burger joints, and neighborhood pubs dominate. If you want to eat at a 50-year-old Portuguese churrasqueira one night and a cutting-edge tasting menu the next, Dundas West delivers that range. Liberty Village is more consistent but less surprising.",
+      "safetyAndCommunity": "Liberty Village and Dundas West both have engaged communities, but they look very different. LV's community is predominantly young condo-dwelling professionals who connect through social media groups and dog parks. Dundas West's community is multigenerational, with long-time Portuguese families living alongside young renters and new homeowners. This creates a richer social fabric but also occasional tension as gentrification reshapes the neighborhood. Safety is comparable — both areas are solidly safe by Toronto standards, with petty property crime as the main concern. Dundas West's residential streets feel quieter and more established, while LV's condo-heavy streetscape has more foot traffic. For people who value cultural diversity and an authentic sense of place, Dundas West offers something that LV's newer development cannot manufacture.",
+      "bestFor": "Choose Dundas West if you crave a neighborhood with layers — old Portuguese bakeries next to hip wine bars, established families next to new arrivals, and a genuine sense of Toronto's cultural evolution. The subway access alone makes it a strong practical choice for commuters. Choose Liberty Village if you prefer a more cohesive, modern neighborhood where the housing stock is newer, the amenities are more consistent, and the community is built around a shared demographic rather than shared history. LV is the better pick for people who prioritize comfort and convenience, while Dundas West rewards those who value cultural richness and neighborhood character. Both are excellent west-end options, but they serve fundamentally different sensibilities."
+    },
+    "faqs": [
+      {
+        "question": "Does Dundas West have subway access?",
+        "answer": "Yes, Dundas West station on the Bloor-Danforth line provides direct subway access. This is one of the neighborhood's biggest advantages over Liberty Village, which relies entirely on streetcars and buses for transit."
+      },
+      {
+        "question": "Is Dundas West gentrifying?",
+        "answer": "Yes, the neighborhood has changed significantly as new restaurants, bars, and boutiques have replaced some traditional Portuguese businesses. Long-time residents have mixed feelings, but the cultural blend of old and new is part of what makes the area interesting."
+      },
+      {
+        "question": "Which is more affordable, Dundas West or Liberty Village?",
+        "answer": "Dundas West is about $200 per month cheaper for a one-bedroom. Daily expenses like food can also be lower thanks to the neighborhood's legacy bakeries and butcher shops, which offer quality goods at working-class prices."
+      },
+      {
+        "question": "Is Dundas West safe?",
+        "answer": "Yes, Dundas West is generally safe and comparable to Liberty Village. Some pockets near Lansdowne and Bloor can feel rougher at night, but the residential core of the neighborhood is quiet and well-maintained. Both areas have active community groups that monitor safety."
+      }
+    ]
+  },
+  {
+    "slug": "corktown",
+    "name": "Corktown",
+    "avgRent1BR": 2650,
+    "avgRent2BR": 3500,
+    "transitScore": 83,
+    "walkScore": 87,
+    "bikeScore": 79,
+    "population": 8000,
+    "medianAge": 33,
+    "medianIncome": 98000,
+    "vibe": "A compact, revitalized neighborhood east of downtown with a mix of heritage brick and modern condos. Quietly becoming one of Toronto's most desirable pockets.",
+    "bestFor": ["urban professionals", "architecture lovers", "east-downtown commuters"],
+    "pros": ["Close to Financial District", "Beautiful heritage architecture", "Rapidly improving amenities", "Proximity to Distillery District", "Smaller and more intimate than most neighborhoods"],
+    "cons": ["Limited retail options", "Small geographic area", "Construction disruption", "Fewer restaurants than other neighborhoods"],
+    "distanceFromLV": 4.0,
+    "keyDifference": "Corktown is LV's east-side equivalent — compact, revitalized, and young — but closer to downtown and with more heritage character.",
+    "verdict": {
+      "summary": "Corktown and Liberty Village are kindred spirits on opposite sides of downtown — both compact, revitalized neighborhoods popular with young professionals. Corktown has a location advantage and heritage charm, while Liberty Village offers a more established community and slightly better value.",
+      "lvWinsAt": ["More affordable rent", "Larger and more established community", "More restaurants and retail", "More green space"],
+      "theyWinAt": ["Closer to Financial District", "More heritage architecture", "Proximity to Distillery District", "Higher median income"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Corktown and Liberty Village are close in pricing, with Corktown's one-bedrooms averaging about $50 more per month. The similarity reflects comparable demographics and housing stock — both neighborhoods are dominated by modern condos in revitalized former industrial areas. Groceries favor Liberty Village, which has more options within walking distance, while Corktown residents often trek to the St. Lawrence Market or Loblaws on Parliament. Dining costs are comparable, though Corktown has fewer casual options, meaning residents may spend more on delivery or eat out of the neighborhood more frequently. Liberty Village's more self-contained retail environment means less incidental spending on transportation to access basic services. For pure rent value, the neighborhoods are nearly interchangeable, but LV offers a more complete daily-living ecosystem.",
+      "transitAndCommute": "Corktown has a moderate transit advantage thanks to its proximity to downtown. Walking to Union Station takes about 15 minutes, and the neighborhood is served by the 504 King and 514 Cherry streetcars. The planned East Harbour transit hub and Ontario Line station will dramatically improve Corktown's connectivity within the next few years. Liberty Village's transit relies on the 504 King streetcar, with a commute to Union Station of about 20 to 25 minutes. For cyclists, both neighborhoods connect to excellent trails — Corktown to the Don Valley trail system and Liberty Village to the Martin Goodman waterfront trail. Drivers from Corktown benefit from proximity to the DVP, while Liberty Village has easier Gardiner Expressway access. When the Ontario Line opens, Corktown will gain a significant transit edge over Liberty Village.",
+      "foodAndNightlife": "Liberty Village currently has a more developed food scene than Corktown, simply because it has been a residential neighborhood for longer. LV's restaurants along Liberty Street and East Liberty provide a solid range of options for everyday dining. Corktown's food scene is smaller but growing rapidly, with excellent spots like Rorschach Brewing and a handful of noteworthy restaurants. Corktown's ace in the hole is the Distillery District next door, which adds seasonal markets, patios, and higher-end dining to the mix. Nightlife is quiet in both neighborhoods — neither is a destination for a big night out. Both cater to the after-work drinks and casual dinner crowd. As Corktown continues to develop, its food scene will likely catch up, but Liberty Village currently offers more choice for daily dining needs.",
+      "safetyAndCommunity": "Both neighborhoods are safe and attract similar demographics of young professionals and couples. Liberty Village has the edge in community development — its BIA, social media groups, and established events create a strong sense of belonging. Corktown is smaller and newer as a residential neighborhood, so the community infrastructure is less developed. The flip side is that Corktown's compact size means residents tend to recognize each other, creating an intimate village feel that LV's larger population dilutes. Crime rates are low in both areas. Corktown's proximity to the Regent Park revitalization zone occasionally raises safety concerns for newcomers, but the area has improved dramatically. Liberty Village's main safety issue is the occasional property crime common to any condo-heavy neighborhood.",
+      "bestFor": "Choose Corktown if you work in the Financial District or east downtown and want a compact, walkable neighborhood with heritage character and a location that will only improve as the Ontario Line and East Harbour development materialize. Corktown is a bet on the future — prices may rise as transit improves and amenities fill in. Choose Liberty Village if you want a more established neighborhood with a proven community, more restaurants and retail within walking distance, and a slightly lower cost of living. LV is the safer pick today, while Corktown is the more exciting pick for tomorrow. Both appeal to a similar resident profile, so the decision often comes down to east versus west and whether you prefer heritage brick or modern glass."
+    },
+    "faqs": [
+      {
+        "question": "Is Corktown up-and-coming compared to Liberty Village?",
+        "answer": "Yes, Corktown is in an earlier stage of development than Liberty Village. The upcoming Ontario Line station and East Harbour development will significantly boost Corktown's transit and amenities. LV is already established, while Corktown is still evolving."
+      },
+      {
+        "question": "Which is closer to downtown, Corktown or Liberty Village?",
+        "answer": "Corktown is closer to the Financial District by about 10 minutes on foot or transit. It borders the downtown core directly, while Liberty Village sits slightly farther west and requires a streetcar ride to reach the same area."
+      },
+      {
+        "question": "Does Corktown have enough restaurants and shops?",
+        "answer": "Corktown's retail and dining scene is still developing. Liberty Village currently has more everyday amenities within walking distance. However, Corktown's proximity to the Distillery District and St. Lawrence Market compensates for the local gaps."
+      },
+      {
+        "question": "Is Corktown or Liberty Village better for investment?",
+        "answer": "Corktown may offer more upside as the Ontario Line and East Harbour projects develop. Liberty Village is a more mature market with stable demand. Both neighborhoods are solid investment choices, but Corktown has more growth potential while LV offers more predictability."
+      }
+    ]
+  },
+  {
+    "slug": "distillery-district",
+    "name": "Distillery District",
+    "avgRent1BR": 2750,
+    "avgRent2BR": 3650,
+    "transitScore": 79,
+    "walkScore": 83,
+    "bikeScore": 74,
+    "population": 5000,
+    "medianAge": 32,
+    "medianIncome": 102000,
+    "vibe": "A curated, pedestrian-only enclave of Victorian industrial buildings converted into galleries, restaurants, and boutiques. Beautiful but sometimes feels more like a tourist attraction than a neighborhood.",
+    "bestFor": ["architecture enthusiasts", "arts and culture lovers", "affluent professionals"],
+    "pros": ["Stunning heritage architecture", "Pedestrian-only cobblestone streets", "Excellent galleries and cultural events", "Unique character unlike anywhere else in Toronto", "Christmas Market and seasonal events"],
+    "cons": ["Tourist-heavy area", "Expensive rent and dining", "Limited everyday retail", "Can feel sterile outside business hours"],
+    "distanceFromLV": 5.0,
+    "keyDifference": "The Distillery District is beautiful but feels like a curated set — Liberty Village is a real, lived-in neighborhood with everyday grit.",
+    "verdict": {
+      "summary": "The Distillery District is Toronto's most architecturally stunning neighborhood, but it can feel more like a tourist destination than a home. Liberty Village is less photogenic but far more livable, with better everyday amenities, a stronger resident community, and more affordable rent.",
+      "lvWinsAt": ["More affordable rent", "Better everyday amenities", "Stronger resident community", "More livable day-to-day"],
+      "theyWinAt": ["Stunning heritage architecture", "Unique pedestrian-only streets", "Better arts and cultural programming", "More prestigious address"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "The Distillery District commands a premium, with one-bedrooms averaging about $150 more per month than Liberty Village. The premium reflects the neighborhood's unique heritage character and curated aesthetic. Beyond rent, daily costs diverge sharply — the Distillery District has almost no affordable everyday dining or grocery options. Residents often leave the neighborhood for basic errands, adding transit or delivery costs to the equation. Liberty Village's mix of casual restaurants, cafes, and nearby grocery stores makes everyday life significantly more affordable. The Distillery's restaurants are excellent but skew upscale, making them special-occasion spots rather than weeknight regulars. For renters who want the most livable neighborhood per dollar spent, Liberty Village offers substantially better everyday value despite the modest rent difference.",
+      "transitAndCommute": "Transit is comparable but different for both neighborhoods. The Distillery District is served by the 504 King streetcar and is within walking distance of the future East Harbour Ontario Line station, which will be transformative. Liberty Village relies on the same 504 streetcar heading in the opposite direction. Current commute times to the Financial District are similar — about 20 to 25 minutes by streetcar from either neighborhood. The Distillery District benefits from proximity to the West Don Lands PATH network and walking access to the core on good weather days. Liberty Village has better westbound connections and Gardiner Expressway access. Cycling from the Distillery connects to the Don Valley trail, while LV connects to the waterfront trail. Neither neighborhood has existing subway access, but the Ontario Line will give the Distillery District a major advantage within the next few years.",
+      "foodAndNightlife": "The Distillery District has excellent restaurants and bars — Mill Street Brewpub, El Catrin, Cluny Bistro — but they skew upscale and tourist-oriented. You will eat well in the Distillery, but you will pay for it, and the options lean toward fine dining rather than casual everyday meals. Liberty Village offers a broader range of price points, from quick lunch spots to sit-down restaurants, making it more practical for daily dining. Nightlife in the Distillery District is limited and tends to wind down early, as the pedestrian area closes at night. Liberty Village's pubs stay open later and cater to a local crowd rather than tourists. For a special night out, the Distillery District is wonderful. For Tuesday night dinner with a friend, Liberty Village is more practical and affordable.",
+      "safetyAndCommunity": "Liberty Village wins decisively on community. The Distillery District has a small residential population of about 5,000, and the neighborhood's tourist-heavy character means residents often feel outnumbered by visitors, especially during events like the Christmas Market. Liberty Village's 9,000 residents form an active, engaged community with regular events, social media groups, and a strong neighborhood identity. Safety is excellent in both areas — the Distillery's controlled pedestrian environment is inherently safe, and Liberty Village's condo-heavy streetscape is well-monitored. The key difference is whether you want to live in a neighborhood that serves residents first or one that serves visitors first. Liberty Village is unambiguously a residential community; the Distillery District is a cultural destination that happens to have condos.",
+      "bestFor": "Choose the Distillery District if you are drawn to its singular aesthetic — Victorian industrial architecture, cobblestone streets, and a curated cultural experience that feels unlike anywhere else in Toronto. It suits affluent professionals and creatives who value beauty and are willing to pay a premium for a prestigious address. Choose Liberty Village if you want a practical, livable neighborhood where you can handle all your daily needs on foot, participate in a genuine local community, and spend less on rent and everyday expenses. The Distillery is where you take visitors to impress them; Liberty Village is where you actually build your daily routine. Both are desirable neighborhoods, but they serve fundamentally different needs."
+    },
+    "faqs": [
+      {
+        "question": "Is the Distillery District a real neighborhood or just a tourist attraction?",
+        "answer": "It is both. About 5,000 people live in the Distillery District's condo buildings, but the pedestrian area is heavily tourist-oriented, especially during seasonal events. Liberty Village feels more like a traditional residential neighborhood with a community built around daily life rather than tourism."
+      },
+      {
+        "question": "Is the Distillery District worth the higher rent compared to Liberty Village?",
+        "answer": "It depends on your priorities. The Distillery offers a unique living experience in one of Toronto's most beautiful settings, but everyday convenience suffers. Liberty Village provides better value for daily livability. The Distillery premium is essentially paying for aesthetics and prestige."
+      },
+      {
+        "question": "Can I walk from Liberty Village to the Distillery District?",
+        "answer": "The walk is about 5 km and takes roughly 50 to 60 minutes, so it is not practical for regular trips. By transit on the 504 streetcar, the trip takes about 25 to 30 minutes. Cycling along the waterfront is the most pleasant option at about 20 minutes."
+      },
+      {
+        "question": "Which neighborhood will benefit more from the Ontario Line?",
+        "answer": "The Distillery District will benefit more, as the planned East Harbour station will provide direct rapid transit access. Liberty Village is not on the Ontario Line route and will continue to rely on streetcars and buses for transit."
+      }
+    ]
+  },
+  {
+    "slug": "fort-york",
+    "name": "Fort York",
+    "avgRent1BR": 2550,
+    "avgRent2BR": 3350,
+    "transitScore": 80,
+    "walkScore": 82,
+    "bikeScore": 76,
+    "population": 12000,
+    "medianAge": 30,
+    "medianIncome": 82000,
+    "vibe": "A waterfront condo corridor still finding its identity. Towers cluster around Bathurst and Fort York Boulevard, with new parks and retail slowly filling in the gaps.",
+    "bestFor": ["waterfront enthusiasts", "young professionals", "condo buyers seeking newer builds"],
+    "pros": ["Waterfront access and trails", "Newer condo buildings", "Proximity to Exhibition grounds", "Growing park network", "Close to Liberty Village amenities"],
+    "cons": ["Still developing neighborhood identity", "Wind exposure from the lake", "Limited established retail", "Feels disconnected from the street grid"],
+    "distanceFromLV": 1.0,
+    "keyDifference": "Fort York is Liberty Village's waterfront neighbor — newer towers and lake access, but without the established community and local businesses.",
+    "verdict": {
+      "summary": "Fort York and Liberty Village are adjacent neighbors, with Fort York offering newer condos and waterfront access while Liberty Village provides the established community, local businesses, and neighborhood identity that Fort York is still building. Many residents use amenities in both areas.",
+      "lvWinsAt": ["More established community", "Better local businesses and restaurants", "Stronger neighborhood identity", "More walkable retail"],
+      "theyWinAt": ["Waterfront and lake access", "Newer condo stock", "More park space being developed", "Direct access to Martin Goodman Trail"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Fort York and Liberty Village are nearly identical in cost, with Fort York averaging about $50 less per month for a one-bedroom. The similarity makes sense — they are adjacent neighborhoods sharing the same general location west of downtown. Fort York's slightly lower rent reflects its less established retail environment; Liberty Village has more walkable amenities, which adds value. Fort York residents frequently cross into LV for restaurants, cafes, and errands, effectively using Liberty Village as their neighborhood commercial strip. Condo fees in Fort York tend to be slightly lower since the buildings are newer, but this advantage diminishes over time as reserve funds grow. For practical purposes, living in Fort York versus Liberty Village costs about the same, but LV gives you more within immediate walking distance.",
+      "transitAndCommute": "Transit access is comparable between these adjacent neighborhoods, though Liberty Village has a slight edge. The 504 King streetcar serves both areas, and both connect to the 63 Ossington bus for north-south travel. Fort York has marginally better access to the Exhibition GO station for commuters heading to Union or the western suburbs. Liberty Village benefits from more direct streetcar routing along King Street. Cyclists in Fort York have direct access to the Martin Goodman Trail along the waterfront, which is a genuine advantage for bike commuters heading downtown. Liberty Village connects to the same trail but requires crossing a few more intersections. For drivers, both neighborhoods share the same Gardiner Expressway access points. The transit difference between the two is minimal — most residents of either neighborhood have essentially the same commute experience.",
+      "foodAndNightlife": "Liberty Village has a decisively better food and nightlife scene than Fort York. LV has an established strip of restaurants, cafes, and pubs that have been serving the neighborhood for years, while Fort York's retail is still filling in. Fort York has a handful of spots in condo ground floors, but nothing approaching Liberty Village's variety. This gap is the biggest practical difference between the two neighborhoods — Fort York residents routinely walk to Liberty Village for dinner, drinks, and weekend brunch. The good news for Fort York residents is that LV's restaurants are a 5 to 10 minute walk away. The bad news is that having to leave your own neighborhood for a decent dinner gets old. As Fort York continues to develop, more retail will fill in, but Liberty Village will likely maintain its advantage as the commercial hub of the area.",
+      "safetyAndCommunity": "Liberty Village has a much more established community than Fort York. LV has an active BIA, popular social media groups, seasonal events, and a neighborhood identity that residents take pride in. Fort York's community is newer and more fragmented, spread across multiple condo buildings that do not always feel connected to each other. The lack of ground-level retail and the wide, wind-swept boulevards in Fort York create a less pedestrian-friendly environment that hinders casual social interaction. Safety is comparable and good in both areas. Fort York's newer buildings have modern security systems, while Liberty Village benefits from more eyes on the street thanks to its denser retail strip. Fort York is actively working to build community through new parks and the Bentway, but it has years of catching up to do with Liberty Village's established social fabric.",
+      "bestFor": "Choose Fort York if waterfront living is your priority — direct access to the Martin Goodman Trail, lake views from newer condo buildings, and proximity to the Exhibition grounds and Trillium Park. Fort York is also a good choice if you want a brand-new condo with modern amenities and lower initial maintenance fees. Choose Liberty Village if you want to live in a neighborhood that already feels like a neighborhood — with restaurants, cafes, a community, and a defined identity. Since the two areas are adjacent, many residents split the difference, living in Fort York for the newer condos and lake access while relying on Liberty Village for dining, socializing, and everyday errands. They are functionally one extended community with different strengths."
+    },
+    "faqs": [
+      {
+        "question": "Are Fort York and Liberty Village the same neighborhood?",
+        "answer": "No, but they are adjacent and share many amenities. Fort York is south of Liberty Village, closer to the waterfront. Liberty Village has more established businesses and community, while Fort York offers newer condos and lake access. Many residents move between the two regularly."
+      },
+      {
+        "question": "Is Fort York a good place to live?",
+        "answer": "Fort York is a good location with newer condos and waterfront access, but it is still developing its neighborhood identity and retail scene. Residents benefit from proximity to Liberty Village's established businesses. It is best for people who prioritize waterfront access and new buildings over neighborhood character."
+      },
+      {
+        "question": "Which has better condos, Fort York or Liberty Village?",
+        "answer": "Fort York's condos are generally newer with more modern finishes and amenities. Liberty Village has a wider range, including converted lofts and older condos alongside newer builds. Fort York wins for brand-new construction, while LV offers more variety in style and price."
+      },
+      {
+        "question": "Can I walk from Fort York to Liberty Village?",
+        "answer": "Yes, the two neighborhoods are adjacent. Walking from the centre of Fort York to the centre of Liberty Village takes about 10 to 15 minutes. Many Fort York residents walk to LV regularly for dining, shopping, and socializing."
+      }
+    ]
+  },
+  {
+    "slug": "niagara",
+    "name": "Niagara",
+    "avgRent1BR": 2650,
+    "avgRent2BR": 3500,
+    "transitScore": 87,
+    "walkScore": 92,
+    "bikeScore": 81,
+    "population": 10000,
+    "medianAge": 31,
+    "medianIncome": 96000,
+    "vibe": "A quiet residential pocket sandwiched between King West and the waterfront. Tree-lined streets, heritage homes, and a neighborhood feel that belies its downtown location.",
+    "bestFor": ["quiet-seeking downtown dwellers", "couples", "professionals who walk to work"],
+    "pros": ["Very walkable to downtown", "Quiet residential streets", "Access to Stanley Park", "Close to King West amenities", "Heritage character"],
+    "cons": ["Limited local retail within the neighborhood", "Small geographic footprint", "Easy to overlook", "Higher rent due to downtown proximity"],
+    "distanceFromLV": 1.5,
+    "keyDifference": "Niagara is a quiet residential pocket near King West — LV has more local businesses and community identity but is slightly farther from downtown.",
+    "verdict": {
+      "summary": "Niagara is one of Toronto's best-kept secrets — a quiet, walkable pocket close to everything downtown. Liberty Village offers more local businesses, a stronger community identity, and more affordable rent, but Niagara's walkability to the core is hard to beat.",
+      "lvWinsAt": ["More local businesses and restaurants", "Stronger community identity", "Slightly more affordable", "More green space"],
+      "theyWinAt": ["Higher walkability score", "Quieter streets", "Closer to Financial District", "Better transit connections"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Niagara and Liberty Village are close in pricing, with Niagara's one-bedrooms averaging about $50 more per month. Niagara's premium reflects its proximity to the downtown core and King West — you are essentially paying for a quieter version of King West's location. Everyday costs differ because Niagara has less local retail; residents often walk to King West or Queen West for groceries and dining, which is convenient but means spending at King West prices. Liberty Village has a more self-contained ecosystem of cafes, restaurants, and services that keeps daily spending more moderate. For groceries, both neighborhoods access the same Loblaws and Freshco locations. The cost difference is marginal, but Liberty Village offers a slightly better value when you factor in the convenience of having more businesses within the immediate neighborhood.",
+      "transitAndCommute": "Niagara has a transit advantage thanks to its proximity to the Bathurst streetcar, King streetcar, and walkability to St. Andrew station. With a transit score of 87, it outperforms Liberty Village's 78 meaningfully. Residents of Niagara can walk to the Financial District in about 20 minutes, while Liberty Village requires a streetcar ride of similar duration. For subway access, Niagara residents can reach St. Andrew or Bathurst stations on foot, while LV residents need a bus or streetcar transfer. Cycling is strong in both areas, with Niagara benefiting from central bike lane networks. Liberty Village has easier car commuting with better Gardiner access. Overall, Niagara wins for transit commuters, especially those who work in the Financial District or want direct subway access without a transfer.",
+      "foodAndNightlife": "Niagara itself has limited dining options — it is primarily a residential area that borrows its food scene from adjacent King West and Queen West. This is both a strength and a weakness: you have world-class restaurants within a 10-minute walk, but you lack the convenience of a local spot right on your block. Liberty Village has a more developed internal food scene with its own restaurants, cafes, and pubs that serve the neighborhood directly. For nightlife, Niagara residents simply walk to King West, which is steps away, giving them access to one of Toronto's best bar scenes. Liberty Village's nightlife is more self-contained and casual. If you want easy access to great restaurants without them being on your doorstep, Niagara delivers. If you want to grab dinner without leaving your neighborhood, Liberty Village is the better choice.",
+      "safetyAndCommunity": "Niagara is exceptionally quiet and safe for a downtown neighborhood. The residential streets feel almost suburban, with tree-lined blocks and heritage homes that create a peaceful atmosphere. Liberty Village has a louder, more energetic community — more events, more social media chatter, and more visible neighborhood activity. Both are safe, with low crime rates relative to downtown Toronto. The community difference is significant: LV has a defined, vocal neighborhood identity with an active BIA and community groups, while Niagara is more of a residential pocket where people live quietly and privately. Neither is better — it depends on whether you want an active community experience or a peaceful residential refuge. Families exist in both, though Niagara's quieter streets are slightly more family-friendly.",
+      "bestFor": "Choose Niagara if you want downtown proximity with residential tranquility. It is perfect for professionals who walk to work in the Financial District and want to come home to quiet, tree-lined streets. Niagara suits introverts and people who prefer to access restaurants and nightlife on their terms rather than having it on their doorstep. Choose Liberty Village if you want a neighborhood with a stronger identity, more local businesses, and a more active community. LV is better for extroverts, dog owners, and people who want to feel part of a defined neighborhood rather than simply living in a residential pocket between busier areas. Niagara is the quiet sophisticate; Liberty Village is the friendly neighbor who invites you to block parties."
+    },
+    "faqs": [
+      {
+        "question": "Where exactly is Niagara in Toronto?",
+        "answer": "Niagara is a small residential pocket bounded roughly by Bathurst, King, Tecumseth, and Wellington. It sits between King West and Fort York, directly east of Liberty Village. Despite its central location, it is one of Toronto's least-known neighborhoods."
+      },
+      {
+        "question": "Is Niagara or Liberty Village closer to downtown?",
+        "answer": "Niagara is closer by a meaningful margin. Residents can walk to the Financial District in about 20 minutes, while Liberty Village requires a 20-minute streetcar ride. Niagara also has better subway access, with St. Andrew station within walking distance."
+      },
+      {
+        "question": "Does Niagara have its own restaurants and shops?",
+        "answer": "Niagara has limited local retail within its boundaries. Residents rely on adjacent King West and Queen West for dining and shopping, both of which are within a short walk. Liberty Village has a more self-contained commercial strip."
+      },
+      {
+        "question": "Is Niagara a good alternative to Liberty Village?",
+        "answer": "Yes, especially for people who prioritize proximity to downtown and quiet residential streets over neighborhood community and local amenities. Niagara offers a more central location at a similar price point, but Liberty Village has better everyday convenience and community feel."
+      }
+    ]
+  },
+  {
+    "slug": "trinity-bellwoods",
+    "name": "Trinity-Bellwoods",
+    "avgRent1BR": 2750,
+    "avgRent2BR": 3700,
+    "transitScore": 89,
+    "walkScore": 96,
+    "bikeScore": 88,
+    "population": 14000,
+    "medianAge": 31,
+    "medianIncome": 98000,
+    "vibe": "Toronto's quintessential cool-kid neighborhood. The park is the living room, the Ossington bars are the kitchen, and everyone has a rescue dog and a creative job.",
+    "bestFor": ["park lovers", "social butterflies", "creative professionals"],
+    "pros": ["Trinity Bellwoods Park is iconic", "Top-tier walkability and bikeability", "Surrounded by great restaurants and bars", "Young, vibrant community", "Beautiful residential streets"],
+    "cons": ["Premium rent prices", "Crowded park on summer weekends", "Limited parking", "Noise from nearby bar strips"],
+    "distanceFromLV": 2.0,
+    "keyDifference": "Trinity-Bellwoods is the aspirational cool neighborhood — LV gives you a similar young-professional crowd at a lower price with less pretension.",
+    "verdict": {
+      "summary": "Trinity-Bellwoods is one of Toronto's most desirable neighborhoods, anchored by its iconic park and surrounded by excellent bars and restaurants. Liberty Village offers a similar demographic and energy at a lower price point, with its own community charm — minus the Instagram cachet.",
+      "lvWinsAt": ["More affordable rent", "Less crowded", "Easier parking", "More approachable community"],
+      "theyWinAt": ["Iconic park space", "Superior walkability", "Better restaurant and bar access", "Higher bike score"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Trinity-Bellwoods commands a significant premium over Liberty Village, with one-bedrooms averaging about $150 more per month. The gap is larger for desirable units overlooking or near the park. Beyond rent, the cost of living in Trinity-Bellwoods is higher across the board — the surrounding restaurants and bars are trendier and pricier, and the neighborhood's boutique retail encourages spending. Liberty Village's more modest commercial strip keeps everyday costs in check. Groceries are comparable, as both neighborhoods access similar chains. The real financial difference is lifestyle-driven: Trinity-Bellwoods attracts people who spend more on dining out, drinks, and curated experiences. Liberty Village attracts people who want a similar urban lifestyle without the price premium that comes with living in one of Toronto's most hyped neighborhoods.",
+      "transitAndCommute": "Trinity-Bellwoods has a clear transit and mobility advantage. With a transit score of 89 and walk score of 96, it outperforms Liberty Village on both measures. Residents can walk to Ossington or Bathurst subway stations, access the Queen and Dundas streetcars, and bike practically anywhere in the city using the neighborhood's excellent cycling infrastructure. Liberty Village's transit relies more heavily on the 504 King streetcar, which can be slow during peak hours. For cyclists, Trinity-Bellwoods is one of Toronto's best-connected neighborhoods, with dedicated lanes radiating in every direction. Liberty Village's bike infrastructure is decent but more limited. Drivers will find Liberty Village more accommodating, with easier Gardiner access and more parking availability. For anyone who prefers transit and cycling over driving, Trinity-Bellwoods is the superior choice.",
+      "foodAndNightlife": "Trinity-Bellwoods benefits from its position between Ossington and Queen West, two of Toronto's best dining and nightlife corridors. Within a 10-minute walk, residents can access dozens of acclaimed restaurants, cocktail bars, and cafes. Liberty Village has solid local options but cannot compete with the sheer density and quality available around Trinity-Bellwoods. The park itself is a social hub — summer evenings in Bellwoods with takeout and a bottle of wine are a Toronto rite of passage. Liberty Village's Lamport Stadium park is functional but lacks the same social energy. For food variety, Trinity-Bellwoods residents have everything from Ethiopian to Japanese to elevated Italian within walking distance. LV's food scene is growing but remains more limited in range. The nightlife gap is equally significant.",
+      "safetyAndCommunity": "Both neighborhoods have engaged, youthful communities, but they express themselves differently. Trinity-Bellwoods' community centers on the park — it is where neighbors meet, dogs socialize, and friends gather on summer weekends. The neighborhood has an organic, almost effortless social energy. Liberty Village's community is more structured, organized through BIA events, social media groups, and condo building networks. Safety is comparable and good in both areas. Trinity-Bellwoods can feel crowded on summer weekends, with park visitors from across the city changing the neighborhood's character temporarily. Liberty Village maintains a more consistent day-to-day atmosphere. Both neighborhoods attract young professionals and creatives, but Trinity-Bellwoods skews slightly more affluent and image-conscious, while Liberty Village has a more down-to-earth, approachable vibe.",
+      "bestFor": "Choose Trinity-Bellwoods if you want to live in the center of Toronto's social scene — where the park is your living room, world-class bars and restaurants are steps away, and you can walk or bike anywhere in the city. It is the neighborhood for people who want to be seen and who thrive on social energy. Choose Liberty Village if you want a similar young, professional community without the premium pricing and Instagram pressure. LV offers genuine neighborhood community, adequate green space, and a lifestyle that does not require keeping up with Trinity-Bellwoods' curated cool factor. If your budget allows and you prioritize walkability and park access, Trinity-Bellwoods is hard to beat. If you prefer value and authenticity, Liberty Village delivers."
+    },
+    "faqs": [
+      {
+        "question": "Is Trinity-Bellwoods worth the higher rent compared to Liberty Village?",
+        "answer": "It depends on your lifestyle priorities. If walkability, park access, and proximity to Toronto's best restaurants and bars are essential, the premium is justified. If you want similar energy at a lower price with a stronger neighborhood community, Liberty Village is the smarter financial choice."
+      },
+      {
+        "question": "How far apart are Trinity-Bellwoods and Liberty Village?",
+        "answer": "About 2 km, or a 20 to 25 minute walk. The two neighborhoods are close enough that many residents move between them regularly for dining and socializing. By bike, the trip takes about 8 minutes."
+      },
+      {
+        "question": "Which neighborhood has better parks?",
+        "answer": "Trinity Bellwoods Park is iconic and larger, serving as a genuine social hub for the neighborhood and the city. Liberty Village has Lamport Stadium Park, which is functional and useful but lacks the cultural cachet and social energy of Bellwoods."
+      },
+      {
+        "question": "Is Trinity-Bellwoods better for young professionals than Liberty Village?",
+        "answer": "Both are excellent for young professionals. Trinity-Bellwoods offers a more social, scene-oriented lifestyle, while Liberty Village provides a more affordable, community-driven experience. The choice comes down to whether you prefer curated cool or genuine neighborhood warmth."
+      }
+    ]
+  },
+  {
+    "slug": "roncesvalles",
+    "name": "Roncesvalles",
+    "avgRent1BR": 2350,
+    "avgRent2BR": 3100,
+    "transitScore": 81,
+    "walkScore": 90,
+    "bikeScore": 77,
+    "population": 13000,
+    "medianAge": 37,
+    "medianIncome": 95000,
+    "vibe": "A family-friendly village with Polish roots. Stroller-packed sidewalks, independent shops, a beloved public school, and weekend farmers' markets along a charming main street.",
+    "bestFor": ["young families", "community-oriented people", "village-feel seekers"],
+    "pros": ["Exceptional family-friendly atmosphere", "Charming independent retail strip", "Strong community and farmers market", "Beautiful residential streets", "Good transit access"],
+    "cons": ["Limited nightlife", "Can feel quiet for singles", "Higher home prices", "Parking is competitive"],
+    "distanceFromLV": 3.5,
+    "keyDifference": "Roncesvalles is where Liberty Village residents move when they have kids — more family-oriented with a village feel and heritage homes.",
+    "verdict": {
+      "summary": "Roncesvalles is a natural next step for Liberty Village residents ready to start families. It trades LV's condo lifestyle and young social scene for heritage homes, excellent schools, and one of Toronto's best family-oriented communities. Both are beloved west-end neighborhoods at different life stages.",
+      "lvWinsAt": ["Better for singles and young couples", "More nightlife options", "More modern housing", "Closer to downtown"],
+      "theyWinAt": ["Far better for families", "Stronger village community", "Heritage homes and character", "Farmers market and local shops"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Roncesvalles is about $250 cheaper than Liberty Village for a one-bedroom apartment, partly because the rental stock includes more traditional apartments in older buildings. However, this comparison is somewhat misleading because most Roncesvalles residents are homeowners rather than renters — and home prices are significantly higher, with semi-detached houses routinely selling above $1.5 million. For renters, Roncesvalles offers good value with more spacious units in character buildings. Groceries and dining are comparable in cost, though Roncesvalles' farmers market provides access to fresh, local produce at fair prices. Liberty Village's newer condos command higher rent partly because of modern amenities. The cost equation depends on whether you are renting or buying: renters save in Roncesvalles, but buyers face a steep premium for the neighborhood's beloved houses.",
+      "transitAndCommute": "Both neighborhoods have solid transit, with different routing. Roncesvalles is served by the 504 King streetcar, which runs along the neighborhood's main street before continuing to King Street and downtown. Liberty Village uses the same 504 but boards it at a different point. Commute times to the Financial District are comparable at 25 to 30 minutes by streetcar. Roncesvalles has better north-south connections via the 505 Dundas streetcar at its northern end and Lansdowne bus service. Neither neighborhood has direct subway access. Cycling from Roncesvalles benefits from quieter residential streets and connections to the High Park trail system, while Liberty Village connects more directly to the waterfront trail. For drivers, Liberty Village has easier Gardiner Expressway access, while Roncesvalles is better positioned for the Lakeshore west corridor.",
+      "foodAndNightlife": "The food scenes reflect each neighborhood's demographic. Roncesvalles has excellent family-friendly restaurants, Polish delis, and independent cafes that cater to the stroller crowd. Standouts include Barque Smokehouse and Cafe Polonez. Liberty Village's restaurants lean toward brunch spots and pub fare for the young professional set. For nightlife, Liberty Village has the edge — Roncesvalles rolls up the sidewalks by 10 PM, which suits families perfectly but leaves singles looking elsewhere for evening entertainment. Neither neighborhood is a nightlife destination, but LV at least has a few pubs where you can have a late night. Roncesvalles' food scene is arguably more diverse and interesting, with its Polish heritage adding a culinary dimension that Liberty Village's more generic restaurant mix cannot match.",
+      "safetyAndCommunity": "Roncesvalles has one of the strongest community identities in Toronto — it consistently ranks among the city's most beloved neighborhoods in surveys. The community is anchored by local schools, the weekly farmers market, seasonal festivals, and an engaged resident population that spans generations. Liberty Village has strong community engagement too, but it is younger, more transient, and organized digitally rather than through established institutions. Safety is excellent in both neighborhoods, with Roncesvalles feeling particularly safe due to its family-oriented character and high foot traffic during the day. For people who value deep, intergenerational community connections, Roncesvalles is hard to beat. Liberty Village's community is vibrant but newer, and the condo-heavy housing creates more resident turnover.",
+      "bestFor": "Choose Roncesvalles if you are starting a family, planning to buy a home, and want a neighborhood where community is built around schools, parks, and farmers markets. It is the ideal landing spot for couples who have outgrown the condo lifestyle and want heritage homes and tree-lined streets. Choose Liberty Village if you are still in the singles or couples phase, prefer modern condo living, and want a more active social scene with proximity to downtown. Many people follow a natural trajectory from LV to Roncesvalles as their life circumstances evolve, and the two neighborhoods complement each other well. Liberty Village is where you go in your late twenties; Roncesvalles is where you settle in your mid-thirties."
+    },
+    "faqs": [
+      {
+        "question": "Is Roncesvalles good for single people?",
+        "answer": "Roncesvalles is primarily family-oriented and can feel quiet for singles. Liberty Village is a better choice for single professionals, with more nightlife options and a younger social scene. Singles in Roncesvalles often head to Dundas West or Ossington for evening entertainment."
+      },
+      {
+        "question": "Is Roncesvalles or Liberty Village better for families?",
+        "answer": "Roncesvalles is significantly better for families, with excellent schools, family-friendly restaurants, a weekly farmers market, and heritage homes with yards. Liberty Village is predominantly a condo neighborhood designed for young professionals rather than families with children."
+      },
+      {
+        "question": "How do I get from Liberty Village to Roncesvalles?",
+        "answer": "The 504 King streetcar connects both neighborhoods directly, with the ride taking about 10 to 15 minutes. By bike, the trip is about 12 minutes along residential streets. Driving takes about 10 minutes depending on traffic."
+      },
+      {
+        "question": "Is Roncesvalles cheaper than Liberty Village?",
+        "answer": "For renters, yes — Roncesvalles averages about $250 less per month for a one-bedroom. For buyers, Roncesvalles is significantly more expensive, with heritage homes selling well above $1.5 million. The cost comparison depends entirely on whether you are renting or buying."
+      }
+    ]
+  },
+  {
+    "slug": "bloor-west-village",
+    "name": "Bloor West Village",
+    "avgRent1BR": 2150,
+    "avgRent2BR": 2800,
+    "transitScore": 78,
+    "walkScore": 86,
+    "bikeScore": 68,
+    "population": 17000,
+    "medianAge": 40,
+    "medianIncome": 105000,
+    "vibe": "An established, affluent village neighborhood with a long main street of independent shops. High Park is the backyard, and the community has a settled, suburban-in-the-city feel.",
+    "bestFor": ["families", "nature lovers", "people seeking stability"],
+    "pros": ["Adjacent to High Park", "Charming independent retail strip", "Excellent schools", "Strong community identity", "Bloor subway line access"],
+    "cons": ["Far from downtown core", "Skews older demographically", "Limited nightlife", "Can feel suburban"],
+    "distanceFromLV": 5.5,
+    "keyDifference": "Bloor West Village is the established family neighborhood with High Park — LV is the young professional hub closer to downtown.",
+    "verdict": {
+      "summary": "Bloor West Village and Liberty Village serve completely different life stages. BVW offers High Park, excellent schools, and a settled family community, while Liberty Village provides urban energy, modern condos, and a young professional scene closer to the downtown core.",
+      "lvWinsAt": ["Much closer to downtown", "Better for young professionals", "More modern housing", "More vibrant social scene"],
+      "theyWinAt": ["High Park access", "Better for families", "Subway access", "More affordable rent"]
+    },
+    "detailedComparison": {
+      "costOfLiving": "Bloor West Village is notably cheaper for renters than Liberty Village, with one-bedrooms averaging about $450 less per month. The savings reflect the neighborhood's distance from the downtown core and its older rental stock. Groceries and dining are comparably priced, with Bloor West's independent shops offering quality goods at reasonable prices. However, home purchase prices in Bloor West Village are high — detached houses near High Park command premium prices above $2 million. Liberty Village's cost of living is higher for renters but lower for buyers, since condos remain more accessible than houses. Daily expenses in Bloor West Village tend to be slightly lower overall, with fewer trendy restaurants and bars to tempt overspending. The biggest savings come from rent, making BVW attractive for budget-conscious renters willing to trade downtown proximity for affordability.",
+      "transitAndCommute": "Bloor West Village has subway access via Jane station and the stations along the Bloor-Danforth line, which is a significant advantage for commuters heading to midtown or the Yonge corridor. However, the commute to the Financial District takes about 30 to 35 minutes — longer than Liberty Village's 25-minute streetcar ride. Liberty Village is closer to downtown in absolute distance, and the 504 King streetcar provides a more direct route to the core. Cyclists from Liberty Village have a shorter and flatter ride downtown, while Bloor West Village's position farther west makes bike commuting less practical for downtown workers. Drivers from both neighborhoods access the Gardiner Expressway, though Liberty Village's on-ramp is more convenient. For people who commute to midtown or the university corridor, Bloor West Village's subway access tips the scales in its favor.",
+      "foodAndNightlife": "Bloor West Village has a charming but conventional food scene — family-friendly restaurants, bakeries, and a good selection of international cuisines along Bloor Street. It is pleasant but not exciting. Liberty Village's food scene is more contemporary, with trendy brunch spots and pub fare that cater to a younger crowd. For nightlife, neither neighborhood is a destination, but Liberty Village has a few more options for evening drinks. Bloor West Village truly winds down after dinner, which is perfect for families but limiting for anyone seeking evening entertainment. Both neighborhoods excel at casual, community-oriented dining. If you want a neighborhood where you know the staff at your local restaurant and the food is consistently good without being pretentious, both deliver — they just attract different demographics and operate at different energy levels.",
+      "safetyAndCommunity": "Bloor West Village has one of the most established and stable communities in Toronto. The neighborhood has been family-oriented for decades, with multi-generational residents, excellent schools, and a community association that actively shapes local development. Liberty Village's community is younger and newer, with a higher turnover rate typical of rental-heavy condo neighborhoods. Safety is excellent in both areas — Bloor West Village is among the safest neighborhoods in Toronto, with extremely low crime rates. Liberty Village is also safe but experiences the petty property crime common to any dense condo area. The community difference is primarily about stability and permanence: Bloor West Village residents tend to stay for decades, while Liberty Village residents may move on after a few years. Both have genuine neighborhood pride.",
+      "bestFor": "Choose Bloor West Village if you are looking for a stable, family-oriented neighborhood with High Park in your backyard, excellent schools, and a settled community. It is ideal for families, nature lovers, and people who prioritize a traditional neighborhood feel over downtown proximity. Choose Liberty Village if you are a young professional who wants to be closer to the action — with a shorter commute, modern condo living, and a social scene geared toward your demographic. The two neighborhoods rarely compete for the same residents because they serve such different life stages. Bloor West Village is where Toronto's young families put down roots; Liberty Village is where Toronto's young professionals build their urban lives."
+    },
+    "faqs": [
+      {
+        "question": "Is Bloor West Village too far from downtown?",
+        "answer": "At 30 to 35 minutes by subway, it is farther than Liberty Village's 25-minute streetcar ride. However, the subway provides a more reliable and weather-independent commute. The distance trade-off comes with significantly lower rent and access to High Park."
+      },
+      {
+        "question": "Is Bloor West Village or Liberty Village better for young professionals?",
+        "answer": "Liberty Village is significantly better for young professionals, with a younger demographic, more modern housing, and closer proximity to downtown nightlife and entertainment. Bloor West Village caters primarily to families and an older demographic."
+      },
+      {
+        "question": "Why is Bloor West Village rent so much cheaper than Liberty Village?",
+        "answer": "The roughly $450 monthly savings reflects Bloor West Village's greater distance from downtown, older rental housing stock, and suburban character. Liberty Village's premium reflects its proximity to the core, newer condo buildings, and young professional demand."
+      },
+      {
+        "question": "Does Bloor West Village have subway access?",
+        "answer": "Yes, Jane station on the Bloor-Danforth line serves the neighborhood directly. This is a significant advantage over Liberty Village, which has no subway access and relies on streetcars and buses."
+      }
+    ]
+  }
+]

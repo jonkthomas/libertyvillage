@@ -1,0 +1,870 @@
+[
+  {
+    "slug": "restaurants",
+    "name": "Restaurant",
+    "pluralName": "Restaurants",
+    "description": "From brunch spots to late-night eats, Liberty Village has some of Toronto's best neighborhood dining along King West and East Liberty.",
+    "icon": "🍽️",
+    "relatedServices": [
+      "coffee-shops",
+      "bars",
+      "brunch-spots",
+      "patios",
+      "pizza",
+      "short-term-rentals"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "hard"
+  },
+  {
+    "slug": "coffee-shops",
+    "name": "Coffee Shop",
+    "pluralName": "Coffee Shops",
+    "description": "Liberty Village's café culture runs deep, with indie roasters and cozy spots lining East Liberty and Atlantic Ave perfect for remote workers and weekend hangs.",
+    "icon": "☕",
+    "relatedServices": [
+      "brunch-spots",
+      "restaurants",
+      "coworking-spaces",
+      "bakeries"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "hard"
+  },
+  {
+    "slug": "brunch-spots",
+    "name": "Brunch Spot",
+    "pluralName": "Brunch Spots",
+    "description": "Weekend brunch is a Liberty Village institution — expect lineups at the neighborhood's best spots along King West and East Liberty Street.",
+    "icon": "🥞",
+    "relatedServices": [
+      "restaurants",
+      "coffee-shops",
+      "patios",
+      "bakeries"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "bars",
+    "name": "Bar",
+    "pluralName": "Bars",
+    "description": "Liberty Village's bar scene ranges from craft cocktail lounges to casual sports bars buzzing on TFC and Argos game nights.",
+    "icon": "🍺",
+    "relatedServices": [
+      "restaurants",
+      "patios",
+      "wine-bars",
+      "breweries",
+      "nightlife-guide"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "hard"
+  },
+  {
+    "slug": "patios",
+    "name": "Patio",
+    "pluralName": "Patios",
+    "description": "When summer hits, Liberty Village patios along East Liberty and King West fill up fast — locals know to grab a table early on sunny afternoons.",
+    "icon": "☀️",
+    "relatedServices": [
+      "bars",
+      "restaurants",
+      "brunch-spots",
+      "breweries"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "gyms",
+    "name": "Gym",
+    "pluralName": "Gyms",
+    "description": "From boutique fitness studios to full-service gyms, Liberty Village has no shortage of places to work out within walking distance of your condo.",
+    "icon": "🏋️",
+    "relatedServices": [
+      "personal-trainers",
+      "yoga-studios",
+      "pilates",
+      "physiotherapy"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "yoga-studios",
+    "name": "Yoga Studio",
+    "pluralName": "Yoga Studios",
+    "description": "Liberty Village's yoga studios offer everything from hot yoga to vinyasa flow, many within converted warehouse spaces that define the neighborhood's vibe.",
+    "icon": "🧘",
+    "relatedServices": [
+      "pilates",
+      "gyms",
+      "massage-therapy",
+      "personal-trainers"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "pilates",
+    "name": "Pilates Studio",
+    "pluralName": "Pilates Studios",
+    "description": "Pilates has become a Liberty Village staple, with reformer and mat classes available at studios scattered around Mowat and Atlantic Ave.",
+    "icon": "🤸",
+    "relatedServices": [
+      "yoga-studios",
+      "gyms",
+      "personal-trainers",
+      "physiotherapy"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "dentists",
+    "name": "Dentist",
+    "pluralName": "Dentists",
+    "description": "Finding a dentist accepting new patients in Liberty Village is easier than you think, with several clinics along King West and inside local condo plazas.",
+    "icon": "🦷",
+    "relatedServices": [
+      "doctors",
+      "optometrists",
+      "pharmacies"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "doctors",
+    "name": "Doctor",
+    "pluralName": "Doctors",
+    "description": "Walk-in clinics and family doctors serve the Liberty Village community, though wait lists for a family physician can be long — we track who's accepting patients.",
+    "icon": "🩺",
+    "relatedServices": [
+      "dentists",
+      "pharmacies",
+      "physiotherapy",
+      "chiropractors",
+      "optometrists"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "veterinarians",
+    "name": "Veterinarian",
+    "pluralName": "Veterinarians",
+    "description": "Liberty Village is one of Toronto's most dog-friendly neighborhoods, and local vets along King West and Atlantic Ave keep the furry residents healthy.",
+    "icon": "🐾",
+    "relatedServices": [
+      "dog-walkers",
+      "dog-groomers",
+      "pet-stores"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "dog-walkers",
+    "name": "Dog Walker",
+    "pluralName": "Dog Walkers",
+    "description": "With so many dog owners in Liberty Village condos, professional dog walkers are in high demand — especially during the workday when nearby dog parks get busy.",
+    "icon": "🐕",
+    "relatedServices": [
+      "veterinarians",
+      "dog-groomers",
+      "pet-stores"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "dog-groomers",
+    "name": "Dog Groomer",
+    "pluralName": "Dog Groomers",
+    "description": "Keep your pup looking sharp with Liberty Village's local dog groomers, several of which offer pickup and drop-off service to neighborhood condos.",
+    "icon": "✂️🐩",
+    "relatedServices": [
+      "veterinarians",
+      "dog-walkers",
+      "pet-stores"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "hair-salons",
+    "name": "Hair Salon",
+    "pluralName": "Hair Salons",
+    "description": "Liberty Village's hair salons range from trendy boutique studios in converted lofts to established full-service salons along King Street West.",
+    "icon": "💇",
+    "relatedServices": [
+      "barbers",
+      "nail-salons",
+      "massage-therapy"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "barbers",
+    "name": "Barber",
+    "pluralName": "Barbers",
+    "description": "Classic cuts and modern fades are easy to find at Liberty Village barbershops, many of which take walk-ins along East Liberty and Hanna Ave.",
+    "icon": "💈",
+    "relatedServices": [
+      "hair-salons",
+      "nail-salons"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "nail-salons",
+    "name": "Nail Salon",
+    "pluralName": "Nail Salons",
+    "description": "Whether it's a quick mani-pedi or full gel set, Liberty Village nail salons keep locals polished without trekking downtown.",
+    "icon": "💅",
+    "relatedServices": [
+      "hair-salons",
+      "barbers",
+      "massage-therapy"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "house-cleaning",
+    "name": "House Cleaning Service",
+    "pluralName": "House Cleaning Services",
+    "description": "Condo living in Liberty Village means regular cleaning is a must — local cleaning services know the typical condo layouts and building access rules.",
+    "icon": "🧹",
+    "relatedServices": [
+      "movers",
+      "dry-cleaners",
+      "tailors"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "movers",
+    "name": "Moving Company",
+    "pluralName": "Moving Companies",
+    "description": "Moving in or out of a Liberty Village condo requires movers who know elevator booking rules, loading docks, and tight parking — local experience matters.",
+    "icon": "🚚",
+    "relatedServices": [
+      "house-cleaning",
+      "real-estate-agents",
+      "insurance-agents"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "personal-trainers",
+    "name": "Personal Trainer",
+    "pluralName": "Personal Trainers",
+    "description": "Liberty Village personal trainers offer one-on-one sessions at local gyms, condo fitness rooms, and outdoor spots like Lamport Stadium park.",
+    "icon": "💪",
+    "relatedServices": [
+      "gyms",
+      "yoga-studios",
+      "pilates",
+      "physiotherapy"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "daycares",
+    "name": "Daycare",
+    "pluralName": "Daycares",
+    "description": "Daycare spots in Liberty Village fill up fast — getting on waitlists early is essential for the neighborhood's growing population of young families.",
+    "icon": "👶",
+    "relatedServices": [
+      "tutors",
+      "family-activities"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "coworking-spaces",
+    "name": "Coworking Space",
+    "pluralName": "Coworking Spaces",
+    "description": "Liberty Village's tech and creative roots make it a natural hub for coworking, with dedicated spaces and drop-in desks in converted industrial buildings.",
+    "icon": "🏢",
+    "relatedServices": [
+      "coffee-shops",
+      "restaurants",
+      "accountants"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "grocery-stores",
+    "name": "Grocery Store",
+    "pluralName": "Grocery Stores",
+    "description": "Grocery options in Liberty Village have improved significantly, though many residents still combine local shops with a weekend trip to larger stores on King West.",
+    "icon": "🛒",
+    "relatedServices": [
+      "pharmacies",
+      "bakeries",
+      "florists"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "pharmacies",
+    "name": "Pharmacy",
+    "pluralName": "Pharmacies",
+    "description": "Liberty Village pharmacies cover prescriptions, vaccinations, and everyday essentials — most are within a short walk along King Street West and East Liberty.",
+    "icon": "💊",
+    "relatedServices": [
+      "doctors",
+      "dentists",
+      "grocery-stores"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "dry-cleaners",
+    "name": "Dry Cleaner",
+    "pluralName": "Dry Cleaners",
+    "description": "Several dry cleaners serve Liberty Village with pickup and delivery to condo lobbies, making it easy to keep work clothes fresh.",
+    "icon": "👔",
+    "relatedServices": [
+      "tailors",
+      "house-cleaning",
+      "laundromats"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "tailors",
+    "name": "Tailor",
+    "pluralName": "Tailors",
+    "description": "Whether you need a hem taken up or a suit altered, Liberty Village tailors offer quick turnarounds and know the local professional crowd's needs.",
+    "icon": "🧵",
+    "relatedServices": [
+      "dry-cleaners",
+      "hair-salons",
+      "barbers"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "auto-repair",
+    "name": "Auto Repair Shop",
+    "pluralName": "Auto Repair Shops",
+    "description": "While most Liberty Village residents don't drive daily, those who do rely on nearby auto shops along Strachan, Dufferin, and King West for maintenance.",
+    "icon": "🔧",
+    "relatedServices": [
+      "bike-shops",
+      "insurance-agents"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "bike-shops",
+    "name": "Bike Shop",
+    "pluralName": "Bike Shops",
+    "description": "Cycling is a way of life in Liberty Village, and local bike shops handle everything from tune-ups to e-bike sales along the Martin Goodman Trail corridor.",
+    "icon": "🚲",
+    "relatedServices": [
+      "auto-repair",
+      "personal-trainers",
+      "gyms"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "massage-therapy",
+    "name": "Massage Therapist",
+    "pluralName": "Massage Therapists",
+    "description": "Registered massage therapists in Liberty Village offer deep tissue, relaxation, and sports massage — many accept insurance direct billing.",
+    "icon": "💆",
+    "relatedServices": [
+      "physiotherapy",
+      "chiropractors",
+      "yoga-studios",
+      "pilates"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "physiotherapy",
+    "name": "Physiotherapy Clinic",
+    "pluralName": "Physiotherapy Clinics",
+    "description": "Liberty Village physio clinics treat everything from desk-worker posture issues to sports injuries, with several located near the neighborhood's gyms.",
+    "icon": "🏥",
+    "relatedServices": [
+      "massage-therapy",
+      "chiropractors",
+      "gyms",
+      "personal-trainers"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "chiropractors",
+    "name": "Chiropractor",
+    "pluralName": "Chiropractors",
+    "description": "Chiropractors in Liberty Village serve the neighborhood's active population and remote workers dealing with back and neck strain.",
+    "icon": "🦴",
+    "relatedServices": [
+      "physiotherapy",
+      "massage-therapy",
+      "doctors"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "optometrists",
+    "name": "Optometrist",
+    "pluralName": "Optometrists",
+    "description": "Eye exams and new glasses are easy to find in Liberty Village, with optometry clinics offering same-day service and trendy frame selections.",
+    "icon": "👓",
+    "relatedServices": [
+      "doctors",
+      "dentists",
+      "pharmacies"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "accountants",
+    "name": "Accountant",
+    "pluralName": "Accountants",
+    "description": "Liberty Village's large freelancer and startup community means local accountants specialize in small business tax, incorporation, and self-employment filings.",
+    "icon": "📊",
+    "relatedServices": [
+      "lawyers",
+      "insurance-agents",
+      "real-estate-agents",
+      "coworking-spaces"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "lawyers",
+    "name": "Lawyer",
+    "pluralName": "Lawyers",
+    "description": "From real estate closings to condo board disputes, Liberty Village lawyers handle the legal needs of a neighborhood with a lot of property transactions.",
+    "icon": "⚖️",
+    "relatedServices": [
+      "accountants",
+      "real-estate-agents",
+      "insurance-agents"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "real-estate-agents",
+    "name": "Real Estate Agent",
+    "pluralName": "Real Estate Agents",
+    "description": "Liberty Village real estate moves fast — agents who specialize in the neighborhood know which buildings to avoid and which ones hold their value.",
+    "icon": "🏠",
+    "relatedServices": [
+      "lawyers",
+      "movers",
+      "insurance-agents",
+      "accountants"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "hard"
+  },
+  {
+    "slug": "insurance-agents",
+    "name": "Insurance Agent",
+    "pluralName": "Insurance Agents",
+    "description": "Condo insurance, tenant insurance, and small business coverage are the bread and butter for insurance agents serving Liberty Village residents.",
+    "icon": "🛡️",
+    "relatedServices": [
+      "real-estate-agents",
+      "lawyers",
+      "accountants",
+      "banks"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "banks",
+    "name": "Bank",
+    "pluralName": "Banks",
+    "description": "Major bank branches and ATMs are available along King Street West, though many Liberty Village residents handle banking digitally between visits.",
+    "icon": "🏦",
+    "relatedServices": [
+      "accountants",
+      "insurance-agents",
+      "real-estate-agents"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "tutors",
+    "name": "Tutor",
+    "pluralName": "Tutors",
+    "description": "Liberty Village tutors offer in-home and virtual sessions for students of all ages, from elementary homework help to university exam prep.",
+    "icon": "📚",
+    "relatedServices": [
+      "music-lessons",
+      "daycares"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "music-lessons",
+    "name": "Music Lesson",
+    "pluralName": "Music Lessons",
+    "description": "Guitar, piano, vocals, and more — Liberty Village's creative community supports several music instructors offering lessons in studios and homes.",
+    "icon": "🎵",
+    "relatedServices": [
+      "tutors",
+      "event-spaces",
+      "photographers"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "pet-stores",
+    "name": "Pet Store",
+    "pluralName": "Pet Stores",
+    "description": "Liberty Village pet stores stock premium food, treats, and gear for the neighborhood's famously large dog population.",
+    "icon": "🐾",
+    "relatedServices": [
+      "veterinarians",
+      "dog-walkers",
+      "dog-groomers"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "florists",
+    "name": "Florist",
+    "pluralName": "Florists",
+    "description": "Local florists in Liberty Village deliver fresh arrangements to condos and offices, with seasonal picks available at nearby markets.",
+    "icon": "💐",
+    "relatedServices": [
+      "caterers",
+      "photographers",
+      "event-spaces",
+      "grocery-stores"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "photographers",
+    "name": "Photographer",
+    "pluralName": "Photographers",
+    "description": "Liberty Village's industrial backdrops, murals, and loft spaces make it a popular base for photographers specializing in portraits, events, and real estate.",
+    "icon": "📷",
+    "relatedServices": [
+      "event-spaces",
+      "caterers",
+      "florists",
+      "real-estate-agents"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "caterers",
+    "name": "Caterer",
+    "pluralName": "Caterers",
+    "description": "Caterers based in and around Liberty Village handle everything from office lunches to private events in the neighborhood's unique loft and gallery venues.",
+    "icon": "🍱",
+    "relatedServices": [
+      "event-spaces",
+      "restaurants",
+      "florists",
+      "photographers"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "event-spaces",
+    "name": "Event Space",
+    "pluralName": "Event Spaces",
+    "description": "Converted warehouses and industrial lofts give Liberty Village some of Toronto's most unique event venues for parties, launches, and weddings.",
+    "icon": "🎉",
+    "relatedServices": [
+      "caterers",
+      "photographers",
+      "florists",
+      "bars"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "breweries",
+    "name": "Brewery",
+    "pluralName": "Breweries",
+    "description": "Liberty Village's craft beer scene thrives in taprooms and microbreweries tucked into the neighborhood's industrial heritage buildings.",
+    "icon": "🍻",
+    "relatedServices": [
+      "bars",
+      "wine-bars",
+      "restaurants",
+      "patios"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "wine-bars",
+    "name": "Wine Bar",
+    "pluralName": "Wine Bars",
+    "description": "Liberty Village wine bars offer curated lists and cozy atmospheres, making them a favorite for date nights and after-work catch-ups.",
+    "icon": "🍷",
+    "relatedServices": [
+      "bars",
+      "restaurants",
+      "breweries",
+      "patios"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "pizza",
+    "name": "Pizza Place",
+    "pluralName": "Pizza Places",
+    "description": "Whether you crave Neapolitan, New York-style, or late-night slices, Liberty Village pizza spots deliver to every condo in the neighborhood.",
+    "icon": "🍕",
+    "relatedServices": [
+      "restaurants",
+      "italian-restaurants",
+      "burger-joints",
+      "bars"
+    ],
+    "searchVolume": "high",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "sushi",
+    "name": "Sushi Restaurant",
+    "pluralName": "Sushi Restaurants",
+    "description": "Sushi lovers in Liberty Village can choose from all-you-can-eat spots to omakase-style counters without leaving the neighborhood.",
+    "icon": "🍣",
+    "relatedServices": [
+      "restaurants",
+      "thai-restaurants",
+      "bars"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "thai-restaurants",
+    "name": "Thai Restaurant",
+    "pluralName": "Thai Restaurants",
+    "description": "Pad thai, curries, and mango sticky rice are all within delivery range from Liberty Village Thai restaurants along King West.",
+    "icon": "🍜",
+    "relatedServices": [
+      "restaurants",
+      "sushi",
+      "indian-restaurants"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "italian-restaurants",
+    "name": "Italian Restaurant",
+    "pluralName": "Italian Restaurants",
+    "description": "Liberty Village's Italian restaurants serve handmade pasta, wood-fired pizza, and classic dishes — a nod to the area's historic immigrant roots.",
+    "icon": "🍝",
+    "relatedServices": [
+      "restaurants",
+      "pizza",
+      "wine-bars",
+      "patios"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "indian-restaurants",
+    "name": "Indian Restaurant",
+    "pluralName": "Indian Restaurants",
+    "description": "Butter chicken, biryani, and dosa are all on the menu at Liberty Village's Indian restaurants, with plenty of vegetarian and vegan options.",
+    "icon": "🍛",
+    "relatedServices": [
+      "restaurants",
+      "thai-restaurants",
+      "sushi"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "burger-joints",
+    "name": "Burger Joint",
+    "pluralName": "Burger Joints",
+    "description": "Smash burgers, gourmet patties, and classic diner-style burgers are all represented in Liberty Village's casual dining scene.",
+    "icon": "🍔",
+    "relatedServices": [
+      "restaurants",
+      "pizza",
+      "bars",
+      "breweries"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "medium"
+  },
+  {
+    "slug": "bakeries",
+    "name": "Bakery",
+    "pluralName": "Bakeries",
+    "description": "Fresh bread, croissants, and custom cakes from Liberty Village bakeries make mornings better and celebrations sweeter.",
+    "icon": "🥐",
+    "relatedServices": [
+      "coffee-shops",
+      "brunch-spots",
+      "grocery-stores",
+      "caterers"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "laundromats",
+    "name": "Laundromat",
+    "pluralName": "Laundromats",
+    "description": "While most Liberty Village condos have in-suite laundry, nearby laundromats offer drop-off service for large loads and specialty items.",
+    "icon": "🧺",
+    "relatedServices": [
+      "dry-cleaners",
+      "house-cleaning",
+      "tailors"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "tattoo-parlors",
+    "name": "Tattoo Parlor",
+    "pluralName": "Tattoo Parlors",
+    "description": "Liberty Village's creative streak extends to its tattoo artists, with parlors offering custom work in the neighborhood's signature industrial-chic spaces.",
+    "icon": "🎨",
+    "relatedServices": [
+      "hair-salons",
+      "barbers",
+      "nail-salons"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "spas",
+    "name": "Spa",
+    "pluralName": "Spas",
+    "description": "Relax without leaving the neighborhood — Liberty Village spas offer facials, body treatments, and wellness packages in calming settings.",
+    "icon": "🧖",
+    "relatedServices": [
+      "massage-therapy",
+      "nail-salons",
+      "hair-salons",
+      "yoga-studios"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "printing-services",
+    "name": "Printing Service",
+    "pluralName": "Printing Services",
+    "description": "Liberty Village's startup and creative businesses rely on local print shops for business cards, signage, and marketing materials.",
+    "icon": "🖨️",
+    "relatedServices": [
+      "coworking-spaces",
+      "photographers",
+      "caterers"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "it-support",
+    "name": "IT Support",
+    "pluralName": "IT Support Services",
+    "description": "Tech startups and remote workers in Liberty Village depend on local IT support for hardware repairs, network setup, and troubleshooting.",
+    "icon": "💻",
+    "relatedServices": [
+      "coworking-spaces",
+      "accountants",
+      "insurance-agents"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "interior-designers",
+    "name": "Interior Designer",
+    "pluralName": "Interior Designers",
+    "description": "Liberty Village condos and lofts have unique layouts that local interior designers know how to maximize — from 400 sq ft studios to two-storey live-work units.",
+    "icon": "🛋️",
+    "relatedServices": [
+      "real-estate-agents",
+      "photographers",
+      "house-cleaning"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "locksmith",
+    "name": "Locksmith",
+    "pluralName": "Locksmiths",
+    "description": "Locked out of your Liberty Village condo? Local locksmiths offer fast response times and understand the fob and key systems common in neighborhood buildings.",
+    "icon": "🔑",
+    "relatedServices": [
+      "house-cleaning",
+      "movers",
+      "insurance-agents"
+    ],
+    "searchVolume": "low",
+    "competitiveness": "easy"
+  },
+  {
+    "slug": "short-term-rentals",
+    "name": "Short-Term Rental",
+    "pluralName": "Short-Term Rentals",
+    "description": "Visiting Liberty Village? From stylish Airbnb lofts to spacious townhouses, the neighborhood has short-term rental options within walking distance of restaurants, BMO Field, and the King streetcar.",
+    "icon": "🏠",
+    "relatedServices": [
+      "restaurants",
+      "coffee-shops",
+      "bars",
+      "gyms",
+      "grocery-stores"
+    ],
+    "searchVolume": "medium",
+    "competitiveness": "easy"
+  }
+]

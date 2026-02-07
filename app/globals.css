@@ -1,26 +1,54 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FFFBF5;
+  --foreground: #1C1917;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Primary - Amber/Golden */
+  --color-amber-500: #F59E0B;
+  --color-amber-600: #D97706;
+  --color-amber-700: #B45309;
+  --color-amber-100: #FEF3C7;
+  --color-amber-50: #FFFBEB;
+
+  /* Secondary - Sage/Green */
+  --color-sage-500: #6B8F71;
+  --color-sage-400: #A7C4A0;
+  --color-sage-600: #4A7050;
+  --color-sage-100: #E8F0E8;
+  --color-sage-50: #F3F8F3;
+
+  /* Accent - Terracotta */
+  --color-terra-500: #EA580C;
+  --color-terra-600: #C2410C;
+  --color-terra-100: #FFEDD5;
+
+  /* Warm Grays */
+  --color-warm-50: #FAFAF9;
+  --color-warm-100: #F5F5F4;
+  --color-warm-200: #E7E5E4;
+  --color-warm-300: #D6D3D1;
+  --color-warm-400: #A8A29E;
+  --color-warm-500: #78716C;
+  --color-warm-600: #57534E;
+  --color-warm-700: #44403C;
+  --color-warm-800: #292524;
+  --color-warm-900: #1C1917;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans), system-ui, sans-serif;
 }

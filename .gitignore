@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright
+/test-results/
+/playwright-report/
+/screenshots/
+
+# data build scripts
+data/build-*.js
+data/generate-*.js
+data/combine-*.js
+data/topics-part*.json
