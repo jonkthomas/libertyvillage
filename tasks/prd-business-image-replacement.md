@@ -360,7 +360,7 @@ This loop continues until the code-reviewer reports zero image issues across the
 
 **IMPORTANT: Never pass downloaded image data inline into conversation context. Always save to file with a filename parameter. Track all progress here.**
 
-Progress: 9/76 complete
+Progress: 18/76 complete
 
 | # | Slug | Filename | Filepath | Source | Status |
 |---|------|----------|----------|--------|--------|
@@ -373,15 +373,15 @@ Progress: 9/76 complete
 | 7 | school-restaurant | school-restaurant.jpg | /public/images/businesses/ | schoolrestaurant.ca (Squarespace CDN) | done |
 | 8 | oeb-breakfast-co | oeb-breakfast-co.jpg | /public/images/businesses/ | eatoeb.com | done |
 | 9 | brazen-head-irish-pub | brazen-head-irish-pub.jpg | /public/images/businesses/ | simpleviewinc.com (Tourism Toronto) | done |
-| 10 | moxies-liberty-village | moxies-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 11 | the-rec-room-liberty-village | the-rec-room-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 12 | liberty-commons-big-rock-brewery | liberty-commons-big-rock-brewery.jpg | /public/images/businesses/ | — | pending |
-| 13 | craft-beer-market-liberty-village | craft-beer-market-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 14 | pizza-libretto-liberty-village | pizza-libretto-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 15 | pai-northern-thai | pai-northern-thai.jpg | /public/images/businesses/ | — | pending |
-| 16 | cibo-liberty-village | cibo-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 17 | left-field-brewery | left-field-brewery.jpg | /public/images/businesses/ | — | pending |
-| 18 | sushi-liberty-village | sushi-liberty-village.jpg | /public/images/businesses/ | — | pending |
+| 10 | moxies-liberty-village | moxies-liberty-village.jpg | /public/images/businesses/ | moxies.com (WordPress CDN) | done |
+| 11 | the-rec-room-liberty-village | the-rec-room-liberty-village.jpg | /public/images/businesses/ | eventsource.ca | done |
+| 12 | liberty-commons-big-rock-brewery | liberty-commons-big-rock-brewery.jpg | /public/images/businesses/ | oliverbonacininetwork.com CDN | done |
+| 13 | craft-beer-market-liberty-village | craft-beer-market-liberty-village.jpg | /public/images/businesses/ | craftbeermarket.com (WordPress CDN) | done |
+| 14 | pizza-libretto-liberty-village | pizza-libretto-liberty-village.jpg | /public/images/businesses/ | pizzerialibretto.agencydominion.net | done |
+| 15 | pai-northern-thai | pai-northern-thai.jpg | /public/images/businesses/ | cloudimg.io (Google Maps photo) | done |
+| 16 | cibo-liberty-village | cibo-liberty-village.jpg | /public/images/businesses/ | cibowinebar.com (Squarespace CDN) | done |
+| 17 | left-field-brewery | left-field-brewery.jpg | /public/images/businesses/ | eventsource.ca | done |
+| 18 | sushi-liberty-village | sushi-liberty-village.jpg | /public/images/businesses/ | mikutoronto.com (Squarespace CDN) | done |
 | 19 | balzacs-coffee-liberty-village | balzacs-coffee-liberty-village.jpg | /public/images/businesses/ | — | pending |
 | 20 | louie-coffee-bar | louie-coffee-bar.jpg | /public/images/businesses/ | — | pending |
 | 21 | arvo-coffee | arvo-coffee.jpg | /public/images/businesses/ | — | pending |
