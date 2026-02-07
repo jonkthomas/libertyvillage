@@ -125,3 +125,37 @@ Goal: Unknown
 - Jimmy's Coffee doesn't have an actual Liberty Village location — used Portland St (nearest) storefront image
 - 5/5 first-attempt success rate continues the improving trend
 
+## 2026-02-07 - US-006: Download fitness and wellness images (10 businesses)
+
+**What I did:**
+- Launched 10 parallel agents to search for image URLs for each fitness business
+- Created batch JSON file and downloaded all 10 images using download-image.js
+- All 10 succeeded on first attempt — no retries needed
+- Validated all 10 are real JPEG 800x600 progressive
+- Updated tracking log to 33/76 complete
+
+**Images downloaded:**
+- goodlife-fitness-liberty-village.jpg from blogTO (CloudFront CDN - Liberty Village location)
+- f45-training-liberty-village.jpg from blogTO (CloudFront CDN)
+- altea-active.jpg from alteaactive.com (WordPress CDN - Toronto facility interior)
+- orangetheory-fitness-liberty-village.jpg from orangetheory.com (website-files CDN - home banner webp)
+- movati-athletic-liberty-village.jpg from movatiathletic.com (WordPress CDN - strength/cardio floor)
+- studio-lagree-liberty-village.jpg from urbaneer.com (WordPress CDN - King St W location)
+- pure-barre-liberty-village.jpg from purebarre.com (HubSpot CDN - class with resistance straps)
+- yoga-tree-liberty-village.jpg from blogTO (CloudFront CDN)
+- studio-spin-liberty-village.jpg from blogTO (CloudFront CDN - SpinCo studio)
+- personal-training-liberty-village.jpg from Unsplash (personal training workout stock)
+
+**Failed/retried:**
+- None — all 10 succeeded on first attempt
+
+**Learnings:**
+- blogTO is excellent for Toronto fitness businesses (GoodLife, F45, Yoga Tree, SpinCo all had listings)
+- Altea Active has great high-res images on their Toronto location page (WordPress CDN)
+- Orangetheory uses website-files.com CDN with WebP images — sharp handles WebP→JPEG conversion seamlessly
+- Movati Athletic doesn't have a Liberty Village location but their homepage gym floor shot works well
+- Studio Lagree's King St W location is closest to Liberty Village — urbaneer.com blog had good photos
+- Pure Barre Toronto is closed but purebarre.com HubSpot CDN has brand images that work
+- Unsplash continues to be reliable fallback for businesses without specific Toronto presence (Precision Athletics)
+- 10/10 first-attempt success rate — batch download process is very reliable now
+
