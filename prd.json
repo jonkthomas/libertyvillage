@@ -1,0 +1,266 @@
+{
+  "project": "libertyvillage.so",
+  "branchName": "ralph/business-images",
+  "description": "Replace 76 fake business images (HTML error pages saved as .jpg) with real photos sourced from business websites, web search, and Airbnb listings. Target: 800x600 JPEG, 50-100KB each. USE AGENT SWARMING: For download stories (US-003 through US-011), launch multiple web-research-specialist agents in parallel to search and find image URLs concurrently. Each agent handles a subset of businesses. Collect URLs, then batch download. CRITICAL: Never pass image data inline into conversation — always save to files with filename param. Track progress in tasks/prd-business-image-replacement.md Image Tracking Log.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Install sharp and create image optimization script",
+      "description": "As a developer, I need sharp installed and an optimization script so all downloaded images can be resized to 800x600 progressive JPEG at quality 80.",
+      "acceptanceCriteria": [
+        "Run `npm install sharp` in the libertyvillage project",
+        "Create `scripts/optimize-business-images.js` that reads all files in `public/images/businesses/`",
+        "Script uses sharp to resize each image to 800x600 (cover/crop mode, not stretch)",
+        "Output as progressive JPEG at quality 80, stripping EXIF metadata",
+        "Script skips files that are already valid JPEG at 800x600",
+        "Script logs each file processed with before/after size",
+        "Script handles errors gracefully (logs and continues to next file)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create image download helper script",
+      "description": "As a developer, I need a Node.js script that can download an image from a URL and save it to the businesses directory so I can use it for batch downloads.",
+      "acceptanceCriteria": [
+        "Create `scripts/download-image.js` that accepts arguments: --url <image_url> --slug <business_slug>",
+        "Script downloads the image from the URL to `public/images/businesses/{slug}.jpg`",
+        "Script follows redirects (up to 5 hops)",
+        "Script sets a browser-like User-Agent header to avoid blocks",
+        "Script validates the downloaded file is actually an image (checks magic bytes for JPEG/PNG/WebP), not HTML",
+        "If downloaded file is not a valid image, delete it and log an error",
+        "After successful download, run sharp to resize to 800x600 progressive JPEG quality 80",
+        "Script can also accept --batch <json_file> where json_file has array of {url, slug} objects for batch processing",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Download restaurant and dining images batch 1 (9 businesses)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village restaurants. Download images for the first 9 restaurant/dining businesses by searching their official websites for og:image or hero images.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto', find a real photo URL from their official website or a reputable source, and download it using scripts/download-image.js",
+        "Businesses: mildreds-temple-kitchen (Mildred's Temple Kitchen, website: mildreds.ca), nodo-liberty-village (NODO, website: nodorestaurant.com), chiang-mai-thai (Chiang Mai Thai Restaurant), burger-drops (Burger Drops), impact-kitchen (Impact Kitchen, website: impactkitchen.ca), local-public-eatery (LOCAL Public Eatery, website: localpubliceatery.com), school-restaurant (School Restaurant, website: schoolrestaurant.ca), oeb-breakfast-co (OEB Breakfast Co., website: eatoeb.com), brazen-head-irish-pub (Brazen Head Irish Pub, website: brazenheadpub.com)",
+        "Strategy: First try fetching og:image from business website. If that fails, use WebSearch to find an image. If no official photo available, search Pexels/Unsplash for category-appropriate stock (e.g. 'brunch restaurant interior')",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Download restaurant and dining images batch 2 (9 businesses)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village bars, breweries, and remaining restaurants.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
+        "Businesses: moxies-liberty-village (Moxie's Grill & Bar, website: moxies.com), the-rec-room-liberty-village (The Rec Room, website: therecroom.com), liberty-commons-big-rock-brewery (Liberty Commons at Big Rock Brewery, website: libertycommons.ca), craft-beer-market-liberty-village (Craft Beer Market, website: craftbeermarket.ca), pizza-libretto-liberty-village (Pizza Libretto, website: pizzalibretto.com), pai-northern-thai (Pai Northern Thai Kitchen, website: paisrestaurant.com), cibo-liberty-village (Cibo Wine Bar, website: cibowinebar.com), left-field-brewery (Left Field Brewery, website: leftfieldbrewery.ca), sushi-liberty-village (Miku Toronto, website: mikurestaurant.com)",
+        "Strategy: First try fetching og:image from business website. If that fails, use WebSearch. Fallback to category-appropriate stock from Pexels/Unsplash.",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Download coffee shop images (5 businesses)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village coffee shops.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
+        "Businesses: balzacs-coffee-liberty-village (Balzac's Coffee Roasters, website: balzacs.com), louie-coffee-bar (Louie Coffee Bar), arvo-coffee (Arvo Coffee), dark-horse-espresso-liberty-village (Dark Horse Espresso Bar, website: darkhorseespresso.com), jimmys-coffee-liberty-village (Jimmy's Coffee, website: jimmyscoffee.ca)",
+        "Prefer: storefront or interior with coffee bar visible",
+        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for 'specialty coffee shop interior'",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 5 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Download fitness and wellness images (10 businesses)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village gyms, yoga studios, and fitness centers.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
+        "Businesses: goodlife-fitness-liberty-village (GoodLife Fitness, website: goodlifefitness.com), f45-training-liberty-village (F45 Training, website: f45training.com), altea-active (Altea Active, website: alteaactive.com), orangetheory-fitness-liberty-village (Orangetheory Fitness, website: orangetheory.com), movati-athletic-liberty-village (Movati Athletic, website: movati.ca), studio-lagree-liberty-village (Studio Lagree, website: studiolagree.com), pure-barre-liberty-village (Pure Barre, website: purebarre.com), yoga-tree-liberty-village (Yoga Tree, website: yogatree.ca), studio-spin-liberty-village (SpinCo, website: spinco.ca), personal-training-liberty-village (Precision Athletics)",
+        "Prefer: exterior signage, gym floor, or class in session shots",
+        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category (e.g. 'modern gym interior')",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 10 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Download health and medical images (10 businesses)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village clinics, dentists, and healthcare providers.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
+        "Businesses: liberty-village-dental (Liberty Village Dental), edition-dental (Edition Dental, website: editiondental.com), liberty-village-physio (Liberty Village Physiotherapy & Rehab), liberty-village-chiropractic (Liberty Village Chiropractic), liberty-village-massage-therapy (Myodetox Liberty Village, website: myodetox.com), liberty-village-optometry (Liberty Village Optometry), benchmark-optometry (BenchMark Optometry, website: benchmarkoptometry.com), liberty-village-family-medicine (Liberty Village Family Health Team), liberty-village-animal-hospital (Liberty Village Animal Hospital), sweet-flour-bake-shop (Sweet Flour Bake Shop, website: sweetflour.ca)",
+        "Prefer: storefront or clean reception/interior shots",
+        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category (e.g. 'modern dental clinic', 'veterinary clinic')",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 10 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Download beauty, grooming and pet service images (7 businesses)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village salons, barbers, and pet services.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
+        "Businesses: bsuite-hair-salon (b.suite), lavish-hair-studio (Lavish Hair Studio), baz-and-banks-barber (Baz & Banks Barber), tips-and-toes-nail-salon (Tips & Toes Nail Spa), liberty-pooch (Liberty Pooch, website: libertypooch.ca), woofstock-pet-supplies (Woof & Whiskers), the-dog-house-grooming (The Dog House Grooming)",
+        "Prefer: storefront, interior, or action shots (grooming, styling)",
+        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category (e.g. 'modern hair salon interior', 'dog grooming')",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 7 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Download professional services and retail images batch 1 (9 businesses)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village coworking spaces, banks, and retail stores.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
+        "Businesses: spaces-liberty-village (Spaces Liberty Village, website: spacesworks.com), the-fueling-station (The Fueling Station), wework-liberty-village (WeWork, website: wework.com), freshco-liberty-village (FreshCo, website: freshco.com), shoppers-drug-mart-liberty-village (Shoppers Drug Mart, website: shoppersdrugmart.ca), rexall-liberty-village (Rexall Pharmacy, website: rexall.ca), scotiabank-liberty-village (Scotiabank, website: scotiabank.com), liberty-village-rbc (RBC Royal Bank, website: rbc.com), king-west-dry-cleaners (King West Dry Cleaners)",
+        "Prefer: storefront, signage, or representative interior shots",
+        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Download professional services and retail images batch 2 (9 businesses)",
+      "description": "As a site visitor, I want to see real photos of remaining Liberty Village services and shops.",
+      "acceptanceCriteria": [
+        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
+        "Businesses: liberty-village-accounting (Blueprint Accounting), real-estate-liberty-village (Liberty Village Real Estate Team), bike-share-liberty-village (Sweet Pete's Bike Shop, website: sweetpetes.com), florist-liberty-village (Tonic Blooms, website: tonicblooms.com), cleaning-liberty-village (Mopify, website: mopify.com), liberty-village-daycare (Liberty Village Child Care Centre), caterers-liberty-village (Feast Catering Co.), event-space-liberty-village (Artscape Youngplace, website: artscapeyoungplace.ca), music-lessons-liberty-village (Liberty Village Music School)",
+        "Prefer: storefront, signage, or representative shots",
+        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Download short-term rental images from Airbnb (8 listings)",
+      "description": "As a site visitor, I want to see real photos of Liberty Village short-term rentals pulled from their actual Airbnb listings.",
+      "acceptanceCriteria": [
+        "For each Airbnb listing below, fetch the listing page and extract the hero/cover photo URL, then download using scripts/download-image.js",
+        "Listings: modern-liberty-village-townhouse (airbnb.com/rooms/1542736269971131768), liberty-village-loft-free-parking (airbnb.com/rooms/871738166990458444), chic-1br-loft-townhouse-liberty-village (airbnb.com/rooms/1576885939846485649), liberty-village-bmo-field-roof-patio (airbnb.com/rooms/1543495789538972595), spacious-private-townhouse-loft-lv (airbnb.com/rooms/1233529284737772574), prime-location-stylish-lv-townhouse (airbnb.com/rooms/1145912715955730597), downtown-toronto-condo-liberty-village (airbnb.com/rooms/889870893678449185), apartment-in-liberty-village (airbnb.com/rooms/851453481116182275)",
+        "Strategy: Use WebFetch on each Airbnb URL to extract the main listing image URL. If blocked, use Playwright MCP to navigate to the page and extract image. If all else fails, search web for listing name + 'Liberty Village Airbnb' and download result",
+        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
+        "All 8 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
+        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create validation script and verify all 76 images",
+      "description": "As a developer, I need a validation script that confirms all 76 business images are real JPEGs at correct dimensions.",
+      "acceptanceCriteria": [
+        "Create `scripts/validate-images.js`",
+        "Script checks every file in `public/images/businesses/` is a valid JPEG (not HTML, not PNG, not corrupt) by reading magic bytes",
+        "Script verifies dimensions are 800x600 (within 5% tolerance) using sharp metadata",
+        "Script verifies file size is between 10KB and 200KB",
+        "Script cross-references against `data/businesses.json` — flags any businesses missing an image file",
+        "Script flags any image files that don't correspond to a business in the JSON",
+        "Script outputs pass/fail report with specific failures listed",
+        "Run the validation script and confirm 76/76 pass",
+        "If any images fail validation, re-download or re-process them until all pass",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Full site image audit — check all image directories",
+      "description": "As a developer, I need to verify no other broken or placeholder images exist anywhere on the site beyond the business directory.",
+      "acceptanceCriteria": [
+        "Scan ALL image files in `public/images/` across all subdirectories (services, guides, neighborhoods, neighborhood, businesses)",
+        "Run file type check on every .jpg and .png — flag any that are HTML documents or corrupt",
+        "Cross-reference data/topics.json, data/services.json, data/neighborhoods.json image references against filesystem",
+        "Verify home page hero image /images/neighborhood/brick-loft-streetscape.jpg is valid",
+        "Output report listing any broken images found outside of businesses/ directory (expected: 0)",
+        "If any broken images found in other directories, fix them using same download approach",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Code review loop — scan for remaining image gaps",
+      "description": "As a developer, I need to run a code review to find any remaining image issues and fix them in a loop until clean.",
+      "acceptanceCriteria": [
+        "Run the code-reviewer agent to scan the entire codebase for image gaps: missing files, broken references, HTML-masquerading-as-JPEG, unreferenced images, wrong dimensions, components with broken image logic",
+        "Check all React components that render images (BusinessCard.tsx, HeroImage.tsx, page.tsx, [slug]/page.tsx) for any edge cases",
+        "Check that all JSON data files have matching image files on disk",
+        "If any issues found: fix them, then re-run the review",
+        "Continue looping until the code-reviewer reports zero image issues",
+        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with final status — Progress should read 76/76 complete",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
