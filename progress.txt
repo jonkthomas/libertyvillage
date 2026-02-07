@@ -222,3 +222,36 @@ Goal: Unknown
 - Lavish Hair Studio had no findable official website or specific photos — Unsplash stock was the only option
 - 7/7 first-attempt success rate continues the trend — download pipeline is very mature now
 
+## 2026-02-07 - US-009: Download professional services and retail images batch 1 (9 businesses)
+
+**What I did:**
+- Launched 9 parallel agents to search for image URLs for each professional services/retail business
+- Created batch JSON file and downloaded all 9 images using download-image.js
+- All 9 succeeded on first attempt — no retries needed
+- Validated all 9 are real JPEG 800x600 progressive
+- Updated tracking log to 59/76 complete
+
+**Images downloaded:**
+- spaces-liberty-village.jpg from assets.iwgplc.com (Cloudinary CDN - Spaces 80 Atlantic Ave coworking)
+- the-fueling-station.jpg from libertyvillagetoronto.com (WordPress CDN - interior photo)
+- wework-liberty-village.jpg from dr3h7ptpe31k5.cloudfront.net (Office Hub - 171 E Liberty St)
+- freshco-liberty-village.jpg from Wikimedia Commons (FreshCo storefront CC0)
+- shoppers-drug-mart-liberty-village.jpg from retailinsider.b-cdn.net (BunnyCDN - Yonge-Dundas Square)
+- rexall-liberty-village.jpg from Wikimedia Commons (Rexall Pharmacy storefront)
+- scotiabank-liberty-village.jpg from libertyvillagetoronto.com (LVBIA - 10 Liberty St Liberty Village branch)
+- liberty-village-rbc.jpg from rbc.com (newsroom - Royal Bank Plaza exterior with signage)
+- king-west-dry-cleaners.jpg from kingwestcondo.com (King West Village Cleaners storefront)
+
+**Failed/retried:**
+- None — all 9 succeeded on first attempt
+
+**Learnings:**
+- IWG/Regus (assets.iwgplc.com) uses Cloudinary CDN with configurable transform parameters — useful for coworking space images
+- libertyvillagetoronto.com community site is an excellent source for Liberty Village-specific business photos (used for Fueling Station and Scotiabank)
+- Office Hub (CloudFront) lists WeWork locations with real interior photos — good alternative when wework.com blocks scraping
+- Wikimedia Commons is reliable for major chain storefronts (FreshCo, Rexall) — CC0/CC licensed
+- Retail Insider (BunnyCDN) has Toronto retail storefront photos — good for Shoppers Drug Mart
+- RBC newsroom has publicly accessible branch/building images
+- kingwestcondo.com blog has storefront photos of King West area businesses
+- 9/9 first-attempt success rate — the pipeline is extremely reliable at this point (59/76 total)
+
