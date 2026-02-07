@@ -192,3 +192,33 @@ Goal: Unknown
 - libertyvillagetoronto.com community site has historical photos of local businesses
 - Toronto Observer had a good article about Edition Dental with usable storefront photo
 
+## 2026-02-07 - US-008: Download beauty, grooming and pet service images (7 businesses)
+
+**What I did:**
+- Launched 7 parallel agents to search for image URLs for each beauty/grooming/pet business
+- Created batch JSON file and downloaded all 7 images using download-image.js
+- All 7 succeeded on first attempt — no retries needed
+- Validated all 7 are real JPEG 800x600 progressive
+- Updated tracking log to 50/76 complete
+
+**Images downloaded:**
+- bsuite-hair-salon.jpg from bsuite.ca (Squarespace CDN - salon interior screenshot)
+- lavish-hair-studio.jpg from Unsplash (warm hair salon interior with pink chairs)
+- baz-and-banks-barber.jpg from viewthevibe.com (grand opening event photo)
+- tips-and-toes-nail-salon.jpg from Flickr CC BY 2.0 (nail salon interior with chairs)
+- liberty-pooch.jpg from libertypooch.ca (Squarespace CDN - Liberty Village dog walkers)
+- woofstock-pet-supplies.jpg from Wikimedia Commons (pet supply store exterior)
+- the-dog-house-grooming.jpg from Wikimedia Commons (dog grooming action shot)
+
+**Failed/retried:**
+- None — all 7 succeeded on first attempt
+
+**Learnings:**
+- b.suite has an official Squarespace website (bsuite.ca) with salon interior images
+- ViewTheVibe.com covered Baz & Banks Barber grand opening — great source for Toronto business event photos
+- Liberty Pooch (libertypooch.ca) has excellent Squarespace-hosted images of their dog walking team in Liberty Village
+- Wikimedia Commons is a reliable fallback for category-generic photos (pet store, dog grooming) when specific Toronto business photos aren't available
+- Flickr CC BY 2.0 images work well for nail salon category when the specific business has no web presence
+- Lavish Hair Studio had no findable official website or specific photos — Unsplash stock was the only option
+- 7/7 first-attempt success rate continues the trend — download pipeline is very mature now
+
