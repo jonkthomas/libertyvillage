@@ -13,7 +13,7 @@ export default function Header() {
     <header className="sticky top-0 z-40 border-b border-warm-200 bg-white/95 backdrop-blur-sm shadow-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <Link href="/" className="text-xl font-bold text-warm-900">
-          LibertyVillage<span className="text-amber-500">.so</span>
+          LibertyVillage<span className="text-amber-500">.co</span>
         </Link>
 
         {/* Desktop nav */}

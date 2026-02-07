@@ -4,20 +4,20 @@ import { generateItemListSchema } from "@/lib/schema";
 import DirectoryFilter from "@/components/DirectoryFilter";
 
 export const metadata: Metadata = {
-  title: "Liberty Village Business Directory — Find Local Services | libertyvillage.so",
+  title: "Liberty Village Business Directory — Find Local Services | libertyvillage.co",
   description:
     "Browse the complete Liberty Village business directory. Search and filter restaurants, services, shops, and more in your neighborhood.",
   openGraph: {
     title: "Liberty Village Business Directory",
     description: "Browse the complete Liberty Village business directory.",
     type: "website",
-    url: "https://libertyvillage.so/directory",
-    siteName: "LibertyVillage.so",
+    url: "https://libertyvillage.co/directory",
+    siteName: "LibertyVillage.co",
     locale: "en_CA",
   },
   alternates: {
-    canonical: "https://libertyvillage.so/directory",
-    languages: { "en-CA": "https://libertyvillage.so/directory" },
+    canonical: "https://libertyvillage.co/directory",
+    languages: { "en-CA": "https://libertyvillage.co/directory" },
   },
 };
 

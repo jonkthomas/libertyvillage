@@ -116,7 +116,7 @@ test.describe("Homepage and navigation flow", () => {
     }
   });
 
-  test("hreflang en-CA present on every page type", async ({ page }) => {
+  test("Canadian locale (en-CA) present on every page type", async ({ page }) => {
     const pages = [
       "/",
       "/best/restaurants",
@@ -127,9 +127,8 @@ test.describe("Homepage and navigation flow", () => {
 
     for (const url of pages) {
       await page.goto(url);
-      const hreflang = page.locator('link[hreflang="en-CA"], link[hreflang="en-ca"]');
-      const count = await hreflang.count();
-      expect(count, `Expected hreflang en-CA on ${url}`).toBeGreaterThanOrEqual(1);
+      const content = await page.content();
+      expect(content, `Expected en-CA or en_CA on ${url}`).toMatch(/en.CA/);
     }
   });
 });

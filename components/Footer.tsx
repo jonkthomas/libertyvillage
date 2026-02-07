@@ -30,7 +30,7 @@ export default function Footer() {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <h3 className="text-lg font-bold">
-              LibertyVillage<span className="text-amber-400">.so</span>
+              LibertyVillage<span className="text-amber-400">.co</span>
             </h3>
             <p className="mt-2 text-sm text-white/80 leading-relaxed">
               Your complete guide to Liberty Village, Toronto. Built by locals,
@@ -95,7 +95,7 @@ export default function Footer() {
 
         <div className="mt-10 border-t border-white/20 pt-6 text-center">
           <p className="text-sm text-white/60">
-            Made with love in Liberty Village, Toronto &copy; {new Date().getFullYear()} LibertyVillage.so
+            Made with love in Liberty Village, Toronto &copy; {new Date().getFullYear()} LibertyVillage.co
           </p>
         </div>
       </div>

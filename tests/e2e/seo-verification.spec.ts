@@ -26,7 +26,7 @@ test.describe("SEO and sitemap verification", () => {
 
     const body = await response.text();
     expect(body).toContain("Sitemap:");
-    expect(body).toContain("libertyvillage.so/sitemap.xml");
+    expect(body).toContain("libertyvillage.co/sitemap.xml");
   });
 
   test("service page has complete SEO elements", async ({ page }) => {
