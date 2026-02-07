@@ -360,7 +360,7 @@ This loop continues until the code-reviewer reports zero image issues across the
 
 **IMPORTANT: Never pass downloaded image data inline into conversation context. Always save to file with a filename parameter. Track all progress here.**
 
-Progress: 23/76 complete
+Progress: 33/76 complete
 
 | # | Slug | Filename | Filepath | Source | Status |
 |---|------|----------|----------|--------|--------|
@@ -387,16 +387,16 @@ Progress: 23/76 complete
 | 21 | arvo-coffee | arvo-coffee.jpg | /public/images/businesses/ | blogTO (CloudFront CDN) | done |
 | 22 | dark-horse-espresso-liberty-village | dark-horse-espresso-liberty-village.jpg | /public/images/businesses/ | darkhorseespresso.com (Shopify CDN) | done |
 | 23 | jimmys-coffee-liberty-village | jimmys-coffee-liberty-village.jpg | /public/images/businesses/ | jimmyscoffee.ca (Squarespace CDN) | done |
-| 24 | goodlife-fitness-liberty-village | goodlife-fitness-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 25 | f45-training-liberty-village | f45-training-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 26 | altea-active | altea-active.jpg | /public/images/businesses/ | — | pending |
-| 27 | orangetheory-fitness-liberty-village | orangetheory-fitness-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 28 | movati-athletic-liberty-village | movati-athletic-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 29 | studio-lagree-liberty-village | studio-lagree-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 30 | pure-barre-liberty-village | pure-barre-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 31 | yoga-tree-liberty-village | yoga-tree-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 32 | studio-spin-liberty-village | studio-spin-liberty-village.jpg | /public/images/businesses/ | — | pending |
-| 33 | personal-training-liberty-village | personal-training-liberty-village.jpg | /public/images/businesses/ | — | pending |
+| 24 | goodlife-fitness-liberty-village | goodlife-fitness-liberty-village.jpg | /public/images/businesses/ | blogTO (CloudFront CDN - Liberty Village location) | done |
+| 25 | f45-training-liberty-village | f45-training-liberty-village.jpg | /public/images/businesses/ | blogTO (CloudFront CDN) | done |
+| 26 | altea-active | altea-active.jpg | /public/images/businesses/ | alteaactive.com (WordPress CDN - Toronto facility) | done |
+| 27 | orangetheory-fitness-liberty-village | orangetheory-fitness-liberty-village.jpg | /public/images/businesses/ | orangetheory.com (website-files CDN) | done |
+| 28 | movati-athletic-liberty-village | movati-athletic-liberty-village.jpg | /public/images/businesses/ | movatiathletic.com (WordPress CDN) | done |
+| 29 | studio-lagree-liberty-village | studio-lagree-liberty-village.jpg | /public/images/businesses/ | urbaneer.com (WordPress CDN - King St W location) | done |
+| 30 | pure-barre-liberty-village | pure-barre-liberty-village.jpg | /public/images/businesses/ | purebarre.com (HubSpot CDN) | done |
+| 31 | yoga-tree-liberty-village | yoga-tree-liberty-village.jpg | /public/images/businesses/ | blogTO (CloudFront CDN) | done |
+| 32 | studio-spin-liberty-village | studio-spin-liberty-village.jpg | /public/images/businesses/ | blogTO (CloudFront CDN - SpinCo studio) | done |
+| 33 | personal-training-liberty-village | personal-training-liberty-village.jpg | /public/images/businesses/ | Unsplash (personal training stock) | done |
 | 34 | liberty-village-dental | liberty-village-dental.jpg | /public/images/businesses/ | — | pending |
 | 35 | edition-dental | edition-dental.jpg | /public/images/businesses/ | — | pending |
 | 36 | liberty-village-physio | liberty-village-physio.jpg | /public/images/businesses/ | — | pending |
