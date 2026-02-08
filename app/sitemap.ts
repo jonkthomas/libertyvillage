@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getAllServices, getAllNeighborhoods, getAllBusinesses, getAllTopics } from "@/lib/data";
 
-const BASE_URL = "https://libertyvillage.co";
+const BASE_URL = "https://libertyvillage.so";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date().toISOString();

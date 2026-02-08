@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: "/api/",
     },
-    sitemap: "https://libertyvillage.co/sitemap.xml",
+    sitemap: "https://libertyvillage.so/sitemap.xml",
   };
 }

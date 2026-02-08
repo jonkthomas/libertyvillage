@@ -1,6 +1,6 @@
 import type { Business, FAQ } from "./types";
 
-const SITE_URL = "https://libertyvillage.co";
+const SITE_URL = "https://libertyvillage.so";
 
 export function generateLocalBusinessSchema(business: Business) {
   return {
@@ -73,12 +73,12 @@ export function generateArticleSchema(
     dateModified: datePublished,
     publisher: {
       "@type": "Organization",
-      name: "LibertyVillage.co",
+      name: "LibertyVillage.so",
       url: SITE_URL,
     },
     author: {
       "@type": "Organization",
-      name: "LibertyVillage.co",
+      name: "LibertyVillage.so",
     },
   };
 }
@@ -102,7 +102,7 @@ export function generateWebsiteSchema() {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "LibertyVillage.co",
+    name: "LibertyVillage.so",
     url: SITE_URL,
     description:
       "Your complete guide to Liberty Village, Toronto. Find the best restaurants, services, and local businesses.",
