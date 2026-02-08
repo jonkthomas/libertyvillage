@@ -5,9 +5,20 @@ import Footer from "@/components/Footer";
 import { generateWebsiteSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Liberty Village, Toronto — Your Neighborhood Guide | libertyvillage.co",
+  title: "Liberty Village, Toronto — Your Neighborhood Guide | libertyvillage.so",
   description:
     "Your complete guide to Liberty Village, Toronto. Find the best restaurants, services, and local businesses. Compare neighborhoods, read guides, and explore the community.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({
