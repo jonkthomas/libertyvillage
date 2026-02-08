@@ -18,7 +18,7 @@ async function generate() {
       <rect x="0" y="430" width="100%" height="200" fill="rgba(0,0,0,0.3)"/>
       <text x="600" y="280" font-family="Arial,sans-serif" font-size="72" font-weight="bold" fill="white" text-anchor="middle">${img.title}</text>
       <text x="600" y="350" font-family="Arial,sans-serif" font-size="36" fill="rgba(255,255,255,0.9)" text-anchor="middle">${img.subtitle}</text>
-      <text x="600" y="540" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.7)" text-anchor="middle">libertyvillage.so</text>
+      <text x="600" y="540" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.7)" text-anchor="middle">libertyvillage.co</text>
     </svg>`;
     await sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toFile(path.join(ogDir, img.name));
     console.log('Created', img.name);

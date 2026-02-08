@@ -1,0 +1,259 @@
+{
+  "project": "libertyvillage.co",
+  "branchName": "ralph/site-images",
+  "description": "Add 100+ images across all page types for warm editorial visual identity",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add image fields to all data types",
+      "description": "As a developer, I need image fields on Business, Service, Topic, and Neighborhood types so pages can display images.",
+      "acceptanceCriteria": [
+        "Add optional `image?: string` field to Business interface in lib/types.ts",
+        "Add optional `image?: string` field to Service interface in lib/types.ts",
+        "Add optional `image?: string` field to Topic interface in lib/types.ts",
+        "Add optional `image?: string` field to Neighborhood interface in lib/types.ts",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create reusable HeroImage component",
+      "description": "As a developer, I need a reusable hero banner component with gradient overlay and responsive sizing.",
+      "acceptanceCriteria": [
+        "Create components/HeroImage.tsx",
+        "Props: src (string), alt (string), optional children for overlay text",
+        "Uses Next.js Image with priority loading, fill + object-cover for responsive sizing",
+        "Full-width container with rounded-xl corners, aspect-ratio 16:9 desktop / 4:3 mobile",
+        "Semi-transparent gradient overlay from bottom (transparent to rgba(0,0,0,0.5))",
+        "Graceful fallback: renders nothing if src is empty/undefined",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Generate neighborhood atmosphere photos via Glif",
+      "description": "As a content creator, I need 12 AI-generated editorial photos of Liberty Village for hero banners and reusable imagery.",
+      "acceptanceCriteria": [
+        "Create directory /public/images/neighborhood/",
+        "Generate 12 images via Glif Seedream API (glif ID: cmiqge0g60000lb04sm7ceb6u) using curl to https://simple-api.glif.app",
+        "Read GLIF_API_TOKEN from /workspace/.claude/skills/glif-image-generator/.env file",
+        "Warm editorial style: golden hour, soft light, muted warm tones, Toronto Liberty Village vibe",
+        "Subjects: brick-loft-streetscape, cafe-patio, king-st-streetcar, rooftop-sunset, dog-park, mural-street-art, cyclist-trail, condo-lobby, park-bench, playground, farmers-market, night-street",
+        "Aspect ratio: 16:9 for all",
+        "Download each to /public/images/neighborhood/{name}.jpg",
+        "If Glif API is unreachable, use placeholder images by downloading from Unsplash Source URLs instead"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Glif API token in /workspace/.claude/skills/glif-image-generator/.env. Fallback to Unsplash if API unreachable."
+    },
+    {
+      "id": "US-004",
+      "title": "Source and download service category hero images",
+      "description": "As a content creator, I need hero images for the 60 service category pages.",
+      "acceptanceCriteria": [
+        "Create directory /public/images/services/",
+        "Generate or source images for each distinct service category",
+        "Group similar categories to share images (e.g. brunch-spots and restaurants share restaurant interior image)",
+        "Need ~25 unique images covering: restaurants, coffee-shops, gyms, bars, dentists, hair-salons, coworking-spaces, yoga-studios, pet-stores, grocery-stores, breweries, pizza, sushi, thai, physiotherapy, massage, optometrists, walk-in-clinics, pharmacies, daycares, dry-cleaners, auto-mechanics, accountants, lawyers, real-estate-agents",
+        "Use Glif Seedream API (ID: cmiqge0g60000lb04sm7ceb6u) with warm editorial Toronto style, 16:9 aspect ratio",
+        "Download to /public/images/services/{category-slug}.jpg",
+        "If Glif unreachable, create simple colored placeholder JPGs with category names using a canvas script",
+        "Update data/services.json: add image field to all 60 entries pointing to the correct file"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Read services.json to get all slugs. Similar categories can share images."
+    },
+    {
+      "id": "US-005",
+      "title": "Source and download business listing photos",
+      "description": "As a content creator, I need photos for all 76 business listing pages.",
+      "acceptanceCriteria": [
+        "Create directory /public/images/businesses/",
+        "For each of the 76 businesses, create a category-appropriate image",
+        "Use Glif Seedream API with prompts matching each business category (restaurant interior, gym space, dental office, etc.)",
+        "Businesses in same category can share the same base image",
+        "Need ~20 unique category images, mapped to all 76 businesses",
+        "Download to /public/images/businesses/{business-slug}.jpg (can be symlinks or copies for shared images)",
+        "If Glif unreachable, generate colored placeholder images using Node.js canvas/sharp with business name text",
+        "Update data/businesses.json: add image field to all 76 entries",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Read businesses.json to get all slugs and categories. Group by category for efficiency."
+    },
+    {
+      "id": "US-006",
+      "title": "Source guide and neighborhood comparison images",
+      "description": "As a content creator, I need hero images for 37 guide pages and 15 comparison pages.",
+      "acceptanceCriteria": [
+        "Create directories /public/images/guides/ and /public/images/neighborhoods/",
+        "Generate images for each guide topic via Glif (parking=street with cars, safety=well-lit neighborhood, moving=boxes and truck, etc.)",
+        "Generate images for each neighborhood comparison via Glif (each evoking that neighborhood's character)",
+        "Need ~20 unique guide images and 15 neighborhood images",
+        "Download to /public/images/guides/{slug}.jpg and /public/images/neighborhoods/{slug}.jpg",
+        "If Glif unreachable, generate colored placeholder images using Node.js sharp/canvas",
+        "Update data/topics.json: add image field to all 37 entries",
+        "Update data/neighborhoods.json: add image field to all 15 entries",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Read topics.json and neighborhoods.json to get all slugs."
+    },
+    {
+      "id": "US-007",
+      "title": "Add hero image to homepage",
+      "description": "As a visitor, I want a beautiful Liberty Village hero image on the homepage.",
+      "acceptanceCriteria": [
+        "Modify homepage hero section in app/page.tsx",
+        "Add a background image using Next.js Image component with fill and object-cover",
+        "Use /images/neighborhood/brick-loft-streetscape.jpg (or whatever best neighborhood image exists in /public/images/neighborhood/)",
+        "Image renders behind the existing gradient with text overlay remaining readable",
+        "Add darker gradient overlay for text contrast: bg-gradient-to-b from-black/40 via-black/20 to-black/50",
+        "Uses priority loading (above the fold)",
+        "If image file doesn't exist, gracefully fall back to current amber gradient background",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Must check if image files exist in /public/images/neighborhood/ before referencing. Use relative path /images/neighborhood/..."
+    },
+    {
+      "id": "US-008",
+      "title": "Add hero images to service pages",
+      "description": "As a visitor, I want relevant hero images on each /best/* service page.",
+      "acceptanceCriteria": [
+        "Import and use HeroImage component in app/best/[service]/page.tsx",
+        "Place below breadcrumbs, above h1",
+        "Renders the service's image field from the service data",
+        "Falls back gracefully (renders nothing) if image field is missing or empty",
+        "Uses priority loading for above-the-fold",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add business photos to BusinessCard and detail pages",
+      "description": "As a visitor, I want to see photos on business cards and detail pages.",
+      "acceptanceCriteria": [
+        "Update components/BusinessCard.tsx: add thumbnail image (aspect-video, max-h-40) above the text content",
+        "Use Next.js Image component with width={400} height={225} and object-cover",
+        "Update app/directory/[slug]/page.tsx: add HeroImage component above the h1",
+        "Both use business image field from data",
+        "Falls back gracefully if no image (renders current layout without image)",
+        "BusinessCard images are lazy-loaded; detail page hero uses priority loading",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add hero images to comparison and guide pages",
+      "description": "As a visitor, I want hero images on /vs/* comparison pages and /guide/* pages.",
+      "acceptanceCriteria": [
+        "Add HeroImage component to app/vs/[neighborhood]/page.tsx below breadcrumbs, above h1",
+        "Add HeroImage component to app/guide/[topic]/page.tsx below breadcrumbs, above h1",
+        "Both render their respective image fields from data",
+        "Both fall back gracefully if image is missing",
+        "Both use priority loading",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add thumbnails to homepage cards",
+      "description": "As a visitor, I want thumbnail images on homepage guide and accommodation cards.",
+      "acceptanceCriteria": [
+        "Update homepage Neighborhood Guides section cards: add small thumbnail from topic image field",
+        "Update homepage Where to Stay section cards: add small thumbnail from business image field",
+        "ServiceCard component stays emoji-based (do NOT change it)",
+        "Images lazy-loaded (below the fold)",
+        "Graceful fallback if image missing (current no-image layout)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Generate OG images and update meta tags",
+      "description": "As an SEO specialist, I need Open Graph images for social sharing.",
+      "acceptanceCriteria": [
+        "Create directory /public/images/og/",
+        "Generate 5 OG images (1200x630) via Glif or create via Node.js canvas/sharp script:",
+        "  1. og-home.jpg - Liberty Village branded banner with amber/sage colors",
+        "  2. og-service.jpg - 'Best [Service] in Liberty Village' template style",
+        "  3. og-comparison.jpg - 'Liberty Village vs [Neighborhood]' template style",
+        "  4. og-directory.jpg - 'Liberty Village Business Directory' branded",
+        "  5. og-guide.jpg - 'Liberty Village Guide' template style",
+        "Update lib/meta.ts buildMeta function to include openGraph.images array with correct OG image URL",
+        "Map each page type to its corresponding OG image",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "If Glif unreachable, generate OG images using sharp with colored backgrounds and text overlay."
+    },
+    {
+      "id": "US-013",
+      "title": "Optimize images and Next.js config",
+      "description": "As a developer, I need all images compressed and Next.js properly configured for performance.",
+      "acceptanceCriteria": [
+        "Update next.config.ts: add images.formats: ['image/avif', 'image/webp']",
+        "Write a Node.js script to compress all images in /public/images/ using sharp: hero images max 800px wide <150KB, thumbnails max 400px wide <80KB, OG images 1200x630 <200KB",
+        "Run the compression script",
+        "Ensure all Image components have appropriate sizes attribute",
+        "Verify no images wider than 1200px in source",
+        "Total /public/images/ directory under 15MB",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Install sharp if not already available: npm install sharp"
+    },
+    {
+      "id": "US-014",
+      "title": "Playwright E2E test - images load correctly",
+      "description": "As QA, I need E2E tests verifying images render on all page types.",
+      "acceptanceCriteria": [
+        "Create tests/e2e/images-visual.spec.ts",
+        "Test homepage: hero image or background image visible",
+        "Test /best/restaurants: hero image visible if present",
+        "Test /directory/mildreds-temple-kitchen: business image visible if present",
+        "Test /vs/king-west: hero image visible if present",
+        "Test /guide/parking-guide: hero image visible if present",
+        "Test all img elements have alt text (accessibility)",
+        "Test no broken images (naturalWidth > 0 for all visible img elements)",
+        "Tests run on both desktop and mobile viewports",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Images may be placeholders - test should verify elements exist and load, not specific content."
+    }
+  ]
+}

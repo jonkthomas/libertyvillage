@@ -1,6 +1,6 @@
 import type { Business, FAQ } from "./types";
 
-const SITE_URL = "https://libertyvillage.so";
+const SITE_URL = "https://libertyvillage.co";
 
 export function generateLocalBusinessSchema(business: Business) {
   return {

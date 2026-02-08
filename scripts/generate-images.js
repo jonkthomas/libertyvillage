@@ -130,7 +130,7 @@ async function createPlaceholder(label, sublabel, outputPath, colors, width = 12
     <circle cx="120" cy="${height - 100}" r="150" fill="${accent}" opacity="0.06"/>
     <text x="50%" y="42%" font-family="system-ui, -apple-system, Arial, sans-serif" font-size="${labelFontSize}" font-weight="600" fill="${text}" text-anchor="middle" dominant-baseline="middle">${safeLabel}</text>
     <text x="50%" y="55%" font-family="system-ui, -apple-system, Arial, sans-serif" font-size="24" fill="${text}" text-anchor="middle" opacity="0.7">${safeSublabel}</text>
-    <text x="50%" y="85%" font-family="system-ui, -apple-system, Arial, sans-serif" font-size="16" fill="${text}" text-anchor="middle" opacity="0.4">libertyvillage.so</text>
+    <text x="50%" y="85%" font-family="system-ui, -apple-system, Arial, sans-serif" font-size="16" fill="${text}" text-anchor="middle" opacity="0.4">libertyvillage.co</text>
   </svg>`;
 
   await sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toFile(outputPath);

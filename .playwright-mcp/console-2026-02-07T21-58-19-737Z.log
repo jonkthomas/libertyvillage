@@ -1,0 +1,3 @@
+[     976ms] [WARNING] The stream mediawiki.web_ui_actions is out of sample. No event will be sent @ https://commons.wikimedia.org/w/load.php?lang=en&modules=ext.eventLogging.metricsPlatform&skin=vector-2022&version=1i3oh:4
+[    1123ms] [WARNING] This page is using the deprecated ResourceLoader module "jquery.ui".
+Please use Codex instead. @ https://commons.wikimedia.org/w/load.php?lang=en&modules=startup&only=scripts&raw=1&skin=vector-2022:11

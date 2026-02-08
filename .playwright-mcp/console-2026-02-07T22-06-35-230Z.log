@@ -1,0 +1,41 @@
+[    2229ms] Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'children')
+    at tr (https://scripts.clarity.ms/0.8.53/clarity.js:1:46268)
+    at Oa (https://scripts.clarity.ms/0.8.53/clarity.js:1:38883)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:34176)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9479)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9584)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:8499)
+    at it (https://scripts.clarity.ms/0.8.53/clarity.js:1:8244)
+    at pa (https://scripts.clarity.ms/0.8.53/clarity.js:1:33885)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:32743)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9479)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9584)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:8499)
+    at it (https://scripts.clarity.ms/0.8.53/clarity.js:1:8244)
+    at da (https://scripts.clarity.ms/0.8.53/clarity.js:1:31776)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:33070)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9479)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9584)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:8499)
+    at it (https://scripts.clarity.ms/0.8.53/clarity.js:1:8244)
+    at fa (https://scripts.clarity.ms/0.8.53/clarity.js:1:32806)
+    at Mi (https://scripts.clarity.ms/0.8.53/clarity.js:1:60633)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:60574)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9479)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:9584)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:8499)
+    at it (https://scripts.clarity.ms/0.8.53/clarity.js:1:8244)
+    at Ni (https://scripts.clarity.ms/0.8.53/clarity.js:1:60333)
+    at la (https://scripts.clarity.ms/0.8.53/clarity.js:1:31704)
+    at <anonymous> (https://scripts.clarity.ms/0.8.53/clarity.js:1:72482)
+[    2247ms] [ERROR] Access to fetch at 'https://apiv2dev.office-hub.com/telemetry/t/v' from origin 'https://www.office-hub.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://www.office-hub.com/ca/properties/171-east-liberty-street-toronto-on-a0v3m00000Oq3uaAAB:0
+[    2248ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://apiv2dev.office-hub.com/telemetry/t/v:0
+[    2248ms] [ERROR] Access to fetch at 'https://apiv2dev.office-hub.com/workspace/workspaces-partners?country=United%20States&limit=9' from origin 'https://www.office-hub.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://www.office-hub.com/ca/properties/171-east-liberty-street-toronto-on-a0v3m00000Oq3uaAAB:0
+[    2249ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://apiv2dev.office-hub.com/workspace/workspaces-partners?country=United%20States&limit=9:0
+[    2705ms] [ERROR] Access to fetch at 'https://apiv2dev.office-hub.com/workspace/workspaces-partners?country=Canada&limit=9' from origin 'https://www.office-hub.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://www.office-hub.com/ca/properties/171-east-liberty-street-toronto-on-a0v3m00000Oq3uaAAB:0
+[    2705ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://apiv2dev.office-hub.com/workspace/workspaces-partners?country=Canada&limit=9:0
+[    2711ms] [ERROR] Access to fetch at 'https://apiv2dev.office-hub.com/telemetry/t/i?d=&p=https%3A%2F%2Fwww.office-hub.com%2Fca%2Fproperties%2F171-east-liberty-street-toronto-on-a0v3m00000Oq3uaAAB' from origin 'https://www.office-hub.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://www.office-hub.com/ca/properties/171-east-liberty-street-toronto-on-a0v3m00000Oq3uaAAB:0
+[    2711ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://apiv2dev.office-hub.com/telemetry/t/i?d=&p=https%3A%2F%2Fwww.office-hub.com%2Fca%2Fproperties%2F171-east-liberty-street-toronto-on-a0v3m00000Oq3uaAAB:0
+[    2742ms] [ERROR] Access to fetch at 'https://apiv2dev.office-hub.com/workspace/workspaces-partners?country=Canada&limit=9' from origin 'https://www.office-hub.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://www.office-hub.com/ca/properties/171-east-liberty-street-toronto-on-a0v3m00000Oq3uaAAB:0
+[    2742ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://apiv2dev.office-hub.com/workspace/workspaces-partners?country=Canada&limit=9:0
+[    4030ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://ik.imagekit.io/officehub/tr:w-100//images/placeholder.jpg:0
