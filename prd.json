@@ -94,7 +94,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 2 — Can be built in parallel with US-006 and US-007. GSC site: sc-domain:libertyvillage.co, GA4 property: 523614078."
     },
     {
@@ -111,7 +111,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 2 — Parallel with US-005 and US-007. Valid categories: news, development, food-drink, events, transit, real-estate, lifestyle, community."
     },
     {
@@ -128,7 +128,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 2 — Parallel with US-005 and US-006. Read lib/types.ts BlogPost interface to include inline. Check data/services.json and data/topics.json for valid slug examples."
     },
     {
