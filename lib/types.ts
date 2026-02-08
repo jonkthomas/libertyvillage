@@ -13,6 +13,9 @@ export interface Service {
   searchVolume: "high" | "medium" | "low";
   competitiveness: "easy" | "medium" | "hard";
   image?: string;
+  answerBlock?: string;
+  definition?: string;
+  specificFaqs?: FAQ[];
 }
 
 export interface Topic {
@@ -33,6 +36,9 @@ export interface Topic {
   relatedTopics: string[];
   relatedServices: string[];
   image?: string;
+  answerSummary?: string;
+  keyTakeaways?: string[];
+  definitions?: Array<{ term: string; definition: string }>;
 }
 
 export interface DetailedComparison {
@@ -70,6 +76,7 @@ export interface Neighborhood {
   detailedComparison: DetailedComparison;
   faqs: FAQ[];
   image?: string;
+  answerBlock?: string;
 }
 
 export interface Business {
@@ -89,4 +96,6 @@ export interface Business {
   featured: boolean;
   proTip: string;
   image?: string;
+  answerBlock?: string;
+  bestFor?: string[];
 }

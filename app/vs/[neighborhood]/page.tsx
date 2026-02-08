@@ -4,13 +4,16 @@ import {
   getNeighborhoodBySlug,
 } from "@/lib/data";
 import { generateComparisonPageMeta } from "@/lib/meta";
-import { generateArticleSchema } from "@/lib/schema";
+import { generateArticleSchema, generateFAQSchema, generateSpeakableSchema } from "@/lib/schema";
 import { getNearbyNeighborhoods, getBreadcrumbs } from "@/lib/links";
+import { linkifyText, type LinkEntry } from "@/lib/linkify";
+import { getAllServices, getAllBusinesses } from "@/lib/data";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
 import ComparisonTable from "@/components/ComparisonTable";
 import FAQSection from "@/components/FAQSection";
 import RelatedLinks from "@/components/RelatedLinks";
+import AnswerBlock from "@/components/AnswerBlock";
 
 interface Props {
   params: Promise<{ neighborhood: string }>;
@@ -47,11 +50,23 @@ export default async function ComparisonPage({ params }: Props) {
   const relatedNeighborhoods = getNearbyNeighborhoods(slug);
   const breadcrumbs = getBreadcrumbs("neighborhood", `vs ${neighborhood.name}`);
 
+  // Build cross-linking lookups
+  const services = getAllServices();
+  const businesses = getAllBusinesses();
+  const linkLookups: LinkEntry[] = [
+    ...services.map((s) => ({ name: s.pluralName, href: `/best/${s.slug}` })),
+    ...businesses.slice(0, 30).map((b) => ({ name: b.name, href: `/directory/${b.slug}` })),
+  ];
+
   const articleSchema = generateArticleSchema(
     `Liberty Village vs ${neighborhood.name}`,
     neighborhood.verdict.summary,
-    "2026-01-15"
+    new Date().toISOString().split("T")[0]
   );
+  const faqSchema = generateFAQSchema(neighborhood.faqs);
+  const speakableSchema = neighborhood.answerBlock
+    ? generateSpeakableSchema(`/vs/${neighborhood.slug}`)
+    : null;
 
   const comparisonRows = [
     { label: "Avg 1BR Rent", lv: `$${LV.avgRent1BR.toLocaleString()}`, them: `$${neighborhood.avgRent1BR.toLocaleString()}` },
@@ -77,12 +92,16 @@ export default async function ComparisonPage({ params }: Props) {
       </h1>
 
       {/* Quick Verdict */}
-      <div className="mt-6 rounded-xl border-2 border-amber-200 bg-amber-50 p-6">
-        <h2 className="text-lg font-semibold text-amber-800">Quick Verdict</h2>
-        <p className="mt-2 text-warm-700 leading-relaxed">
-          {neighborhood.verdict.summary}
-        </p>
-      </div>
+      {neighborhood.answerBlock ? (
+        <AnswerBlock>{neighborhood.answerBlock}</AnswerBlock>
+      ) : (
+        <div className="mt-6 rounded-xl border-2 border-amber-200 bg-amber-50 p-6">
+          <h2 className="text-lg font-semibold text-amber-800">Quick Verdict</h2>
+          <p className="mt-2 text-warm-700 leading-relaxed">
+            {neighborhood.verdict.summary}
+          </p>
+        </div>
+      )}
 
       {/* Comparison Table */}
       <section className="mt-10">
@@ -112,19 +131,19 @@ export default async function ComparisonPage({ params }: Props) {
         <div>
           <h2 className="text-xl font-semibold text-warm-900">Food & Nightlife</h2>
           <p className="mt-2 text-warm-600 leading-relaxed">
-            {neighborhood.detailedComparison.foodAndNightlife}
+            {linkifyText(neighborhood.detailedComparison.foodAndNightlife, linkLookups)}
           </p>
         </div>
         <div>
           <h2 className="text-xl font-semibold text-warm-900">Safety & Community</h2>
           <p className="mt-2 text-warm-600 leading-relaxed">
-            {neighborhood.detailedComparison.safetyAndCommunity}
+            {linkifyText(neighborhood.detailedComparison.safetyAndCommunity, linkLookups)}
           </p>
         </div>
         <div>
           <h2 className="text-xl font-semibold text-warm-900">Best For</h2>
           <p className="mt-2 text-warm-600 leading-relaxed">
-            {neighborhood.detailedComparison.bestFor}
+            {linkifyText(neighborhood.detailedComparison.bestFor, linkLookups)}
           </p>
         </div>
       </section>
@@ -182,6 +201,16 @@ export default async function ComparisonPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      {speakableSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(speakableSchema) }}
+        />
+      )}
     </div>
   );
 }

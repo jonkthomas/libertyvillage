@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getAllServices, getAllTopics, getBusinessesByCategory } from "@/lib/data";
 import { generateHomePageMeta } from "@/lib/meta";
+import { generateBreadcrumbSchema, generateWebsiteSchema } from "@/lib/schema";
 import ServiceCard from "@/components/ServiceCard";
 import StatBar from "@/components/StatBar";
 
@@ -63,10 +64,12 @@ export default function Home() {
         </div>
         <div className="relative mx-auto max-w-4xl text-center">
           <h1 className="text-4xl font-bold text-white sm:text-5xl drop-shadow-sm">
-            Your guide to Liberty Village, Toronto
+            Liberty Village, Toronto — Your Neighborhood Guide
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-white/90 drop-shadow-sm">
-            Everything you need to know about the neighborhood — from a neighbor.
+          <p className="answer-block mx-auto mt-4 max-w-2xl text-lg text-white/90 drop-shadow-sm">
+            Liberty Village is a walkable Toronto neighborhood of 9,000+ residents
+            with 600+ businesses, known for its converted industrial lofts,
+            dog-friendly culture, and thriving food scene along King Street West.
             Find the best local businesses, read guides, and compare neighborhoods.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -209,6 +212,21 @@ export default function Home() {
           </Link>
         </section>
       </div>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateBreadcrumbSchema([
+            { label: "Home", href: "/" },
+          ])),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateWebsiteSchema()),
+        }}
+      />
     </div>
   );
 }

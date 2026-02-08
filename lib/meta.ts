@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { Service, Neighborhood, Business, Topic } from "./types";
 
 const SITE_URL = "https://libertyvillage.co";
-const SITE_NAME = "LibertyVillage.so";
+const SITE_NAME = "LibertyVillage.co";
 
 function buildMeta(
   title: string,
@@ -33,7 +33,7 @@ function buildMeta(
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
     "Liberty Village, Toronto — Your Neighborhood Guide | libertyvillage.co",
-    "Your complete guide to Liberty Village, Toronto. Find the best restaurants, services, local businesses, and neighborhood tips from a neighbor.",
+    "Liberty Village is a walkable Toronto neighborhood of 9,000+ residents with 600+ businesses, known for converted industrial lofts, dog-friendly culture, and a thriving food scene along King Street West.",
     "/",
     "/images/og/og-home.jpg"
   );

@@ -15,7 +15,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "hard",
-    "image": "/images/services/restaurants.jpg"
+    "image": "/images/services/restaurants.jpg",
+    "answerBlock": "Liberty Village has 5 standout restaurants worth knowing. Mildred's Temple Kitchen on Hanna Ave leads with a 4.5 rating and legendary brunch, followed by School Restaurant in a restored 1890s schoolhouse on Fraser Ave. Impact Kitchen on Atlantic Ave serves the fitness crowd with macro-tracked bowls. Prices range from $15 lunch combos to $40 dinner entrees across the neighbourhood.",
+    "definition": "Restaurants in Liberty Village range from elevated Canadian dining in converted industrial spaces to casual neighbourhood eateries, concentrated along East Liberty Street and the surrounding warehouse district.",
+    "specificFaqs": [
+      {
+        "question": "What are the best restaurants in Liberty Village?",
+        "answer": "Liberty Village has a diverse dining scene with standouts like Mildred's Temple Kitchen for brunch, School Restaurant for date nights in a restored 1890s schoolhouse, Impact Kitchen for healthy bowls on Atlantic Ave, and LOCAL Public Eatery for pub food and craft beer on East Liberty."
+      },
+      {
+        "question": "Are there good patio restaurants in Liberty Village?",
+        "answer": "Yes, Liberty Village has excellent patios. Liberty Commons at Big Rock Brewery and Brazen Head Irish Pub have the largest ones. LOCAL Public Eatery's patio fills up fast on summer evenings along East Liberty. Most patios open from May through October, weather permitting."
+      },
+      {
+        "question": "What's the best brunch spot in Liberty Village?",
+        "answer": "Mildred's Temple Kitchen at 85 Hanna Ave is the iconic Liberty Village brunch destination, famous for blueberry buttermilk pancakes since 2004. OEB Breakfast Co. on East Liberty is another top pick with shorter waits if you use their online waitlist system."
+      },
+      {
+        "question": "Are there late-night restaurants in Liberty Village?",
+        "answer": "Several spots serve food late. Brazen Head Irish Pub is open until 2am with a full pub menu. The Rec Room on Lynn Williams St serves food until midnight or later on weekends. Moxie's late-night menu kicks in after 9pm with half-price appetizers."
+      }
+    ]
   },
   {
     "slug": "coffee-shops",
@@ -31,7 +51,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "hard",
-    "image": "/images/services/coffee-shops.jpg"
+    "image": "/images/services/coffee-shops.jpg",
+    "answerBlock": "Liberty Village is home to 5 excellent coffee shops. Arvo Coffee on Fraser Ave tops ratings at 4.4 with Australian-style flat whites, while Balzac's in the Liberty Market building is the neighbourhood's unofficial living room. Dark Horse Espresso on Liberty Street and Jimmy's Coffee on Atlantic Ave round out a strong indie scene, all priced between $4 and $7.",
+    "definition": "Coffee shops in Liberty Village lean heavily toward independent specialty roasters in converted industrial spaces, serving the neighbourhood's large population of remote workers and creative professionals.",
+    "specificFaqs": [
+      {
+        "question": "What are the best coffee shops in Liberty Village for remote work?",
+        "answer": "Balzac's Coffee Roasters in the Liberty Market building is the neighbourhood's top laptop-friendly cafe with ample seating and great espresso. Dark Horse Espresso Bar on Liberty St has plenty of power outlets and strong WiFi. Jimmy's Coffee on Atlantic Ave is cozier but equally work-friendly."
+      },
+      {
+        "question": "Are there specialty coffee shops in Liberty Village?",
+        "answer": "Yes. Arvo Coffee on Fraser Ave serves Australian-style flat whites with single-origin beans. Louie Coffee Bar on East Liberty pulls rotating single-origin espresso with beautiful latte art. Dark Horse Espresso is an established Toronto indie roaster with a loyal local following."
+      },
+      {
+        "question": "What time do Liberty Village coffee shops open?",
+        "answer": "Most open early for the commuter crowd. Balzac's and Dark Horse Espresso open at 7am weekdays. Jimmy's Coffee on Atlantic Ave also opens at 7am. Arvo Coffee opens at 7:30am. Weekend hours typically start an hour later, around 8am to 8:30am across the neighbourhood."
+      },
+      {
+        "question": "How much does coffee cost in Liberty Village?",
+        "answer": "Expect to pay $4-6 for a latte or specialty drink at most Liberty Village cafes. Drip coffee runs $2.50-4 depending on the shop. Jimmy's Coffee and Dark Horse tend to be slightly cheaper than Balzac's, and Arvo's pricing is mid-range for the quality you get."
+      }
+    ]
   },
   {
     "slug": "brunch-spots",
@@ -47,7 +87,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/brunch-spots.jpg"
+    "image": "/images/services/brunch-spots.jpg",
+    "answerBlock": "For brunch in Liberty Village, OEB Breakfast Co. at 2 East Liberty Street is the top dedicated spot with a 4.4 rating and famous Holy Smoked Meat Benedict. Mildred's Temple Kitchen on Hanna Ave and School Restaurant on Fraser Ave also serve excellent weekend brunch. Expect lineups by 10:30am on Saturdays, with brunch plates running $16 to $25 across the neighbourhood.",
+    "definition": "Brunch spots in Liberty Village are a weekend institution, with restaurants along East Liberty and Hanna Ave drawing crowds from across Toronto for inventive egg dishes and signature pancake stacks.",
+    "specificFaqs": [
+      {
+        "question": "Do Liberty Village brunch spots take reservations?",
+        "answer": "Most do not take weekend brunch reservations. OEB Breakfast Co. on East Liberty offers an online waitlist so you can add your name from home and arrive when your table is ready. Mildred's Temple Kitchen on Hanna Ave is first-come-first-served, and lines start forming by 10am on Saturdays."
+      },
+      {
+        "question": "How long is the wait for brunch in Liberty Village?",
+        "answer": "Peak weekend waits can hit 30-60 minutes at popular spots. Mildred's Temple Kitchen gets packed by 10:30am on Saturdays. OEB Breakfast Co. has shorter effective waits if you use their app waitlist. Arriving before 10am at either spot cuts wait times significantly."
+      },
+      {
+        "question": "What's the most affordable brunch in Liberty Village?",
+        "answer": "OEB Breakfast Co. offers filling breakfast plates starting around $16-20. LOCAL Public Eatery has a solid weekend brunch with Caesar bar and mains from $15. For the cheapest morning meal, grab a pastry and coffee combo from Sweet Flour Bake Shop for under $10."
+      },
+      {
+        "question": "Are there weekday brunch options in Liberty Village?",
+        "answer": "OEB Breakfast Co. serves their full breakfast menu Monday through Friday from 7am to 3pm. Mildred's Temple Kitchen runs a lunch menu on weekdays but saves brunch for weekends only. Impact Kitchen on Atlantic Ave serves all-day breakfast bowls that fill the weekday brunch gap."
+      }
+    ]
   },
   {
     "slug": "bars",
@@ -64,7 +124,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "hard",
-    "image": "/images/services/bars.jpg"
+    "image": "/images/services/bars.jpg",
+    "answerBlock": "Liberty Village has 3 standout bars covering every vibe. Craft Beer Market at 1 Liberty Street leads at 4.2 with over 100 craft taps in a converted warehouse. Brazen Head Irish Pub on East Liberty is the neighbourhood's beloved pub with a massive patio and weekly trivia. The Rec Room on Lynn Williams rounds it out with arcade games and live music.",
+    "definition": "Bars in Liberty Village range from craft beer halls in converted warehouses to casual Irish pubs, with most concentrated along the East Liberty retail strip near BMO Field.",
+    "specificFaqs": [
+      {
+        "question": "What are the best bars in Liberty Village for craft beer?",
+        "answer": "Craft Beer Market at 1 Liberty St has over 100 taps of Canadian craft beer in a converted warehouse. Liberty Commons at Big Rock Brewery serves house-brewed craft beer with a beer hall atmosphere. Left Field Brewery on Wagstaff Dr is a must-visit taproom for serious beer drinkers."
+      },
+      {
+        "question": "Are there trivia nights at Liberty Village bars?",
+        "answer": "Brazen Head Irish Pub on East Liberty hosts popular Wednesday trivia nights starting at 7pm. It is the best free entertainment in the neighbourhood and teams form early, so arrive by 6:30pm to claim a good table. Craft Beer Market also runs occasional trivia events."
+      },
+      {
+        "question": "Which Liberty Village bars have the best patios?",
+        "answer": "Brazen Head Irish Pub has arguably the best wraparound patio in the neighbourhood. Craft Beer Market's upper mezzanine offers great atmosphere during sports games. The Rec Room on Lynn Williams St has an outdoor area that gets busy on summer weekends with DJs."
+      },
+      {
+        "question": "Are there bars open late in Liberty Village?",
+        "answer": "Brazen Head Irish Pub stays open until 2am seven days a week. The Rec Room runs until 2am on Friday and Saturday nights with DJ events and a club-like atmosphere. Craft Beer Market closes at 1am on weekends. Most Liberty Village bars close earlier on weeknights."
+      }
+    ]
   },
   {
     "slug": "patios",
@@ -80,7 +160,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/patios.jpg"
+    "image": "/images/services/patios.jpg",
+    "answerBlock": "Liberty Village patios are among the best in Toronto's west end. Brazen Head Irish Pub has the largest wraparound patio on East Liberty Street, while Craft Beer Market offers a two-level setup for sunny afternoons. LOCAL Public Eatery packs one of the biggest outdoor spaces in the area. Most patios open by mid-May and stay busy through September along King Street West.",
+    "definition": "Patios in Liberty Village take advantage of the neighbourhood's wide sidewalks and converted warehouse frontages, creating some of the largest outdoor dining spaces on Toronto's west side.",
+    "specificFaqs": [
+      {
+        "question": "When do Liberty Village patios open for the season?",
+        "answer": "Most Liberty Village patios open in late April or early May, weather permitting. Brazen Head Irish Pub's wraparound patio and Liberty Commons at Big Rock Brewery's beer garden are typically among the first to open. The season runs through October, with heaters extending it at some spots."
+      },
+      {
+        "question": "Which Liberty Village patio is best for groups?",
+        "answer": "Liberty Commons at Big Rock Brewery on East Liberty has communal tables and a spacious beer garden that fits large groups easily. Brazen Head Irish Pub's wraparound patio also handles big parties well. LOCAL Public Eatery has one of the largest patios along East Liberty Street."
+      },
+      {
+        "question": "Are there heated patios in Liberty Village?",
+        "answer": "Several spots run heaters to extend the season into fall. Cibo Wine Bar on Liberty St and Craft Beer Market both offer heated outdoor seating. Brazen Head Irish Pub adds heaters in early fall. Check with individual restaurants as heating availability varies by year and weather."
+      },
+      {
+        "question": "Can I bring my dog to Liberty Village patios?",
+        "answer": "Many Liberty Village patios are dog-friendly. Brazen Head Irish Pub and Craft Beer Market both welcome leashed dogs on their outdoor patios. LEFT Field Brewery's taproom patio is also popular with dog owners. Always check with staff first, as policies can vary seasonally."
+      }
+    ]
   },
   {
     "slug": "gyms",
@@ -96,7 +196,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/gyms.jpg"
+    "image": "/images/services/gyms.jpg",
+    "answerBlock": "Liberty Village has 6 gyms to fit every budget and workout style. F45 Training leads with a 4.5 rating for group HIIT classes on East Liberty Street, while Altea Active on Western Battery Rd offers a premium experience with pool and spa starting around $150 per month. GoodLife Fitness on Jefferson Ave handles the basics, and SpinCo and Orangetheory add boutique studio options.",
+    "definition": "Gyms in Liberty Village range from budget-friendly chains to luxury athletic clubs, reflecting the neighbourhood's young professional demographic and fitness-focused culture.",
+    "specificFaqs": [
+      {
+        "question": "How much do gyms cost in Liberty Village?",
+        "answer": "Gym memberships range widely. GoodLife Fitness starts around $30-50 per month for basic access. Movati Athletic runs $60-80 monthly with pool access. Premium Altea Active on Western Battery Rd costs $150-200 per month but includes a pool, spa, hot yoga studio, and restaurant."
+      },
+      {
+        "question": "Are there 24-hour gyms in Liberty Village?",
+        "answer": "GoodLife Fitness on Jefferson Ave has the longest hours, open from 5am to 11pm on weekdays. Movati Athletic on Lynn Williams St has similar extended hours. For true 24/7 access, the nearest options are just outside the neighbourhood on King Street West."
+      },
+      {
+        "question": "What fitness classes are available in Liberty Village?",
+        "answer": "Liberty Village has excellent variety. F45 Training on East Liberty offers functional HIIT classes. Studio Lagree on Atlantic Ave specializes in Megaformer Pilates. Orangetheory delivers heart-rate interval training, and SpinCo runs high-energy cycling classes. Most studios offer free trial classes for newcomers."
+      },
+      {
+        "question": "Are there outdoor fitness options in Liberty Village?",
+        "answer": "Lamport Stadium Park is popular for outdoor workouts and has a running track. The rail corridor trail is great for jogging. Precision Athletics on Hanna Ave runs outdoor boot camps in warmer months, and several personal trainers offer sessions in local parks and condo courtyards."
+      }
+    ]
   },
   {
     "slug": "yoga-studios",
@@ -112,7 +232,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/yoga-studios.jpg"
+    "image": "/images/services/yoga-studios.jpg",
+    "answerBlock": "Yoga Tree on Atlantic Ave is Liberty Village's top-rated yoga studio at 4.4, offering vinyasa, hot yoga, and restorative classes led by experienced Toronto instructors. Drop-in classes run around $25, with monthly unlimited passes available. The studio sits in a converted warehouse space that fits the neighbourhood's industrial-chic character, and the Sunday evening restorative class is a local favourite.",
+    "definition": "Yoga studios in Liberty Village operate out of the neighbourhood's signature converted warehouse spaces, offering classes that cater to both fitness enthusiasts and desk workers seeking stress relief.",
+    "specificFaqs": [
+      {
+        "question": "How much do yoga classes cost in Liberty Village?",
+        "answer": "Drop-in rates run $20-30 per class at most Liberty Village studios. Yoga Tree on Atlantic Ave offers monthly unlimited passes around $130-160. Class packs bring the per-class cost down to $15-20. Most studios offer a discounted introductory month for new students around $40-60."
+      },
+      {
+        "question": "Is there hot yoga in Liberty Village?",
+        "answer": "Yes. Yoga Tree on Atlantic Ave offers hot yoga classes as part of their regular schedule. Altea Active on Western Battery Rd has a dedicated hot yoga studio included with gym membership. Movati Athletic on Lynn Williams St also runs heated yoga classes for members."
+      },
+      {
+        "question": "What types of yoga classes are offered in Liberty Village?",
+        "answer": "Yoga Tree on Atlantic Ave offers vinyasa flow, hot yoga, restorative, and meditation classes with experienced Toronto instructors. Altea Active runs power yoga and hot yoga sessions. Several private instructors also teach in condo party rooms and at Lamport Stadium Park during summer."
+      },
+      {
+        "question": "Are there beginner yoga classes in Liberty Village?",
+        "answer": "Yoga Tree on Atlantic Ave runs beginner-friendly gentle and restorative classes with clear instruction on fundamentals. Their Sunday evening restorative class is especially good for newcomers as it is never crowded. Most studios offer modifications in every class regardless of experience level."
+      }
+    ]
   },
   {
     "slug": "pilates",
@@ -128,7 +268,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/pilates.jpg"
+    "image": "/images/services/pilates.jpg",
+    "answerBlock": "Liberty Village has 2 excellent Pilates studios on opposite ends of the neighbourhood. Studio Lagree on Atlantic Ave leads with a 4.6 rating and its intense Megaformer workouts that build lean strength in 40 minutes. Pure Barre on East Liberty Street at 4.3 offers ballet-inspired barre classes with a supportive community. Single classes start around $30, with packages bringing the per-class cost down.",
+    "definition": "Pilates studios in Liberty Village focus on reformer and barre-style classes in boutique settings, popular with the neighbourhood's fitness-minded young professionals along Atlantic Ave and Mowat Avenue.",
+    "specificFaqs": [
+      {
+        "question": "How much does Pilates cost in Liberty Village?",
+        "answer": "Studio Lagree on Atlantic Ave charges $30-40 per Megaformer class, with packages reducing the per-class cost. Pure Barre on East Liberty runs similar pricing for barre-Pilates fusion classes. Both offer introductory deals for new clients, typically a week of unlimited classes for $40-50."
+      },
+      {
+        "question": "What's the difference between Pilates and Lagree in Liberty Village?",
+        "answer": "Studio Lagree on Atlantic Ave uses the patented Megaformer machine for a slow-burn, high-intensity workout combining Pilates, strength, and cardio. Pure Barre blends ballet-inspired movements with Pilates principles. Traditional mat Pilates focuses on core control. Lagree is considered more physically demanding."
+      },
+      {
+        "question": "Are there reformer Pilates classes in Liberty Village?",
+        "answer": "Studio Lagree on Atlantic Ave offers Megaformer classes, which are a next-generation version of reformer Pilates with 40-minute sessions that deliver a full-body workout. Pure Barre uses a ballet barre rather than a reformer. Both studios are on the East Liberty retail corridor."
+      },
+      {
+        "question": "Do Liberty Village Pilates studios offer trial classes?",
+        "answer": "Yes. Studio Lagree typically offers a discounted first class or intro package for newcomers. Pure Barre on East Liberty recommends their foundations class for beginners to learn proper barre technique. Both studios post current offers on their websites and social media channels."
+      }
+    ]
   },
   {
     "slug": "dentists",
@@ -143,7 +303,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/dentists.jpg"
+    "image": "/images/services/dentists.jpg",
+    "answerBlock": "Liberty Village has 2 well-rated dental clinics accepting new patients. Edition Dental on Jefferson Ave leads at 4.5 with a boutique spa-like experience and cosmetic specialties including veneers. Liberty Village Dental at 171 East Liberty Street scores 4.4 and offers evening and Saturday hours that suit working professionals. Both clinics handle general and cosmetic dentistry with direct insurance billing.",
+    "definition": "Dentists in Liberty Village serve the neighbourhood's dense condo population from clinics along East Liberty Street and Jefferson Ave, with most offering extended evening hours for professionals.",
+    "specificFaqs": [
+      {
+        "question": "How much does a dental cleaning cost in Liberty Village?",
+        "answer": "Standard cleanings at Liberty Village dental offices run $200-350 without insurance. Liberty Village Dental on East Liberty and Edition Dental on Jefferson Ave both accept major insurance plans with direct billing, so you may pay nothing out of pocket depending on your coverage."
+      },
+      {
+        "question": "Are there emergency dentists in Liberty Village?",
+        "answer": "Liberty Village Dental at 171 East Liberty St accommodates same-day emergency appointments during business hours, open Monday through Saturday. Edition Dental on Jefferson Ave also handles urgent cases. For after-hours emergencies, the nearest option is the dental ER at Toronto Western Hospital."
+      },
+      {
+        "question": "Do Liberty Village dentists offer weekend hours?",
+        "answer": "Yes. Liberty Village Dental offers Saturday hours from 9am to 3pm, and Edition Dental has Saturday appointments from 10am to 3pm. Sunday availability is rare in the neighbourhood, so book Saturday slots early as they fill quickly, especially for family appointments."
+      },
+      {
+        "question": "Do Liberty Village dentists accept walk-ins?",
+        "answer": "Liberty Village Dental sometimes accepts walk-ins for urgent issues depending on the day's schedule, but appointments are strongly recommended. Edition Dental is appointment-only. Call ahead in the morning for the best chance at a same-day slot at either clinic."
+      }
+    ]
   },
   {
     "slug": "doctors",
@@ -160,7 +340,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/doctors.jpg"
+    "image": "/images/services/doctors.jpg",
+    "answerBlock": "Liberty Village Family Health Team on Atlantic Ave is the neighbourhood's primary medical clinic with a 4.2 rating, offering family medicine, mental health counseling, and dietitian services under one roof. They accept new patients periodically, so calling on the first Monday of each month for intake is the best strategy. Same-day urgent appointments are usually available for registered patients.",
+    "definition": "Doctors in Liberty Village primarily operate through the Atlantic Ave medical offices, providing family medicine and walk-in services to a neighbourhood with growing demand and limited clinic space.",
+    "specificFaqs": [
+      {
+        "question": "Are there family doctors accepting new patients in Liberty Village?",
+        "answer": "Liberty Village Family Health Team on Atlantic Ave opens new patient intake periodically, usually on the first Monday of each month. Spots fill within days, so call early. Walk-in clinics nearby on King Street West are available when you cannot wait for a roster spot."
+      },
+      {
+        "question": "Are there walk-in clinics in Liberty Village?",
+        "answer": "The closest walk-in clinics are along King Street West, just north of the neighbourhood. Liberty Village Family Health Team at 99 Atlantic Ave offers same-day urgent appointments for rostered patients. For unrostered residents, Appletree clinics on King West accept walk-ins during business hours."
+      },
+      {
+        "question": "How long is the wait to see a doctor in Liberty Village?",
+        "answer": "Walk-in clinic waits on King West typically run 30-90 minutes depending on the time of day. Rostered patients at Liberty Village Family Health Team can usually get same-day urgent appointments. For non-urgent referrals, expect a wait of 1-3 weeks for specialist appointments in the area."
+      },
+      {
+        "question": "Do Liberty Village doctors offer virtual appointments?",
+        "answer": "Liberty Village Family Health Team offers virtual phone and video consultations for rostered patients, especially for prescription renewals and follow-ups. Several King West walk-in clinics also provide telehealth options through apps like Maple and Telus Health. Check OHIP coverage before booking."
+      }
+    ]
   },
   {
     "slug": "veterinarians",
@@ -175,7 +375,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/veterinarians.jpg"
+    "image": "/images/services/veterinarians.jpg",
+    "answerBlock": "Liberty Village Animal Hospital at 55 Hanna Ave is the neighbourhood's go-to vet with a 4.3 rating, handling everything from routine check-ups to dental cleanings and minor surgeries. In one of Toronto's most dog-friendly neighbourhoods, they stay busy year-round. Book annual visits in January or February when the schedule is lighter, since spring appointments can be weeks out.",
+    "definition": "Veterinarians in Liberty Village serve one of Toronto's highest dog-per-capita populations, with clinics on Hanna Ave providing full-service care to the neighbourhood's condo-dwelling pet owners.",
+    "specificFaqs": [
+      {
+        "question": "How much does a vet visit cost in Liberty Village?",
+        "answer": "A standard wellness exam at Liberty Village Animal Hospital on Hanna Ave runs $60-90. Vaccinations are $30-50 each. Dental cleanings typically cost $400-800 depending on complexity. Pet insurance is recommended, as emergency visits can run $500 or more in the neighbourhood."
+      },
+      {
+        "question": "Is there an emergency vet near Liberty Village?",
+        "answer": "Liberty Village Animal Hospital at 55 Hanna Ave handles urgent cases during business hours Monday through Saturday. For after-hours emergencies, the closest 24-hour emergency vet is the Veterinary Emergency Clinic at 920 Yonge St, about a 15-minute drive from Liberty Village."
+      },
+      {
+        "question": "Do Liberty Village vets accept new patients?",
+        "answer": "Liberty Village Animal Hospital at 55 Hanna Ave does accept new patients, though booking initial appointments may take 1-2 weeks during busy periods. Book your first visit in January or February when the schedule is lighter than the busy spring and summer months."
+      },
+      {
+        "question": "Are there vets open on Saturday in Liberty Village?",
+        "answer": "Liberty Village Animal Hospital on Hanna Ave offers Saturday hours from 9am to 3pm. They are closed on Sundays. Because the neighbourhood has one of Toronto's highest dog populations, Saturday appointments fill up quickly so book at least a week in advance."
+      }
+    ]
   },
   {
     "slug": "dog-walkers",
@@ -190,7 +410,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/dog-walkers.jpg"
+    "image": "/images/services/dog-walkers.jpg",
+    "answerBlock": "Liberty Pooch is Liberty Village's top-rated dog walking service at 4.6, offering GPS-tracked group walks through neighbourhood parks and trails. They specialize in condo-dwelling dogs and keep group sizes small for better attention. Puppy visits and overnight care are also available. Rates start around $20 per walk, with weekly packages offering discounts for Liberty Village residents.",
+    "definition": "Dog walkers in Liberty Village cater to the neighbourhood's large condo-dwelling dog population, providing midday walks to nearby parks and the off-leash areas along the Gardiner corridor.",
+    "specificFaqs": [
+      {
+        "question": "How much do dog walkers charge in Liberty Village?",
+        "answer": "Professional dog walking in Liberty Village typically costs $18-25 per 30-minute group walk and $25-40 for private walks. Liberty Pooch offers small group walks with GPS tracking so you can see your dog's route. Monthly packages with daily walks run $350-500 depending on frequency."
+      },
+      {
+        "question": "Are Liberty Village dog walkers insured and bonded?",
+        "answer": "Reputable dog walkers like Liberty Pooch carry liability insurance and are bonded. Always ask for proof of insurance before hiring. Liberty Pooch also runs background checks on all walkers and provides GPS tracking during every walk for complete transparency with pet owners."
+      },
+      {
+        "question": "Where do dog walkers take dogs in Liberty Village?",
+        "answer": "Liberty Pooch and other local dog walkers use several neighbourhood spots including the off-leash area near Lamport Stadium, Stanley Park, and the trails along the Gardiner corridor. Group walks typically stay within Liberty Village and the surrounding King West and Parkdale borders."
+      },
+      {
+        "question": "Do Liberty Village dog walkers offer puppy visits?",
+        "answer": "Yes. Liberty Pooch offers midday puppy visits for condo-dwelling puppies who cannot handle a full walk yet. Visits include a bathroom break, playtime, and feeding if needed. This service is popular with Liberty Village residents working from the neighbourhood's many coworking spaces."
+      }
+    ]
   },
   {
     "slug": "dog-groomers",
@@ -205,7 +445,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/dog-groomers.jpg"
+    "image": "/images/services/dog-groomers.jpg",
+    "answerBlock": "The Dog House Grooming at 38 Hanna Ave is Liberty Village's top dog groomer with a 4.5 rating, known for patient handling of nervous pups and premium gentle products. They offer everything from basic baths to breed-specific cuts, with prices starting around $60 depending on size. Their Hanna Ave location is walking distance from most Liberty Village condos and parks.",
+    "definition": "Dog groomers in Liberty Village serve the neighbourhood's famously large dog population from converted warehouse spaces along Hanna Ave, offering breed-specific styling and gentle grooming services.",
+    "specificFaqs": [
+      {
+        "question": "How much does dog grooming cost in Liberty Village?",
+        "answer": "The Dog House Grooming on Hanna Ave charges $50-80 for a basic bath and brush, and $80-130 for a full groom including breed-specific cuts. Prices vary by dog size and coat condition. Nail trims are available as a standalone service for $15-20 without a full appointment."
+      },
+      {
+        "question": "Do Liberty Village dog groomers offer pickup service?",
+        "answer": "Some groomers in the neighbourhood offer pickup and drop-off to local condos. The Dog House Grooming at 38 Hanna Ave is centrally located within walking distance of most Liberty Village buildings. Call ahead to ask about pickup availability, especially for large dogs or mobility-limited owners."
+      },
+      {
+        "question": "How often should I groom my dog in Liberty Village?",
+        "answer": "The Dog House Grooming recommends every 4-6 weeks for full grooms depending on breed and coat type. Monthly nail trims are standard. Liberty Village's urban environment means dogs pick up more dirt and debris on walks, so regular bathing matters more here than in suburban areas."
+      },
+      {
+        "question": "Are there groomers good with nervous dogs in Liberty Village?",
+        "answer": "The Dog House Grooming on Hanna Ave specializes in handling anxious dogs with patience and gentle products. They suggest booking a standalone nail trim first to let nervous dogs get comfortable with the groomers before committing to a full grooming session in their shop."
+      }
+    ]
   },
   {
     "slug": "hair-salons",
@@ -220,7 +480,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/hair-salons.jpg"
+    "image": "/images/services/hair-salons.jpg",
+    "answerBlock": "Liberty Village has 2 quality hair salons with different approaches. b.suite on Atlantic Ave rates 4.4 and features private suite-based styling with one-on-one attention in individual rooms. Lavish Hair Studio near Wade Ave scores 4.3 and specializes in balayage and lived-in colour techniques. Cuts start around $45 for women and $35 for men, with colour services from $120 and up.",
+    "definition": "Hair salons in Liberty Village range from private suite-based studios on Atlantic Ave to full-service salons, many operating inside the neighbourhood's converted loft and warehouse buildings.",
+    "specificFaqs": [
+      {
+        "question": "How much does a haircut cost at Liberty Village salons?",
+        "answer": "Women's cuts typically range from $60-120 depending on the stylist and salon. b.suite on Atlantic Ave is a suite-based salon where prices vary by individual stylist. Lavish Hair Studio near Wade Ave charges $70-100 for cuts. Colour services start around $150 and go up significantly for balayage."
+      },
+      {
+        "question": "Which Liberty Village salon is best for balayage?",
+        "answer": "Lavish Hair Studio near Wade Ave specializes in balayage and lived-in colour techniques that grow out naturally. The stylists at b.suite on Atlantic Ave also include colour specialists with strong Instagram portfolios. Always book a consultation before your first colour appointment to get an accurate quote."
+      },
+      {
+        "question": "Do Liberty Village hair salons take walk-ins?",
+        "answer": "Most Liberty Village salons are appointment-only. b.suite on Atlantic Ave operates entirely by appointment with independent stylists who set their own schedules. Lavish Hair Studio on Wade Ave sometimes accommodates same-day requests for simple cuts. Call ahead rather than showing up to avoid disappointment."
+      },
+      {
+        "question": "Are there affordable hair salons in Liberty Village?",
+        "answer": "Prices in Liberty Village reflect Toronto's west-end market. For more budget-friendly cuts, check newer stylists at b.suite on Atlantic Ave who often charge less while building their clientele. Some stylists offer discounts for weekday morning appointments when demand is lower across the neighbourhood."
+      }
+    ]
   },
   {
     "slug": "barbers",
@@ -234,7 +514,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/barbers.jpg"
+    "image": "/images/services/barbers.jpg",
+    "answerBlock": "Baz & Banks Barber at 1 East Liberty Street is Liberty Village's standout barbershop with a 4.5 rating. They deliver sharp fades, tapers, and classic cuts in a clean, modern space, plus hot towel shaves and beard grooming. A standard men's cut runs around $35. Walk-ins are welcome but booking ahead through their app guarantees your spot, especially for Saturday mornings.",
+    "definition": "Barbers in Liberty Village serve the neighbourhood's young professional crowd from modern shops along East Liberty Street, offering contemporary cuts alongside traditional hot shave services.",
+    "specificFaqs": [
+      {
+        "question": "How much does a men's haircut cost in Liberty Village?",
+        "answer": "A standard men's cut at Baz & Banks Barber on East Liberty runs $35-50. Fades and more detailed work may cost slightly more. Hot towel shaves and beard trims are available as add-ons for $15-25. Baz & Banks delivers a full grooming experience beyond a basic haircut."
+      },
+      {
+        "question": "Do Liberty Village barbers take walk-ins?",
+        "answer": "Baz & Banks Barber on East Liberty accepts walk-ins but appointments are recommended, especially on Saturdays. Their busiest times are Friday evenings and Saturday mornings. Booking online saves wait time, and sticking with one barber means they remember your cut preferences each visit."
+      },
+      {
+        "question": "Are there barbers open on weekends in Liberty Village?",
+        "answer": "Yes. Baz & Banks Barber on East Liberty is open Saturday 9am to 6pm and Sunday 10am to 5pm. Weekend slots fill quickly with the neighbourhood's young professional crowd, so booking ahead by a few days is recommended for Saturday appointments especially."
+      },
+      {
+        "question": "Where can I get a hot towel shave in Liberty Village?",
+        "answer": "Baz & Banks Barber at 1 East Liberty St offers hot towel shaves and beard grooming services alongside their regular haircut menu. The shop has a clean, modern aesthetic and the barbers are skilled with both classic razor shaves and modern beard shaping techniques."
+      }
+    ]
   },
   {
     "slug": "nail-salons",
@@ -249,7 +549,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/nail-salons.jpg"
+    "image": "/images/services/nail-salons.jpg",
+    "answerBlock": "Tips & Toes Nail Spa at 171 East Liberty Street is Liberty Village's most convenient nail salon with a 4.0 rating. They offer full manicure, pedicure, and gel services at reasonable prices, with a standard mani-pedi starting around $55. The location in the main retail strip makes it easy to fit in during a lunch break, and Tuesdays are the quietest day for walk-ins.",
+    "definition": "Nail salons in Liberty Village are located within the East Liberty retail strip, providing convenient walk-in service to the neighbourhood's condo residents without a trip downtown.",
+    "specificFaqs": [
+      {
+        "question": "How much does a manicure cost in Liberty Village?",
+        "answer": "Tips & Toes Nail Spa at 171 East Liberty St charges around $25-35 for a basic manicure and $40-55 for gel. Pedicures run $35-50. Prices are reasonable for the neighbourhood, and the turnaround is quick enough to fit in during a lunch break from nearby offices or coworking spaces."
+      },
+      {
+        "question": "Do Liberty Village nail salons take walk-ins?",
+        "answer": "Tips & Toes Nail Spa on East Liberty accepts walk-ins, though wait times can be 15-30 minutes during busy periods. Tuesday is consistently the quietest day with the shortest waits. For gel sets or specialty services, booking an appointment ensures you get your preferred time slot."
+      },
+      {
+        "question": "Are there nail salons open on weekends in Liberty Village?",
+        "answer": "Tips & Toes Nail Spa is open Saturday 10am to 7pm and Sunday 11am to 5pm. Weekend appointments are popular so walk-ins may face longer waits. Booking ahead for Saturday mornings is recommended if you want a specific service or time slot in the neighbourhood."
+      },
+      {
+        "question": "Where can I get gel nails in Liberty Village?",
+        "answer": "Tips & Toes Nail Spa at 171 East Liberty St offers a full range of gel manicure and pedicure services at competitive prices. They use quality gel products and the results are durable. The salon is located in the main retail strip, making it convenient to combine with other errands."
+      }
+    ]
   },
   {
     "slug": "house-cleaning",
@@ -264,7 +584,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/house-cleaning.jpg"
+    "image": "/images/services/house-cleaning.jpg",
+    "answerBlock": "Mopify is Liberty Village's most popular house cleaning service with a 4.2 rating, specializing in condo cleaning with easy online booking. Their vetted cleaners handle regular weekly tidying, deep cleans, and move-in/move-out services. Pricing is transparent and based on unit size, starting around $120 for a one-bedroom condo. Biweekly recurring bookings get priority scheduling in the neighbourhood.",
+    "definition": "House cleaning services in Liberty Village specialize in condo layouts and building access protocols, serving a neighbourhood where compact living spaces require regular professional maintenance.",
+    "specificFaqs": [
+      {
+        "question": "How much does condo cleaning cost in Liberty Village?",
+        "answer": "Mopify, popular with Liberty Village condo dwellers, charges $100-150 for a standard one-bedroom condo cleaning and $140-200 for two bedrooms. Deep cleans run 30-50 percent more. Move-in and move-out cleans are priced separately. Recurring biweekly bookings get priority scheduling and consistent cleaners."
+      },
+      {
+        "question": "Do Liberty Village cleaning services know condo access rules?",
+        "answer": "Yes. Mopify and other local services are experienced with Liberty Village condo buildings, including elevator booking, concierge check-in procedures, and parking restrictions for staff. Provide your building's access instructions when booking. Experienced local cleaners know typical condo layouts and clean more efficiently."
+      },
+      {
+        "question": "How often should I get my Liberty Village condo cleaned?",
+        "answer": "Most Liberty Village residents book biweekly cleaning through services like Mopify, which is sufficient for typical one or two-bedroom condos. Studios or one-bedrooms with minimal foot traffic can manage monthly cleans. Pet owners in the neighbourhood generally need weekly service to stay on top of hair."
+      },
+      {
+        "question": "Are there eco-friendly cleaning services in Liberty Village?",
+        "answer": "Mopify uses eco-friendly products upon request at no extra charge. Several independent cleaners serving Liberty Village specialize in green cleaning with plant-based products. Specify your preference when booking, as most services default to conventional products unless you ask for the eco-friendly alternative upfront."
+      }
+    ]
   },
   {
     "slug": "movers",
@@ -279,7 +619,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/movers.jpg"
+    "image": "/images/services/movers.jpg",
+    "answerBlock": "Moving in or out of a Liberty Village condo requires movers who know the specific building rules for elevator bookings, loading docks, and tight parking around East Liberty Street and Hanna Ave. Local companies typically charge $120 to $160 per hour for a two-person crew. Scheduling moves midweek avoids the weekend elevator booking rush that plagues most Liberty Village buildings.",
+    "definition": "Moving companies serving Liberty Village specialize in condo moves with experience navigating the neighbourhood's elevator booking systems, loading docks, and narrow access roads around the warehouse district.",
+    "specificFaqs": [
+      {
+        "question": "How much do movers cost in Liberty Village?",
+        "answer": "Moving within Liberty Village typically costs $300-600 for a one-bedroom condo with two movers and a truck for 3-4 hours. Two-bedroom moves run $500-900. The key cost factor is elevator booking time, as most Liberty Village buildings limit moving windows to specific hours requiring efficient crews."
+      },
+      {
+        "question": "Do I need to book the elevator for moving in Liberty Village condos?",
+        "answer": "Yes. Nearly every Liberty Village condo building requires elevator booking for moves, typically 2-4 weeks in advance through property management. Missing your window means rescheduling, so book your elevator before confirming your mover's date. End-of-month dates fill up fastest across the neighbourhood."
+      },
+      {
+        "question": "When is the cheapest time to move in Liberty Village?",
+        "answer": "Mid-month weekday moves are cheapest, with rates 20-30 percent lower than month-end or weekend moves. Avoid the last week of the month when Liberty Village condo turnover peaks. January through March is also quieter and cheaper than the busy summer moving season across Toronto."
+      },
+      {
+        "question": "What should I tell movers about my Liberty Village building?",
+        "answer": "Share your building's elevator booking confirmation, loading dock location, parking restrictions, and any move-in fees. Most Liberty Village condos have specific loading zones on East Liberty or Hanna Ave. Buildings on Western Battery Rd and Lynn Williams St have tricky dock access that experienced local movers already know."
+      }
+    ]
   },
   {
     "slug": "personal-trainers",
@@ -295,7 +655,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/personal-trainers.jpg"
+    "image": "/images/services/personal-trainers.jpg",
+    "answerBlock": "Precision Athletics at 38 Hanna Ave leads Liberty Village personal training with a 4.7 rating and individualized strength programs in a private studio setting. Sessions start around $80 for one-on-one coaching with thorough fitness assessments. They focus on progressive overload and measurable results without the distractions of a commercial gym. Several trainers also work out of Altea Active and GoodLife facilities.",
+    "definition": "Personal trainers in Liberty Village operate from private studios on Hanna Ave and within the neighbourhood's gyms, serving a fitness-focused population near Lamport Stadium park.",
+    "specificFaqs": [
+      {
+        "question": "How much do personal trainers cost in Liberty Village?",
+        "answer": "Personal training in Liberty Village runs $70-120 per hour-long session. Precision Athletics on Hanna Ave charges premium rates for their assessment-based programming in a private studio. Trainers at GoodLife Fitness offer slightly lower rates around $60-80. Package deals of 8-plus sessions reduce the per-session cost."
+      },
+      {
+        "question": "Are there personal trainers who come to Liberty Village condos?",
+        "answer": "Yes. Several independent trainers offer sessions in Liberty Village condo fitness rooms and party rooms. Precision Athletics at 38 Hanna Ave operates from their private studio nearby. Some trainers also run sessions at Lamport Stadium Park during warmer months for outdoor training options."
+      },
+      {
+        "question": "How do personal trainers in Liberty Village structure their programs?",
+        "answer": "Precision Athletics on Hanna Ave starts with a thorough physical assessment before programming, which is the gold standard approach. Look for certified trainers with experience in your goals, whether strength, weight loss, or rehab. Commit to at least 8 sessions, as the first few are assessment-focused."
+      },
+      {
+        "question": "Do Liberty Village gyms include personal training?",
+        "answer": "GoodLife Fitness on Jefferson Ave and Altea Active on Western Battery Rd both offer in-house personal training at additional cost beyond membership. F45 Training on East Liberty provides coach-led group sessions included in membership that feel semi-personal. Movati Athletic also has a personal training program."
+      }
+    ]
   },
   {
     "slug": "daycares",
@@ -309,7 +689,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/daycares.jpg"
+    "image": "/images/services/daycares.jpg",
+    "answerBlock": "Liberty Village Child Care Centre on Western Battery Rd is the neighbourhood's licensed daycare with a 4.2 rating, offering play-based programming for infants through preschool age. The waitlist is long, often 12 to 18 months, so getting on it early is essential. Monthly fees follow the City of Toronto fee reduction program. The centre serves Liberty Village's growing population of young families.",
+    "definition": "Daycares in Liberty Village serve the neighbourhood's expanding young family population, with licensed centres along Western Battery Rd providing structured early childhood education.",
+    "specificFaqs": [
+      {
+        "question": "How long is the daycare waitlist in Liberty Village?",
+        "answer": "Liberty Village Child Care Centre on Western Battery Rd has a typical waitlist of 12-18 months. The neighbourhood's growing young family population keeps demand high. Get on the waitlist as soon as you find out you are expecting to have the best chance at securing a spot for your child."
+      },
+      {
+        "question": "How much does daycare cost in Liberty Village?",
+        "answer": "Licensed daycare in Liberty Village runs $1,500-2,200 per month for infants and $1,200-1,700 for toddlers. Liberty Village Child Care Centre on Western Battery Rd accepts the Canada-wide $10-a-day childcare subsidy applicants. Check current CWELCC fee reduction status when enrolling your child."
+      },
+      {
+        "question": "Are there licensed daycares in Liberty Village?",
+        "answer": "Liberty Village Child Care Centre at 50 Western Battery Rd is a licensed facility offering play-based learning for infants through preschool age. The purpose-built facility meets all Ontario licensing standards. Additional licensed home daycare providers also operate within the neighbourhood on a smaller scale."
+      },
+      {
+        "question": "What age does daycare start in Liberty Village?",
+        "answer": "Liberty Village Child Care Centre accepts infants starting at approximately 12 months through preschool age. Infant rooms fill fastest, so early waitlist registration is critical. Some neighbourhood home daycares accept children as young as 6 months. Pre-school programs for ages 3-5 have slightly shorter waitlists."
+      }
+    ]
   },
   {
     "slug": "coworking-spaces",
@@ -324,7 +724,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/coworking-spaces.jpg"
+    "image": "/images/services/coworking-spaces.jpg",
+    "answerBlock": "Liberty Village has 3 coworking spaces for different work styles. The Fueling Station on Fraser Ave leads at 4.4 with genuine community in a converted warehouse. Spaces on East Liberty Street offers premium private offices with a rooftop patio. WeWork on Atlantic Ave brings polished interiors in a heritage building. Hot desks start around $300 per month, with private offices from $600 and up.",
+    "definition": "Coworking spaces in Liberty Village occupy converted industrial buildings along Atlantic Ave and Fraser Ave, serving the neighbourhood's dense concentration of tech startups and freelancers.",
+    "specificFaqs": [
+      {
+        "question": "How much does coworking cost in Liberty Village?",
+        "answer": "Hot-desking starts around $250-350 per month at Spaces Liberty Village above East Liberty St. WeWork on Atlantic Ave charges $350-500 monthly for dedicated desks. The Fueling Station on Fraser Ave offers more affordable plans starting around $200 for community-focused freelancer and startup workspace."
+      },
+      {
+        "question": "Are there free coworking options in Liberty Village?",
+        "answer": "No dedicated free coworking exists, but several coffee shops serve the function. Balzac's Coffee Roasters in the Liberty Market building is the unofficial coworking hub with great WiFi and ample seating. Dark Horse Espresso and Jimmy's Coffee on Atlantic Ave are also popular with remote workers."
+      },
+      {
+        "question": "Which Liberty Village coworking space is best for startups?",
+        "answer": "The Fueling Station on Fraser Ave is specifically designed for startups and small creative agencies, with genuine community, networking events, and affordable pricing. WeWork on Atlantic Ave suits funded startups needing a polished address. Spaces Liberty Village works best for established small businesses wanting premium facilities."
+      },
+      {
+        "question": "Do Liberty Village coworking spaces offer meeting rooms?",
+        "answer": "Yes. Spaces Liberty Village, WeWork on Atlantic Ave, and The Fueling Station all offer bookable meeting rooms in various sizes. Spaces and WeWork include meeting room credits with higher-tier memberships. The Fueling Station charges hourly rates that are typically lower than the larger chains."
+      }
+    ]
   },
   {
     "slug": "grocery-stores",
@@ -339,7 +759,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/grocery-stores.jpg"
+    "image": "/images/services/grocery-stores.jpg",
+    "answerBlock": "FreshCo at 171 East Liberty Street is Liberty Village's primary full-service grocery store with a 3.6 rating and the lowest prices in the neighbourhood. The produce section is surprisingly good for a discount grocer, and it anchors the main retail strip. Many residents combine FreshCo runs with weekend trips to larger stores on King Street West for specialty items not stocked locally.",
+    "definition": "Grocery stores in Liberty Village have historically been limited, though the FreshCo on East Liberty Street now serves as the neighbourhood's main source for everyday groceries and fresh produce.",
+    "specificFaqs": [
+      {
+        "question": "Is there a full grocery store in Liberty Village?",
+        "answer": "FreshCo at 171 East Liberty St is the neighbourhood's primary full-service grocery store, anchoring the main retail strip. Prices are lower than specialty shops, and the produce section is solid for a discount grocer. For specialty items, residents often supplement with trips to stores on King Street West."
+      },
+      {
+        "question": "What time does the Liberty Village grocery store open?",
+        "answer": "FreshCo on East Liberty is open daily from 8am to 10pm. Shop before 10am on weekdays for the quietest experience, as this store serves the entire neighbourhood and aisles get cramped during peak hours. Weekend mornings between 8-9am are also relatively calm for stocking up."
+      },
+      {
+        "question": "Are there grocery delivery options in Liberty Village?",
+        "answer": "FreshCo offers delivery through Instacart and other services. Liberty Village is well-served by grocery delivery apps including Metro, Loblaws PC Express, and Grocery Gateway. Most services deliver to condo lobbies. Many residents combine weekly FreshCo runs with online delivery for specialty and bulk items."
+      },
+      {
+        "question": "Where do Liberty Village residents buy specialty groceries?",
+        "answer": "For specialty items, residents head to King Street West where Loblaws, Rabba, and various international shops are within a short streetcar ride. The Liberty Village farmers market runs seasonally near the community centre. Sweet Flour Bake Shop on East Liberty covers artisan bread and baked goods."
+      }
+    ]
   },
   {
     "slug": "pharmacies",
@@ -354,7 +794,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/pharmacies.jpg"
+    "image": "/images/services/pharmacies.jpg",
+    "answerBlock": "Liberty Village has 2 pharmacies covering both sides of the neighbourhood. Rexall Pharmacy at 1 East Liberty Street scores 3.8 and fills prescriptions faster with shorter lines. Shoppers Drug Mart at 171 East Liberty Street offers extended hours and a wider selection of cosmetics and household essentials. Both handle direct insurance billing, flu shots, and COVID vaccinations.",
+    "definition": "Pharmacies in Liberty Village anchor the East Liberty retail strip, providing prescription services and everyday essentials to a neighbourhood where most errands happen on foot.",
+    "specificFaqs": [
+      {
+        "question": "Are there pharmacies open late in Liberty Village?",
+        "answer": "Shoppers Drug Mart at 171 East Liberty St stays open until 10pm on weekdays and 9pm on Saturdays, making it the best option for late prescriptions. Rexall Pharmacy at 1 East Liberty closes at 8pm on weekdays. Neither offers true 24-hour service, but Shoppers covers most evening needs."
+      },
+      {
+        "question": "Can I get vaccinations at Liberty Village pharmacies?",
+        "answer": "Both Shoppers Drug Mart and Rexall in Liberty Village offer flu shots, COVID boosters, and travel vaccinations by appointment. Shoppers on East Liberty has the more established immunization program. Book online through either pharmacy's website to avoid wait times for vaccination appointments."
+      },
+      {
+        "question": "Which Liberty Village pharmacy is less busy?",
+        "answer": "Rexall Pharmacy at 1 East Liberty St is consistently less crowded than Shoppers Drug Mart and fills prescriptions faster according to local residents. If wait times at Shoppers frustrate you, transferring your prescription to Rexall is straightforward and they will handle the transfer process for you."
+      },
+      {
+        "question": "Do Liberty Village pharmacies offer delivery?",
+        "answer": "Shoppers Drug Mart on East Liberty offers prescription delivery within Liberty Village through their app. Rexall provides a similar delivery service. Both pharmacies handle auto-refills so recurring medications arrive without manual reordering. Delivery is especially convenient for Liberty Village condo residents during winter months."
+      }
+    ]
   },
   {
     "slug": "dry-cleaners",
@@ -369,7 +829,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/dry-cleaners.jpg"
+    "image": "/images/services/dry-cleaners.jpg",
+    "answerBlock": "King West Dry Cleaners on Lynn Williams Street is Liberty Village's go-to with a 4.0 rating and same-day service for drop-offs before 10am. They handle suits, dress shirts, and delicates with consistent quality and deliver to nearby condo lobbies. A standard dress shirt runs about $5 to clean, and their alterations team handles hemming and tailoring on site for working professionals.",
+    "definition": "Dry cleaners in Liberty Village cater to the neighbourhood's young professional crowd, offering condo lobby pickup and delivery services tailored to high-rise living.",
+    "specificFaqs": [
+      {
+        "question": "Is there a dry cleaner in Liberty Village?",
+        "answer": "King West Dry Cleaners at 100 Lynn Williams St serves the neighbourhood with quality cleaning for suits, dress shirts, and delicates. They offer same-day service if you drop off before 10am. Their alterations team handles everything from hemming to complex tailoring, and they deliver to local condos."
+      },
+      {
+        "question": "Do Liberty Village dry cleaners offer pickup and delivery?",
+        "answer": "Yes. King West Dry Cleaners delivers to Liberty Village condos and offers recurring weekly pickup schedules with a 15 percent discount on standing orders. Provide your concierge or lobby drop instructions when setting up delivery. Several app-based dry cleaning services also operate in the area."
+      },
+      {
+        "question": "How much does dry cleaning cost in Liberty Village?",
+        "answer": "King West Dry Cleaners charges standard Toronto rates: $8-12 for dress shirts, $15-20 for suits, and $12-18 for dresses. Same-day service has a small surcharge. Setting up a recurring weekly pickup saves 15 percent and is popular with Liberty Village professionals who wear business attire regularly."
+      },
+      {
+        "question": "Can I get same-day dry cleaning in Liberty Village?",
+        "answer": "King West Dry Cleaners at 100 Lynn Williams St offers same-day service for items dropped off before 10am Monday through Friday. Saturday drop-offs are ready by Monday. For urgent weekend needs, some app-based services like Drybar and Pressly serve Liberty Village with faster turnaround times."
+      }
+    ]
   },
   {
     "slug": "tailors",
@@ -384,7 +864,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/tailors.jpg"
+    "image": "/images/services/tailors.jpg",
+    "answerBlock": "Liberty Village residents typically rely on the alterations team at King West Dry Cleaners on Lynn Williams Street for basic hemming and tailoring needs, with additional tailoring shops along nearby King Street West. Alterations start around $15 for hems and $40 for more complex work. The neighbourhood's professional crowd keeps demand steady for suit adjustments and dress alterations year-round.",
+    "definition": "Tailors serving Liberty Village handle the alteration needs of the neighbourhood's young professional residents, with most shops located along the King Street West corridor just north of the area.",
+    "specificFaqs": [
+      {
+        "question": "Is there a tailor in Liberty Village?",
+        "answer": "King West Dry Cleaners at 100 Lynn Williams St has an in-house alterations team handling hemming, suit adjustments, and more complex tailoring work. For specialized tailoring, several options along King Street West are a short streetcar ride away. Quick turnarounds are standard for basic alterations in the area."
+      },
+      {
+        "question": "How much do alterations cost near Liberty Village?",
+        "answer": "Basic hemming runs $10-20 and pant tapering costs $20-35 at shops near Liberty Village. Suit jacket alterations range from $40-80 depending on complexity. King West Dry Cleaners handles most common alterations in-house. For bridal or complex tailoring, King Street West has dedicated specialty tailors."
+      },
+      {
+        "question": "How long do alterations take in Liberty Village?",
+        "answer": "Standard hemming and basic alterations take 2-5 business days at shops near Liberty Village. Rush service is often available for an upcharge. King West Dry Cleaners at 100 Lynn Williams St handles most alterations within a week. Complex suit work or bridal alterations may take 2-3 weeks."
+      },
+      {
+        "question": "Where can I get a suit tailored near Liberty Village?",
+        "answer": "King West Dry Cleaners on Lynn Williams St handles suit alterations in-house. For custom suit tailoring, King Street West has several dedicated menswear tailors within a short streetcar ride. Liberty Village's professional crowd means local tailors are experienced with modern slim-fit suit adjustments and business attire."
+      }
+    ]
   },
   {
     "slug": "auto-repair",
@@ -398,7 +898,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/auto-repair.jpg"
+    "image": "/images/services/auto-repair.jpg",
+    "answerBlock": "While most Liberty Village residents walk or bike, those with vehicles find auto repair shops along Dufferin Street and King Street West just outside the neighbourhood core. Shops in the area handle everything from oil changes to brake work, with labour rates typically running $100 to $130 per hour. Street parking near Strachan Ave makes drop-off convenient for neighbourhood drivers.",
+    "definition": "Auto repair shops near Liberty Village line the Dufferin and Strachan corridors, serving a neighbourhood where car ownership is lower than average but proximity to the Gardiner Expressway still demands maintenance.",
+    "specificFaqs": [
+      {
+        "question": "Where is the nearest auto repair shop to Liberty Village?",
+        "answer": "Auto repair shops cluster along Dufferin Street south of King and on Strachan Avenue, both within a short drive from Liberty Village. Several mechanics on King Street West also serve the neighbourhood. Most offer tow service if your car cannot make the trip from your Liberty Village condo parking spot."
+      },
+      {
+        "question": "How much does an oil change cost near Liberty Village?",
+        "answer": "Standard oil changes at shops near Liberty Village run $50-80 for conventional oil and $80-120 for synthetic. Shops along Dufferin and Strachan typically offer competitive pricing. Some offer pickup service from Liberty Village condos, which saves the hassle of navigating tight building parking garages."
+      },
+      {
+        "question": "Are there mechanics that specialize in European cars near Liberty Village?",
+        "answer": "Several specialty European auto shops operate along King Street West and Dufferin Street, serving the BMW, Audi, and Mercedes vehicles common in Liberty Village condo garages. Independent European specialists typically charge 30-40 percent less than dealerships while using OEM-equivalent parts and diagnostic equipment."
+      },
+      {
+        "question": "Where can I get winter tires installed near Liberty Village?",
+        "answer": "Auto shops along Dufferin Street and Strachan Avenue offer tire changeover services, typically $60-100 for mounting and balancing. Book by mid-October as shops get slammed once the first frost hits Toronto. Some offer tire storage for Liberty Village condo residents who lack garage space for off-season tires."
+      }
+    ]
   },
   {
     "slug": "bike-shops",
@@ -413,7 +933,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/bike-shops.jpg"
+    "image": "/images/services/bike-shops.jpg",
+    "answerBlock": "Sweet Pete's Bike Shop at 1 East Liberty Street is Liberty Village's top bike shop with a 4.4 rating, offering new and used sales, expert repairs, and seasonal tune-ups. Mechanics are honest about what your bike actually needs. Tune-ups start around $70, and they stock urban cycling gear suited to condo storage. Book spring service in March before the April rush creates week-long waits.",
+    "definition": "Bike shops in Liberty Village support the neighbourhood's cycling culture along the Martin Goodman Trail corridor, providing sales, repairs, and urban commuting accessories.",
+    "specificFaqs": [
+      {
+        "question": "Is there a bike shop in Liberty Village?",
+        "answer": "Sweet Pete's Bike Shop at 1 East Liberty St is the neighbourhood's full-service bike shop offering sales, expert repairs, and seasonal tune-ups. The mechanics are knowledgeable and honest about what your bike actually needs. They stock accessories, locks, and urban cycling gear suited to condo living."
+      },
+      {
+        "question": "How much does a bike tune-up cost in Liberty Village?",
+        "answer": "A basic tune-up at Sweet Pete's Bike Shop runs $60-90, covering brake and gear adjustment, tire inflation, and chain lubrication. Comprehensive overhauls cost $120-180. Bring your bike in during March before the April rush to avoid week-long wait times during peak spring cycling season."
+      },
+      {
+        "question": "Does Liberty Village have good cycling infrastructure?",
+        "answer": "Liberty Village connects to the Martin Goodman Trail and Toronto's waterfront cycling network. Bike Share Toronto stations dot the neighbourhood. Sweet Pete's on East Liberty helps riders choose the right bike for urban commuting. Protected bike lanes on nearby streets continue to expand across the west end."
+      },
+      {
+        "question": "Where can I buy an e-bike in Liberty Village?",
+        "answer": "Sweet Pete's Bike Shop at 1 East Liberty St carries e-bikes alongside traditional bicycles and can help you choose the right model for city commuting. They handle e-bike servicing and repairs as well. The Martin Goodman Trail nearby is excellent for testing an e-bike's range and comfort level."
+      }
+    ]
   },
   {
     "slug": "massage-therapy",
@@ -429,7 +969,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/massage-therapy.jpg"
+    "image": "/images/services/massage-therapy.jpg",
+    "answerBlock": "Myodetox at 1 East Liberty Street is Liberty Village's top massage therapy clinic with a 4.4 rating. Their registered massage therapists combine manual treatment with movement assessment to address root causes of pain, not just symptoms. Sessions run $120 to $160 for 60 minutes, and most insurance plans are accepted with direct billing. Book a 60-minute assessment for your first visit.",
+    "definition": "Massage therapists in Liberty Village serve the neighbourhood's desk workers and fitness enthusiasts from clinics along East Liberty Street, with most offering insurance direct billing.",
+    "specificFaqs": [
+      {
+        "question": "How much does massage therapy cost in Liberty Village?",
+        "answer": "Registered massage therapy at Myodetox Liberty Village on East Liberty costs $120-160 for a 60-minute session. Most insurance plans cover RMT sessions, and Myodetox offers direct billing to major insurers. Prices are comparable to standard Toronto RMT rates in the King West corridor area."
+      },
+      {
+        "question": "Do Liberty Village massage therapists direct bill insurance?",
+        "answer": "Yes. Myodetox at 1 East Liberty St direct bills to most major insurance providers, eliminating the need to submit claims yourself. Confirm your specific plan is accepted when booking. Liberty Village Physiotherapy on Atlantic Ave also offers massage therapy with insurance direct billing capabilities."
+      },
+      {
+        "question": "What types of massage are available in Liberty Village?",
+        "answer": "Myodetox Liberty Village specializes in therapeutic and sports massage with movement assessment. They focus on finding root causes of pain rather than just treating symptoms. Their approach combines registered massage therapy with corrective exercise programming. Deep tissue, relaxation, and prenatal massage are also available nearby."
+      },
+      {
+        "question": "Should I get massage or physiotherapy in Liberty Village?",
+        "answer": "Myodetox on East Liberty combines both approaches, starting with a 60-minute assessment to identify compensation patterns. For chronic pain or injury rehab, Liberty Village Physiotherapy on Atlantic Ave may be more appropriate. For general tension and stress relief, standard RMT massage sessions work well."
+      }
+    ]
   },
   {
     "slug": "physiotherapy",
@@ -445,7 +1005,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/physiotherapy.jpg"
+    "image": "/images/services/physiotherapy.jpg",
+    "answerBlock": "Liberty Village Physiotherapy & Rehab at 99 Atlantic Ave is the neighbourhood's go-to physio clinic with a 4.3 rating. They specialize in sports injuries, post-surgical rehab, and chronic pain management with personalized treatment plans. Sessions run $90 to $120, with acupuncture and shockwave therapy also available. Early morning slots offer the most thorough sessions before the schedule fills up.",
+    "definition": "Physiotherapy clinics in Liberty Village treat the neighbourhood's active gym-goers and desk workers from offices on Atlantic Ave, offering specialized rehab alongside the area's fitness studios.",
+    "specificFaqs": [
+      {
+        "question": "How much does physiotherapy cost in Liberty Village?",
+        "answer": "Sessions at Liberty Village Physiotherapy on Atlantic Ave run $90-130 for 30-45 minute appointments. Initial assessments are typically longer and may cost more. Most extended health insurance plans cover physio. The clinic offers direct billing so you only pay your copay or deductible at the time of visit."
+      },
+      {
+        "question": "Do Liberty Village physio clinics offer direct billing?",
+        "answer": "Yes. Liberty Village Physiotherapy and Rehab at 99 Atlantic Ave direct bills to most major insurance providers. Myodetox on East Liberty also handles direct billing for their physiotherapy services. Always confirm your specific plan is accepted when booking your initial assessment appointment."
+      },
+      {
+        "question": "What conditions do Liberty Village physiotherapists treat?",
+        "answer": "Liberty Village Physiotherapy at 99 Atlantic Ave treats sports injuries, post-surgical rehab, chronic pain, and desk-worker posture issues common among the neighbourhood's remote workers. They also offer acupuncture and shockwave therapy. The clinic builds personalized treatment plans rather than using generic exercise protocols."
+      },
+      {
+        "question": "Are there physio clinics open early or late in Liberty Village?",
+        "answer": "Liberty Village Physiotherapy on Atlantic Ave opens at 7am and stays open until 8pm on weekdays, with Saturday hours from 9am to 2pm. Early morning slots are recommended for more thorough sessions before the schedule gets busy. Myodetox on East Liberty also offers 7am start times on weekdays."
+      }
+    ]
   },
   {
     "slug": "chiropractors",
@@ -460,7 +1040,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/chiropractors.jpg"
+    "image": "/images/services/chiropractors.jpg",
+    "answerBlock": "Liberty Village Chiropractic at 99 Atlantic Ave leads the neighbourhood with a 4.5 rating and evidence-based care focused on desk workers and athletes. They combine spinal adjustments with soft tissue work and corrective exercises, with sessions running $70 to $90. Direct billing to most insurance providers is available. Mention you work from home for a free ergonomic workstation assessment on your first visit.",
+    "definition": "Chiropractors in Liberty Village focus on the posture and pain issues common among the neighbourhood's large remote-working population, operating from the Atlantic Ave medical offices.",
+    "specificFaqs": [
+      {
+        "question": "How much does a chiropractor cost in Liberty Village?",
+        "answer": "Initial assessments at Liberty Village Chiropractic on Atlantic Ave run $80-120, with follow-up adjustments costing $50-80 per visit. Most extended health insurance plans cover chiropractic care. The clinic direct bills to major insurers, so you typically only pay your copay at the point of service."
+      },
+      {
+        "question": "Do Liberty Village chiropractors direct bill insurance?",
+        "answer": "Yes. Liberty Village Chiropractic at 99 Atlantic Ave direct bills to most major insurance providers, removing the hassle of claim submissions. Mention your insurance when booking your first appointment so they can verify coverage and let you know your out-of-pocket costs before treatment begins."
+      },
+      {
+        "question": "Are there chiropractors good for desk workers in Liberty Village?",
+        "answer": "Liberty Village Chiropractic on Atlantic Ave specifically focuses on desk workers and athletes, the two dominant populations in the neighbourhood. Mention that you work from home or at a desk and they include a free ergonomic workstation assessment with your first visit, which alone is worth the appointment."
+      },
+      {
+        "question": "What hours are chiropractors open in Liberty Village?",
+        "answer": "Liberty Village Chiropractic offers Monday, Wednesday, and Friday hours from 8am to 6pm, Tuesday and Thursday from 10am to 8pm, and Saturday mornings from 9am to 1pm. The alternating schedule accommodates both early risers and those who need evening appointments after work."
+      }
+    ]
   },
   {
     "slug": "optometrists",
@@ -475,7 +1075,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/optometrists.jpg"
+    "image": "/images/services/optometrists.jpg",
+    "answerBlock": "Liberty Village has 2 optometry clinics with distinct strengths. BenchMark Optometry at 99 Atlantic Ave leads at 4.4 with retinal imaging and a curated selection of independent eyewear brands. Liberty Village Optometry at 171 East Liberty Street scores 4.3 with trendy designer frames and direct insurance billing. Eye exams run about $90, with most insurance plans covering the full cost.",
+    "definition": "Optometrists in Liberty Village stock independent and designer frame brands that appeal to the neighbourhood's style-conscious young professional demographic.",
+    "specificFaqs": [
+      {
+        "question": "How much does an eye exam cost in Liberty Village?",
+        "answer": "Eye exams at Liberty Village Optometry on East Liberty and BenchMark Optometry on Atlantic Ave run $90-130 for a comprehensive assessment. OHIP covers annual exams for ages 19 and under and 65-plus. Both clinics direct bill insurance and explain your coverage before you choose frames."
+      },
+      {
+        "question": "Are there optometrists with trendy frames in Liberty Village?",
+        "answer": "BenchMark Optometry at 99 Atlantic Ave stocks independent and designer eyewear brands you won't find at chain stores. Liberty Village Optometry on East Liberty also carries curated frame selections leaning trendy. Both shops help you find styles that suit your face shape within your insurance budget."
+      },
+      {
+        "question": "Do Liberty Village optometrists accept walk-ins?",
+        "answer": "Both Liberty Village Optometry and BenchMark Optometry prefer appointments but may accommodate walk-ins depending on availability. BenchMark on Atlantic Ave is open Monday through Saturday. For the most thorough experience, book ahead so the optometrist can allocate proper time for your assessment."
+      },
+      {
+        "question": "Can I get same-day glasses in Liberty Village?",
+        "answer": "Standard glasses at Liberty Village Optometry and BenchMark Optometry typically take 5-10 business days as lenses are custom-ground. For urgent needs, both can arrange rush orders. Contact lens fittings and trial lenses are often available same-day after your comprehensive eye exam appointment."
+      }
+    ]
   },
   {
     "slug": "accountants",
@@ -491,7 +1111,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/accountants.jpg"
+    "image": "/images/services/accountants.jpg",
+    "answerBlock": "Blueprint Accounting at 99 Atlantic Ave is Liberty Village's top accountant with a 4.5 rating, specializing in freelancers, tech startups, and incorporated professionals. They handle year-round tax planning and bookkeeping with a cloud-based approach and quarterly check-ins. Personal tax prep starts around $200, with small business packages from $300 monthly. Reach out in January for tax season priority.",
+    "definition": "Accountants in Liberty Village specialize in the tax and bookkeeping needs of freelancers and startups, reflecting the neighbourhood's concentration of self-employed tech and creative professionals.",
+    "specificFaqs": [
+      {
+        "question": "How much does an accountant cost in Liberty Village?",
+        "answer": "Blueprint Accounting at 99 Atlantic Ave charges $200-500 for personal tax returns and $500-2,000 for small business filings depending on complexity. Year-round bookkeeping packages start around $300 monthly. Their cloud-based approach means most work happens remotely with quarterly check-in meetings."
+      },
+      {
+        "question": "Are there accountants in Liberty Village that specialize in freelancers?",
+        "answer": "Blueprint Accounting on Atlantic Ave specifically serves Liberty Village's freelancers, incorporated professionals, and tech startups. They understand the self-employment tax nuances, HST obligations, and home office deductions common in the neighbourhood's large remote-working population. Book a tax prep consultation in January before the rush."
+      },
+      {
+        "question": "When should I contact my Liberty Village accountant for tax season?",
+        "answer": "Blueprint Accounting recommends reaching out in January rather than waiting until March. Early consultation means you get their full attention and time for strategic tax planning. The neighbourhood's many freelancers and small business owners flood accountants by February, making last-minute bookings difficult."
+      },
+      {
+        "question": "Do Liberty Village accountants handle incorporation?",
+        "answer": "Blueprint Accounting at 99 Atlantic Ave handles incorporation for the neighbourhood's freelancers and contractors. They advise on whether incorporating makes financial sense based on your income level and can manage the ongoing corporate filings. Their specialty is the tech startup and creative professional demographic that dominates Liberty Village."
+      }
+    ]
   },
   {
     "slug": "lawyers",
@@ -506,7 +1146,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/lawyers.jpg"
+    "image": "/images/services/lawyers.jpg",
+    "answerBlock": "Liberty Village lawyers along King Street West and Atlantic Ave handle real estate closings, condo board disputes, and small business incorporation for the neighbourhood's many entrepreneurs. Real estate lawyers are especially in demand given the volume of condo transactions in the area. Expect to pay $1,500 to $2,500 for a standard condo purchase closing, with consultations often available by video.",
+    "definition": "Lawyers serving Liberty Village specialize in real estate transactions and condo law, addressing the legal needs of a neighbourhood defined by high-volume property sales and active condo boards.",
+    "specificFaqs": [
+      {
+        "question": "What type of lawyers are near Liberty Village?",
+        "answer": "Liberty Village and the King West corridor have lawyers specializing in real estate closings, condo board disputes, small business law, and employment issues. The neighbourhood's high volume of condo transactions means real estate lawyers are especially experienced with condo-specific issues like status certificates and special assessments."
+      },
+      {
+        "question": "How much does a real estate lawyer cost near Liberty Village?",
+        "answer": "Real estate lawyers near Liberty Village typically charge $1,200-2,000 for a standard condo purchase closing, including title insurance and registration. Rates vary based on transaction complexity. For condo board disputes or declarations review, hourly rates of $250-400 are common in the King West area."
+      },
+      {
+        "question": "Do I need a lawyer for buying a condo in Liberty Village?",
+        "answer": "Yes. Ontario requires a lawyer for real estate transactions. A Liberty Village-experienced real estate lawyer will review the status certificate, flag upcoming special assessments, and handle closing. Choosing a lawyer familiar with local condo buildings can save you from costly surprises specific to the neighbourhood."
+      },
+      {
+        "question": "Are there lawyers who handle condo disputes in Liberty Village?",
+        "answer": "Several law firms along King Street West specialize in condominium law, including board disputes, noise complaints, and bylaw enforcement issues common in Liberty Village's dense condo environment. Initial consultations typically cost $100-200, and many disputes can be resolved through mediation before reaching tribunal."
+      }
+    ]
   },
   {
     "slug": "real-estate-agents",
@@ -522,7 +1182,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "hard",
-    "image": "/images/services/real-estate-agents.jpg"
+    "image": "/images/services/real-estate-agents.jpg",
+    "answerBlock": "Liberty Village Real Estate Team at 99 Atlantic Ave specializes exclusively in neighbourhood condos with a 4.3 rating and intimate knowledge of every building's floor plans and maintenance fees. They know which buildings have upcoming special assessments, potentially saving buyers tens of thousands of dollars. Liberty Village condos typically range from $450,000 for studios to $850,000 for two-bedrooms.",
+    "definition": "Real estate agents in Liberty Village specialize in the neighbourhood's condo market, where building-specific knowledge about maintenance fees, assessments, and resale value varies dramatically between properties.",
+    "specificFaqs": [
+      {
+        "question": "How much do Liberty Village condos cost?",
+        "answer": "As of recent market data, one-bedroom condos in Liberty Village typically sell for $500,000-650,000, while two-bedrooms range from $650,000-900,000. Liberty Village Real Estate Team on Atlantic Ave provides free home evaluations and tracks micro-market trends that generalist agents miss in the neighbourhood."
+      },
+      {
+        "question": "Should I use a real estate agent who specializes in Liberty Village?",
+        "answer": "Absolutely. Liberty Village Real Estate Team at 99 Atlantic Ave knows every building, floor plan, maintenance fee, and upcoming special assessment in the neighbourhood. This insider knowledge helps you avoid problem buildings and negotiate better prices. Their free evaluations are no-pressure and genuinely informative for buyers and sellers."
+      },
+      {
+        "question": "Which Liberty Village condo buildings are best to buy in?",
+        "answer": "Buildings vary significantly in maintenance fees, build quality, and appreciation potential. Liberty Village Real Estate Team recommends asking about special assessment history and reserve fund health before any purchase. Newer builds along Western Battery Rd differ from heritage conversions on Fraser Ave. Local expertise matters here."
+      },
+      {
+        "question": "Is Liberty Village a good investment for condo buyers?",
+        "answer": "Liberty Village benefits from transit access via the King streetcar, a walkable lifestyle, and ongoing neighbourhood development. Rental demand stays strong due to the area's popularity with young professionals. Liberty Village Real Estate Team tracks which buildings hold value best and can guide investment-focused buyers."
+      }
+    ]
   },
   {
     "slug": "insurance-agents",
@@ -538,7 +1218,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/insurance-agents.jpg"
+    "image": "/images/services/insurance-agents.jpg",
+    "answerBlock": "Insurance agents serving Liberty Village focus heavily on condo insurance, tenant insurance, and small business coverage for the neighbourhood's startup-heavy population. Condo insurance in Liberty Village typically runs $30 to $60 per month depending on unit size and building age. Agents along King Street West and Atlantic Ave understand the specific coverage requirements of local condo corporations.",
+    "definition": "Insurance agents near Liberty Village specialize in condo and tenant policies, serving a neighbourhood where most residents require unit-owner coverage for high-rise living.",
+    "specificFaqs": [
+      {
+        "question": "How much is condo insurance in Liberty Village?",
+        "answer": "Condo insurance in Liberty Village typically costs $25-50 per month depending on unit size, floor level, and coverage amount. Policies cover personal belongings, liability, and improvements to your unit. Most Liberty Village residents need at least $40,000-60,000 in contents coverage given typical furnishing values."
+      },
+      {
+        "question": "Do I need tenant insurance in Liberty Village?",
+        "answer": "Most Liberty Village landlords require tenant insurance as a lease condition, and it is strongly recommended regardless. Policies cost $15-35 monthly and cover personal belongings, liability, and additional living expenses if your unit becomes uninhabitable. Flooding from upstairs neighbours is a real risk in older condo buildings."
+      },
+      {
+        "question": "What type of insurance do Liberty Village small businesses need?",
+        "answer": "Liberty Village's many startups and freelancers typically need commercial general liability, professional liability or errors and omissions coverage, and cyber insurance. Home-based business riders are available for freelancers working from condos. Insurance agents along King Street West specialize in small business coverage packages for the area."
+      },
+      {
+        "question": "How do I file an insurance claim for condo damage in Liberty Village?",
+        "answer": "Contact your insurance provider immediately and document all damage with photos. Common Liberty Village claims include water damage from upstairs units and personal property theft. Your condo corporation's master policy covers the building structure, while your personal policy covers contents and improvements inside your specific unit."
+      }
+    ]
   },
   {
     "slug": "banks",
@@ -553,7 +1253,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/banks.jpg"
+    "image": "/images/services/banks.jpg",
+    "answerBlock": "Liberty Village has 2 major bank branches for in-person banking. RBC Royal Bank at 1 East Liberty Street scores 3.7 with mortgage and investment services, while Scotiabank at 171 East Liberty Street has 24/7 ATM access. Both handle personal and small business accounts. Book mortgage appointments for Tuesday or Wednesday mornings when advisors have more time to find the best rates.",
+    "definition": "Banks in Liberty Village line the East Liberty retail strip, providing mortgage, investment, and everyday banking services to a neighbourhood where most routine transactions happen digitally.",
+    "specificFaqs": [
+      {
+        "question": "Which banks have branches in Liberty Village?",
+        "answer": "Scotiabank at 171 East Liberty St and RBC Royal Bank at 1 East Liberty St are the two full-service branches in Liberty Village. Both offer personal banking, mortgages, and investment services. Scotiabank has a 24/7 ATM. TD and BMO branches are available on nearby King Street West."
+      },
+      {
+        "question": "Are Liberty Village banks open on Saturdays?",
+        "answer": "Both Scotiabank and RBC in Liberty Village offer Saturday hours from 10am to 3pm. Weekday hours run 9:30am to 5pm. Avoid the noon lunch rush when wait times peak. For mortgage or investment consultations, RBC advisors recommend booking Tuesday or Wednesday morning appointments."
+      },
+      {
+        "question": "Where is the nearest ATM in Liberty Village?",
+        "answer": "Scotiabank at 171 East Liberty has a 24/7 accessible ATM, as does RBC at 1 East Liberty. Shoppers Drug Mart on East Liberty also has a bank machine inside. For fee-free withdrawals, stick to your own bank's ATM since surcharges from other banks run $2-3 per transaction."
+      },
+      {
+        "question": "Can I get a mortgage consultation in Liberty Village?",
+        "answer": "Both Scotiabank and RBC in Liberty Village have mortgage specialists familiar with the local condo market. RBC advisors suggest booking Tuesday or Wednesday mornings for unhurried consultations. They can discuss pre-approvals, renewals, and refinancing options specific to Liberty Village property values."
+      }
+    ]
   },
   {
     "slug": "tutors",
@@ -567,7 +1287,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/tutors.jpg"
+    "image": "/images/services/tutors.jpg",
+    "answerBlock": "Tutors in Liberty Village offer in-home and virtual sessions for students of all ages, from elementary homework support to university exam prep. The neighbourhood's young family population along Western Battery Rd and East Liberty Street drives demand for after-school help. Rates typically range from $40 to $80 per hour depending on subject and level, with many offering free initial assessments.",
+    "definition": "Tutors in Liberty Village serve the growing number of school-age children in the neighbourhood, offering both in-person condo visits and virtual sessions for families along Western Battery Rd.",
+    "specificFaqs": [
+      {
+        "question": "How much do tutors cost in Liberty Village?",
+        "answer": "Private tutoring in Liberty Village runs $40-80 per hour depending on subject and level. University exam prep and specialized subjects like calculus or French command higher rates. Many tutors offer packages of 5-10 sessions at a reduced per-hour rate for committed students in the neighbourhood."
+      },
+      {
+        "question": "Are there in-home tutors in Liberty Village?",
+        "answer": "Yes. Several tutors offer in-home sessions in Liberty Village condos and townhouses, as well as virtual options via Zoom. The neighbourhood's compact layout means tutors can easily serve multiple families in the area. Condo party rooms also work well for small group tutoring sessions."
+      },
+      {
+        "question": "What subjects do Liberty Village tutors teach?",
+        "answer": "Local tutors cover math, science, English, and French for elementary through high school students. University-level tutoring in calculus, statistics, and essay writing is also available. Some tutors specialize in standardized test prep for students applying to private schools or competitive university programs in Toronto."
+      },
+      {
+        "question": "Are there tutors for adults in Liberty Village?",
+        "answer": "Yes. Liberty Village's young professional population drives demand for adult tutoring in French language, business writing, coding, and professional certification exam prep. Virtual sessions are popular with the area's remote workers. Several tutors specialize in ESL for newcomers settling in the King West corridor."
+      }
+    ]
   },
   {
     "slug": "music-lessons",
@@ -582,7 +1322,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/music-lessons.jpg"
+    "image": "/images/services/music-lessons.jpg",
+    "answerBlock": "Liberty Village Music School at 99 Atlantic Ave is the neighbourhood's top option with a 4.3 rating, offering private lessons in guitar, piano, drums, and voice for kids and adults. Instructors are working musicians with real-world experience, and soundproofed studio rooms keep the neighbours happy. Lessons run $50 to $70 per half-hour session with flexible scheduling for shift workers.",
+    "definition": "Music lessons in Liberty Village tap into the neighbourhood's creative community, with instruction studios on Atlantic Ave offering private lessons in a range of instruments and vocals.",
+    "specificFaqs": [
+      {
+        "question": "How much do music lessons cost in Liberty Village?",
+        "answer": "Liberty Village Music School at 99 Atlantic Ave charges $40-70 per 30-minute private lesson depending on instrument and instructor experience. Monthly packages of four lessons reduce the cost. Guitar, piano, drums, and voice lessons are all available for kids and adults at every skill level."
+      },
+      {
+        "question": "Are there music lessons for adults in Liberty Village?",
+        "answer": "Yes. Liberty Village Music School on Atlantic Ave teaches adults of all levels, from absolute beginners picking up guitar for the first time to experienced musicians refining technique. The neighbourhood's creative community means the instructors are working musicians who bring real-world experience to every lesson."
+      },
+      {
+        "question": "What instruments can I learn in Liberty Village?",
+        "answer": "Liberty Village Music School at 99 Atlantic Ave offers private lessons in guitar, piano, drums, bass, voice, and more. The studio has soundproofed rooms and flexible scheduling that works around irregular work hours. Trial lessons are available so you can find the right instructor fit before committing."
+      },
+      {
+        "question": "Do Liberty Village music schools offer group lessons?",
+        "answer": "Liberty Village Music School offers both private and small group lessons. Group classes are more affordable per session and add a social element. The school occasionally runs workshops and ensemble sessions for students wanting to play with others. Check their schedule for upcoming group class availability."
+      }
+    ]
   },
   {
     "slug": "pet-stores",
@@ -597,7 +1357,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/pet-stores.jpg"
+    "image": "/images/services/pet-stores.jpg",
+    "answerBlock": "Woof & Whiskers at 171 East Liberty Street is Liberty Village's dedicated pet store with a 4.1 rating, stocking premium food brands, toys, treats, and accessories. Staff are knowledgeable about pet nutrition and prioritize Canadian-made products. They offer an auto-delivery program to condo lobbies, saving you from hauling heavy food bags. The store caters to the neighbourhood's famously large dog population.",
+    "definition": "Pet stores in Liberty Village stock premium food and accessories for the neighbourhood's high dog-ownership rate, with delivery to condo lobbies a standard convenience.",
+    "specificFaqs": [
+      {
+        "question": "Is there a pet store in Liberty Village?",
+        "answer": "Woof & Whiskers at 171 East Liberty St caters to the neighbourhood's massive pet population with premium food brands, toys, treats, and accessories. The staff are knowledgeable about pet nutrition and stock local Canadian-made products. They also offer an auto-delivery program for monthly food orders to your condo lobby."
+      },
+      {
+        "question": "What pet food brands does the Liberty Village pet store carry?",
+        "answer": "Woof & Whiskers on East Liberty stocks premium brands including raw food options, grain-free formulas, and locally made Canadian products. The staff can recommend the right food for your pet's specific dietary needs and allergies. They prioritize quality brands over mass-market grocery store options."
+      },
+      {
+        "question": "Does the Liberty Village pet store deliver?",
+        "answer": "Woof & Whiskers offers an auto-delivery program that brings monthly food orders directly to your condo lobby, which saves hauling heavy 30-pound bags from the store. Ask about setting up recurring delivery when you find the right food for your pet. They also carry treats and supplies."
+      },
+      {
+        "question": "Are there pet stores open on weekends in Liberty Village?",
+        "answer": "Woof & Whiskers on East Liberty is open Saturday 10am to 7pm and Sunday 11am to 5pm. Weekend afternoons are busy as dog owners stop in after walks. For a calmer shopping experience with more staff attention, visit on a weekday morning when the store is quieter."
+      }
+    ]
   },
   {
     "slug": "florists",
@@ -613,7 +1393,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/florists.jpg"
+    "image": "/images/services/florists.jpg",
+    "answerBlock": "Tonic Blooms at 113 Atlantic Ave is Liberty Village's standout florist with a 4.6 rating and lush, modern arrangements using locally sourced seasonal flowers. They're popular for weddings and events at neighbourhood gallery spaces, with walk-in bouquets from $45 and up. Their weekly flower delivery subscription is cheaper per arrangement than individual purchases for Liberty Village condo dwellers.",
+    "definition": "Florists in Liberty Village create modern floral arrangements from studios on Atlantic Ave, frequently serving the neighbourhood's converted warehouse wedding and event venues.",
+    "specificFaqs": [
+      {
+        "question": "Is there a florist in Liberty Village?",
+        "answer": "Tonic Blooms at 113 Atlantic Ave is a boutique florist creating modern arrangements with locally sourced seasonal flowers. Their style features garden roses, ranunculus, and eucalyptus. They handle walk-in bouquets daily and are popular for weddings and events in the neighbourhood's gallery and loft venues."
+      },
+      {
+        "question": "Does the Liberty Village florist deliver?",
+        "answer": "Tonic Blooms on Atlantic Ave delivers throughout Liberty Village and the broader Toronto area. They also offer a weekly flower subscription for homes and offices that is cheaper per arrangement than buying individual bouquets. Same-day delivery may be available for orders placed before noon."
+      },
+      {
+        "question": "How much do flower arrangements cost in Liberty Village?",
+        "answer": "Ready-made bouquets at Tonic Blooms on Atlantic Ave start around $40-60, with custom arrangements running $80-150 depending on size and flower selection. Wedding and event florals are quoted separately based on scope. Their seasonal selections offer the best value since flowers are sourced locally when possible."
+      },
+      {
+        "question": "Can I get wedding flowers from a Liberty Village florist?",
+        "answer": "Tonic Blooms on Atlantic Ave is experienced with weddings and events in Liberty Village's unique gallery and loft venues like Artscape Youngplace. Their romantic, textural style suits the industrial-chic spaces common in the neighbourhood. Book consultations well in advance, especially for spring and summer wedding dates."
+      }
+    ]
   },
   {
     "slug": "photographers",
@@ -629,7 +1429,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/photographers.jpg"
+    "image": "/images/services/photographers.jpg",
+    "answerBlock": "Liberty Village's industrial backdrops, heritage murals, and converted loft spaces make it a natural base for Toronto photographers. Local photographers along Fraser Ave and Hanna Ave specialize in portraits, real estate photography for condo listings, and events in neighbourhood gallery venues. Portrait sessions typically start around $250, with real estate packages from $150 per property.",
+    "definition": "Photographers in Liberty Village take advantage of the neighbourhood's industrial-chic aesthetic for portrait, event, and real estate work, often shooting in converted warehouse settings.",
+    "specificFaqs": [
+      {
+        "question": "Are there photographers based in Liberty Village?",
+        "answer": "Liberty Village's industrial backdrops, murals, and converted loft spaces make it a popular base for photographers specializing in portraits, events, and real estate photography. Several photographers maintain studios along Hanna Ave and Fraser Ave in the neighbourhood's warehouse district for convenient access to unique settings."
+      },
+      {
+        "question": "How much do photographers cost in Liberty Village?",
+        "answer": "Portrait sessions from Liberty Village-based photographers typically run $200-500 for a one-hour shoot with edited digital files. Event photography ranges from $500-2,000 depending on duration. Real estate photography for condo listings starts around $150-300 per property, a key service in this condo-heavy neighbourhood."
+      },
+      {
+        "question": "Where are the best photo shoot locations in Liberty Village?",
+        "answer": "The murals along Hanna Ave and Atlantic Ave provide colorful backdrops. Converted warehouse facades on Fraser Ave offer industrial-chic aesthetics. The heritage schoolhouse at 70 Fraser Ave and Liberty Market building are also popular. Lamport Stadium Park provides green space for outdoor portrait sessions."
+      },
+      {
+        "question": "Can I hire a real estate photographer in Liberty Village?",
+        "answer": "Several photographers in the area specialize in condo listing photography, understanding the small-space lighting challenges of Liberty Village units. Good real estate photos are essential in this competitive market. Liberty Village Real Estate Team on Atlantic Ave can recommend photographers they trust for listing shoots."
+      }
+    ]
   },
   {
     "slug": "caterers",
@@ -645,7 +1465,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/caterers.jpg"
+    "image": "/images/services/caterers.jpg",
+    "answerBlock": "Feast Catering Co. at 38 Hanna Ave is Liberty Village's local caterer with a 4.4 rating, operating from a commercial kitchen in the warehouse district. They specialize in corporate catering for the neighbourhood's tech offices and creative agencies, going beyond typical sandwich platters with custom menus. Office lunch orders start around $18 per person, with full event catering from $45 per head.",
+    "definition": "Caterers in Liberty Village operate from the Hanna Ave warehouse district, primarily serving the neighbourhood's tech companies and creative agencies with office lunch and event catering.",
+    "specificFaqs": [
+      {
+        "question": "Are there caterers based in Liberty Village?",
+        "answer": "Feast Catering Co. operates from a commercial kitchen on Hanna Ave and specializes in corporate catering for Liberty Village's tech offices and creative agencies. They go beyond standard sandwich platters with custom menus for meetings and private events. Order by 10am the day before for office lunch delivery."
+      },
+      {
+        "question": "How much does catering cost in Liberty Village?",
+        "answer": "Feast Catering Co. on Hanna Ave charges $15-25 per person for corporate lunch catering and $40-80 per person for full event catering depending on menu complexity. Their weekly rotating menu keeps regular office clients fed without menu fatigue. Custom menus are their specialty for larger events."
+      },
+      {
+        "question": "Can I get same-day catering in Liberty Village?",
+        "answer": "Feast Catering Co. requires orders by 10am the day before for standard corporate lunch delivery. Same-day catering for events is generally not available due to preparation requirements. For last-minute office food, several Liberty Village restaurants offer group ordering including LOCAL Public Eatery and Mildred's Temple Kitchen."
+      },
+      {
+        "question": "Do Liberty Village caterers handle office lunches?",
+        "answer": "Feast Catering Co. specializes in corporate catering for the neighbourhood's many tech companies and creative agencies. Their delivery covers all of Liberty Village from their Hanna Ave kitchen. Ask about their weekly rotating menu for recurring office lunch programs that keep employees happy without repetitive orders."
+      }
+    ]
   },
   {
     "slug": "event-spaces",
@@ -661,7 +1501,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/event-spaces.jpg"
+    "image": "/images/services/event-spaces.jpg",
+    "answerBlock": "Artscape Youngplace on Shaw Street is Liberty Village's premier event venue with a 4.5 rating, housed in a stunning converted school building with heritage architecture. The gallery spaces and performance hall host weddings, product launches, and corporate events with minimal decor needed. Liberty Village's converted warehouses and industrial lofts provide additional unique venues throughout the neighbourhood.",
+    "definition": "Event spaces in Liberty Village occupy converted warehouses, industrial lofts, and heritage buildings, offering some of Toronto's most atmospheric venues for weddings, launches, and corporate gatherings.",
+    "specificFaqs": [
+      {
+        "question": "What are the best event spaces in Liberty Village?",
+        "answer": "Artscape Youngplace at 180 Shaw St offers stunning gallery spaces in a converted heritage school building perfect for product launches, exhibitions, and weddings. Liberty Commons at Big Rock Brewery handles large group events with their beer hall setup. The Rec Room on Lynn Williams St works well for corporate parties."
+      },
+      {
+        "question": "How much does it cost to rent an event space in Liberty Village?",
+        "answer": "Artscape Youngplace gallery spaces rent from $1,500-5,000 depending on room size and duration. Converted warehouse lofts on Hanna Ave and Fraser Ave range from $2,000-8,000 for full-day events. Liberty Village's industrial heritage spaces require minimal decoration, which saves significantly on event styling costs."
+      },
+      {
+        "question": "Are there wedding venues in Liberty Village?",
+        "answer": "Artscape Youngplace on Shaw St is the neighbourhood's most popular wedding venue, with heritage architecture and dramatic gallery spaces that photograph beautifully. Several converted loft spaces on Hanna Ave and Fraser Ave also host intimate weddings. Tonic Blooms on Atlantic Ave handles wedding florals for many local venues."
+      },
+      {
+        "question": "Can I host a corporate event in Liberty Village?",
+        "answer": "Absolutely. Liberty Village is one of Toronto's top neighbourhoods for corporate events. Artscape Youngplace handles launches and galas, The Rec Room works for team outings, and Liberty Commons at Big Rock Brewery is ideal for holiday parties. Feast Catering Co. on Hanna Ave handles food for many local events."
+      }
+    ]
   },
   {
     "slug": "breweries",
@@ -677,7 +1537,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/breweries.jpg"
+    "image": "/images/services/breweries.jpg",
+    "answerBlock": "Liberty Village has 2 craft breweries worth visiting. Left Field Brewery on Wagstaff Dr leads at 4.5 with a baseball-themed taproom and flagship beers like the Eephus oatmeal brown ale. Liberty Commons at Big Rock Brewery on East Liberty Street scores 4.1 with house-brewed beers in a sprawling beer hall. Both have patios that pack out on summer weekends, with flights starting around $12.",
+    "definition": "Breweries in Liberty Village operate from the neighbourhood's industrial heritage buildings, with taprooms on Wagstaff Dr and East Liberty Street anchoring the local craft beer scene.",
+    "specificFaqs": [
+      {
+        "question": "What breweries are in Liberty Village?",
+        "answer": "Liberty Commons at Big Rock Brewery on East Liberty serves house-brewed craft beer in a sprawling beer hall setting. Left Field Brewery on Wagstaff Dr is a beloved baseball-themed taproom with flagship beers like Eephus oatmeal brown ale and Greenwood IPA plus rotating seasonal small-batch releases."
+      },
+      {
+        "question": "Do Liberty Village breweries have taprooms?",
+        "answer": "Yes, both do. Liberty Commons at Big Rock Brewery has a massive indoor beer hall with communal tables, wood-fired pizza, and a rotating seasonal menu. Left Field Brewery on Wagstaff Dr has a taproom and patio that fill up fast on summer weekends. Flights are available at both for sampling."
+      },
+      {
+        "question": "Can I buy beer to take home from Liberty Village breweries?",
+        "answer": "Left Field Brewery on Wagstaff Dr sells cans and bottles of their core lineup and seasonal releases to go. Liberty Commons at Big Rock Brewery also offers growler fills and packaged beer. Left Field's limited releases sell out quickly, so check their social media for new drop announcements."
+      },
+      {
+        "question": "Are Liberty Village brewery patios dog-friendly?",
+        "answer": "Left Field Brewery's outdoor patio on Wagstaff Dr is popular with dog owners and generally welcomes leashed dogs. Liberty Commons at Big Rock Brewery also allows dogs on their patio area. Given the neighbourhood's massive dog population, you will see plenty of pups at both spots on weekends."
+      }
+    ]
   },
   {
     "slug": "wine-bars",
@@ -693,7 +1573,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/wine-bars.jpg"
+    "image": "/images/services/wine-bars.jpg",
+    "answerBlock": "Liberty Village wine bars offer curated selections in intimate settings along King Street West and East Liberty. Cibo Wine Bar on Liberty Street doubles as an Italian restaurant with an outstanding wine list and happy hour from 4 to 6pm weekdays. Glasses start around $14, with bottles from $45. The neighbourhood's converted warehouse spaces add atmospheric charm to any evening.",
+    "definition": "Wine bars in Liberty Village combine curated wine lists with the neighbourhood's industrial-chic ambiance, popular for date nights and after-work gatherings along the King Street West corridor.",
+    "specificFaqs": [
+      {
+        "question": "Are there wine bars in Liberty Village?",
+        "answer": "Cibo Wine Bar at 100 Liberty St is the neighbourhood's premier wine bar, offering an extensive Italian wine list alongside refined pasta and pizza in a dark, moody atmosphere perfect for date nights. Their Aperitivo hour from 4-6pm on weekdays features half-price appetizers and ten-dollar cocktails."
+      },
+      {
+        "question": "How much does wine cost at Liberty Village wine bars?",
+        "answer": "Glasses at Cibo Wine Bar on Liberty St start around $12-18, with bottles ranging from $40 to well over $100 for premium Italian selections. Their Aperitivo hour from 4-6pm weekdays offers the best value with ten-dollar cocktails alongside half-price small plates that make an affordable early dinner."
+      },
+      {
+        "question": "What's the best wine bar for date night in Liberty Village?",
+        "answer": "Cibo Wine Bar at 100 Liberty St is the top date-night pick, with moody lighting, Italian elegance, and an outstanding wine list. School Restaurant on Fraser Ave also has an inventive cocktail menu in a romantic heritage setting. Both spots set the right tone without feeling overly formal."
+      },
+      {
+        "question": "Do Liberty Village wine bars have happy hour?",
+        "answer": "Cibo Wine Bar runs an Aperitivo hour from 4 to 6pm on weekdays with half-price appetizers and ten-dollar cocktails. It is essentially a discounted dinner if you order enough small plates. Brazen Head Irish Pub and LOCAL Public Eatery also offer drink specials during their daily happy hour windows."
+      }
+    ]
   },
   {
     "slug": "pizza",
@@ -709,7 +1609,27 @@
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
-    "image": "/images/services/pizza.jpg"
+    "image": "/images/services/pizza.jpg",
+    "answerBlock": "Pizza Libretto at 155 Liberty Street is Liberty Village's best pizza spot with a 4.4 rating, serving VPN-certified Neapolitan pies from a 900-degree wood-burning oven. Their Margherita is a masterclass in simplicity, and the Liberty Village location has a cosier vibe than busier downtown spots. Pies run $16 to $22. NODO on East Liberty also serves excellent wood-fired pizza with 72-hour fermented dough.",
+    "definition": "Pizza places in Liberty Village focus on authentic wood-fired Neapolitan styles, with pizzerias on Liberty Street serving some of the best pies on Toronto's west side.",
+    "specificFaqs": [
+      {
+        "question": "What's the best pizza in Liberty Village?",
+        "answer": "Pizza Libretto at 155 Liberty St serves VPN-certified Neapolitan pizza from a 900-degree wood oven, with their Margherita being a masterclass in simplicity. NODO at 1 East Liberty makes handmade pasta and pizza with 72-hour fermented dough. Liberty Commons at Big Rock Brewery also does solid wood-fired pizzas."
+      },
+      {
+        "question": "Is there pizza delivery in Liberty Village?",
+        "answer": "Most Liberty Village pizza spots deliver to neighbourhood condos. Pizza Libretto offers delivery through major apps. NODO on East Liberty also delivers. For late-night slices, several options on King Street West serve the area through UberEats and DoorDash with typical delivery times under 30 minutes."
+      },
+      {
+        "question": "How much does pizza cost in Liberty Village?",
+        "answer": "A Margherita at Pizza Libretto on Liberty St runs around $16-18. NODO's wood-fired pizzas are similarly priced at $15-20. Liberty Commons at Big Rock Brewery pairs pizza with house-brewed craft beer for a great combo. Delivery app markups add roughly $3-5 on top of in-restaurant prices."
+      },
+      {
+        "question": "Are there wood-fired pizza places in Liberty Village?",
+        "answer": "Pizza Libretto at 155 Liberty St fires their pies in a 900-degree oven, producing leopard-spotted crusts in under 90 seconds. NODO at 1 East Liberty uses a custom-built Italian oven imported from Naples. Both are authentic Neapolitan-style pizzerias with the certifications to prove it."
+      }
+    ]
   },
   {
     "slug": "sushi",
@@ -724,7 +1644,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/sushi.jpg"
+    "image": "/images/services/sushi.jpg",
+    "answerBlock": "Miku Toronto is the closest premium sushi experience to Liberty Village with a 4.6 rating, famous for aburi flame-seared sushi imported from Vancouver. While located on the waterfront, it's a short trip from the neighbourhood and worth it for special occasions. Omakase starts around $120 per person. For everyday sushi, several delivery options serve Liberty Village condos along East Liberty Street.",
+    "definition": "Sushi restaurants near Liberty Village range from all-you-can-eat spots to high-end omakase counters, with delivery keeping the neighbourhood's condo dwellers well supplied.",
+    "specificFaqs": [
+      {
+        "question": "What's the best sushi near Liberty Village?",
+        "answer": "Miku Toronto, while technically on the waterfront, is the closest premium sushi experience and worth the short trip. Their signature aburi flame-seared sushi is a Vancouver import beloved by Torontonians. For everyday sushi, several all-you-can-eat spots and mid-range Japanese restaurants operate along King Street West."
+      },
+      {
+        "question": "Is there all-you-can-eat sushi near Liberty Village?",
+        "answer": "Several AYCE sushi restaurants are located along King Street West within a short streetcar ride from Liberty Village. Prices typically run $25-35 per person for lunch and $35-45 for dinner. Quality varies, so check recent Google reviews before picking a spot for the best value experience."
+      },
+      {
+        "question": "How much does sushi cost near Liberty Village?",
+        "answer": "Miku Toronto runs $40-80 per person for a premium omakase-style experience. Mid-range sushi restaurants on King West offer maki and nigiri sets for $20-35. All-you-can-eat spots start around $25 at lunch. Delivery sushi from nearby restaurants typically adds a $4-6 delivery fee to menu prices."
+      },
+      {
+        "question": "Can I get sushi delivered to Liberty Village?",
+        "answer": "Yes. Multiple sushi restaurants on King Street West deliver to Liberty Village through UberEats, DoorDash, and SkipTheDishes. Delivery times are typically 25-40 minutes. Miku Toronto also offers takeout for their aburi sushi if you want premium-quality sushi without the full restaurant experience."
+      }
+    ]
   },
   {
     "slug": "thai-restaurants",
@@ -739,7 +1679,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/thai-restaurants.jpg"
+    "image": "/images/services/thai-restaurants.jpg",
+    "answerBlock": "Liberty Village has 2 Thai restaurants covering different price points. Pai Northern Thai Kitchen at 171 East Liberty Street leads at 4.5 and is widely considered one of the best Thai restaurants in Toronto, with the Khao Soi a must-order. Chiang Mai Thai at 45 East Liberty Street scores 4.0 with solid pad thai and the best-value lunch combo in the neighbourhood for under $15.",
+    "definition": "Thai restaurants in Liberty Village range from Toronto-famous northern Thai cuisine on East Liberty Street to affordable neighbourhood go-tos that predate the condo boom.",
+    "specificFaqs": [
+      {
+        "question": "What's the best Thai food in Liberty Village?",
+        "answer": "Pai Northern Thai Kitchen at 171 East Liberty is widely considered one of the best Thai restaurants in all of Toronto. Their Khao Soi is a must-order. Chiang Mai Thai at 45 East Liberty is the OG neighbourhood Thai spot with reliable pad thai, green curry, and unbeatable weekday lunch combos under $15."
+      },
+      {
+        "question": "How much does Thai food cost in Liberty Village?",
+        "answer": "Chiang Mai Thai on East Liberty is the neighbourhood's best value, with weekday lunch combos including curry, rice, spring roll, and soup for under $15. Pai Northern Thai is mid-range at $15-25 per entree. Both deliver to Liberty Village condos through major delivery apps."
+      },
+      {
+        "question": "Is there Thai food delivery in Liberty Village?",
+        "answer": "Both Pai Northern Thai Kitchen and Chiang Mai Thai on East Liberty deliver throughout Liberty Village via UberEats and DoorDash. Chiang Mai's prices are especially affordable even with delivery markups. Pai's Khao Soi travels surprisingly well and is worth ordering for delivery on a cold night."
+      },
+      {
+        "question": "Are Liberty Village Thai restaurants open for lunch?",
+        "answer": "Pai Northern Thai Kitchen opens at 11:30am for weekday lunch service. Chiang Mai Thai Restaurant opens at 11am Monday through Friday with their famous lunch combos. Both are excellent midday options for workers in the neighbourhood. Weekend lunch hours start slightly later at both locations."
+      }
+    ]
   },
   {
     "slug": "italian-restaurants",
@@ -755,7 +1715,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/italian-restaurants.jpg"
+    "image": "/images/services/italian-restaurants.jpg",
+    "answerBlock": "Liberty Village has 2 Italian restaurants with distinct personalities. NODO at 1 East Liberty Street leads at 4.3 with 72-hour fermented Neapolitan pizza and house-made pasta in a warm trattoria setting. Cibo Wine Bar at 100 Liberty Street scores 4.2 with refined pasta dishes, an outstanding wine list, and one of the best date-night atmospheres in the neighbourhood. Entrees range from $18 to $35.",
+    "definition": "Italian restaurants in Liberty Village serve handmade pasta and wood-fired pizza from atmospheric spaces on East Liberty and Liberty Street, reflecting the area's historic immigrant roots.",
+    "specificFaqs": [
+      {
+        "question": "What are the best Italian restaurants in Liberty Village?",
+        "answer": "NODO at 1 East Liberty St serves outstanding wood-fired Neapolitan pizza with 72-hour fermented dough and house-made pasta. Cibo Wine Bar at 100 Liberty St offers refined Italian dining with an exceptional wine list and moody date-night atmosphere. Both represent different ends of the Italian dining spectrum."
+      },
+      {
+        "question": "Is there handmade pasta in Liberty Village?",
+        "answer": "NODO at 1 East Liberty St makes their pasta in-house daily, alongside their famous wood-fired pizza. Their dough is fermented for 72 hours for maximum flavor. Cibo Wine Bar on Liberty St also serves refined pasta dishes. Both restaurants use quality imported Italian ingredients in their preparations."
+      },
+      {
+        "question": "Which Liberty Village Italian restaurant is best for date night?",
+        "answer": "Cibo Wine Bar at 100 Liberty St is the premier Italian date-night spot, with dark moody interiors, an outstanding wine list, and refined pasta and pizza. NODO at 1 East Liberty has a warmer, more casual trattoria feel with communal tables ideal for relaxed evenings with friends."
+      },
+      {
+        "question": "Do Italian restaurants in Liberty Village have happy hour?",
+        "answer": "Cibo Wine Bar runs an Aperitivo hour from 4 to 6pm on weekdays featuring half-price appetizers and ten-dollar cocktails. Ordering enough small plates during this window essentially gives you a discounted Italian dinner. NODO does not run a formal happy hour but has consistent regular pricing."
+      }
+    ]
   },
   {
     "slug": "indian-restaurants",
@@ -770,7 +1750,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/indian-restaurants.jpg"
+    "image": "/images/services/indian-restaurants.jpg",
+    "answerBlock": "Indian restaurants near Liberty Village along King Street West serve butter chicken, biryani, and dosa with plenty of vegetarian and vegan options for the neighbourhood. Several spots deliver directly to Liberty Village condos, making it easy to enjoy authentic dishes without leaving home. Entrees typically run $14 to $22, with lunch specials offering better value during weekday afternoons.",
+    "definition": "Indian restaurants serving Liberty Village are concentrated along the King Street West corridor, bringing diverse regional cuisines within easy delivery range of the neighbourhood's condo towers.",
+    "specificFaqs": [
+      {
+        "question": "Are there Indian restaurants in Liberty Village?",
+        "answer": "While Liberty Village does not have a dedicated Indian restaurant within its core boundaries, several excellent options on King Street West are within a short streetcar ride. The King West and Parkdale corridor has a strong selection of Indian restaurants serving butter chicken, biryani, dosa, and more."
+      },
+      {
+        "question": "Can I get Indian food delivered to Liberty Village?",
+        "answer": "Yes. Multiple Indian restaurants along King Street West and in nearby Parkdale deliver to Liberty Village through UberEats, DoorDash, and SkipTheDishes. Delivery times are typically 20-35 minutes. Butter chicken, biryani, and tandoori dishes from these restaurants are popular orders in the neighbourhood."
+      },
+      {
+        "question": "Where is the closest Indian restaurant to Liberty Village?",
+        "answer": "The closest Indian restaurants are along King Street West, about a 5-10 minute streetcar ride from Liberty Village. The Parkdale stretch of Queen Street West also has excellent options slightly further away. Both areas offer diverse Indian cuisine from north Indian to south Indian specialties and street food."
+      },
+      {
+        "question": "Are there vegetarian Indian options near Liberty Village?",
+        "answer": "Indian restaurants near Liberty Village on King West and in Parkdale offer extensive vegetarian menus, as Indian cuisine naturally features many plant-based dishes. Dosa, paneer dishes, chana masala, and dal options are widely available. Several spots also cater to vegan diners with clearly marked menu items."
+      }
+    ]
   },
   {
     "slug": "burger-joints",
@@ -786,7 +1786,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "medium",
-    "image": "/images/services/burger-joints.jpg"
+    "image": "/images/services/burger-joints.jpg",
+    "answerBlock": "Burger Drops at 171 East Liberty Street is Liberty Village's cult-favourite burger spot with a 4.4 rating. Their double smash burger with house-made pickles and special sauce has a loyal neighbourhood following, and loaded fries and milkshakes round out a tight, focused menu. Burgers start at $9 and the quality rivals anything on the Toronto burger scene at a fraction of the price.",
+    "definition": "Burger joints in Liberty Village focus on smash-style burgers in casual counter-service settings, offering quick and affordable meals along the East Liberty retail strip.",
+    "specificFaqs": [
+      {
+        "question": "What's the best burger in Liberty Village?",
+        "answer": "Burger Drops at 171 East Liberty is the neighbourhood favourite, known for smashed burgers with house-made pickles and a cult-following special sauce. The double smash with cheese and garlic aioli fries is the definitive Burger Drops experience. LOCAL Public Eatery also serves solid pub-style burgers."
+      },
+      {
+        "question": "How much do burgers cost in Liberty Village?",
+        "answer": "Burger Drops on East Liberty offers smash burgers starting around $8-12, making it one of the best-value meals in the neighbourhood. Adding fries and a milkshake brings the total to around $18-22. LOCAL Public Eatery's burger menu runs slightly higher at $16-20 with more premium toppings."
+      },
+      {
+        "question": "Is there a burger place open late in Liberty Village?",
+        "answer": "Burger Drops on East Liberty closes at 9pm daily, so it is not a late-night option. For late-night burgers, Brazen Head Irish Pub serves food until 2am with a solid pub burger on the menu. Moxie's late-night menu after 9pm also includes burger options on weekends."
+      },
+      {
+        "question": "Does Burger Drops deliver in Liberty Village?",
+        "answer": "Burger Drops at 171 East Liberty offers delivery through major apps including UberEats and DoorDash. Their focused menu of smash burgers, loaded fries, and milkshakes travels well. The double smash burger holds up during delivery better than most. Expect 20-30 minute delivery times within the neighbourhood."
+      }
+    ]
   },
   {
     "slug": "bakeries",
@@ -802,7 +1822,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/bakeries.jpg"
+    "image": "/images/services/bakeries.jpg",
+    "answerBlock": "Sweet Flour Bake Shop at 1 East Liberty Street is Liberty Village's beloved from-scratch bakery with a 4.5 rating. Their butter tarts are legendary, seasonal pies sell out during holidays, and custom cakes are popular for celebrations. Everything is baked in small batches daily, with butter tarts from $4 and custom cakes starting around $60. Pre-order holiday pies at least two weeks in advance.",
+    "definition": "Bakeries in Liberty Village specialize in small-batch artisan baking from storefronts on East Liberty Street, known for butter tarts, seasonal pies, and custom celebration cakes.",
+    "specificFaqs": [
+      {
+        "question": "Is there a bakery in Liberty Village?",
+        "answer": "Sweet Flour Bake Shop at 1 East Liberty St is a from-scratch bakery known for flaky butter tarts, seasonal pies, and custom cakes. Everything is baked in small batches daily. Their butter tart alone justifies a visit and is widely considered one of the best in Toronto."
+      },
+      {
+        "question": "Can I order a custom cake in Liberty Village?",
+        "answer": "Sweet Flour Bake Shop on East Liberty creates beautifully decorated custom cakes for birthdays, weddings, and celebrations. Quality is consistent enough that locals pre-order for holidays weeks in advance. Discuss your design in person or by phone and allow at least one week for custom orders."
+      },
+      {
+        "question": "What's the best bakery item to try in Liberty Village?",
+        "answer": "Sweet Flour Bake Shop's butter tart is legendary and the number one item to try. Their seasonal pies rotate throughout the year and always sell well. Fresh croissants are available early mornings. For holiday baking, order Thanksgiving and Christmas pies at least two weeks in advance as they cap orders."
+      },
+      {
+        "question": "Are Liberty Village bakeries open on weekends?",
+        "answer": "Sweet Flour Bake Shop on East Liberty is open Saturday 9am to 5pm and Sunday 10am to 4pm. Arrive early for the best selection as popular items like butter tarts sell out by midday. Weekday mornings are less busy if you want to browse without a crowd."
+      }
+    ]
   },
   {
     "slug": "laundromats",
@@ -817,7 +1857,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/laundromats.jpg"
+    "image": "/images/services/laundromats.jpg",
+    "answerBlock": "While most Liberty Village condos include in-suite laundry, nearby laundromats along King Street West offer drop-off wash-and-fold service for large loads, comforters, and specialty items. Expect to pay around $2 per pound for wash-and-fold service. These spots are especially useful during move-in periods or when condo laundry machines are down, which happens more often than buildings admit.",
+    "definition": "Laundromats near Liberty Village provide overflow and specialty laundry services for a neighbourhood where most residents have in-suite machines but occasionally need large-load capacity.",
+    "specificFaqs": [
+      {
+        "question": "Are there laundromats near Liberty Village?",
+        "answer": "While most Liberty Village condos have in-suite laundry, laundromats along King Street West serve residents with large loads or specialty items. Drop-off wash-and-fold services are popular for bulky comforters and bedding that do not fit condo-sized machines. Several spots offer same-day turnaround for drop-off loads."
+      },
+      {
+        "question": "Is there a wash-and-fold service near Liberty Village?",
+        "answer": "Laundromats on King Street West offer drop-off wash-and-fold services priced by weight, typically $1.50-2 per pound. This is ideal for Liberty Village residents dealing with bulky items or those without in-suite laundry. Some services offer pickup and delivery to condo lobbies for added convenience."
+      },
+      {
+        "question": "How much does laundry cost near Liberty Village?",
+        "answer": "Self-service washing machines at nearby laundromats cost $3-5 per load and dryers run $2-4. Drop-off wash-and-fold services charge $1.50-2 per pound with a typical minimum of 10 pounds. For Liberty Village residents without in-suite laundry, weekly drop-off service is the most popular and time-efficient option."
+      },
+      {
+        "question": "Can I get dry cleaning and laundry at the same place near Liberty Village?",
+        "answer": "King West Dry Cleaners at 100 Lynn Williams St handles both dry cleaning and standard laundry services. They offer combined pickup and delivery to Liberty Village condos. Keeping all your garment care at one provider simplifies scheduling, especially if you set up a recurring weekly service."
+      }
+    ]
   },
   {
     "slug": "tattoo-parlors",
@@ -832,7 +1892,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/tattoo-parlors.jpg"
+    "image": "/images/services/tattoo-parlors.jpg",
+    "answerBlock": "Liberty Village's creative energy extends to its tattoo scene, with artists working from studios in the neighbourhood's converted industrial spaces along Fraser Ave and Hanna Ave. Custom tattoo work typically starts at $150 per hour, with flash designs from $80. The neighbourhood's industrial-chic aesthetic and young professional demographic make it a natural home for skilled tattoo artists.",
+    "definition": "Tattoo parlors in Liberty Village operate from the neighbourhood's signature converted warehouse spaces, drawing artists who match the area's creative and industrial-chic character.",
+    "specificFaqs": [
+      {
+        "question": "Are there tattoo parlors in Liberty Village?",
+        "answer": "Liberty Village's creative neighbourhood hosts several tattoo artists working out of industrial-chic studios on Hanna Ave and Fraser Ave. The broader King West corridor has additional highly rated shops. For custom work, book consultations in advance as the best artists have multi-week wait times."
+      },
+      {
+        "question": "How much do tattoos cost near Liberty Village?",
+        "answer": "Small tattoos near Liberty Village start around $100-200 for simple designs. Medium pieces run $300-600, and larger custom work is priced at $150-250 per hour. Most shops require a deposit at booking. The King West and Queen West corridors have some of Toronto's most acclaimed tattoo artists."
+      },
+      {
+        "question": "Do Liberty Village tattoo shops do walk-ins?",
+        "answer": "Some shops in the King West area accept walk-ins for small, simple designs depending on artist availability. Custom pieces always require a consultation and appointment booked in advance. Friday and Saturday walk-ins face the longest waits. Weekday afternoons offer the best chance for spontaneous smaller tattoos."
+      },
+      {
+        "question": "What tattoo styles are popular in Liberty Village?",
+        "answer": "Liberty Village's creative demographic tends toward fine-line, minimalist, and geometric styles, though all styles are represented in the area's shops. The King West corridor also has artists specializing in traditional, realism, and blackwork. Check artist portfolios on Instagram before booking to ensure style compatibility."
+      }
+    ]
   },
   {
     "slug": "spas",
@@ -848,7 +1928,27 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/spas.jpg"
+    "image": "/images/services/spas.jpg",
+    "answerBlock": "Liberty Village spa options include standalone wellness studios along Atlantic Ave and the full spa facilities at Altea Active on Western Battery Rd. Facials start around $100, with body treatments from $120. Altea Active's rooftop pool and spa area offers a resort-like escape in the middle of the neighbourhood for members. Several massage therapy clinics on East Liberty also provide spa-adjacent treatments.",
+    "definition": "Spas in Liberty Village range from boutique wellness studios to the full spa facilities at Altea Active, offering facials, body treatments, and relaxation to the neighbourhood's professionals.",
+    "specificFaqs": [
+      {
+        "question": "Are there spas in Liberty Village?",
+        "answer": "Altea Active at 2 Western Battery Rd includes spa services with facials and body treatments available alongside their premium gym membership. Several independent aestheticians and spa services operate along Atlantic Ave and Hanna Ave. The King West corridor also has day spas within a short streetcar ride."
+      },
+      {
+        "question": "How much do spa treatments cost in Liberty Village?",
+        "answer": "Facials near Liberty Village run $100-180 depending on treatment type and duration. Body treatments and massage packages start around $120-200. Altea Active on Western Battery Rd offers spa services that can be bundled with gym membership for better value. King West day spas offer competitive introductory pricing."
+      },
+      {
+        "question": "Can I get a facial in Liberty Village?",
+        "answer": "Yes. Several aestheticians near Liberty Village offer facials ranging from basic cleansing treatments to advanced options like microdermabrasion and chemical peels. Altea Active on Western Battery Rd has in-house spa services. Independent practitioners on Atlantic Ave and Hanna Ave also serve the neighbourhood by appointment."
+      },
+      {
+        "question": "Are there couples spa packages near Liberty Village?",
+        "answer": "Day spas along King Street West offer couples massage and spa packages within a short streetcar ride from Liberty Village. Altea Active's spa on Western Battery Rd also accommodates couples treatments. Book weekend appointments well in advance as couples packages are popular for anniversaries and special occasions."
+      }
+    ]
   },
   {
     "slug": "printing-services",
@@ -863,7 +1963,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/printing-services.jpg"
+    "image": "/images/services/printing-services.jpg",
+    "answerBlock": "Liberty Village's startup and creative businesses rely on local print shops along Atlantic Ave and the Hanna Ave warehouse district for business cards, signage, banners, and marketing materials. Digital printing turnaround is typically same-day for standard jobs, with large-format work taking two to three business days. The neighbourhood's agency and tech company density keeps demand steady year-round.",
+    "definition": "Printing services in Liberty Village cater to the neighbourhood's dense concentration of creative agencies and tech startups, providing fast-turnaround digital and large-format printing.",
+    "specificFaqs": [
+      {
+        "question": "Are there printing services in Liberty Village?",
+        "answer": "Liberty Village's startup and creative community supports local print shops for business cards, signage, banners, and marketing materials. Several print services on Atlantic Ave and Hanna Ave cater to the neighbourhood's agencies and small businesses. For quick-turnaround jobs, same-day printing is available at nearby King West locations."
+      },
+      {
+        "question": "Where can I print business cards near Liberty Village?",
+        "answer": "Print shops near Liberty Village on the King West corridor offer business card printing with typical turnaround of 2-3 business days. Rush same-day printing is available at a premium. Many Liberty Village startups and freelancers use a combination of local shops and online services like Moo or Vistaprint."
+      },
+      {
+        "question": "How much does printing cost near Liberty Village?",
+        "answer": "Business cards typically run $30-80 per 250 cards at shops near Liberty Village. Large-format posters and banners start around $50-100 depending on size. Brochures and marketing materials are priced by quantity and paper stock. Local print shops often match online pricing for repeat business clients."
+      },
+      {
+        "question": "Are there same-day printing services near Liberty Village?",
+        "answer": "Several print shops on King Street West offer same-day turnaround for rush jobs at a premium surcharge. Standard jobs typically take 2-5 business days. For Liberty Village's creative agencies and startups, building a relationship with a local printer means faster turnaround when deadlines are tight."
+      }
+    ]
   },
   {
     "slug": "it-support",
@@ -878,7 +1998,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/it-support.jpg"
+    "image": "/images/services/it-support.jpg",
+    "answerBlock": "IT support providers serving Liberty Village handle hardware repairs, network setup, and troubleshooting for the neighbourhood's many tech startups and remote workers. On-site service calls typically run $75 to $125 per hour, with managed IT packages available for small businesses on Atlantic Ave and Fraser Ave. Response times are generally fast given the concentration of tech companies in the area.",
+    "definition": "IT support services in Liberty Village serve the neighbourhood's tech-heavy business community, providing hardware repair, network management, and troubleshooting for startups and remote workers.",
+    "specificFaqs": [
+      {
+        "question": "Is there IT support available in Liberty Village?",
+        "answer": "Liberty Village's tech startup and remote worker population drives demand for local IT support services. Several providers along Atlantic Ave handle hardware repairs, network troubleshooting, and business IT setup. The neighbourhood's many coworking spaces also connect members with vetted IT professionals for technical needs."
+      },
+      {
+        "question": "How much does IT support cost in Liberty Village?",
+        "answer": "Hourly IT support near Liberty Village runs $75-150 per hour depending on the complexity of the issue. Monthly managed IT packages for small businesses start around $500-1,500 covering monitoring, backups, and support. One-off hardware repairs like laptop screen replacements typically cost $150-400 plus parts."
+      },
+      {
+        "question": "Can I get same-day computer repair in Liberty Village?",
+        "answer": "Some IT providers near Liberty Village offer same-day response for urgent issues like hardware failures or network outages. Standard repair turnaround is 2-3 business days. For quick fixes, several mobile repair technicians serve the neighbourhood and can come to your condo or coworking space directly."
+      },
+      {
+        "question": "Do Liberty Village IT services support small businesses?",
+        "answer": "Yes. IT providers in the area specialize in small business support for the startups and creative agencies that dominate Liberty Village. Services include network setup, cloud migration, cybersecurity assessments, and ongoing managed IT. The Fueling Station and Spaces coworking both have IT support vendor referral networks."
+      }
+    ]
   },
   {
     "slug": "interior-designers",
@@ -893,7 +2033,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/interior-designers.jpg"
+    "image": "/images/services/interior-designers.jpg",
+    "answerBlock": "Interior designers in Liberty Village specialize in maximizing the neighbourhood's unique condo and loft layouts, from 400-square-foot studios to two-storey live-work units in converted industrial buildings. Design consultations typically start at $150 per hour, with full-room projects from $3,000. Local designers understand the specific challenges of condo living, including narrow floor plans and building renovation rules.",
+    "definition": "Interior designers in Liberty Village specialize in the neighbourhood's distinctive condo and loft floor plans, maximizing compact spaces in converted industrial buildings.",
+    "specificFaqs": [
+      {
+        "question": "Are there interior designers who specialize in Liberty Village condos?",
+        "answer": "Several interior designers in the King West area specialize in the unique layouts of Liberty Village condos and lofts, from 400-square-foot studios to two-storey live-work units. They understand how to maximize space in compact units and work within condo board renovation guidelines specific to the neighbourhood's buildings."
+      },
+      {
+        "question": "How much does interior design cost for a Liberty Village condo?",
+        "answer": "Interior design consultations near Liberty Village start around $150-300 for initial sessions. Full condo design packages typically run $3,000-10,000 depending on scope and unit size. Design-and-furnish packages for investors staging rental units are also popular in the neighbourhood's active rental market."
+      },
+      {
+        "question": "Can an interior designer help with a small Liberty Village condo?",
+        "answer": "Absolutely. Designers familiar with Liberty Village specialize in maximizing small spaces, typically 400-700 square feet. They know which furniture scales work in local floor plans, how to create storage in compact kitchens, and how to make units feel larger through smart layout and lighting choices."
+      },
+      {
+        "question": "Do interior designers handle condo renovations in Liberty Village?",
+        "answer": "Yes. Local designers manage renovation projects within Liberty Village condo board guidelines, which vary by building. They coordinate with approved contractors, handle permits, and ensure work meets building rules around noise hours and material disposal. Their building-specific experience prevents costly renovation mistakes and delays."
+      }
+    ]
   },
   {
     "slug": "locksmith",
@@ -908,7 +2068,27 @@
     ],
     "searchVolume": "low",
     "competitiveness": "easy",
-    "image": "/images/services/locksmith.jpg"
+    "image": "/images/services/locksmith.jpg",
+    "answerBlock": "Locksmiths serving Liberty Village understand the fob and key systems common in the neighbourhood's condo buildings, offering fast response times for lockouts along East Liberty Street and the surrounding condo towers. Emergency lockout calls typically cost $80 to $150, with fob reprogramming from $50. Mobile locksmiths can usually reach any Liberty Village address within 20 to 30 minutes.",
+    "definition": "Locksmiths in Liberty Village specialize in the electronic fob and key systems used across the neighbourhood's condo buildings, providing emergency lockout and security services.",
+    "specificFaqs": [
+      {
+        "question": "Is there a locksmith that serves Liberty Village?",
+        "answer": "Several locksmiths serve Liberty Village with fast response times, typically arriving within 30-60 minutes for lockout situations. They understand the fob and key systems common in neighbourhood condo buildings. For non-emergency lock changes, booking a scheduled appointment is cheaper than emergency call-out rates."
+      },
+      {
+        "question": "How much does a locksmith cost in Liberty Village?",
+        "answer": "Emergency lockout service in Liberty Village costs $80-150 depending on time of day. After-hours and weekend calls are more expensive. Standard lock changes run $100-200 including hardware. For condo fob issues, contact your building management first as they may handle fob replacements directly and more cheaply."
+      },
+      {
+        "question": "What should I do if I'm locked out of my Liberty Village condo?",
+        "answer": "First check with your condo concierge, as many Liberty Village buildings have security staff who can assist during business hours. If no concierge is available, call a locksmith that serves the area. Keep your property management's emergency number saved in your phone for after-hours lockout situations."
+      },
+      {
+        "question": "Can a locksmith program condo fobs in Liberty Village?",
+        "answer": "Condo fob programming is typically handled by your building's property management company rather than an independent locksmith. Contact your condo board or management office for fob replacements. Locksmiths can handle deadbolt and key lock changes for individual unit doors and storage locker locks within the building."
+      }
+    ]
   },
   {
     "slug": "short-term-rentals",
@@ -925,6 +2105,30 @@
     ],
     "searchVolume": "medium",
     "competitiveness": "easy",
-    "image": "/images/services/short-term-rentals.jpg"
+    "image": "/images/services/short-term-rentals.jpg",
+    "answerBlock": "Liberty Village has 8 short-term rental options ranging from stylish lofts to spacious townhouses. The Modern Liberty Village Townhouse leads at 4.9 with a rooftop patio and dedicated workspace. Liberty Village Loft with Free Parking scores 4.7 and solves the neighbourhood's toughest problem for visitors. Nightly rates typically run $120 to $250, all within walking distance of East Liberty restaurants and the King streetcar.",
+    "definition": "Short-term rentals in Liberty Village feature the neighbourhood's signature loft-style condos and townhouses, offering visitors a local experience within walking distance of restaurants, BMO Field, and the King streetcar.",
+    "specificFaqs": [
+      {
+        "question": "How much do Airbnbs cost in Liberty Village?",
+        "answer": "Nightly rates in Liberty Village range from $80-130 for studios and budget apartments to $150-250 for townhouses with multiple bedrooms. Prices peak during summer months and TFC game weekends at BMO Field. Most listings include WiFi, kitchen access, and self check-in."
+      },
+      {
+        "question": "Is Liberty Village a safe neighbourhood for Airbnb guests?",
+        "answer": "Yes. Liberty Village is a safe, well-lit residential neighbourhood popular with young professionals. The streets are active day and evening, with restaurants and shops along East Liberty Street and King Street West. The area has a strong community feel with standard big-city precautions."
+      },
+      {
+        "question": "What is the best Airbnb in Liberty Village?",
+        "answer": "The Modern Liberty Village Townhouse consistently ranks as the top-rated short-term rental with a 4.9 rating and 127 reviews. It offers a private rooftop patio, dedicated workspace, and is steps from the best restaurants and the King streetcar line."
+      },
+      {
+        "question": "Can I walk to BMO Field from Liberty Village Airbnbs?",
+        "answer": "Yes. Most Liberty Village rentals are within a 5-15 minute walk of BMO Field, home to Toronto FC and the Toronto Argonauts. The Liberty Village Suite near BMO Field is specifically located for game-day convenience, eliminating downtown traffic and expensive event parking."
+      },
+      {
+        "question": "Do Liberty Village Airbnbs include parking?",
+        "answer": "Some do. The Liberty Village Loft with Free Parking includes a dedicated spot, which is a significant perk given the area's limited street parking. The Liberty Village Suite also offers parking. Always confirm parking availability with your host before booking, especially on game days."
+      }
+    ]
   }
 ]

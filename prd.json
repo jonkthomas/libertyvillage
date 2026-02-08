@@ -1,266 +1,213 @@
 {
-  "project": "libertyvillage.so",
-  "branchName": "ralph/business-images",
-  "description": "Replace 76 fake business images (HTML error pages saved as .jpg) with real photos sourced from business websites, web search, and Airbnb listings. Target: 800x600 JPEG, 50-100KB each. USE AGENT SWARMING: For download stories (US-003 through US-011), launch multiple web-research-specialist agents in parallel to search and find image URLs concurrently. Each agent handles a subset of businesses. Collect URLs, then batch download. CRITICAL: Never pass image data inline into conversation — always save to files with filename param. Track progress in tasks/prd-business-image-replacement.md Image Tracking Log.",
+  "project": "libertyvillage.co",
+  "branchName": "ralph/aeo-seo-upgrade",
+  "description": "AEO + SEO upgrade for libertyvillage.co. Add answer blocks (40-60 words) to all 179 pages, generate specific FAQs for all 59 services, expand schema.org markup (CollectionPage, DefinedTerm, Speakable), add definitions sections to guides, improve inline cross-linking, and build a /seo-weekly Claude Code skill for automated weekly monitoring via GSC + GA4 MCPs. USE AGENT SWARMING: For data generation stories (US-002 through US-006), launch 3+ parallel web-research-specialist agents to generate answer blocks, FAQs, and definitions concurrently. RUN CODE-REVIEWER after every user story completion. Based on SEO+AEO Agentic Workflow methodology and HubDB Schema Template patterns adapted for Next.js + JSON data files.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Install sharp and create image optimization script",
-      "description": "As a developer, I need sharp installed and an optimization script so all downloaded images can be resized to 800x600 progressive JPEG at quality 80.",
+      "title": "Expand TypeScript types for AEO fields",
+      "description": "Update all TypeScript interfaces in lib/types.ts to include AEO fields. Service: add answerBlock (string), definition (string), specificFaqs (FAQ[]). Business: add answerBlock (string), bestFor (string[]). Topic: add answerSummary (string), keyTakeaways (string[]), definitions (Array<{term: string; definition: string}>). Neighborhood: add answerBlock (string). All fields must be optional (?) to maintain backward compatibility. No runtime changes — types only.",
       "acceptanceCriteria": [
-        "Run `npm install sharp` in the libertyvillage project",
-        "Create `scripts/optimize-business-images.js` that reads all files in `public/images/businesses/`",
-        "Script uses sharp to resize each image to 800x600 (cover/crop mode, not stretch)",
-        "Output as progressive JPEG at quality 80, stripping EXIF metadata",
-        "Script skips files that are already valid JPEG at 800x600",
-        "Script logs each file processed with before/after size",
-        "Script handles errors gracefully (logs and continues to next file)",
-        "Typecheck passes"
+        "lib/types.ts Service interface has answerBlock?, definition?, specificFaqs? fields",
+        "lib/types.ts Business interface has answerBlock?, bestFor? fields",
+        "lib/types.ts Topic interface has answerSummary?, keyTakeaways?, definitions? fields",
+        "lib/types.ts Neighborhood interface has answerBlock? field",
+        "TypeScript compiles with zero errors (npx tsc --noEmit)",
+        "No runtime behavior changes — existing pages render identically"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "P0 — blocks all data generation stories"
     },
     {
       "id": "US-002",
-      "title": "Create image download helper script",
-      "description": "As a developer, I need a Node.js script that can download an image from a URL and save it to the businesses directory so I can use it for batch downloads.",
+      "title": "Generate answer blocks and definitions for all 59 services",
+      "description": "Use agent swarming (3 parallel web-research-specialist agents) to generate answer blocks and definitions for all 59 services in data/services.json. Each answer block must be 40-60 words, directly answer 'What are the best [service] in Liberty Village?', include count of businesses in that category (cross-reference businesses.json), name 2-3 top-rated businesses, and include a specific local detail (street name, price range, or unique fact). Also add a 'definition' field (1-2 sentences defining the service category in Liberty Village context). Use a Node.js script to write the data (agents struggle with large file writes). Validate word counts programmatically.",
       "acceptanceCriteria": [
-        "Create `scripts/download-image.js` that accepts arguments: --url <image_url> --slug <business_slug>",
-        "Script downloads the image from the URL to `public/images/businesses/{slug}.jpg`",
-        "Script follows redirects (up to 5 hops)",
-        "Script sets a browser-like User-Agent header to avoid blocks",
-        "Script validates the downloaded file is actually an image (checks magic bytes for JPEG/PNG/WebP), not HTML",
-        "If downloaded file is not a valid image, delete it and log an error",
-        "After successful download, run sharp to resize to 800x600 progressive JPEG quality 80",
-        "Script can also accept --batch <json_file> where json_file has array of {url, slug} objects for batch processing",
-        "Typecheck passes"
+        "All 59 services in services.json have answerBlock field (40-60 words each)",
+        "All 59 services have definition field (1-2 sentences each)",
+        "Answer blocks reference real business names from businesses.json",
+        "Answer blocks include specific Liberty Village details (streets, prices, facts)",
+        "Word count validation: no answerBlock under 40 or over 65 words",
+        "JSON is valid and TypeScript compiles"
       ],
-      "priority": 2,
+      "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Use Node.js script for file write. Split into 3 batches for parallel agent research."
     },
     {
       "id": "US-003",
-      "title": "Download restaurant and dining images batch 1 (9 businesses)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village restaurants. Download images for the first 9 restaurant/dining businesses by searching their official websites for og:image or hero images.",
+      "title": "Generate specific FAQs for all 59 services",
+      "description": "Replace the hardcoded FAQ switch statement in app/best/[service]/page.tsx with data-driven FAQs from services.json. For each of the 55 services that currently use generic FAQs, use agent swarming to research real 'People Also Ask' questions for '[service] Liberty Village Toronto' and generate 4-5 specific FAQs with localized answers including real business names, price ranges, street names, and insider tips. Each answer should be 40-60 words. Keep the existing hardcoded FAQs for restaurants, dentists, gyms, and short-term-rentals as the specificFaqs data. Update the template to read from service.specificFaqs || fallback to existing switch logic.",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto', find a real photo URL from their official website or a reputable source, and download it using scripts/download-image.js",
-        "Businesses: mildreds-temple-kitchen (Mildred's Temple Kitchen, website: mildreds.ca), nodo-liberty-village (NODO, website: nodorestaurant.com), chiang-mai-thai (Chiang Mai Thai Restaurant), burger-drops (Burger Drops), impact-kitchen (Impact Kitchen, website: impactkitchen.ca), local-public-eatery (LOCAL Public Eatery, website: localpubliceatery.com), school-restaurant (School Restaurant, website: schoolrestaurant.ca), oeb-breakfast-co (OEB Breakfast Co., website: eatoeb.com), brazen-head-irish-pub (Brazen Head Irish Pub, website: brazenheadpub.com)",
-        "Strategy: First try fetching og:image from business website. If that fails, use WebSearch to find an image. If no official photo available, search Pexels/Unsplash for category-appropriate stock (e.g. 'brunch restaurant interior')",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "All 59 services have specificFaqs array in services.json with 4-5 FAQs each",
+        "FAQ questions match real search queries (not generic templates)",
+        "FAQ answers include real business names, prices, and Liberty Village specifics",
+        "Service page template reads FAQs from service.specificFaqs",
+        "Hardcoded switch statement removed or used only as fallback",
+        "No generic questions like 'How do I find the best [service]?' remain",
+        "TypeScript compiles and pages render correctly"
       ],
-      "priority": 3,
+      "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "This is the highest-impact AEO change. 55 services go from generic to specific FAQs."
     },
     {
       "id": "US-004",
-      "title": "Download restaurant and dining images batch 2 (9 businesses)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village bars, breweries, and remaining restaurants.",
+      "title": "Generate answer blocks and bestFor for all 76 businesses",
+      "description": "Add answerBlock (40-60 words explaining why to visit this business) and bestFor (array of 3-5 use cases) to each business in data/businesses.json. Use agent swarming with 3 parallel agents, each handling ~25 businesses. Answer blocks should mention the business's standout feature, location, and what makes it unique in Liberty Village. Use a Node.js script to merge the generated data into businesses.json.",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
-        "Businesses: moxies-liberty-village (Moxie's Grill & Bar, website: moxies.com), the-rec-room-liberty-village (The Rec Room, website: therecroom.com), liberty-commons-big-rock-brewery (Liberty Commons at Big Rock Brewery, website: libertycommons.ca), craft-beer-market-liberty-village (Craft Beer Market, website: craftbeermarket.ca), pizza-libretto-liberty-village (Pizza Libretto, website: pizzalibretto.com), pai-northern-thai (Pai Northern Thai Kitchen, website: paisrestaurant.com), cibo-liberty-village (Cibo Wine Bar, website: cibowinebar.com), left-field-brewery (Left Field Brewery, website: leftfieldbrewery.ca), sushi-liberty-village (Miku Toronto, website: mikurestaurant.com)",
-        "Strategy: First try fetching og:image from business website. If that fails, use WebSearch. Fallback to category-appropriate stock from Pexels/Unsplash.",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "All 76 businesses have answerBlock field (40-60 words each)",
+        "All 76 businesses have bestFor array (3-5 items each)",
+        "Answer blocks mention specific features, not generic praise",
+        "bestFor tags are specific use cases, not generic categories",
+        "JSON is valid and TypeScript compiles"
       ],
-      "priority": 4,
+      "priority": 2,
       "passes": true,
-      "notes": ""
+      "notes": "Lower priority than services — business detail pages get less search traffic."
     },
     {
       "id": "US-005",
-      "title": "Download coffee shop images (5 businesses)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village coffee shops.",
+      "title": "Generate answer summaries, takeaways, and definitions for all 24 guides",
+      "description": "Add answerSummary (40-60 word TL;DR), keyTakeaways (3-5 bullets), and definitions (array of {term, definition} for jargon) to each topic in data/topics.json. Answer summaries should directly answer the guide's main question. Key takeaways should be the most actionable points. Definitions should explain any local jargon or technical terms used in the guide (e.g., Green P, Transit Score, Walk Score, BIA).",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
-        "Businesses: balzacs-coffee-liberty-village (Balzac's Coffee Roasters, website: balzacs.com), louie-coffee-bar (Louie Coffee Bar), arvo-coffee (Arvo Coffee), dark-horse-espresso-liberty-village (Dark Horse Espresso Bar, website: darkhorseespresso.com), jimmys-coffee-liberty-village (Jimmy's Coffee, website: jimmyscoffee.ca)",
-        "Prefer: storefront or interior with coffee bar visible",
-        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for 'specialty coffee shop interior'",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 5 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "All 24 topics have answerSummary field (40-60 words)",
+        "All 24 topics have keyTakeaways array (3-5 items)",
+        "All 24 topics have definitions array (2-5 terms per guide)",
+        "Definitions explain real jargon used in the guide content",
+        "JSON is valid and TypeScript compiles"
       ],
-      "priority": 5,
+      "priority": 2,
       "passes": true,
-      "notes": ""
+      "notes": "Guide content is already high quality — this adds AEO extraction points."
     },
     {
       "id": "US-006",
-      "title": "Download fitness and wellness images (10 businesses)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village gyms, yoga studios, and fitness centers.",
+      "title": "Generate answer blocks for all 15 neighborhood comparisons",
+      "description": "Add answerBlock to each neighborhood in data/neighborhoods.json. Each should be 40-60 words directly answering 'Should I live in Liberty Village or [Neighborhood]?' Include the key tradeoff (rent, transit, nightlife, community), a specific number, and a clear recommendation for who should pick which neighborhood.",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
-        "Businesses: goodlife-fitness-liberty-village (GoodLife Fitness, website: goodlifefitness.com), f45-training-liberty-village (F45 Training, website: f45training.com), altea-active (Altea Active, website: alteaactive.com), orangetheory-fitness-liberty-village (Orangetheory Fitness, website: orangetheory.com), movati-athletic-liberty-village (Movati Athletic, website: movati.ca), studio-lagree-liberty-village (Studio Lagree, website: studiolagree.com), pure-barre-liberty-village (Pure Barre, website: purebarre.com), yoga-tree-liberty-village (Yoga Tree, website: yogatree.ca), studio-spin-liberty-village (SpinCo, website: spinco.ca), personal-training-liberty-village (Precision Athletics)",
-        "Prefer: exterior signage, gym floor, or class in session shots",
-        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category (e.g. 'modern gym interior')",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 10 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "All 15 neighborhoods have answerBlock field (40-60 words)",
+        "Each answer includes a specific number (rent difference, transit score, distance)",
+        "Each answer has a clear 'Choose X if... Choose Y if...' structure",
+        "JSON is valid and TypeScript compiles"
       ],
-      "priority": 6,
+      "priority": 2,
       "passes": true,
-      "notes": ""
+      "notes": "Comparison pages already have verdict section — answer block enhances it for AEO."
     },
     {
       "id": "US-007",
-      "title": "Download health and medical images (10 businesses)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village clinics, dentists, and healthcare providers.",
+      "title": "Create AnswerBlock and DefinitionBox components and update all page templates",
+      "description": "Create two new reusable components: AnswerBlock (styled box with warm background, slightly larger text, renders children) and DefinitionBox (aside-style box with term as heading and definition as text). Then update all 4 page templates to render AEO content: Service pages show service.answerBlock after H1 + service.definition as aside. Guide pages show topic.answerSummary after H1 + topic.keyTakeaways as bullet list + topic.definitions as DefinitionBox components after first content section. Comparison pages show neighborhood.answerBlock replacing the verdict intro. Business pages show business.answerBlock after rating section + business.bestFor as tag pills. All fields are optional — graceful fallback when undefined.",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
-        "Businesses: liberty-village-dental (Liberty Village Dental), edition-dental (Edition Dental, website: editiondental.com), liberty-village-physio (Liberty Village Physiotherapy & Rehab), liberty-village-chiropractic (Liberty Village Chiropractic), liberty-village-massage-therapy (Myodetox Liberty Village, website: myodetox.com), liberty-village-optometry (Liberty Village Optometry), benchmark-optometry (BenchMark Optometry, website: benchmarkoptometry.com), liberty-village-family-medicine (Liberty Village Family Health Team), liberty-village-animal-hospital (Liberty Village Animal Hospital), sweet-flour-bake-shop (Sweet Flour Bake Shop, website: sweetflour.ca)",
-        "Prefer: storefront or clean reception/interior shots",
-        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category (e.g. 'modern dental clinic', 'veterinary clinic')",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 10 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "components/AnswerBlock.tsx created with warm styling",
+        "components/DefinitionBox.tsx created with aside styling",
+        "Service page renders answerBlock after H1 and definition as aside",
+        "Guide page renders answerSummary, keyTakeaways, and definitions",
+        "Comparison page renders answerBlock in verdict section",
+        "Business page renders answerBlock and bestFor tags",
+        "Pages with no AEO data render exactly as before (no empty boxes)",
+        "TypeScript compiles and all pages render correctly"
       ],
-      "priority": 7,
+      "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Critical template changes — test with both populated and empty data."
     },
     {
       "id": "US-008",
-      "title": "Download beauty, grooming and pet service images (7 businesses)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village salons, barbers, and pet services.",
+      "title": "Upgrade schema.org markup for AEO",
+      "description": "Add new schema generators to lib/schema.ts and update page templates: 1) CollectionPage schema wrapping ItemList on service pages. 2) DefinedTermSet schema for guide page definitions. 3) FAQPage schema on comparison pages (currently missing). 4) Fix ArticleSchema to use dynamic datePublished instead of hardcoded '2026-01-15'. 5) Add Speakable schema pointing to .answer-block CSS selector on all page types. Update each page template to include the new schema in their JSON-LD script tags.",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
-        "Businesses: bsuite-hair-salon (b.suite), lavish-hair-studio (Lavish Hair Studio), baz-and-banks-barber (Baz & Banks Barber), tips-and-toes-nail-salon (Tips & Toes Nail Spa), liberty-pooch (Liberty Pooch, website: libertypooch.ca), woofstock-pet-supplies (Woof & Whiskers), the-dog-house-grooming (The Dog House Grooming)",
-        "Prefer: storefront, interior, or action shots (grooming, styling)",
-        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category (e.g. 'modern hair salon interior', 'dog grooming')",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 7 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "Service pages emit CollectionPage + ItemList schema",
+        "Guide pages emit DefinedTermSet schema when definitions exist",
+        "Comparison pages emit FAQPage schema for their FAQs",
+        "ArticleSchema uses dynamic date (not hardcoded)",
+        "Speakable schema added to pages with answer blocks",
+        "All schema validates (test with Google Rich Results Test)",
+        "TypeScript compiles"
       ],
-      "priority": 8,
+      "priority": 2,
       "passes": true,
-      "notes": ""
+      "notes": "Schema changes are invisible to users but critical for AEO/AI extraction."
     },
     {
       "id": "US-009",
-      "title": "Download professional services and retail images batch 1 (9 businesses)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village coworking spaces, banks, and retail stores.",
+      "title": "Add inline cross-linking within page content",
+      "description": "Create a linkify utility function that takes raw text + lookup maps (businesses, services, neighborhoods) and returns React nodes with internal links. Apply to: Service page business descriptions (link mentioned businesses to /directory/[slug]). Guide page markdown content (auto-link business names, service categories, and neighborhood names). Comparison page detailed sections (link mentioned businesses and services). Target: at least 3 contextual internal links per page within content, not just in footer related links section.",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
-        "Businesses: spaces-liberty-village (Spaces Liberty Village, website: spacesworks.com), the-fueling-station (The Fueling Station), wework-liberty-village (WeWork, website: wework.com), freshco-liberty-village (FreshCo, website: freshco.com), shoppers-drug-mart-liberty-village (Shoppers Drug Mart, website: shoppersdrugmart.ca), rexall-liberty-village (Rexall Pharmacy, website: rexall.ca), scotiabank-liberty-village (Scotiabank, website: scotiabank.com), liberty-village-rbc (RBC Royal Bank, website: rbc.com), king-west-dry-cleaners (King West Dry Cleaners)",
-        "Prefer: storefront, signage, or representative interior shots",
-        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "lib/linkify.tsx utility created with lookup map support",
+        "Service pages link business names within descriptions to /directory/[slug]",
+        "Guide pages auto-link recognized entities in markdown content",
+        "Comparison pages link businesses and services mentioned in text",
+        "At least 3 internal links per page within content (not footer)",
+        "No broken links (all links point to existing pages)",
+        "TypeScript compiles"
       ],
-      "priority": 9,
+      "priority": 3,
       "passes": true,
-      "notes": ""
+      "notes": "Internal linking is a strong SEO signal. Currently all links are in footer only."
     },
     {
       "id": "US-010",
-      "title": "Download professional services and retail images batch 2 (9 businesses)",
-      "description": "As a site visitor, I want to see real photos of remaining Liberty Village services and shops.",
+      "title": "Build weekly SEO monitoring skill (/seo-weekly)",
+      "description": "Create a Claude Code skill at .claude/skills/seo-weekly/SKILL.md that generates a weekly SEO/AEO monitoring report. The skill uses existing GSC MCP tools (mcp__gsc__search_analytics, mcp__gsc__enhanced_search_analytics with enableQuickWins) and GA4 MCP tools (mcp__google-analytics__run_report) to pull data for libertyvillage.co. Report sections: 1) Executive Summary (3-5 key findings), 2) Quick Wins (position 4-20, 50+ impressions, CTR <5%), 3) Position Movers (week-over-week changes), 4) Content Decay Alerts (declining metrics), 5) Engagement Issues (bounce rate >70%), 6) Keyword Cannibalization (2+ pages per query), 7) Recommended Actions. Site config: GSC siteUrl='sc-domain:libertyvillage.co', GA4 propertyId='523614078'. Report saves to tasks/seo-weekly-report-YYYY-MM-DD.md.",
       "acceptanceCriteria": [
-        "For each business below, search the web for the business name + 'Liberty Village Toronto' or 'Toronto', find a real photo URL, and download using scripts/download-image.js",
-        "Businesses: liberty-village-accounting (Blueprint Accounting), real-estate-liberty-village (Liberty Village Real Estate Team), bike-share-liberty-village (Sweet Pete's Bike Shop, website: sweetpetes.com), florist-liberty-village (Tonic Blooms, website: tonicblooms.com), cleaning-liberty-village (Mopify, website: mopify.com), liberty-village-daycare (Liberty Village Child Care Centre), caterers-liberty-village (Feast Catering Co.), event-space-liberty-village (Artscape Youngplace, website: artscapeyoungplace.ca), music-lessons-liberty-village (Liberty Village Music School)",
-        "Prefer: storefront, signage, or representative shots",
-        "Strategy: First try fetching og:image from business website. Fallback to web search. Last resort: Pexels/Unsplash stock for category",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 9 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        ".claude/skills/seo-weekly/SKILL.md exists with complete instructions",
+        "Skill uses GSC MCP tools for search analytics data",
+        "Skill uses GA4 MCP tools for traffic/engagement data",
+        "Report includes all 7 sections with tables",
+        "Report saves to tasks/ directory with date in filename",
+        "Skill handles 'no data yet' gracefully (new site scenario)",
+        "Running /seo-weekly produces a complete report"
       ],
-      "priority": 10,
+      "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "This is the weekly operating loop from the AEO workflow doc."
     },
     {
       "id": "US-011",
-      "title": "Download short-term rental images from Airbnb (8 listings)",
-      "description": "As a site visitor, I want to see real photos of Liberty Village short-term rentals pulled from their actual Airbnb listings.",
+      "title": "Update homepage with answer-first content and breadcrumbs",
+      "description": "Update app/page.tsx: 1) Replace generic hero tagline with an answer-block style intro: 'Liberty Village is a walkable Toronto neighborhood of 9,000+ residents with 600+ businesses, known for its converted industrial lofts, dog-friendly culture, and thriving food scene along King Street West.' 2) Add breadcrumb schema (Home only). 3) Update meta description to be answer-block style. Also update app/directory/page.tsx to add breadcrumbs (Home > Business Directory) with BreadcrumbSchema.",
       "acceptanceCriteria": [
-        "For each Airbnb listing below, fetch the listing page and extract the hero/cover photo URL, then download using scripts/download-image.js",
-        "Listings: modern-liberty-village-townhouse (airbnb.com/rooms/1542736269971131768), liberty-village-loft-free-parking (airbnb.com/rooms/871738166990458444), chic-1br-loft-townhouse-liberty-village (airbnb.com/rooms/1576885939846485649), liberty-village-bmo-field-roof-patio (airbnb.com/rooms/1543495789538972595), spacious-private-townhouse-loft-lv (airbnb.com/rooms/1233529284737772574), prime-location-stylish-lv-townhouse (airbnb.com/rooms/1145912715955730597), downtown-toronto-condo-liberty-village (airbnb.com/rooms/889870893678449185), apartment-in-liberty-village (airbnb.com/rooms/851453481116182275)",
-        "Strategy: Use WebFetch on each Airbnb URL to extract the main listing image URL. If blocked, use Playwright MCP to navigate to the page and extract image. If all else fails, search web for listing name + 'Liberty Village Airbnb' and download result",
-        "Run `file` command on each downloaded image to confirm it is JPEG image data, not HTML",
-        "All 8 images saved to public/images/businesses/{slug}.jpg as valid 800x600 JPEG",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with source URL and status 'done' for each completed image",
-        "IMPORTANT: Never pass image data inline into conversation. Always save to files only.",
-        "Typecheck passes"
+        "Homepage hero has answer-first content (not generic tagline)",
+        "Homepage has BreadcrumbList schema",
+        "Directory page has breadcrumb navigation and schema",
+        "Meta descriptions updated to answer-block style",
+        "TypeScript compiles and pages render correctly"
       ],
-      "priority": 11,
+      "priority": 3,
       "passes": true,
-      "notes": ""
+      "notes": "Lower priority — homepage already works well, this is incremental."
     },
     {
       "id": "US-012",
-      "title": "Create validation script and verify all 76 images",
-      "description": "As a developer, I need a validation script that confirms all 76 business images are real JPEGs at correct dimensions.",
+      "title": "Fix LibertyVillage.so references in schema.ts",
+      "description": "lib/schema.ts still has 'LibertyVillage.so' as the site name in ArticleSchema publisher/author and WebsiteSchema. These should be 'LibertyVillage.co' to match the actual domain. Fix all occurrences.",
       "acceptanceCriteria": [
-        "Create `scripts/validate-images.js`",
-        "Script checks every file in `public/images/businesses/` is a valid JPEG (not HTML, not PNG, not corrupt) by reading magic bytes",
-        "Script verifies dimensions are 800x600 (within 5% tolerance) using sharp metadata",
-        "Script verifies file size is between 10KB and 200KB",
-        "Script cross-references against `data/businesses.json` — flags any businesses missing an image file",
-        "Script flags any image files that don't correspond to a business in the JSON",
-        "Script outputs pass/fail report with specific failures listed",
-        "Run the validation script and confirm 76/76 pass",
-        "If any images fail validation, re-download or re-process them until all pass",
-        "Typecheck passes"
+        "No references to 'LibertyVillage.so' remain in lib/schema.ts",
+        "All schema references use 'LibertyVillage.co'",
+        "TypeScript compiles"
       ],
-      "priority": 12,
+      "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Bug fix — leftover from earlier domain confusion."
     },
     {
       "id": "US-013",
-      "title": "Full site image audit — check all image directories",
-      "description": "As a developer, I need to verify no other broken or placeholder images exist anywhere on the site beyond the business directory.",
+      "title": "Comprehensive code review and site audit",
+      "description": "Run code-reviewer agent on entire codebase. Verify: 1) TypeScript compiles with zero errors, 2) All 179 pages have answer blocks when data exists, 3) Schema validates on spot-check of 5 representative pages, 4) No broken internal links, 5) All FAQs are specific (no generic templates remaining on service pages), 6) next build succeeds for static generation, 7) No accessibility regressions. If issues found, fix and re-review until clean.",
       "acceptanceCriteria": [
-        "Scan ALL image files in `public/images/` across all subdirectories (services, guides, neighborhoods, neighborhood, businesses)",
-        "Run file type check on every .jpg and .png — flag any that are HTML documents or corrupt",
-        "Cross-reference data/topics.json, data/services.json, data/neighborhoods.json image references against filesystem",
-        "Verify home page hero image /images/neighborhood/brick-loft-streetscape.jpg is valid",
-        "Output report listing any broken images found outside of businesses/ directory (expected: 0)",
-        "If any broken images found in other directories, fix them using same download approach",
-        "Typecheck passes"
+        "npx tsc --noEmit passes with zero errors",
+        "npm run build completes successfully",
+        "Code review finds zero MAJOR issues",
+        "All 59 service pages have specific FAQs",
+        "Schema spot-check passes on 5 pages",
+        "No broken internal links detected"
       ],
-      "priority": 13,
+      "priority": 1,
       "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "Code review loop — scan for remaining image gaps",
-      "description": "As a developer, I need to run a code review to find any remaining image issues and fix them in a loop until clean.",
-      "acceptanceCriteria": [
-        "Run the code-reviewer agent to scan the entire codebase for image gaps: missing files, broken references, HTML-masquerading-as-JPEG, unreferenced images, wrong dimensions, components with broken image logic",
-        "Check all React components that render images (BusinessCard.tsx, HeroImage.tsx, page.tsx, [slug]/page.tsx) for any edge cases",
-        "Check that all JSON data files have matching image files on disk",
-        "If any issues found: fix them, then re-run the review",
-        "Continue looping until the code-reviewer reports zero image issues",
-        "Update the Image Tracking Log in tasks/prd-business-image-replacement.md with final status — Progress should read 76/76 complete",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": ""
+      "notes": "Final gate. Loop until clean."
     }
   ]
 }

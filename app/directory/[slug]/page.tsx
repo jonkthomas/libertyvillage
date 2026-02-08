@@ -15,6 +15,9 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
 import RelatedLinks from "@/components/RelatedLinks";
+import AnswerBlock from "@/components/AnswerBlock";
+import { linkifyText, type LinkEntry } from "@/lib/linkify";
+import { getAllServices } from "@/lib/data";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -55,9 +58,16 @@ export default async function BusinessDetailPage({ params }: Props) {
   if (!business) notFound();
 
   const service = getServiceBySlug(business.category);
+  const allServices = getAllServices();
   const relatedBusinesses = getRelatedBusinesses(slug, business.category);
   const breadcrumbs = getBreadcrumbs("business", business.name);
   const faqs = getBusinessFAQs(business);
+
+  // Build lookup map for cross-linking
+  const linkLookups: LinkEntry[] = allServices.map((s) => ({
+    name: s.pluralName,
+    href: `/best/${s.slug}`,
+  }));
 
   const businessSchema = generateLocalBusinessSchema(business);
 
@@ -111,6 +121,23 @@ export default async function BusinessDetailPage({ params }: Props) {
         ))}
       </div>
 
+      {business.answerBlock && (
+        <AnswerBlock>{business.answerBlock}</AnswerBlock>
+      )}
+
+      {business.bestFor && business.bestFor.length > 0 && (
+        <div className="mt-4">
+          <span className="text-xs font-medium text-warm-400 uppercase tracking-wide">Best For</span>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {business.bestFor.map((use) => (
+              <span key={use} className="rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs text-amber-700">
+                {use}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Details Grid */}
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-warm-200 bg-white p-5 space-y-3">
@@ -151,7 +178,7 @@ export default async function BusinessDetailPage({ params }: Props) {
             About {business.name}
           </h2>
           <p className="mt-2 text-sm text-warm-600 leading-relaxed">
-            {business.description}
+            {linkifyText(business.description, linkLookups)}
           </p>
         </div>
       </div>

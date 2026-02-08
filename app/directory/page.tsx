@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getAllBusinesses, getAllServices } from "@/lib/data";
-import { generateItemListSchema } from "@/lib/schema";
+import { generateItemListSchema, generateBreadcrumbSchema } from "@/lib/schema";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import DirectoryFilter from "@/components/DirectoryFilter";
 
 export const metadata: Metadata = {
@@ -32,6 +33,11 @@ export default function DirectoryPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
+      <Breadcrumbs items={[
+        { label: "Home", href: "/" },
+        { label: "Business Directory", href: "/directory" },
+      ]} />
+
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
         Liberty Village Business Directory
       </h1>
@@ -46,6 +52,15 @@ export default function DirectoryPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateBreadcrumbSchema([
+            { label: "Home", href: "/" },
+            { label: "Business Directory", href: "/directory" },
+          ])),
+        }}
       />
     </div>
   );

@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 import { getAllTopics, getTopicBySlug } from "@/lib/data";
 import { generateGuidePageMeta } from "@/lib/meta";
-import { generateArticleSchema } from "@/lib/schema";
+import { generateArticleSchema, generateDefinedTermSetSchema, generateSpeakableSchema } from "@/lib/schema";
 import { getRelatedGuides, getRelatedServices, getBreadcrumbs } from "@/lib/links";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
 import RelatedLinks from "@/components/RelatedLinks";
+import AnswerBlock from "@/components/AnswerBlock";
+import KeyTakeaways from "@/components/KeyTakeaways";
+import DefinitionBox from "@/components/DefinitionBox";
 
 interface Props {
   params: Promise<{ topic: string }>;
@@ -80,8 +83,15 @@ export default async function GuidePage({ params }: Props) {
   const articleSchema = generateArticleSchema(
     `Liberty Village ${topic.title}`,
     topic.description,
-    "2026-01-15"
+    new Date().toISOString().split("T")[0]
   );
+  const definedTermSchema =
+    topic.definitions && topic.definitions.length > 0
+      ? generateDefinedTermSetSchema(topic.definitions)
+      : null;
+  const speakableSchema = topic.answerSummary
+    ? generateSpeakableSchema(`/guide/${topic.slug}`)
+    : null;
 
   const contentHtml = renderMarkdownContent(topic.content);
 
@@ -97,6 +107,14 @@ export default async function GuidePage({ params }: Props) {
         Liberty Village {topic.title}
       </h1>
       <p className="mt-3 text-lg text-warm-500">{topic.description}</p>
+
+      {topic.answerSummary && (
+        <AnswerBlock>{topic.answerSummary}</AnswerBlock>
+      )}
+
+      {topic.keyTakeaways && topic.keyTakeaways.length > 0 && (
+        <KeyTakeaways items={topic.keyTakeaways} />
+      )}
 
       {/* Quick Tips */}
       {topic.quickTips.length > 0 && (
@@ -119,6 +137,17 @@ export default async function GuidePage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: contentHtml }}
       />
 
+      {topic.definitions && topic.definitions.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-xl font-semibold text-warm-900 mb-4">Definitions</h2>
+          <dl className="space-y-3">
+            {topic.definitions.map((def) => (
+              <DefinitionBox key={def.term} term={def.term} definition={def.definition} />
+            ))}
+          </dl>
+        </section>
+      )}
+
       <FAQSection faqs={topic.faqs} />
 
       <RelatedLinks heading="Related Guides" links={relatedGuideLinks} />
@@ -128,6 +157,18 @@ export default async function GuidePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
       />
+      {definedTermSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(definedTermSchema) }}
+        />
+      )}
+      {speakableSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(speakableSchema) }}
+        />
+      )}
     </div>
   );
 }

@@ -71,7 +71,8 @@
         "answer": "Yes, they are adjacent neighborhoods separated by about 1.5 km. A walk from the centre of Liberty Village to King and Bathurst takes roughly 15 to 20 minutes. Many residents enjoy the permeability between the two areas for dining and socializing."
       }
     ],
-    "image": "/images/neighborhoods/king-west.jpg"
+    "image": "/images/neighborhoods/king-west.jpg",
+    "answerBlock": "Choose Liberty Village if you want a genuine neighborhood community with lower rent. Choose King West if nightlife and walkability to Bay Street matter most. LV averages $2,600/month for a 1BR vs King West's $2,700 — a $100 difference. King West scores 90 for transit versus LV's 78, but that premium buys louder weekends and less green space."
   },
   {
     "slug": "cityplace",
@@ -145,7 +146,8 @@
         "answer": "Both neighborhoods have comparable safety profiles. CityPlace sees slightly more petty crime due to higher population density and proximity to the Gardiner underpass areas. Liberty Village benefits from a more engaged community that actively monitors neighborhood safety through local social media groups."
       }
     ],
-    "image": "/images/neighborhoods/cityplace.jpg"
+    "image": "/images/neighborhoods/cityplace.jpg",
+    "answerBlock": "Choose Liberty Village if you want neighborhood character with local shops and community events. Choose CityPlace if budget is your top priority and you commute via Union Station. LV averages $2,600/month for a 1BR vs CityPlace's $2,500 — a $100 difference. CityPlace is cheaper but feels like a dormitory; LV offers an actual neighborhood identity worth the small premium."
   },
   {
     "slug": "queen-west",
@@ -219,7 +221,8 @@
         "answer": "Yes, the bike ride takes about 8 to 12 minutes depending on your exact starting point. The route along Sudbury Street or Dovercourt Road connects the two neighborhoods with relatively bike-friendly streets. Many LV residents regularly cycle to Queen West for shopping and dining."
       }
     ],
-    "image": "/images/neighborhoods/queen-west.jpg"
+    "image": "/images/neighborhoods/queen-west.jpg",
+    "answerBlock": "Choose Liberty Village if you want a calmer residential feel at a lower price. Choose Queen West if walkability and Toronto's creative arts scene are non-negotiable. LV averages $2,600/month for a 1BR vs Queen West's $2,650 — a $50 difference. Queen West scores 92 for transit versus LV's 78, offering unmatched cultural vibrancy along its commercial strip."
   },
   {
     "slug": "parkdale",
@@ -297,7 +300,8 @@
         "answer": "Yes, the walk takes about 25 to 35 minutes depending on your exact starting and ending points. The most direct route follows King Street or takes the waterfront trail. Many residents bike between the two neighborhoods in about 10 minutes."
       }
     ],
-    "image": "/images/neighborhoods/parkdale.jpg"
+    "image": "/images/neighborhoods/parkdale.jpg",
+    "answerBlock": "Choose Liberty Village if you want a polished, predictable condo neighborhood that feels safe. Choose Parkdale if you value authentic diversity and the lowest rent near downtown. LV averages $2,600/month for a 1BR vs Parkdale's $2,200 — a $400 savings in Parkdale. That gap is significant, but LV delivers a more cohesive community and modern housing stock."
   },
   {
     "slug": "junction",
@@ -371,7 +375,8 @@
         "answer": "Yes, The Junction averages about $300 less per month for a one-bedroom. However, Junction units are often in older buildings without the modern amenities found in Liberty Village condos, such as gyms, concierge service, and in-suite laundry."
       }
     ],
-    "image": "/images/neighborhoods/junction.jpg"
+    "image": "/images/neighborhoods/junction.jpg",
+    "answerBlock": "Choose Liberty Village if you want modern condos closer to downtown. Choose The Junction if you prefer heritage homes, a village atmosphere, and lower rent. LV averages $2,600/month for a 1BR vs The Junction's $2,300 — a $300 difference. The Junction's walk score trails LV, but its independent shops and residential charm appeal to a different lifestyle."
   },
   {
     "slug": "leslieville",
@@ -445,7 +450,8 @@
         "answer": "Yes, Leslieville averages about $200 less per month for a one-bedroom rental. Leslieville also offers more variety in housing types, including traditional apartments and houses, while Liberty Village is predominantly condos."
       }
     ],
-    "image": "/images/neighborhoods/leslieville.jpg"
+    "image": "/images/neighborhoods/leslieville.jpg",
+    "answerBlock": "Choose Liberty Village if you want a central west-end location with modern condos. Choose Leslieville if you want east-end beach access, more family-friendly streets, and character homes. LV averages $2,600/month for a 1BR vs Leslieville's $2,400 — a $200 difference. Leslieville mirrors LV's vibe on the opposite side of the city with more space for growing families."
   },
   {
     "slug": "ossington",
@@ -519,7 +525,8 @@
         "answer": "Rent is nearly identical, with Ossington averaging about $50 less per month for a one-bedroom. However, the total cost of living in Ossington can be higher due to the temptation of its world-class dining and bar scene."
       }
     ],
-    "image": "/images/neighborhoods/ossington.jpg"
+    "image": "/images/neighborhoods/ossington.jpg",
+    "answerBlock": "Choose Liberty Village if you want a quieter residential neighborhood with community events and green space. Choose Ossington if Toronto's best cocktail bars and dining scene are your priority. LV averages $2,600/month for a 1BR vs Ossington's $2,550 — a $50 difference. Ossington scores 86 for transit versus LV's 78, but it is a nightlife corridor rather than a true residential neighborhood."
   },
   {
     "slug": "dundas-west",
@@ -593,7 +600,8 @@
         "answer": "Yes, Dundas West is generally safe and comparable to Liberty Village. Some pockets near Lansdowne and Bloor can feel rougher at night, but the residential core of the neighborhood is quiet and well-maintained. Both areas have active community groups that monitor safety."
       }
     ],
-    "image": "/images/neighborhoods/dundas-west.jpg"
+    "image": "/images/neighborhoods/dundas-west.jpg",
+    "answerBlock": "Choose Liberty Village if you want cohesive modern housing and a tight-knit community. Choose Dundas West if you value subway access, cultural depth, and a walkable mix of old and new Toronto. LV averages $2,600/month for a 1BR vs Dundas West's $2,400 — a $200 difference. Dundas West offers Ossington station on Line 2, giving it a transit edge LV cannot match."
   },
   {
     "slug": "corktown",
@@ -667,7 +675,8 @@
         "answer": "Corktown may offer more upside as the Ontario Line and East Harbour projects develop. Liberty Village is a more mature market with stable demand. Both neighborhoods are solid investment choices, but Corktown has more growth potential while LV offers more predictability."
       }
     ],
-    "image": "/images/neighborhoods/corktown.jpg"
+    "image": "/images/neighborhoods/corktown.jpg",
+    "answerBlock": "Choose Liberty Village if you want an established west-end community with slightly lower rent. Choose Corktown if you prefer heritage character and closer proximity to downtown's east side. LV averages $2,600/month for a 1BR vs Corktown's $2,650 — a $50 difference. Both are compact, revitalized neighborhoods for young professionals, but LV's community is more mature and settled."
   },
   {
     "slug": "distillery-district",
@@ -741,7 +750,8 @@
         "answer": "The Distillery District will benefit more, as the planned East Harbour station will provide direct rapid transit access. Liberty Village is not on the Ontario Line route and will continue to rely on streetcars and buses for transit."
       }
     ],
-    "image": "/images/neighborhoods/distillery-district.jpg"
+    "image": "/images/neighborhoods/distillery-district.jpg",
+    "answerBlock": "Choose Liberty Village if you want a lived-in neighborhood with everyday amenities and lower rent. Choose the Distillery District if you prioritize stunning architecture and a curated aesthetic. LV averages $2,600/month for a 1BR vs the Distillery's $2,750 — a $150 difference. The Distillery is beautiful but can feel like a tourist set; LV offers more practical day-to-day livability."
   },
   {
     "slug": "fort-york",
@@ -815,7 +825,8 @@
         "answer": "Yes, the two neighborhoods are adjacent. Walking from the centre of Fort York to the centre of Liberty Village takes about 10 to 15 minutes. Many Fort York residents walk to LV regularly for dining, shopping, and socializing."
       }
     ],
-    "image": "/images/neighborhoods/fort-york.jpg"
+    "image": "/images/neighborhoods/fort-york.jpg",
+    "answerBlock": "Choose Liberty Village if you want established local businesses and a strong community identity. Choose Fort York if newer condo towers and waterfront lake access are your priority. LV averages $2,600/month for a 1BR vs Fort York's $2,550 — a $50 difference. These adjacent neighborhoods share amenities, but LV has the community infrastructure Fort York is still building."
   },
   {
     "slug": "niagara",
@@ -889,7 +900,8 @@
         "answer": "Yes, especially for people who prioritize proximity to downtown and quiet residential streets over neighborhood community and local amenities. Niagara offers a more central location at a similar price point, but Liberty Village has better everyday convenience and community feel."
       }
     ],
-    "image": "/images/neighborhoods/niagara.jpg"
+    "image": "/images/neighborhoods/niagara.jpg",
+    "answerBlock": "Choose Liberty Village if you want more local businesses, a larger community, and slightly cheaper rent. Choose Niagara if walkability to King West and downtown is your main concern. LV averages $2,600/month for a 1BR vs Niagara's $2,650 — a $50 difference. Niagara scores 87 for transit versus LV's 78, offering a quiet residential pocket steps from the core."
   },
   {
     "slug": "trinity-bellwoods",
@@ -963,7 +975,8 @@
         "answer": "Both are excellent for young professionals. Trinity-Bellwoods offers a more social, scene-oriented lifestyle, while Liberty Village provides a more affordable, community-driven experience. The choice comes down to whether you prefer curated cool or genuine neighborhood warmth."
       }
     ],
-    "image": "/images/neighborhoods/trinity-bellwoods.jpg"
+    "image": "/images/neighborhoods/trinity-bellwoods.jpg",
+    "answerBlock": "Choose Liberty Village if you want a similar young-professional energy at a lower price with less pretension. Choose Trinity-Bellwoods if Toronto's iconic park and Instagram-worthy streetscape matter to you. LV averages $2,600/month for a 1BR vs Trinity-Bellwoods' $2,750 — a $150 monthly savings. Both attract the same demographic, but LV trades cachet for genuine community charm."
   },
   {
     "slug": "roncesvalles",
@@ -1037,7 +1050,8 @@
         "answer": "For renters, yes — Roncesvalles averages about $250 less per month for a one-bedroom. For buyers, Roncesvalles is significantly more expensive, with heritage homes selling well above $1.5 million. The cost comparison depends entirely on whether you are renting or buying."
       }
     ],
-    "image": "/images/neighborhoods/roncesvalles.jpg"
+    "image": "/images/neighborhoods/roncesvalles.jpg",
+    "answerBlock": "Choose Liberty Village if you are a young professional who wants modern condos and a social scene. Choose Roncesvalles if you are starting a family and want heritage homes, top schools, and a village feel. LV averages $2,600/month for a 1BR vs Roncesvalles' $2,350 — a $250 difference favoring Roncy. These beloved west-end neighborhoods serve different life stages."
   },
   {
     "slug": "bloor-west-village",
@@ -1111,6 +1125,7 @@
         "answer": "Yes, Jane station on the Bloor-Danforth line serves the neighborhood directly. This is a significant advantage over Liberty Village, which has no subway access and relies on streetcars and buses."
       }
     ],
-    "image": "/images/neighborhoods/bloor-west-village.jpg"
+    "image": "/images/neighborhoods/bloor-west-village.jpg",
+    "answerBlock": "Choose Liberty Village if you want urban energy, modern condos, and a young professional scene closer to downtown. Choose Bloor West Village if High Park access, excellent schools, and a settled family community are priorities. LV averages $2,600/month for a 1BR vs Bloor West Village's $2,150 — a $450 difference. BVW is the most affordable option but sits farther from the core."
   }
 ]
