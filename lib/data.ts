@@ -51,7 +51,7 @@ export function getBusinessBySlug(slug: string): Business | undefined {
 
 export function getBusinessesByCategory(category: string): Business[] {
   return getAllBusinesses()
-    .filter((b) => b.category === category)
+    .filter((b) => b.category === category || (b.categories && b.categories.includes(category)))
     .sort((a, b) => b.rating - a.rating);
 }
 

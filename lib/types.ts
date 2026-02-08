@@ -93,6 +93,7 @@ export interface Business {
   phone: string;
   website: string;
   tags: string[];
+  categories?: string[];
   featured: boolean;
   proTip: string;
   image?: string;
