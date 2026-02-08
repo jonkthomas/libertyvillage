@@ -38,13 +38,11 @@
       "traffic-tips",
       "transit-guide",
       "moving-guide",
-      "condo-buying",
       "bike-commuting"
     ],
     "relatedServices": [
       "auto-repair",
-      "bike-shops",
-      "car-share"
+      "bike-shops"
     ],
     "image": "/images/guides/parking-guide.jpg",
     "answerSummary": "Parking in Liberty Village is limited and competitive. Street meters cost about $3 per hour via Green P, with free parking after 9 PM. Monthly underground condo spots run $150 to $250. Residential permits cost roughly $200 per year but do not guarantee a space. On TFC game days at BMO Field, towing is aggressive near Strachan Avenue, so transit is your safest bet.",
@@ -109,12 +107,11 @@
       "parking-guide",
       "transit-guide",
       "bike-commuting",
-      "tfc-game-day",
+      "happy-hour-guide",
       "moving-guide"
     ],
     "relatedServices": [
       "auto-repair",
-      "car-share",
       "bike-shops"
     ],
     "image": "/images/guides/traffic-tips.jpg",
@@ -178,15 +175,11 @@
     ],
     "relatedTopics": [
       "parking-guide",
-      "condo-buying",
-      "renting-guide",
       "internet-providers",
       "recycling-waste-guide"
     ],
     "relatedServices": [
-      "moving-companies",
-      "storage",
-      "internet-providers"
+      "movers"
     ],
     "image": "/images/guides/moving-guide.jpg",
     "answerSummary": "Moving into Liberty Village requires booking your condo freight elevator at least two weeks ahead and using a maximum 20-foot truck for tight laneways. Apply for a City of Toronto street occupation permit if your building lacks a loading dock. Set up Beanfield internet a week before move day for a smooth transition.",
@@ -248,16 +241,15 @@
       }
     ],
     "relatedTopics": [
-      "condo-buying",
-      "renting-guide",
+      "moving-guide",
       "community-groups",
       "safety-guide",
       "moving-guide"
     ],
     "relatedServices": [
-      "home-improvement",
-      "property-management",
-      "legal-services"
+      "house-cleaning",
+      "real-estate-agents",
+      "lawyers"
     ],
     "image": "/images/guides/noise-complaints.jpg",
     "answerSummary": "Noise in Liberty Village comes from construction, patios, BMO Field events, and the Gardiner Expressway. Toronto's Noise Bylaw restricts construction to 7 AM to 7 PM weekdays and 9 AM to 7 PM Saturdays. Report violations through 311. For condo-internal noise, contact property management. Heavy curtains and white noise machines help.",
@@ -321,14 +313,11 @@
     "relatedTopics": [
       "remote-work-spots",
       "moving-guide",
-      "condo-buying",
-      "renting-guide",
       "noise-complaints"
     ],
     "relatedServices": [
-      "internet-providers",
       "coworking-spaces",
-      "electronics-repair"
+      "it-support"
     ],
     "image": "/images/guides/internet-providers.jpg",
     "answerSummary": "The best internet provider in Liberty Village is Beanfield Metroconnect, offering fibre-to-the-suite at around $50 per month for 500 Mbps in supported buildings. Bell Fibe and Rogers Ignite are widely available alternatives ranging from $60 to $120 monthly. Budget-conscious residents can save $10 to $30 per month with resellers like TekSavvy. Always check which providers are wired into your specific building before signing a lease.",
@@ -395,8 +384,6 @@
     ],
     "relatedTopics": [
       "moving-guide",
-      "condo-buying",
-      "renting-guide",
       "community-groups"
     ],
     "relatedServices": [
@@ -466,13 +453,11 @@
       "bike-commuting",
       "traffic-tips",
       "parking-guide",
-      "tfc-game-day",
+      "happy-hour-guide",
       "remote-work-spots"
     ],
     "relatedServices": [
-      "bike-shops",
-      "car-share",
-      "bike-rentals"
+      "bike-shops"
     ],
     "image": "/images/guides/transit-guide.jpg",
     "answerSummary": "Exhibition GO Station is Liberty Village's fastest transit option, reaching Union Station in 5 minutes. The 504 King streetcar runs every 3 to 5 minutes at rush hour with stops at Strachan, Atlantic, and Dufferin. The 29 Dufferin bus connects to Line 2 subway. All vehicles accept Presto with free TTC transfers within two hours.",
@@ -545,9 +530,7 @@
       "winter-survival"
     ],
     "relatedServices": [
-      "bike-shops",
-      "bike-rentals",
-      "sporting-goods"
+      "bike-shops"
     ],
     "image": "/images/guides/bike-commuting.jpg",
     "answerSummary": "Liberty Village is one of Toronto's most bikeable neighbourhoods thanks to flat terrain and the car-free Martin Goodman Trail, which reaches downtown Harbourfront in 15 minutes. Bike Share Toronto stations cost about $100 per year. The biggest hazard is streetcar tracks on King Street West, which must be crossed perpendicularly.",
@@ -611,15 +594,13 @@
     "relatedTopics": [
       "happy-hour-guide",
       "date-night-ideas",
-      "tfc-game-day",
       "safety-guide",
       "transit-guide"
     ],
     "relatedServices": [
       "bars",
       "restaurants",
-      "cocktail-lounges",
-      "live-music-venues"
+      "wine-bars"
     ],
     "image": "/images/guides/nightlife-guide.jpg",
     "answerSummary": "Liberty Village nightlife centres on Liberty Street, where bars with sidewalk patios buzz Thursday through Saturday. King Street West offers upscale cocktail bars with DJ nights and $10 to $20 covers after 11 PM. Dive bars on Hanna Avenue provide cheap beer and pool tables. Late-night food stays open past 2 AM on weekends.",
@@ -690,8 +671,8 @@
     "relatedServices": [
       "restaurants",
       "bars",
-      "cocktail-lounges",
-      "fitness-studios"
+      "wine-bars",
+      "gyms"
     ],
     "image": "/images/guides/date-night-ideas.jpg",
     "answerSummary": "Liberty Village offers diverse date options in a compact, walkable area. Italian trattorias on Liberty Street and tasting-menu restaurants on East Liberty Street anchor the dinner scene. For active dates, try partner yoga on Hanna Avenue or a sunset waterfront walk. A cocktail crawl covers the neighbourhood's best bars without transit.",
@@ -753,17 +734,16 @@
       }
     ],
     "relatedTopics": [
-      "daycare-guide",
-      "dog-parks",
+      "fitness-guide",
       "community-groups",
       "summer-patio-season",
       "brunch-guide"
     ],
     "relatedServices": [
       "restaurants",
-      "daycare-centres",
-      "fitness-studios",
-      "tutoring"
+      "daycares",
+      "gyms",
+      "tutors"
     ],
     "image": "/images/guides/family-activities.jpg",
     "answerSummary": "Liberty Village is increasingly family-friendly, anchored by Lamport Stadium Park on King Street West with playgrounds, sports fields, and summer camps. Fort York is a 15-minute walk east with engaging children's programs and history tours. Exhibition Place hosts family events year-round, including the Canadian National Exhibition in late summer. The main challenges are long daycare waitlists and no public elementary school within the neighbourhood boundaries.",
@@ -838,8 +818,7 @@
     "relatedServices": [
       "gyms",
       "coffee-shops",
-      "restaurants",
-      "fitness-studios"
+      "restaurants"
     ],
     "image": "/images/guides/winter-survival.jpg",
     "answerSummary": "Liberty Village winters are intensified by wind tunnels near Lake Ontario and Exhibition Place, making wind chill feel 10 to 15 degrees colder. Invest in wind-resistant outerwear and crampon-style ice grippers for icy sidewalks. The 504 streetcar delays increase during snowstorms, so consider Exhibition GO Station as a reliable alternative.",
@@ -905,7 +884,7 @@
       "happy-hour-guide",
       "nightlife-guide",
       "date-night-ideas",
-      "dog-parks"
+      "fitness-guide"
     ],
     "relatedServices": [
       "restaurants",
@@ -979,7 +958,6 @@
     "relatedTopics": [
       "bike-commuting",
       "winter-survival",
-      "dog-parks",
       "community-groups"
     ],
     "relatedServices": [
@@ -1054,7 +1032,6 @@
     ],
     "relatedTopics": [
       "internet-providers",
-      "coffee-shops",
       "moving-guide",
       "community-groups"
     ],
@@ -1129,7 +1106,7 @@
     "relatedTopics": [
       "give-me-liberty-festival",
       "history-of-liberty-village",
-      "coyote-safety",
+      "safety-guide",
       "noise-complaints",
       "safety-guide"
     ],
@@ -1203,7 +1180,7 @@
     ],
     "relatedTopics": [
       "community-groups",
-      "condo-buying",
+      "moving-guide",
       "noise-complaints",
       "moving-guide"
     ],
@@ -1354,7 +1331,6 @@
       }
     ],
     "relatedTopics": [
-      "grocery-shopping",
       "brunch-guide",
       "summer-patio-season",
       "community-groups"
@@ -1430,7 +1406,7 @@
     "relatedTopics": [
       "happy-hour-guide",
       "date-night-ideas",
-      "grocery-shopping",
+      "farmers-market",
       "summer-patio-season"
     ],
     "relatedServices": [
@@ -1582,7 +1558,7 @@
       "community-groups",
       "brunch-guide",
       "nightlife-guide",
-      "grocery-shopping"
+      "farmers-market"
     ],
     "relatedServices": [
       "restaurants",
@@ -1655,10 +1631,9 @@
       }
     ],
     "relatedTopics": [
-      "coyote-safety",
       "noise-complaints",
       "community-groups",
-      "condo-buying"
+      "moving-guide"
     ],
     "relatedServices": [
       "lawyers",

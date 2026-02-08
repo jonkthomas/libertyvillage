@@ -119,8 +119,7 @@
       "restaurants",
       "patios",
       "wine-bars",
-      "breweries",
-      "nightlife-guide"
+      "breweries"
     ],
     "searchVolume": "high",
     "competitiveness": "hard",
@@ -684,8 +683,7 @@
     "description": "Daycare spots in Liberty Village fill up fast — getting on waitlists early is essential for the neighborhood's growing population of young families.",
     "icon": "👶",
     "relatedServices": [
-      "tutors",
-      "family-activities"
+      "tutors"
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
