@@ -229,7 +229,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 4 — Independent. May need to update scripts/weekly-blog-agent.js and verify .github/workflows/weekly-blog.yml dry_run handling."
     },
     {
