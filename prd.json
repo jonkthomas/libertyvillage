@@ -40,7 +40,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 1 — Independent, no dependencies on other Phase 1 stories. Reference tasks/design-auto-blog-pipeline.md Section 2 for workflow details."
     },
     {
