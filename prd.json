@@ -197,7 +197,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 4 — Independent. May need to update scripts/weekly-blog-agent.js and .github/workflows/weekly-blog.yml. Ensure tasks/auto-blog-runs/ is in .gitignore or only committed selectively."
     },
     {
