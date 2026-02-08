@@ -1,3 +1,8 @@
+# Weekly Blog Pipeline
+# Runs automatically every Sunday at 11:00 UTC (6am ET).
+# Manual trigger: Actions tab → Weekly Blog Pipeline → Run workflow
+#   - topic_override: provide a topic to skip SEO analysis
+#   - dry_run: set true to generate without committing
 name: Weekly Blog Pipeline
 
 on:
