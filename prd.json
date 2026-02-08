@@ -213,7 +213,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 4 — Independent. This is a prompt section file that will be included in the master system prompt."
     },
     {
