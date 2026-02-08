@@ -61,7 +61,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 1 — Independent. Creates placeholder system prompt file. Use persistSession: false since this runs in ephemeral CI. Reference tasks/design-auto-blog-pipeline.md Sections 3-4."
     },
     {
