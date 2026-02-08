@@ -1,148 +1,254 @@
 {
   "project": "libertyvillage.co",
-  "branchName": "ralph/blog-lv-pulse",
-  "description": "Add a /blog section and /lv-pulse autonomous content generation skill to libertyvillage.co. The blog system follows existing patterns (JSON data, typed interfaces, static generation, AEO components). The /lv-pulse skill researches trending Liberty Village topics via GSC, GA4, Reddit, X, and Google, then generates and publishes AEO-optimized blog posts autonomously. RUN CODE-REVIEWER agent after every user story to verify TypeScript compiles and build succeeds.",
+  "branchName": "ralph/auto-blog-pipeline",
+  "description": "Automated weekly blog pipeline using Claude Agent SDK. GitHub Actions cron triggers every Sunday, Agent SDK orchestrates SEO data collection (GSC + GA4 via MCP), topic selection, blog post generation, image sourcing (Pexels API + web search + branded card fallback), validation, and auto-commit to main for Vercel deploy. Reference: tasks/prd-auto-blog-pipeline.md and tasks/design-auto-blog-pipeline.md",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add BlogPost type and data infrastructure",
-      "description": "Add BlogPost interface to lib/types.ts following existing patterns. Create empty data/posts.json file (just []). Add blog data loader functions to lib/data.ts: getAllPosts(), getPostBySlug(slug), getPostsByCategory(category), getRecentPosts(limit). BlogPost interface needs: slug, title, description, content (markdown string), publishedAt (ISO date), updatedAt (ISO date), category (union: news|development|food-drink|events|transit|real-estate|lifestyle|community), tags (string[]), answerBlock (string, required), faqs (FAQ[], required), image? (string), relatedServices (string[]), relatedTopics (string[]), relatedPosts (string[]), keyTakeaways (string[]), author (string). All data loader functions should follow exact pattern of existing getAllServices/getServiceBySlug etc in lib/data.ts. getRecentPosts sorts by publishedAt descending and takes a limit param (default 10). getPostsByCategory sorts by publishedAt descending.",
+      "title": "Claude Agent SDK verification spike",
+      "description": "As a developer, I want to verify the Claude Agent SDK works end-to-end with MCP servers before building the full pipeline. Create scripts/test-agent-sdk.js that: (1) imports from @anthropic-ai/claude-agent-sdk (already installed), (2) calls query() with a simple prompt 'Read data/posts.json and tell me how many posts exist', (3) configures permissionMode: 'bypassPermissions' with allowDangerouslySkipPermissions: true, (4) uses model 'claude-sonnet-4-5-20250929', (5) sets maxTurns: 10 and maxBudgetUsd: 0.50, (6) configures GSC MCP server: { command: 'npx', args: ['-y', 'mcp-server-gsc'], env: { GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json' } }, (7) configures GA4 MCP server: { command: 'npx', args: ['-y', 'mcp-server-google-analytics'], env: { GA4_PROPERTY_ID: process.env.GA_PROPERTY_ID || '523614078', GA4_CLIENT_EMAIL: process.env.GA4_CLIENT_EMAIL, GA4_PRIVATE_KEY: process.env.GA4_PRIVATE_KEY } }, (8) iterates the async generator to stream messages and log progress, (9) handles result types: SDKResultSuccess, error_max_turns, error_during_execution, error_max_budget_usd, (10) reports total_cost_usd, num_turns, duration_ms on completion, (11) exits 0 on success, 1 on failure. The SDK entry point is: import { query } from '@anthropic-ai/claude-agent-sdk'. The query() function returns a Query object that extends AsyncGenerator<SDKMessage>. Call .next() in a loop or use for-await-of. The final return value is SDKResultSuccess | SDKResultError. Run the test locally and confirm it works. Set ANTHROPIC_API_KEY env var before running.",
       "acceptanceCriteria": [
-        "lib/types.ts has BlogPost interface with all required fields",
-        "data/posts.json exists with content []",
-        "lib/data.ts exports getAllPosts, getPostBySlug, getPostsByCategory, getRecentPosts",
-        "All functions use the existing loadJSON<T> pattern",
-        "npx tsc --noEmit passes with zero errors"
+        "scripts/test-agent-sdk.js exists and is executable with node",
+        "Script imports from @anthropic-ai/claude-agent-sdk correctly",
+        "Script configures GSC and GA4 MCP servers with correct env vars",
+        "Script uses permissionMode bypassPermissions with allowDangerouslySkipPermissions",
+        "Script streams messages and logs progress to stdout",
+        "Script handles all result types (success, error_max_turns, error_during_execution, error_max_budget_usd)",
+        "Script reports cost, turns, and duration on completion",
+        "Script exits 0 on success, 1 on failure",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "P0 — blocks all other stories. Run code-reviewer agent after completion."
+      "notes": "Phase 0 — BLOCKING. Must complete before all other stories. Use ANTHROPIC_API_KEY from env. GCP credentials at ./gcp-credentials.json for local testing. GA4 property 523614078. GSC site sc-domain:libertyvillage.co. SDK is already installed in node_modules."
     },
     {
       "id": "US-002",
-      "title": "Add blog metadata and schema generators",
-      "description": "Add generateBlogPostPageMeta(post) and generateBlogIndexPageMeta() to lib/meta.ts following existing buildMeta() pattern. Title format: '{post.title} — Liberty Village Blog | libertyvillage.co'. Blog index title: 'Liberty Village Blog — Local News & Updates | libertyvillage.co'. Add generateBlogPostSchema(post) to lib/schema.ts — uses @type BlogPosting (not Article), includes headline, description, datePublished, dateModified, url, image, publisher (LibertyVillage.co), author (LibertyVillage.co), mainEntityOfPage. Add blog link helpers to lib/links.ts: getRelatedPosts(currentSlug) returns up to 5 LinkItems from post.relatedPosts, getRelatedGuidesForPost(topicSlugs) maps slugs to guide LinkItems, getRelatedServicesForPost(serviceSlugs) maps slugs to service LinkItems. Add 'blog' case to getBreadcrumbs() in lib/links.ts: [Home, Blog, {label}].",
+      "title": "Create GitHub Actions workflow file",
+      "description": "As a site owner, I want a GitHub Actions workflow that triggers every Sunday at 11:00 UTC. Create .github/workflows/weekly-blog.yml with: (1) name: 'Weekly Blog Pipeline', (2) on.schedule cron '0 11 * * 0', (3) on.workflow_dispatch with optional inputs topic_override (string) and dry_run (boolean, default false), (4) concurrency group 'weekly-blog' with cancel-in-progress: false, (5) single job 'generate-blog' running on ubuntu-latest with timeout-minutes: 20. Job steps: checkout repo, setup node 20, npm ci, install playwright chromium (npx playwright install chromium), extract credentials from GOOGLE_SERVICE_ACCOUNT_JSON secret to /tmp/gsa-credentials.json, extract client_email and private_key from the JSON into env vars GA4_CLIENT_EMAIL and GA4_PRIVATE_KEY using jq, run 'node scripts/weekly-blog-agent.js' with env vars (ANTHROPIC_API_KEY, GOOGLE_APPLICATION_CREDENTIALS=/tmp/gsa-credentials.json, GA_PROPERTY_ID from secret, GA4_CLIENT_EMAIL, GA4_PRIVATE_KEY, PEXELS_API_KEY from secret, TOPIC_OVERRIDE from input, DRY_RUN from input), then if not dry_run: git config user.name 'LV Content Bot' and email 'noreply@libertyvillage.co', git pull --rebase origin main, git add specific files (data/posts.json, public/images/blog/, tasks/), git commit, git push. Final post-if:always step to clean up /tmp/gsa-credentials.json. Required secrets: ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, GA_PROPERTY_ID, PEXELS_API_KEY.",
       "acceptanceCriteria": [
-        "lib/meta.ts exports generateBlogPostPageMeta and generateBlogIndexPageMeta",
-        "lib/schema.ts exports generateBlogPostSchema with @type BlogPosting",
-        "lib/links.ts exports getRelatedPosts, getRelatedGuidesForPost, getRelatedServicesForPost",
-        "getBreadcrumbs('blog', 'Test') returns correct breadcrumb array",
-        "npx tsc --noEmit passes with zero errors"
+        ".github/workflows/weekly-blog.yml exists with valid YAML syntax",
+        "Workflow triggers on cron '0 11 * * 0' and workflow_dispatch",
+        "workflow_dispatch has topic_override and dry_run inputs",
+        "Concurrency group weekly-blog with cancel-in-progress false",
+        "Job timeout set to 20 minutes",
+        "Credentials extracted securely from secret to temp file",
+        "GA4 client_email and private_key extracted via jq as separate env vars",
+        "Temp credentials file cleaned up in post-if:always step",
+        "Git commit uses LV Content Bot identity",
+        "Git push only happens when dry_run is not true",
+        "Typecheck passes"
       ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Run code-reviewer agent after completion."
+      "priority": 2,
+      "passes": false,
+      "notes": "Phase 1 — Independent, no dependencies on other Phase 1 stories. Reference tasks/design-auto-blog-pipeline.md Section 2 for workflow details."
     },
     {
       "id": "US-003",
-      "title": "Extract shared renderMarkdownContent utility",
-      "description": "The guide page at app/guide/[topic]/page.tsx has an inline renderMarkdownContent() function that converts markdown to HTML with Tailwind classes. Extract this to lib/markdown.ts as a shared export. Update app/guide/[topic]/page.tsx to import from lib/markdown.ts instead of defining inline. The function handles ## h2, ### h3, **bold**, and paragraph wrapping with Tailwind classes (text-warm-600, leading-relaxed, etc). This is needed because the blog page template will use the same function. Verify guide pages still render correctly after extraction.",
+      "title": "Create Agent SDK orchestrator script",
+      "description": "As a developer, I want scripts/weekly-blog-agent.js that initializes the Claude Agent SDK and runs the full pipeline. The script: (1) imports { query } from '@anthropic-ai/claude-agent-sdk', (2) reads the system prompt from scripts/prompts/weekly-blog-system.md using fs.readFileSync, (3) configures MCP servers — GSC: { command: 'npx', args: ['-y', 'mcp-server-gsc'], env: { GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS } }, GA4: { command: 'npx', args: ['-y', 'mcp-server-google-analytics'], env: { GA4_PROPERTY_ID: process.env.GA_PROPERTY_ID, GA4_CLIENT_EMAIL: process.env.GA4_CLIENT_EMAIL, GA4_PRIVATE_KEY: process.env.GA4_PRIVATE_KEY } }, (4) optionally configures Playwright MCP: { command: 'npx', args: ['@playwright/mcp', '--headless'] } for image sourcing fallback, (5) sets options: model 'claude-sonnet-4-5-20250929', permissionMode 'bypassPermissions', allowDangerouslySkipPermissions true, maxTurns 50, maxBudgetUsd 2.0, systemPrompt from file, mcpServers object, cwd to project root, persistSession false, (6) injects TOPIC_OVERRIDE and DRY_RUN from env into the prompt if present, (7) iterates the async generator logging each SDKMessage type and content, (8) on completion logs result type, total_cost_usd, num_turns, duration_ms, (9) saves run log to tasks/auto-blog-runs/{date}.json, (10) exits 0 on success, 1 on any error. Create a placeholder scripts/prompts/weekly-blog-system.md with a TODO comment (US-008 will fill it in).",
       "acceptanceCriteria": [
-        "lib/markdown.ts exports renderMarkdownContent function",
-        "app/guide/[topic]/page.tsx imports from lib/markdown.ts",
-        "Guide pages render identically before and after (no visual change)",
-        "npx tsc --noEmit passes with zero errors",
-        "npm run build succeeds"
+        "scripts/weekly-blog-agent.js exists and imports from @anthropic-ai/claude-agent-sdk",
+        "Script configures GSC, GA4, and Playwright MCP servers correctly",
+        "Script sets permissionMode bypassPermissions with allowDangerouslySkipPermissions",
+        "Script sets maxTurns 50 and maxBudgetUsd 2.0",
+        "Script reads system prompt from scripts/prompts/weekly-blog-system.md",
+        "Script handles TOPIC_OVERRIDE and DRY_RUN env vars",
+        "Script streams and logs SDKMessage progress",
+        "Script saves run log JSON to tasks/auto-blog-runs/",
+        "Script exits 0 on success, 1 on failure",
+        "scripts/prompts/weekly-blog-system.md placeholder file exists",
+        "Typecheck passes"
       ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Run code-reviewer agent after completion. Check that the guide build output is unchanged."
+      "priority": 2,
+      "passes": false,
+      "notes": "Phase 1 — Independent. Creates placeholder system prompt file. Use persistSession: false since this runs in ephemeral CI. Reference tasks/design-auto-blog-pipeline.md Sections 3-4."
     },
     {
       "id": "US-004",
-      "title": "Create blog post page template",
-      "description": "Create app/blog/[slug]/page.tsx following the guide page template pattern closely. Must include: generateStaticParams() reading from getAllPosts(), generateMetadata() using generateBlogPostPageMeta(), async page component that awaits params Promise. Page layout: Breadcrumbs, optional HeroImage, category badge + date, h1 title, description paragraph, AnswerBlock with post.answerBlock, KeyTakeaways, tags as small pills, main content via renderMarkdownContent + dangerouslySetInnerHTML, FAQSection, RelatedLinks for posts/guides/services, JSON-LD scripts for BlogPosting schema + SpeakableSchema + FAQSchema. Use existing components: Breadcrumbs, HeroImage, AnswerBlock, KeyTakeaways, FAQSection, RelatedLinks. Import generateBlogPostSchema, generateSpeakableSchema, generateFAQSchema from lib/schema. Handle notFound() when slug not found.",
+      "title": "Create image sourcing utilities",
+      "description": "As a developer, I want image sourcing logic that the agent can reference. Create scripts/lib/image-utils.md (a reference doc the agent prompt will include) documenting the 3-tier image cascade: (1) Pexels API — curl -H 'Authorization: $PEXELS_API_KEY' 'https://api.pexels.com/v1/search?query={topic}&per_page=5&orientation=landscape', download src.landscape from top result, save to public/images/blog/{slug}.jpg, (2) Web search fallback — use WebSearch tool to find free stock photos on Unsplash/Pixabay, download with curl or Playwright, try 2-3 queries, (3) Branded hero card fallback — render HTML template with Playwright: 1280x720px, gradient background, emoji icon, title text, libertyvillage.co branding (reuse pattern from existing scripts/generate-blog-images.js). Also create the HTML template file scripts/templates/hero-card.html with: gradient background matching blog category colors (news=blue, food-drink=orange, events=purple, etc), large emoji centered, post title in white text, 'libertyvillage.co' at bottom. Image validation: must be >10KB, landscape orientation. Only use free/CC0 sources.",
       "acceptanceCriteria": [
-        "app/blog/[slug]/page.tsx exists with full implementation",
-        "Page uses all AEO components: AnswerBlock, KeyTakeaways, FAQSection",
-        "Page includes BlogPosting, Speakable, and FAQ JSON-LD schemas",
-        "generateStaticParams returns empty array when posts.json is empty",
-        "npx tsc --noEmit passes with zero errors",
-        "npm run build succeeds (with empty posts.json generating 0 blog pages)"
+        "scripts/lib/image-utils.md exists documenting the 3-tier cascade",
+        "scripts/templates/hero-card.html exists with category-colored gradient template",
+        "Template has gradient, emoji, title, and branding placeholders",
+        "Template renders at 1280x720px viewport",
+        "Documentation covers Pexels API, web search, and branded card approaches",
+        "Validation rules documented: >10KB, landscape orientation",
+        "Typecheck passes"
       ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Run code-reviewer agent after completion."
+      "priority": 2,
+      "passes": false,
+      "notes": "Phase 1 — Independent. The actual image sourcing runs inside the agent via the system prompt. This story creates the reference docs and template the prompt will use. Check existing scripts/generate-blog-images.js for the branded card pattern."
     },
     {
       "id": "US-005",
-      "title": "Create blog index page",
-      "description": "Create app/blog/page.tsx as a static listing page. Must include: metadata from generateBlogIndexPageMeta(), Breadcrumbs (Home > Blog), h1 'Liberty Village Blog', subtitle, category filter pills (extracted from posts using Set), responsive post card grid (sm:grid-cols-2 lg:grid-cols-3) where each card links to /blog/[slug] and shows optional image, category badge, date, title, description (line-clamp-2). Include CollectionPage schema. Show 'No posts yet. Check back soon.' empty state when posts.json is empty. Use en-CA date locale. Cards should have hover:shadow-md transition matching existing BusinessCard pattern.",
+      "title": "Write SEO data collection prompt section",
+      "description": "As a content strategist, I want the SEO data collection section of the system prompt. Create scripts/prompts/sections/01-seo-data-collection.md with instructions for the agent to: (1) Use GSC MCP tools (mcp__gsc__search_analytics) to pull last 7 days of query data (impressions, clicks, CTR, position), (2) Use GSC quick wins (mcp__gsc__detect_quick_wins) for position 4-20 opportunities, (3) Use GA4 MCP tools (mcp__google-analytics__run_report) for sessions, bounce rate, page views by path for last 7 days, (4) Check sitemap indexing via mcp__gsc__list_sitemaps, (5) Save raw data to tasks/seo-data-latest.json, (6) Generate analysis summary identifying: top queries, content gaps (queries with impressions but no page), trending topics, underperforming pages. The prompt section should be self-contained markdown that will be included in the master system prompt. Include fallback instructions: if GSC/GA4 returns no data (new site), skip analysis and use evergreen topic selection.",
       "acceptanceCriteria": [
-        "app/blog/page.tsx exists with full implementation",
-        "Page shows empty state when posts.json is []",
-        "Page includes CollectionPage schema",
-        "Page has responsive grid layout matching site design",
-        "npx tsc --noEmit passes with zero errors",
-        "npm run build succeeds"
+        "scripts/prompts/sections/01-seo-data-collection.md exists",
+        "Prompt references correct MCP tool names: mcp__gsc__search_analytics, mcp__gsc__detect_quick_wins, mcp__google-analytics__run_report, mcp__gsc__list_sitemaps",
+        "Prompt instructs saving raw data to tasks/seo-data-latest.json",
+        "Prompt includes analysis summary generation",
+        "Prompt includes fallback for no-data scenarios",
+        "Typecheck passes"
       ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Run code-reviewer agent after completion."
+      "priority": 3,
+      "passes": false,
+      "notes": "Phase 2 — Can be built in parallel with US-006 and US-007. GSC site: sc-domain:libertyvillage.co, GA4 property: 523614078."
     },
     {
       "id": "US-006",
-      "title": "Update sitemap and navigation for blog",
-      "description": "Update app/sitemap.ts to include blog posts: import getAllPosts, map to /blog/[slug] URLs with priority 0.7, changeFrequency 'weekly', lastModified from updatedAt. Add 'Blog' link to Header.tsx navigation (between Guides and Compare or wherever makes sense). Add 'Blog' link to MobileNav.tsx. Optionally add 'Latest Posts' link in Footer.tsx. Verify sitemap still generates correctly with empty posts.json.",
+      "title": "Write topic selection prompt section",
+      "description": "As a content strategist, I want the topic selection section of the system prompt. Create scripts/prompts/sections/02-topic-selection.md with instructions for the agent to: (1) Read data/posts.json for existing post slugs, titles, topics to avoid duplicates, (2) Read data/services.json, data/topics.json, data/businesses.json for cross-reference candidates, (3) Consider: content gaps from SEO data (step 1 output), seasonal relevance, topic diversity (avoid clustering in one category), cross-reference potential (topics that can link to many existing pages), (4) If TOPIC_OVERRIDE env var is set, skip analysis and use that topic directly, (5) Output: selected topic, proposed title, target keywords, category (from valid enum), proposed slug, justification. Include duplicate prevention: check existing slugs, check existing titles for fuzzy match, ensure topic not covered in last 4 posts. Include fallback topics list for when no SEO data is available (evergreen Liberty Village topics).",
       "acceptanceCriteria": [
-        "app/sitemap.ts includes blog post URLs",
-        "Header.tsx shows Blog nav link",
-        "MobileNav.tsx shows Blog nav link",
-        "Sitemap generates correctly with empty posts.json",
-        "npx tsc --noEmit passes with zero errors",
-        "npm run build succeeds"
+        "scripts/prompts/sections/02-topic-selection.md exists",
+        "Prompt reads all 4 data JSON files for context",
+        "Prompt handles TOPIC_OVERRIDE skip path",
+        "Prompt includes duplicate prevention checks",
+        "Prompt includes fallback evergreen topics list",
+        "Prompt outputs topic, title, keywords, category, slug, justification",
+        "Typecheck passes"
       ],
-      "priority": 2,
-      "passes": true,
-      "notes": "Run code-reviewer agent after completion."
+      "priority": 3,
+      "passes": false,
+      "notes": "Phase 2 — Parallel with US-005 and US-007. Valid categories: news, development, food-drink, events, transit, real-estate, lifestyle, community."
     },
     {
       "id": "US-007",
-      "title": "Create /lv-pulse skill file",
-      "description": "Create .claude/skills/lv-pulse/SKILL.md with complete instructions for the autonomous blog post generation skill. The skill must have these steps: Step 1 — Load existing content inventory (read posts.json, topics.json, services.json, businesses.json to avoid duplicates). Step 2 — Research GSC/GA4 for content gaps (use mcp__gsc__search_analytics and mcp__gsc__enhanced_search_analytics for last 28 days, mcp__google-analytics__run_report for traffic data). Step 3 — Research social/web (WebSearch for Reddit r/toronto r/askTO, X/Twitter, Google news about Liberty Village last 30 days — run at least 7 search queries). Step 4 — Topic selection (cross-reference findings against existing content, score by search demand + recency + local specificity + content gap severity, select highest-scoring topic, output justification). Step 5 — Generate blog post content (all BlogPost fields, answerBlock 40-60 words, content 800-1200 words markdown, 4-5 FAQs with local details, cross-references to businesses.json names). Step 6 — Publish (read posts.json, append new post, write back with Write tool, verify). Step 7 — Build verification (npm run build, fix if fails). Step 8 — Output report (title, slug, category, why chosen, research sources, word count, build status). Include error handling: skip GSC/GA4 if no data, fallback to evergreen topics if no trending topics found, handle empty posts.json, revert if build fails twice. Include content quality standards: no fabricated businesses, verify against businesses.json, conversational tone, no AI self-references. Config: GSC sc-domain:libertyvillage.co, GA4 property 523614078, output to data/posts.json.",
+      "title": "Write blog post generation prompt section",
+      "description": "As a content creator, I want the blog post generation section of the system prompt. Create scripts/prompts/sections/03-blog-generation.md with instructions for the agent to generate a complete BlogPost JSON object matching lib/types.ts interface. Include inline copy of the BlogPost interface for reference. Required fields: slug, title, description, content (800-1200 words markdown with internal links using [text](/best/slug) syntax), publishedAt and updatedAt (ISO date), category (valid enum), tags (4-6), answerBlock (40-60 words, AEO optimized), faqs (4-5 with substantive answers >20 words each), keyTakeaways (4-6 bullets), relatedServices (2-4 real slugs from services.json), relatedTopics (2-4 real slugs from topics.json), relatedPosts (1-3 real slugs from posts.json), author string 'LibertyVillage.co', image path '/images/blog/{slug}.jpg'. Content must mention real businesses by bold name. Tone: informative, locally-focused, for Liberty Village residents. Include quality checks: word count 800-1200, at least 3 internal links, at least 2 business mentions, FAQ answers >20 words, answerBlock 40-60 words.",
       "acceptanceCriteria": [
-        ".claude/skills/lv-pulse/SKILL.md exists with complete instructions",
-        "Skill has all 8 steps clearly documented",
-        "Skill references correct MCP tool names and parameters",
-        "Skill includes error handling for no-data scenarios",
-        "Skill includes content quality standards",
-        "Skill output format is clearly specified"
+        "scripts/prompts/sections/03-blog-generation.md exists",
+        "Prompt includes inline BlogPost interface from lib/types.ts",
+        "Prompt specifies all required BlogPost fields with constraints",
+        "Prompt includes content quality standards (word count, links, business mentions)",
+        "Prompt specifies author as string 'LibertyVillage.co'",
+        "Prompt includes AEO requirements for answerBlock and FAQs",
+        "Typecheck passes"
       ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Run code-reviewer agent after completion to verify skill file is comprehensive."
+      "priority": 3,
+      "passes": false,
+      "notes": "Phase 2 — Parallel with US-005 and US-006. Read lib/types.ts BlogPost interface to include inline. Check data/services.json and data/topics.json for valid slug examples."
     },
     {
       "id": "US-008",
-      "title": "Test /lv-pulse with first blog post",
-      "description": "Run the /lv-pulse skill to generate and publish the first blog post. This is the end-to-end integration test. The skill should research trending Liberty Village topics, generate a complete AEO-optimized post, add it to posts.json, and verify the build succeeds. After the skill runs, verify: posts.json has exactly 1 entry, all BlogPost fields are populated, the blog index page at /blog shows the post card, the blog post page at /blog/[slug] renders with AnswerBlock + FAQs + schema, the sitemap includes the new blog URL, and npm run build succeeds with the new page count (should be 183 = 181 + blog index + 1 blog post).",
+      "title": "Assemble master system prompt",
+      "description": "As a developer, I want the complete system prompt that chains all pipeline steps. Replace the placeholder in scripts/prompts/weekly-blog-system.md with the full assembled prompt. Structure: (1) Role and context — you are an autonomous content agent for libertyvillage.co, (2) Include content from 01-seo-data-collection.md, (3) Include content from 02-topic-selection.md, (4) Include content from 03-blog-generation.md, (5) Image sourcing instructions — try Pexels API first (curl command with $PEXELS_API_KEY), fall back to web search + download, final fallback to branded hero card using scripts/templates/hero-card.html rendered via Playwright, (6) Validation steps — append post to data/posts.json, run node scripts/diagnostic.js (must exit 0), run npm run build (must succeed), (7) Git instructions — only add specific files: data/posts.json, public/images/blog/{slug}.jpg, tasks/seo-data-latest.json, tasks/auto-blog-runs/, (8) Error recovery — if diagnostic fails fix cross-refs and retry, if build fails revert posts.json and report error, if image sourcing all fails use branded card, (9) DRY_RUN handling — if DRY_RUN=true, save output to tasks/auto-blog-dry-run.json instead of committing, (10) Quality guard — no duplicate slugs, no fabricated businesses, verify all cross-reference slugs exist. The prompt should read the section files and inline them, or simply be one comprehensive file.",
       "acceptanceCriteria": [
-        "data/posts.json has 1 complete blog post",
-        "Blog post has answerBlock (40-60 words), 4-5 FAQs, 800+ word content",
-        "Blog post references real businesses from businesses.json",
-        "npm run build succeeds with 183+ pages generated",
-        "Blog index page shows the post",
-        "Blog post page renders all AEO components and schemas"
+        "scripts/prompts/weekly-blog-system.md is a complete system prompt (not placeholder)",
+        "Prompt chains: SEO collection → topic selection → post generation → image sourcing → validation → commit",
+        "Prompt includes image sourcing cascade with Pexels API curl command",
+        "Prompt includes validation steps: diagnostic.js and npm run build",
+        "Prompt includes error recovery instructions",
+        "Prompt includes DRY_RUN handling",
+        "Prompt includes quality guard checks",
+        "Prompt references correct data file paths",
+        "Typecheck passes"
       ],
-      "priority": 1,
-      "passes": true,
-      "notes": "This is the integration test. Run code-reviewer agent after to verify everything."
+      "priority": 4,
+      "passes": false,
+      "notes": "Phase 3 — Depends on US-005, US-006, US-007, US-004. This is the integration step that assembles all prompt sections into one master prompt. Read the section files created in Phase 2 and combine them."
     },
     {
       "id": "US-009",
-      "title": "Final code review and build verification",
-      "description": "Run comprehensive code review on entire blog implementation. Verify: 1) TypeScript compiles with zero errors, 2) npm run build succeeds, 3) All new files follow existing code patterns and style, 4) Blog post page has correct schema (BlogPosting, FAQPage, Speakable), 5) Sitemap includes /blog and /blog/[slug] URLs, 6) No broken imports or missing components, 7) Header/MobileNav show Blog link, 8) Blog index shows empty state OR first post correctly. Fix any issues found.",
+      "title": "Create branded hero card fallback",
+      "description": "As a developer, I want the agent to generate a branded hero card when stock photo sourcing fails. If scripts/templates/hero-card.html was already created in US-004, verify it works by rendering it with Playwright. If not, create it now. The card should be: 1280x720px, category-based gradient background (news=#1e40af→#3b82f6, food-drink=#c2410c→#f97316, events=#7e22ce→#a855f7, transit=#0f766e→#14b8a6, real-estate=#b91c1c→#ef4444, lifestyle=#4338ca→#818cf8, community=#15803d→#22c55e, development=#0369a1→#0ea5e9), large emoji centered (mapped per category), post title in white bold text (max 3 lines), 'libertyvillage.co' at bottom in white/50%. Add Playwright rendering instructions to the system prompt section: navigate to file:///path/to/hero-card.html?title=X&emoji=Y&gradient=Z, screenshot at 1280x720, save to public/images/blog/{slug}.jpg. Reference existing scripts/generate-blog-images.js for the pattern.",
       "acceptanceCriteria": [
-        "npx tsc --noEmit passes with zero errors",
-        "npm run build completes successfully",
-        "Code review finds zero MAJOR issues",
-        "All schemas validate on blog pages",
-        "Navigation includes Blog link",
-        "Sitemap includes blog URLs"
+        "scripts/templates/hero-card.html exists with working category gradients",
+        "Template accepts title, emoji, gradient params via URL query string or JS injection",
+        "Template renders at 1280x720px",
+        "Each blog category has a distinct gradient color",
+        "Emoji mapping exists for each category",
+        "Rendering instructions documented for the system prompt",
+        "Typecheck passes"
       ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Final quality gate. Must pass before marking PRD complete."
+      "priority": 4,
+      "passes": false,
+      "notes": "Phase 3 — Can be built parallel with US-008 and US-010. Check scripts/generate-blog-images.js for the existing branded card approach."
+    },
+    {
+      "id": "US-010",
+      "title": "Add validation and error handling to pipeline",
+      "description": "As a site owner, I want validation that prevents broken content from being published. Add validation instructions to the system prompt (or as a reference doc the prompt includes). Pre-write validation: all required BlogPost fields present, relatedServices slugs exist in services.json, relatedTopics slugs exist in topics.json, relatedPosts slugs exist in posts.json, category is valid enum, content 800-1200 words. Post-write validation: node scripts/diagnostic.js exits with code 0 (warnings OK, errors not OK), npm run build succeeds with expected page count (current + 1). Git commit only includes: data/posts.json, public/images/blog/{slug}.jpg, tasks/seo-data-latest.json, tasks/auto-blog-runs/. On validation failure: revert changes to data/posts.json, log error, exit with code 1. Create scripts/prompts/sections/04-validation.md with these rules.",
+      "acceptanceCriteria": [
+        "scripts/prompts/sections/04-validation.md exists with complete validation rules",
+        "Pre-write validation covers all BlogPost fields and cross-reference existence",
+        "Post-write validation covers diagnostic.js and npm run build",
+        "Git commit whitelist specified (only specific files)",
+        "Failure recovery documented: revert posts.json, log error, exit 1",
+        "Content length validation: 800-1200 words",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Phase 3 — Parallel with US-008 and US-009. Reference tasks/design-auto-blog-pipeline.md Section 11 for validation pipeline details."
+    },
+    {
+      "id": "US-011",
+      "title": "Add run logging and cost tracking",
+      "description": "As a site owner, I want structured logs for each pipeline run. Ensure the orchestrator script (scripts/weekly-blog-agent.js from US-003) saves a run log to tasks/auto-blog-runs/{YYYY-MM-DD}.json with fields: date (ISO), success (boolean), costUsd (from result.total_cost_usd), turnsUsed (from result.num_turns), topicSelected (string), postSlug (string or null), seoDataSummary (brief text), errors (string array), duration_ms (from result.duration_ms). Create the tasks/auto-blog-runs/ directory. Also add a GitHub Actions step summary using echo commands to $GITHUB_STEP_SUMMARY showing: topic, cost, success/fail, post slug. Failed runs save the log but don't commit content changes. Update the workflow YAML if needed to include the step summary.",
+      "acceptanceCriteria": [
+        "tasks/auto-blog-runs/ directory exists (with .gitkeep)",
+        "Orchestrator script saves run log JSON with all required fields",
+        "Run log includes: date, success, costUsd, turnsUsed, topicSelected, postSlug, errors, duration_ms",
+        "GitHub Actions step summary outputs topic, cost, and status",
+        "Failed runs save log but do not commit content",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Phase 4 — Independent. May need to update scripts/weekly-blog-agent.js and .github/workflows/weekly-blog.yml. Ensure tasks/auto-blog-runs/ is in .gitignore or only committed selectively."
+    },
+    {
+      "id": "US-012",
+      "title": "Add duplicate and quality guard to prompt",
+      "description": "As a content strategist, I want automated checks to prevent duplicate or low-quality content. Create scripts/prompts/sections/05-quality-guard.md with instructions for the agent to check BEFORE generating: no existing post with same slug, no existing post with same primary keyword (fuzzy match on title + tags), topic not covered in last 4 posts. AFTER generating validate: content 800-1200 words, at least 3 internal links, at least 2 business mentions (bold names from businesses.json), FAQ answers >20 words each, answerBlock 40-60 words. If quality checks fail, retry generation with adjusted prompt (max 2 retries). Include these checks in the master system prompt by referencing this section file.",
+      "acceptanceCriteria": [
+        "scripts/prompts/sections/05-quality-guard.md exists",
+        "Pre-generation duplicate checks documented",
+        "Post-generation quality checks documented with thresholds",
+        "Retry logic documented (max 2 retries with adjusted prompt)",
+        "Checks cover: word count, internal links, business mentions, FAQ quality, answerBlock length",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Phase 4 — Independent. This is a prompt section file that will be included in the master system prompt."
+    },
+    {
+      "id": "US-013",
+      "title": "Add manual override and dry run support",
+      "description": "As a site owner, I want to manually trigger the pipeline with a topic override or dry run. Verify the workflow_dispatch inputs (topic_override string, dry_run boolean) are correctly passed through. In the orchestrator script, when TOPIC_OVERRIDE env var is set, prepend to the prompt: 'OVERRIDE: Skip SEO analysis and topic selection. Generate a blog post about: {topic}'. When DRY_RUN=true, append to the prompt: 'DRY RUN MODE: Do NOT commit changes. Save the generated post to tasks/auto-blog-dry-run.json for review.' Also ensure the workflow YAML skips the git commit/push step when dry_run is true (already in US-002, verify it works). Add a brief README section or comment in the workflow file documenting how to trigger manually.",
+      "acceptanceCriteria": [
+        "TOPIC_OVERRIDE env var correctly modifies the agent prompt",
+        "DRY_RUN env var correctly modifies the agent prompt",
+        "Dry run saves output to tasks/auto-blog-dry-run.json",
+        "Dry run skips git commit and push",
+        "Workflow file documents manual trigger usage in comments",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Phase 4 — Independent. May need to update scripts/weekly-blog-agent.js and verify .github/workflows/weekly-blog.yml dry_run handling."
+    },
+    {
+      "id": "US-014",
+      "title": "End-to-end dry run test",
+      "description": "As a developer, I want to verify the entire pipeline works end-to-end with a dry run. Run the orchestrator script locally with DRY_RUN=true and a TOPIC_OVERRIDE (e.g. 'Best patios in Liberty Village for summer 2026'). Verify: (1) Agent SDK initializes and connects to MCP servers, (2) Agent skips SEO collection when override is set, (3) Agent generates a complete BlogPost matching the interface, (4) Agent sources or generates a hero image, (5) Output saved to tasks/auto-blog-dry-run.json, (6) No git commits made, (7) Cost is under $2.00, (8) The generated BlogPost has valid cross-references (relatedServices exist in services.json, etc). Fix any issues found during the test. This is the integration test before going live.",
+      "acceptanceCriteria": [
+        "Dry run completes successfully with DRY_RUN=true",
+        "Generated BlogPost saved to tasks/auto-blog-dry-run.json",
+        "BlogPost matches lib/types.ts interface with all required fields",
+        "Cross-references are valid (slugs exist in data files)",
+        "Hero image generated or sourced successfully",
+        "No git commits made during dry run",
+        "Total cost under $2.00",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Phase 5 — Final integration test. Depends on all previous stories. Run with ANTHROPIC_API_KEY set. Use TOPIC_OVERRIDE to avoid needing live SEO data for testing."
     }
   ]
 }
