@@ -2406,7 +2406,8 @@
       "Weekend brunch with a more relaxed vibe",
       "After-work drinks on King West",
       "Impressing visitors with authentic Italian cuisine"
-    ]
+    ],
+    "image": "/images/businesses/cibo-wine-bar.jpg"
   },
   {
     "slug": "bar-piquette",
@@ -2435,7 +2436,8 @@
       "Intimate evening with small plates and great conversation",
       "Relaxing afternoon on the sunroom patio",
       "Wine enthusiasts seeking a curated rotating selection"
-    ]
+    ],
+    "image": "/images/businesses/bar-piquette.jpg"
   },
   {
     "slug": "maurya-east-indian-roti",
@@ -2464,7 +2466,8 @@
       "Butter chicken roti craving on a weeknight",
       "Feeding a group without breaking the bank",
       "Spice lovers seeking real heat with their roti"
-    ]
+    ],
+    "image": "/images/businesses/maurya-east-indian-roti.jpg"
   },
   {
     "slug": "aroma-fine-indian-cuisine",
@@ -2493,7 +2496,8 @@
       "Pre-theatre dinner on King West",
       "Business lunch with impressive ambiance",
       "Anyone seeking refined Indian cuisine beyond casual"
-    ]
+    ],
+    "image": "/images/businesses/aroma-fine-indian-cuisine.jpg"
   },
   {
     "slug": "curryish-tavern",
@@ -2522,7 +2526,8 @@
       "Weekend brunch with an Indian twist",
       "Foodies wanting to experience chef-driven seasonal menus",
       "Date night with unique, Instagram-worthy plates"
-    ]
+    ],
+    "image": "/images/businesses/curryish-tavern.jpg"
   },
   {
     "slug": "beauty-room-liberty-village",
@@ -2551,7 +2556,8 @@
       "Medical aesthetics like microneedling and laser",
       "Lash lifts and brow services before a special event",
       "Building a long-term skincare routine with expert guidance"
-    ]
+    ],
+    "image": "/images/businesses/beauty-room-liberty-village.jpg"
   },
   {
     "slug": "king-liberty-health-centre",
@@ -2580,7 +2586,8 @@
       "Chronic pain management with osteopathy",
       "Post-workout recovery for gym-goers",
       "Holistic wellness with a neighbourhood clinic feel"
-    ]
+    ],
+    "image": "/images/businesses/king-liberty-health-centre.jpg"
   },
   {
     "slug": "heartless-ink",
@@ -2609,7 +2616,8 @@
       "First tattoo with a comfortable boutique experience",
       "Cover-up work requiring expert design skills",
       "Fine line and micro realism pieces"
-    ]
+    ],
+    "image": "/images/businesses/heartless-ink.jpg"
   },
   {
     "slug": "icon-tattoo",
@@ -2638,7 +2646,8 @@
       "Neo-traditional and mandala-style artwork",
       "Budget-friendly tattoo sessions",
       "First-timers wanting a welcoming, low-pressure vibe"
-    ]
+    ],
+    "image": "/images/businesses/icon-tattoo.jpg"
   },
   {
     "slug": "timeless-ink-toronto",
@@ -2667,7 +2676,8 @@
       "Professional piercings in a clean environment",
       "King West visitors wanting quality ink",
       "Clients who research artists via Instagram portfolios"
-    ]
+    ],
+    "image": "/images/businesses/timeless-ink-toronto.jpg"
   },
   {
     "slug": "el-cheapo-movers",
@@ -2696,7 +2706,8 @@
       "Budget-conscious moves with transparent billing",
       "Students and seniors with discount eligibility",
       "Reliable Toronto-wide residential moves"
-    ]
+    ],
+    "image": "/images/businesses/el-cheapo-movers.jpg"
   },
   {
     "slug": "cargo-cabbie",
@@ -2725,7 +2736,8 @@
       "Flat-rate moves with no hidden fees",
       "Junk removal when decluttering before a move",
       "Single-item furniture delivery or pickup"
-    ]
+    ],
+    "image": "/images/businesses/cargo-cabbie.jpg"
   },
   {
     "slug": "you-move-me-toronto",
@@ -2754,7 +2766,8 @@
       "Downtown condo moves requiring booking elevator time",
       "Anyone wanting upfront pricing with no surprises",
       "Moves requiring professional packing for fragile items"
-    ]
+    ],
+    "image": "/images/businesses/you-move-me-toronto.jpg"
   },
   {
     "slug": "dickinson-wright-toronto",
@@ -2783,7 +2796,8 @@
       "Startup corporate and commercial legal needs",
       "Intellectual property and trademark matters",
       "Business owners seeking full-service legal counsel"
-    ]
+    ],
+    "image": "/images/businesses/dickinson-wright-toronto.jpg"
   },
   {
     "slug": "miller-thomson-toronto",
@@ -2812,7 +2826,8 @@
       "Real estate closings for Liberty Village condos",
       "Family law including separation and divorce",
       "Litigation and dispute resolution"
-    ]
+    ],
+    "image": "/images/businesses/miller-thomson-toronto.jpg"
   },
   {
     "slug": "hgr-graham-partners",
@@ -2841,7 +2856,8 @@
       "First-time homebuyers wanting clear flat-fee pricing",
       "Commercial real estate transactions",
       "Anyone preferring boutique firm attention over big firm bureaucracy"
-    ]
+    ],
+    "image": "/images/businesses/hgr-graham-partners.jpg"
   },
   {
     "slug": "hub-international-toronto",
@@ -2870,7 +2886,8 @@
       "Bundling commercial and personal policies for savings",
       "Condo and tenant insurance for Liberty Village residents",
       "Specialty insurance for tech and creative businesses"
-    ]
+    ],
+    "image": "/images/businesses/hub-international-toronto.jpg"
   },
   {
     "slug": "thinkinsure-toronto",
@@ -2899,7 +2916,8 @@
       "Auto insurance comparison shopping",
       "First-time condo buyers needing insurance guidance",
       "Anyone wanting competitive rates without multiple calls"
-    ]
+    ],
+    "image": "/images/businesses/thinkinsure-toronto.jpg"
   },
   {
     "slug": "brokerlink-toronto",
@@ -2928,7 +2946,8 @@
       "Bundling auto, condo, and life insurance",
       "Businesses needing commercial liability coverage",
       "Clients who prefer speaking with a local advisor"
-    ]
+    ],
+    "image": "/images/businesses/brokerlink-toronto.jpg"
   },
   {
     "slug": "gibraltar-solutions",
@@ -2957,7 +2976,8 @@
       "Businesses requiring SOC 2 compliant IT infrastructure",
       "24/7 helpdesk support for distributed teams",
       "Companies seeking proactive cybersecurity monitoring"
-    ]
+    ],
+    "image": "/images/businesses/gibraltar-solutions.jpg"
   },
   {
     "slug": "it-solutions-toronto",
@@ -2986,7 +3006,8 @@
       "Small teams needing affordable managed IT services",
       "Fast on-site support for hardware emergencies",
       "Startups scaling their IT infrastructure"
-    ]
+    ],
+    "image": "/images/businesses/it-solutions-toronto.jpg"
   },
   {
     "slug": "happier-it-toronto",
@@ -3015,7 +3036,8 @@
       "Healthcare and legal firms needing compliance-focused IT",
       "Companies transitioning to cloud infrastructure",
       "Teams needing 24/7 support without wait times"
-    ]
+    ],
+    "image": "/images/businesses/happier-it-toronto.jpg"
   },
   {
     "slug": "studio-kim",
@@ -3044,7 +3066,8 @@
       "Quick turnaround on everyday hemming and tailoring",
       "Personalized attention from a family-run shop",
       "Free quotes before committing to alterations"
-    ]
+    ],
+    "image": "/images/businesses/studio-kim.jpg"
   },
   {
     "slug": "3rd-floor-tailors",
@@ -3073,7 +3096,8 @@
       "Complex wedding dress modifications",
       "Custom tailoring and bespoke garments",
       "Clients who prioritize quality over price"
-    ]
+    ],
+    "image": "/images/businesses/3rd-floor-tailors.jpg"
   },
   {
     "slug": "love-your-tailor",
@@ -3102,7 +3126,8 @@
       "Leather jacket and specialty material alterations",
       "Bulk wardrobe alterations and seasonal updates",
       "Garment restoration and repair work"
-    ]
+    ],
+    "image": "/images/businesses/love-your-tailor.jpg"
   },
   {
     "slug": "spadina-auto",
@@ -3131,7 +3156,8 @@
       "Safety inspections and emissions testing",
       "Tire sales, repair, and seasonal changeovers",
       "Liberty Village residents wanting a neighbourhood shop"
-    ]
+    ],
+    "image": "/images/businesses/spadina-auto.jpg"
   },
   {
     "slug": "central-import",
@@ -3160,7 +3186,8 @@
       "Warranty-approved service without dealership markup",
       "Complex diagnostics and transmission work",
       "BMW, Audi, Mercedes, and Porsche specialists"
-    ]
+    ],
+    "image": "/images/businesses/central-import.jpg"
   },
   {
     "slug": "certified-tire-auto",
@@ -3189,7 +3216,8 @@
       "Tire services and seasonal changeovers at low prices",
       "Routine maintenance without premium pricing",
       "Extended warranty options for peace of mind"
-    ]
+    ],
+    "image": "/images/businesses/certified-tire-auto.jpg"
   },
   {
     "slug": "tutorbright-toronto",
@@ -3218,7 +3246,8 @@
       "Families wanting no-contract flexibility",
       "Both in-home and online tutoring options",
       "Students who need confidence-building alongside academics"
-    ]
+    ],
+    "image": "/images/businesses/tutorbright-toronto.jpg"
   },
   {
     "slug": "oxford-learning-high-park",
@@ -3247,7 +3276,8 @@
       "Long-term academic development beyond test prep",
       "Families wanting a structured learning environment",
       "Building foundational cognitive and learning skills"
-    ]
+    ],
+    "image": "/images/businesses/oxford-learning-high-park.jpg"
   },
   {
     "slug": "kumon-jane-bloor",
@@ -3276,7 +3306,8 @@
       "Families committed to consistent daily practice",
       "Self-motivated learners who thrive on incremental progress",
       "Long-term skill building rather than quick fixes"
-    ]
+    ],
+    "image": "/images/businesses/kumon-jane-bloor.jpg"
   },
   {
     "slug": "studio-207-liberty-village",
@@ -3305,7 +3336,8 @@
       "Content creators needing a distinctive aesthetic",
       "Brand photography with natural light",
       "Video production and commercial shoots"
-    ]
+    ],
+    "image": "/images/businesses/studio-207-liberty-village.jpg"
   },
   {
     "slug": "neil-ta-photography",
@@ -3334,7 +3366,8 @@
       "Corporate events requiring professional coverage",
       "Engagement and creative couples sessions",
       "Clients wanting Toronto's top-rated photographer"
-    ]
+    ],
+    "image": "/images/businesses/neil-ta-photography.jpg"
   },
   {
     "slug": "david-abreu-photography",
@@ -3363,7 +3396,8 @@
       "Liberty Village residents wanting a local photographer",
       "Documentary-style wedding and event coverage",
       "Intimate weddings and small celebrations"
-    ]
+    ],
+    "image": "/images/businesses/david-abreu-photography.jpg"
   },
   {
     "slug": "maz-images-studios",
@@ -3392,7 +3426,8 @@
       "Family and children's portrait sessions",
       "Corporate team photos",
       "Liberty Village residents wanting a neighbourhood studio"
-    ]
+    ],
+    "image": "/images/businesses/maz-images-studios.jpg"
   },
   {
     "slug": "king-west-village-cleaners",
@@ -3421,7 +3456,8 @@
       "Quick alterations alongside cleaning",
       "Rush jobs when you need something cleaned fast",
       "Liberty Village residents walking to King West"
-    ]
+    ],
+    "image": "/images/businesses/king-west-village-cleaners.jpg"
   },
   {
     "slug": "jukebox-laundry-concierge",
@@ -3450,7 +3486,8 @@
       "Condo residents without in-suite machines",
       "Shoe care and specialty item cleaning",
       "Anyone wanting 24/7 drop-off and pickup flexibility"
-    ]
+    ],
+    "image": "/images/businesses/jukebox-laundry-concierge.jpg"
   },
   {
     "slug": "wash-world-king-west",
@@ -3479,7 +3516,8 @@
       "Large loads requiring high-capacity machines",
       "Early morning or late evening laundry sessions",
       "Anyone who forgot to get quarters (debit accepted)"
-    ]
+    ],
+    "image": "/images/businesses/wash-world-king-west.jpg"
   },
   {
     "slug": "jukebox-print",
@@ -3508,7 +3546,8 @@
       "Liberty Village businesses needing quick turnaround",
       "24/7 pickup when you can't make business hours",
       "High-volume orders from Canada's top-rated printer"
-    ]
+    ],
+    "image": "/images/businesses/jukebox-print.jpg"
   },
   {
     "slug": "moveable-inc",
@@ -3537,7 +3576,8 @@
       "Multilingual marketing materials",
       "High-end print projects with luxurious finishes",
       "Businesses needing full-service print production"
-    ]
+    ],
+    "image": "/images/businesses/moveable-inc.jpg"
   },
   {
     "slug": "red-hot-printing",
@@ -3566,7 +3606,8 @@
       "Budget-conscious printing for startups and small businesses",
       "Same-day and next-day turnaround needs",
       "Customers who value responsive customer service"
-    ]
+    ],
+    "image": "/images/businesses/red-hot-printing.jpg"
   },
   {
     "slug": "bkdp-design",
@@ -3595,7 +3636,8 @@
       "Design-build projects with one point of contact",
       "High-end residential transformations",
       "Award-winning design for downtown condos"
-    ]
+    ],
+    "image": "/images/businesses/bkdp-design.jpg"
   },
   {
     "slug": "lux-design-toronto",
@@ -3624,7 +3666,8 @@
       "Clients wanting press-featured, award-winning design",
       "King West and Liberty Village area projects",
       "Luxury concepts with distinctive creative flair"
-    ]
+    ],
+    "image": "/images/businesses/lux-design-toronto.jpg"
   },
   {
     "slug": "swisterski-design",
@@ -3653,7 +3696,8 @@
       "Condo owners wanting professional design direction",
       "New construction interior design",
       "Accessible entry point into professional design services"
-    ]
+    ],
+    "image": "/images/businesses/swisterski-design.jpg"
   },
   {
     "slug": "tbc-locksmith",
@@ -3682,7 +3726,8 @@
       "Fast 15-30 minute response when locked out",
       "Car key cutting and programming",
       "Security hardware installation for condos"
-    ]
+    ],
+    "image": "/images/businesses/tbc-locksmith.jpg"
   },
   {
     "slug": "matrix-locksmith",
@@ -3711,7 +3756,8 @@
       "Security system and access control installation",
       "Established, highly-reviewed locksmith service",
       "Condo lock and security upgrades"
-    ]
+    ],
+    "image": "/images/businesses/matrix-locksmith.jpg"
   },
   {
     "slug": "asap-lock-service",
@@ -3740,6 +3786,7 @@
       "Commercial building lock services",
       "Automotive lock and key services",
       "Residents wanting an established, licensed locksmith"
-    ]
+    ],
+    "image": "/images/businesses/asap-lock-service.jpg"
   }
 ]
