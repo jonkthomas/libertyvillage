@@ -291,35 +291,50 @@ If fewer than the minimum exist (e.g., posts.json is empty), use as many as avai
 
 ## Step 4: Image Sourcing
 
-Source a hero image for the blog post using this 3-tier cascade:
+Source a hero image for the blog post. You MUST try tiers in order. Do NOT skip Tier 1.
 
-### Tier 1: Pexels API (Primary)
+### Tier 1: Pexels API (Primary — TRY THIS FIRST)
+
+**IMPORTANT: Always attempt this tier first.** The `PEXELS_API_KEY` environment variable is available in your Bash shell.
+
+Run this exact sequence using the Bash tool:
 
 ```bash
-curl -s -H "Authorization: $PEXELS_API_KEY" \
-  "https://api.pexels.com/v1/search?query={topic}&per_page=5&orientation=landscape" \
-  | jq -r '.photos[0].src.landscape'
+mkdir -p public/images/blog
+PEXELS_RESPONSE=$(curl -s -H "Authorization: $PEXELS_API_KEY" "https://api.pexels.com/v1/search?query=SEARCH_QUERY_HERE&per_page=5&orientation=landscape")
+IMAGE_URL=$(echo "$PEXELS_RESPONSE" | jq -r '.photos[0].src.landscape')
+echo "Image URL: $IMAGE_URL"
 ```
 
-Then download:
+Replace `SEARCH_QUERY_HERE` with a relevant search query for the blog topic (e.g., "toronto patio outdoor dining" for a patios article). Use URL encoding for spaces: replace spaces with `+`.
+
+If `IMAGE_URL` is not null/empty, download it:
+
 ```bash
-curl -L -o public/images/blog/{slug}.jpg "{image_url}"
+curl -L -o public/images/blog/SLUG_HERE.jpg "$IMAGE_URL"
+ls -la public/images/blog/SLUG_HERE.jpg
 ```
 
-- If `PEXELS_API_KEY` is not set, skip to Tier 2.
-- Verify the downloaded file is >10KB. If not, try the next photo in results.
+Check the file size. If it's >10KB, Tier 1 succeeded — skip to Image Validation.
+
+If the first photo doesn't work, try photos[1] through photos[4]:
+```bash
+echo "$PEXELS_RESPONSE" | jq -r '.photos[1].src.landscape'
+```
+
+Only move to Tier 2 if ALL 5 Pexels results fail or `PEXELS_API_KEY` is empty.
 
 ### Tier 2: Web Search + Download (Fallback)
 
 If Pexels fails or returns irrelevant images:
 1. Use `WebSearch` tool: search "{topic} free stock photo site:unsplash.com OR site:pixabay.com"
 2. Try 2-3 different search queries with variations
-3. Download using `curl -L -o public/images/blog/{slug}.jpg "{url}"`
-4. Verify the downloaded file is >10KB
+3. Download using Bash: `curl -L -o public/images/blog/{slug}.jpg "{url}"`
+4. Verify the downloaded file is >10KB with `ls -la`
 
 ### Tier 3: Branded Hero Card (Final Fallback)
 
-If all external sources fail, generate a branded card using Playwright:
+If all external sources fail, generate a branded card using Playwright MCP.
 
 1. Determine the category color and emoji:
 
@@ -334,19 +349,33 @@ If all external sources fail, generate a branded card using Playwright:
 | community | #15803d | #22c55e | 🤝 |
 | development | #0369a1 | #0ea5e9 | 🏗️ |
 
-2. Use Playwright MCP to navigate to the hero card template:
-```
-file:///absolute/path/to/scripts/templates/hero-card.html?title={encoded_title}&emoji={encoded_emoji}&color1={color1}&color2={color2}
+2. Get the absolute path to the template and use a file:// URL:
+```bash
+echo "file://$(pwd)/scripts/templates/hero-card.html"
 ```
 
-3. Take a screenshot at 1280x720 viewport
-4. Save to `public/images/blog/{slug}.jpg`
+3. Use Playwright MCP `browser_navigate` to open the template URL with query params:
+```
+file:///absolute/path/to/scripts/templates/hero-card.html?title={url_encoded_title}&emoji={url_encoded_emoji}&color1={color1_without_hash}&color2={color2_without_hash}
+```
+
+4. Use `browser_resize` to set viewport to 1280x720
+
+5. Use `browser_take_screenshot` with `filename` parameter to save to `public/images/blog/{slug}.jpg`
+
+**Alternative if file:// doesn't work:** Start a local HTTP server:
+```bash
+npx -y serve scripts/templates -p 8787 --no-clipboard &
+sleep 2
+```
+Then navigate to `http://localhost:8787/hero-card.html?title=...&emoji=...&color1=...&color2=...`
+After screenshotting, kill the server: `kill %1`
 
 ### Image Validation
 
-After sourcing, verify:
+After sourcing from ANY tier, verify:
 - File exists at `public/images/blog/{slug}.jpg`
-- File size is >10KB
+- File size is >10KB (`ls -la public/images/blog/{slug}.jpg`)
 - If validation fails, fall through to the next tier
 
 ---

@@ -67,7 +67,7 @@ async function main() {
     },
     playwright: {
       command: 'npx',
-      args: ['@playwright/mcp', '--headless'],
+      args: ['@playwright/mcp', '--headless', '--allow-unrestricted-file-access'],
       env: {}
     }
   };
