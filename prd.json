@@ -247,7 +247,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 5 — Final integration test. Depends on all previous stories. Run with ANTHROPIC_API_KEY set. Use TOPIC_OVERRIDE to avoid needing live SEO data for testing."
     }
   ]
