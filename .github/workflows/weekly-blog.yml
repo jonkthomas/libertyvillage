@@ -1,0 +1,71 @@
+name: Weekly Blog Pipeline
+
+on:
+  schedule:
+    - cron: '0 11 * * 0'  # Every Sunday at 11:00 UTC (6am ET)
+  workflow_dispatch:
+    inputs:
+      topic_override:
+        description: 'Override topic (skip SEO analysis)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run - generate but do not commit'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: weekly-blog
+  cancel-in-progress: false
+
+jobs:
+  generate-blog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Extract credentials
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > /tmp/gsa-credentials.json
+          echo "GA4_CLIENT_EMAIL=$(jq -r '.client_email' /tmp/gsa-credentials.json)" >> $GITHUB_ENV
+          echo "GA4_PRIVATE_KEY<<GAEOF" >> $GITHUB_ENV
+          jq -r '.private_key' /tmp/gsa-credentials.json >> $GITHUB_ENV
+          echo "GAEOF" >> $GITHUB_ENV
+
+      - name: Run blog pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
+          GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
+          GA4_CLIENT_EMAIL: ${{ env.GA4_CLIENT_EMAIL }}
+          GA4_PRIVATE_KEY: ${{ env.GA4_PRIVATE_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          TOPIC_OVERRIDE: ${{ inputs.topic_override }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/weekly-blog-agent.js
+
+      - name: Commit and push
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        run: |
+          git config user.name "LV Content Bot"
+          git config user.email "noreply@libertyvillage.co"
+          git pull --rebase origin main
+          git add data/posts.json "public/images/blog/" "tasks/seo-data-latest.json" "tasks/auto-blog-runs/"
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "blog: auto-publish weekly post $(date +%Y-%m-%d)"
+          git push origin main
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f /tmp/gsa-credentials.json
