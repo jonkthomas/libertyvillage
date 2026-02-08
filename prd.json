@@ -164,7 +164,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 3 — Can be built parallel with US-008 and US-010. Check scripts/generate-blog-images.js for the existing branded card approach."
     },
     {
