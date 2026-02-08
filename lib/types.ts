@@ -99,3 +99,30 @@ export interface Business {
   answerBlock?: string;
   bestFor?: string[];
 }
+
+export interface BlogPost {
+  slug: string;
+  title: string;
+  description: string;
+  content: string;
+  publishedAt: string;
+  updatedAt: string;
+  category:
+    | "news"
+    | "development"
+    | "food-drink"
+    | "events"
+    | "transit"
+    | "real-estate"
+    | "lifestyle"
+    | "community";
+  tags: string[];
+  answerBlock: string;
+  faqs: FAQ[];
+  image?: string;
+  relatedServices: string[];
+  relatedTopics: string[];
+  relatedPosts: string[];
+  keyTakeaways: string[];
+  author: string;
+}

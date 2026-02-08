@@ -149,6 +149,34 @@ export function generateSpeakableSchema(url: string) {
   };
 }
 
+export function generateBlogPostSchema(
+  post: { title: string; description: string; publishedAt: string; updatedAt: string; slug: string; image?: string }
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.publishedAt,
+    dateModified: post.updatedAt,
+    url: `${SITE_URL}/blog/${post.slug}`,
+    ...(post.image ? { image: `${SITE_URL}${post.image}` } : {}),
+    publisher: {
+      "@type": "Organization",
+      name: "LibertyVillage.co",
+      url: SITE_URL,
+    },
+    author: {
+      "@type": "Organization",
+      name: "LibertyVillage.co",
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `${SITE_URL}/blog/${post.slug}`,
+    },
+  };
+}
+
 export function generateWebsiteSchema() {
   return {
     "@context": "https://schema.org",

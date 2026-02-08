@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { Service, Neighborhood, Business, Topic } from "./types";
+import type { Service, Neighborhood, Business, Topic, BlogPost } from "./types";
 
 const SITE_URL = "https://libertyvillage.co";
 const SITE_NAME = "LibertyVillage.co";
@@ -72,5 +72,22 @@ export function generateGuidePageMeta(topic: Topic): Metadata {
     topic.description.slice(0, 155),
     `/guide/${topic.slug}`,
     "/images/og/og-guide.jpg"
+  );
+}
+
+export function generateBlogPostPageMeta(post: BlogPost): Metadata {
+  return buildMeta(
+    `${post.title} — Liberty Village Blog | libertyvillage.co`,
+    post.description.slice(0, 155),
+    `/blog/${post.slug}`,
+    post.image
+  );
+}
+
+export function generateBlogIndexPageMeta(): Metadata {
+  return buildMeta(
+    "Liberty Village Blog — Local News & Updates | libertyvillage.co",
+    "Stay updated on Liberty Village with local news, development updates, restaurant openings, transit changes, and community stories.",
+    "/blog"
   );
 }

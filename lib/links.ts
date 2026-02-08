@@ -5,6 +5,8 @@ import {
   getAllTopics,
   getTopicBySlug,
   getAllNeighborhoods,
+  getAllPosts,
+  getPostBySlug,
 } from "./data";
 
 export interface LinkItem {
@@ -73,7 +75,47 @@ export function getNearbyNeighborhoods(currentSlug: string): LinkItem[] {
     }));
 }
 
-type PageType = "service" | "neighborhood" | "business" | "guide";
+export function getRelatedPosts(currentSlug: string): LinkItem[] {
+  const post = getPostBySlug(currentSlug);
+  if (!post) return [];
+
+  const all = getAllPosts();
+  return post.relatedPosts
+    .map((slug) => all.find((p) => p.slug === slug))
+    .filter((p): p is NonNullable<typeof p> => p !== undefined)
+    .slice(0, 5)
+    .map((p) => ({
+      title: p.title,
+      href: `/blog/${p.slug}`,
+      description: p.description,
+    }));
+}
+
+export function getRelatedGuidesForPost(topicSlugs: string[]): LinkItem[] {
+  const all = getAllTopics();
+  return topicSlugs
+    .map((slug) => all.find((t) => t.slug === slug))
+    .filter((t): t is NonNullable<typeof t> => t !== undefined)
+    .map((t) => ({
+      title: t.title,
+      href: `/guide/${t.slug}`,
+      description: t.description,
+    }));
+}
+
+export function getRelatedServicesForPost(serviceSlugs: string[]): LinkItem[] {
+  const all = getAllServices();
+  return serviceSlugs
+    .map((slug) => all.find((s) => s.slug === slug))
+    .filter((s): s is NonNullable<typeof s> => s !== undefined)
+    .map((s) => ({
+      title: `Best ${s.pluralName} in Liberty Village`,
+      href: `/best/${s.slug}`,
+      description: s.description,
+    }));
+}
+
+type PageType = "service" | "neighborhood" | "business" | "guide" | "blog";
 
 export function getBreadcrumbs(
   pageType: PageType,
@@ -90,5 +132,7 @@ export function getBreadcrumbs(
       return [home, { label: "Directory", href: "/directory" }, { label, href: "#" }];
     case "guide":
       return [home, { label: "Guides", href: "/guide/parking-guide" }, { label, href: "#" }];
+    case "blog":
+      return [home, { label: "Blog", href: "/blog" }, { label, href: "#" }];
   }
 }

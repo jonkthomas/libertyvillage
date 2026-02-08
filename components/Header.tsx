@@ -4,6 +4,7 @@ import MobileNav from "./MobileNav";
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/directory", label: "Directory" },
+  { href: "/blog", label: "Blog" },
   { href: "/guide/parking-guide", label: "Guides" },
   { href: "/vs/king-west", label: "Compare" },
 ];

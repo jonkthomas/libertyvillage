@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import type { Business, Service, Neighborhood, Topic } from "./types";
+import type { BlogPost, Business, Service, Neighborhood, Topic } from "./types";
 
 const dataDir = join(process.cwd(), "data");
 
@@ -59,4 +59,25 @@ export function getFeaturedBusinesses(): Business[] {
   return getAllBusinesses()
     .filter((b) => b.featured)
     .sort((a, b) => b.rating - a.rating);
+}
+
+// Blog Posts
+export function getAllPosts(): BlogPost[] {
+  return loadJSON<BlogPost[]>("posts.json");
+}
+
+export function getPostBySlug(slug: string): BlogPost | undefined {
+  return getAllPosts().find((p) => p.slug === slug);
+}
+
+export function getPostsByCategory(category: string): BlogPost[] {
+  return getAllPosts()
+    .filter((p) => p.category === category)
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+}
+
+export function getRecentPosts(limit: number = 10): BlogPost[] {
+  return getAllPosts()
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, limit);
 }

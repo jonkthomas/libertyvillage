@@ -1,213 +1,148 @@
 {
   "project": "libertyvillage.co",
-  "branchName": "ralph/aeo-seo-upgrade",
-  "description": "AEO + SEO upgrade for libertyvillage.co. Add answer blocks (40-60 words) to all 179 pages, generate specific FAQs for all 59 services, expand schema.org markup (CollectionPage, DefinedTerm, Speakable), add definitions sections to guides, improve inline cross-linking, and build a /seo-weekly Claude Code skill for automated weekly monitoring via GSC + GA4 MCPs. USE AGENT SWARMING: For data generation stories (US-002 through US-006), launch 3+ parallel web-research-specialist agents to generate answer blocks, FAQs, and definitions concurrently. RUN CODE-REVIEWER after every user story completion. Based on SEO+AEO Agentic Workflow methodology and HubDB Schema Template patterns adapted for Next.js + JSON data files.",
+  "branchName": "ralph/blog-lv-pulse",
+  "description": "Add a /blog section and /lv-pulse autonomous content generation skill to libertyvillage.co. The blog system follows existing patterns (JSON data, typed interfaces, static generation, AEO components). The /lv-pulse skill researches trending Liberty Village topics via GSC, GA4, Reddit, X, and Google, then generates and publishes AEO-optimized blog posts autonomously. RUN CODE-REVIEWER agent after every user story to verify TypeScript compiles and build succeeds.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Expand TypeScript types for AEO fields",
-      "description": "Update all TypeScript interfaces in lib/types.ts to include AEO fields. Service: add answerBlock (string), definition (string), specificFaqs (FAQ[]). Business: add answerBlock (string), bestFor (string[]). Topic: add answerSummary (string), keyTakeaways (string[]), definitions (Array<{term: string; definition: string}>). Neighborhood: add answerBlock (string). All fields must be optional (?) to maintain backward compatibility. No runtime changes — types only.",
+      "title": "Add BlogPost type and data infrastructure",
+      "description": "Add BlogPost interface to lib/types.ts following existing patterns. Create empty data/posts.json file (just []). Add blog data loader functions to lib/data.ts: getAllPosts(), getPostBySlug(slug), getPostsByCategory(category), getRecentPosts(limit). BlogPost interface needs: slug, title, description, content (markdown string), publishedAt (ISO date), updatedAt (ISO date), category (union: news|development|food-drink|events|transit|real-estate|lifestyle|community), tags (string[]), answerBlock (string, required), faqs (FAQ[], required), image? (string), relatedServices (string[]), relatedTopics (string[]), relatedPosts (string[]), keyTakeaways (string[]), author (string). All data loader functions should follow exact pattern of existing getAllServices/getServiceBySlug etc in lib/data.ts. getRecentPosts sorts by publishedAt descending and takes a limit param (default 10). getPostsByCategory sorts by publishedAt descending.",
       "acceptanceCriteria": [
-        "lib/types.ts Service interface has answerBlock?, definition?, specificFaqs? fields",
-        "lib/types.ts Business interface has answerBlock?, bestFor? fields",
-        "lib/types.ts Topic interface has answerSummary?, keyTakeaways?, definitions? fields",
-        "lib/types.ts Neighborhood interface has answerBlock? field",
-        "TypeScript compiles with zero errors (npx tsc --noEmit)",
-        "No runtime behavior changes — existing pages render identically"
+        "lib/types.ts has BlogPost interface with all required fields",
+        "data/posts.json exists with content []",
+        "lib/data.ts exports getAllPosts, getPostBySlug, getPostsByCategory, getRecentPosts",
+        "All functions use the existing loadJSON<T> pattern",
+        "npx tsc --noEmit passes with zero errors"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "P0 — blocks all data generation stories"
+      "notes": "P0 — blocks all other stories. Run code-reviewer agent after completion."
     },
     {
       "id": "US-002",
-      "title": "Generate answer blocks and definitions for all 59 services",
-      "description": "Use agent swarming (3 parallel web-research-specialist agents) to generate answer blocks and definitions for all 59 services in data/services.json. Each answer block must be 40-60 words, directly answer 'What are the best [service] in Liberty Village?', include count of businesses in that category (cross-reference businesses.json), name 2-3 top-rated businesses, and include a specific local detail (street name, price range, or unique fact). Also add a 'definition' field (1-2 sentences defining the service category in Liberty Village context). Use a Node.js script to write the data (agents struggle with large file writes). Validate word counts programmatically.",
+      "title": "Add blog metadata and schema generators",
+      "description": "Add generateBlogPostPageMeta(post) and generateBlogIndexPageMeta() to lib/meta.ts following existing buildMeta() pattern. Title format: '{post.title} — Liberty Village Blog | libertyvillage.co'. Blog index title: 'Liberty Village Blog — Local News & Updates | libertyvillage.co'. Add generateBlogPostSchema(post) to lib/schema.ts — uses @type BlogPosting (not Article), includes headline, description, datePublished, dateModified, url, image, publisher (LibertyVillage.co), author (LibertyVillage.co), mainEntityOfPage. Add blog link helpers to lib/links.ts: getRelatedPosts(currentSlug) returns up to 5 LinkItems from post.relatedPosts, getRelatedGuidesForPost(topicSlugs) maps slugs to guide LinkItems, getRelatedServicesForPost(serviceSlugs) maps slugs to service LinkItems. Add 'blog' case to getBreadcrumbs() in lib/links.ts: [Home, Blog, {label}].",
       "acceptanceCriteria": [
-        "All 59 services in services.json have answerBlock field (40-60 words each)",
-        "All 59 services have definition field (1-2 sentences each)",
-        "Answer blocks reference real business names from businesses.json",
-        "Answer blocks include specific Liberty Village details (streets, prices, facts)",
-        "Word count validation: no answerBlock under 40 or over 65 words",
-        "JSON is valid and TypeScript compiles"
+        "lib/meta.ts exports generateBlogPostPageMeta and generateBlogIndexPageMeta",
+        "lib/schema.ts exports generateBlogPostSchema with @type BlogPosting",
+        "lib/links.ts exports getRelatedPosts, getRelatedGuidesForPost, getRelatedServicesForPost",
+        "getBreadcrumbs('blog', 'Test') returns correct breadcrumb array",
+        "npx tsc --noEmit passes with zero errors"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Use Node.js script for file write. Split into 3 batches for parallel agent research."
+      "notes": "Run code-reviewer agent after completion."
     },
     {
       "id": "US-003",
-      "title": "Generate specific FAQs for all 59 services",
-      "description": "Replace the hardcoded FAQ switch statement in app/best/[service]/page.tsx with data-driven FAQs from services.json. For each of the 55 services that currently use generic FAQs, use agent swarming to research real 'People Also Ask' questions for '[service] Liberty Village Toronto' and generate 4-5 specific FAQs with localized answers including real business names, price ranges, street names, and insider tips. Each answer should be 40-60 words. Keep the existing hardcoded FAQs for restaurants, dentists, gyms, and short-term-rentals as the specificFaqs data. Update the template to read from service.specificFaqs || fallback to existing switch logic.",
+      "title": "Extract shared renderMarkdownContent utility",
+      "description": "The guide page at app/guide/[topic]/page.tsx has an inline renderMarkdownContent() function that converts markdown to HTML with Tailwind classes. Extract this to lib/markdown.ts as a shared export. Update app/guide/[topic]/page.tsx to import from lib/markdown.ts instead of defining inline. The function handles ## h2, ### h3, **bold**, and paragraph wrapping with Tailwind classes (text-warm-600, leading-relaxed, etc). This is needed because the blog page template will use the same function. Verify guide pages still render correctly after extraction.",
       "acceptanceCriteria": [
-        "All 59 services have specificFaqs array in services.json with 4-5 FAQs each",
-        "FAQ questions match real search queries (not generic templates)",
-        "FAQ answers include real business names, prices, and Liberty Village specifics",
-        "Service page template reads FAQs from service.specificFaqs",
-        "Hardcoded switch statement removed or used only as fallback",
-        "No generic questions like 'How do I find the best [service]?' remain",
-        "TypeScript compiles and pages render correctly"
+        "lib/markdown.ts exports renderMarkdownContent function",
+        "app/guide/[topic]/page.tsx imports from lib/markdown.ts",
+        "Guide pages render identically before and after (no visual change)",
+        "npx tsc --noEmit passes with zero errors",
+        "npm run build succeeds"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "This is the highest-impact AEO change. 55 services go from generic to specific FAQs."
+      "notes": "Run code-reviewer agent after completion. Check that the guide build output is unchanged."
     },
     {
       "id": "US-004",
-      "title": "Generate answer blocks and bestFor for all 76 businesses",
-      "description": "Add answerBlock (40-60 words explaining why to visit this business) and bestFor (array of 3-5 use cases) to each business in data/businesses.json. Use agent swarming with 3 parallel agents, each handling ~25 businesses. Answer blocks should mention the business's standout feature, location, and what makes it unique in Liberty Village. Use a Node.js script to merge the generated data into businesses.json.",
+      "title": "Create blog post page template",
+      "description": "Create app/blog/[slug]/page.tsx following the guide page template pattern closely. Must include: generateStaticParams() reading from getAllPosts(), generateMetadata() using generateBlogPostPageMeta(), async page component that awaits params Promise. Page layout: Breadcrumbs, optional HeroImage, category badge + date, h1 title, description paragraph, AnswerBlock with post.answerBlock, KeyTakeaways, tags as small pills, main content via renderMarkdownContent + dangerouslySetInnerHTML, FAQSection, RelatedLinks for posts/guides/services, JSON-LD scripts for BlogPosting schema + SpeakableSchema + FAQSchema. Use existing components: Breadcrumbs, HeroImage, AnswerBlock, KeyTakeaways, FAQSection, RelatedLinks. Import generateBlogPostSchema, generateSpeakableSchema, generateFAQSchema from lib/schema. Handle notFound() when slug not found.",
       "acceptanceCriteria": [
-        "All 76 businesses have answerBlock field (40-60 words each)",
-        "All 76 businesses have bestFor array (3-5 items each)",
-        "Answer blocks mention specific features, not generic praise",
-        "bestFor tags are specific use cases, not generic categories",
-        "JSON is valid and TypeScript compiles"
+        "app/blog/[slug]/page.tsx exists with full implementation",
+        "Page uses all AEO components: AnswerBlock, KeyTakeaways, FAQSection",
+        "Page includes BlogPosting, Speakable, and FAQ JSON-LD schemas",
+        "generateStaticParams returns empty array when posts.json is empty",
+        "npx tsc --noEmit passes with zero errors",
+        "npm run build succeeds (with empty posts.json generating 0 blog pages)"
       ],
-      "priority": 2,
+      "priority": 1,
       "passes": true,
-      "notes": "Lower priority than services — business detail pages get less search traffic."
+      "notes": "Run code-reviewer agent after completion."
     },
     {
       "id": "US-005",
-      "title": "Generate answer summaries, takeaways, and definitions for all 24 guides",
-      "description": "Add answerSummary (40-60 word TL;DR), keyTakeaways (3-5 bullets), and definitions (array of {term, definition} for jargon) to each topic in data/topics.json. Answer summaries should directly answer the guide's main question. Key takeaways should be the most actionable points. Definitions should explain any local jargon or technical terms used in the guide (e.g., Green P, Transit Score, Walk Score, BIA).",
+      "title": "Create blog index page",
+      "description": "Create app/blog/page.tsx as a static listing page. Must include: metadata from generateBlogIndexPageMeta(), Breadcrumbs (Home > Blog), h1 'Liberty Village Blog', subtitle, category filter pills (extracted from posts using Set), responsive post card grid (sm:grid-cols-2 lg:grid-cols-3) where each card links to /blog/[slug] and shows optional image, category badge, date, title, description (line-clamp-2). Include CollectionPage schema. Show 'No posts yet. Check back soon.' empty state when posts.json is empty. Use en-CA date locale. Cards should have hover:shadow-md transition matching existing BusinessCard pattern.",
       "acceptanceCriteria": [
-        "All 24 topics have answerSummary field (40-60 words)",
-        "All 24 topics have keyTakeaways array (3-5 items)",
-        "All 24 topics have definitions array (2-5 terms per guide)",
-        "Definitions explain real jargon used in the guide content",
-        "JSON is valid and TypeScript compiles"
+        "app/blog/page.tsx exists with full implementation",
+        "Page shows empty state when posts.json is []",
+        "Page includes CollectionPage schema",
+        "Page has responsive grid layout matching site design",
+        "npx tsc --noEmit passes with zero errors",
+        "npm run build succeeds"
       ],
-      "priority": 2,
+      "priority": 1,
       "passes": true,
-      "notes": "Guide content is already high quality — this adds AEO extraction points."
+      "notes": "Run code-reviewer agent after completion."
     },
     {
       "id": "US-006",
-      "title": "Generate answer blocks for all 15 neighborhood comparisons",
-      "description": "Add answerBlock to each neighborhood in data/neighborhoods.json. Each should be 40-60 words directly answering 'Should I live in Liberty Village or [Neighborhood]?' Include the key tradeoff (rent, transit, nightlife, community), a specific number, and a clear recommendation for who should pick which neighborhood.",
+      "title": "Update sitemap and navigation for blog",
+      "description": "Update app/sitemap.ts to include blog posts: import getAllPosts, map to /blog/[slug] URLs with priority 0.7, changeFrequency 'weekly', lastModified from updatedAt. Add 'Blog' link to Header.tsx navigation (between Guides and Compare or wherever makes sense). Add 'Blog' link to MobileNav.tsx. Optionally add 'Latest Posts' link in Footer.tsx. Verify sitemap still generates correctly with empty posts.json.",
       "acceptanceCriteria": [
-        "All 15 neighborhoods have answerBlock field (40-60 words)",
-        "Each answer includes a specific number (rent difference, transit score, distance)",
-        "Each answer has a clear 'Choose X if... Choose Y if...' structure",
-        "JSON is valid and TypeScript compiles"
+        "app/sitemap.ts includes blog post URLs",
+        "Header.tsx shows Blog nav link",
+        "MobileNav.tsx shows Blog nav link",
+        "Sitemap generates correctly with empty posts.json",
+        "npx tsc --noEmit passes with zero errors",
+        "npm run build succeeds"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Comparison pages already have verdict section — answer block enhances it for AEO."
+      "notes": "Run code-reviewer agent after completion."
     },
     {
       "id": "US-007",
-      "title": "Create AnswerBlock and DefinitionBox components and update all page templates",
-      "description": "Create two new reusable components: AnswerBlock (styled box with warm background, slightly larger text, renders children) and DefinitionBox (aside-style box with term as heading and definition as text). Then update all 4 page templates to render AEO content: Service pages show service.answerBlock after H1 + service.definition as aside. Guide pages show topic.answerSummary after H1 + topic.keyTakeaways as bullet list + topic.definitions as DefinitionBox components after first content section. Comparison pages show neighborhood.answerBlock replacing the verdict intro. Business pages show business.answerBlock after rating section + business.bestFor as tag pills. All fields are optional — graceful fallback when undefined.",
+      "title": "Create /lv-pulse skill file",
+      "description": "Create .claude/skills/lv-pulse/SKILL.md with complete instructions for the autonomous blog post generation skill. The skill must have these steps: Step 1 — Load existing content inventory (read posts.json, topics.json, services.json, businesses.json to avoid duplicates). Step 2 — Research GSC/GA4 for content gaps (use mcp__gsc__search_analytics and mcp__gsc__enhanced_search_analytics for last 28 days, mcp__google-analytics__run_report for traffic data). Step 3 — Research social/web (WebSearch for Reddit r/toronto r/askTO, X/Twitter, Google news about Liberty Village last 30 days — run at least 7 search queries). Step 4 — Topic selection (cross-reference findings against existing content, score by search demand + recency + local specificity + content gap severity, select highest-scoring topic, output justification). Step 5 — Generate blog post content (all BlogPost fields, answerBlock 40-60 words, content 800-1200 words markdown, 4-5 FAQs with local details, cross-references to businesses.json names). Step 6 — Publish (read posts.json, append new post, write back with Write tool, verify). Step 7 — Build verification (npm run build, fix if fails). Step 8 — Output report (title, slug, category, why chosen, research sources, word count, build status). Include error handling: skip GSC/GA4 if no data, fallback to evergreen topics if no trending topics found, handle empty posts.json, revert if build fails twice. Include content quality standards: no fabricated businesses, verify against businesses.json, conversational tone, no AI self-references. Config: GSC sc-domain:libertyvillage.co, GA4 property 523614078, output to data/posts.json.",
       "acceptanceCriteria": [
-        "components/AnswerBlock.tsx created with warm styling",
-        "components/DefinitionBox.tsx created with aside styling",
-        "Service page renders answerBlock after H1 and definition as aside",
-        "Guide page renders answerSummary, keyTakeaways, and definitions",
-        "Comparison page renders answerBlock in verdict section",
-        "Business page renders answerBlock and bestFor tags",
-        "Pages with no AEO data render exactly as before (no empty boxes)",
-        "TypeScript compiles and all pages render correctly"
+        ".claude/skills/lv-pulse/SKILL.md exists with complete instructions",
+        "Skill has all 8 steps clearly documented",
+        "Skill references correct MCP tool names and parameters",
+        "Skill includes error handling for no-data scenarios",
+        "Skill includes content quality standards",
+        "Skill output format is clearly specified"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Critical template changes — test with both populated and empty data."
+      "notes": "Run code-reviewer agent after completion to verify skill file is comprehensive."
     },
     {
       "id": "US-008",
-      "title": "Upgrade schema.org markup for AEO",
-      "description": "Add new schema generators to lib/schema.ts and update page templates: 1) CollectionPage schema wrapping ItemList on service pages. 2) DefinedTermSet schema for guide page definitions. 3) FAQPage schema on comparison pages (currently missing). 4) Fix ArticleSchema to use dynamic datePublished instead of hardcoded '2026-01-15'. 5) Add Speakable schema pointing to .answer-block CSS selector on all page types. Update each page template to include the new schema in their JSON-LD script tags.",
+      "title": "Test /lv-pulse with first blog post",
+      "description": "Run the /lv-pulse skill to generate and publish the first blog post. This is the end-to-end integration test. The skill should research trending Liberty Village topics, generate a complete AEO-optimized post, add it to posts.json, and verify the build succeeds. After the skill runs, verify: posts.json has exactly 1 entry, all BlogPost fields are populated, the blog index page at /blog shows the post card, the blog post page at /blog/[slug] renders with AnswerBlock + FAQs + schema, the sitemap includes the new blog URL, and npm run build succeeds with the new page count (should be 183 = 181 + blog index + 1 blog post).",
       "acceptanceCriteria": [
-        "Service pages emit CollectionPage + ItemList schema",
-        "Guide pages emit DefinedTermSet schema when definitions exist",
-        "Comparison pages emit FAQPage schema for their FAQs",
-        "ArticleSchema uses dynamic date (not hardcoded)",
-        "Speakable schema added to pages with answer blocks",
-        "All schema validates (test with Google Rich Results Test)",
-        "TypeScript compiles"
+        "data/posts.json has 1 complete blog post",
+        "Blog post has answerBlock (40-60 words), 4-5 FAQs, 800+ word content",
+        "Blog post references real businesses from businesses.json",
+        "npm run build succeeds with 183+ pages generated",
+        "Blog index page shows the post",
+        "Blog post page renders all AEO components and schemas"
       ],
-      "priority": 2,
+      "priority": 1,
       "passes": true,
-      "notes": "Schema changes are invisible to users but critical for AEO/AI extraction."
+      "notes": "This is the integration test. Run code-reviewer agent after to verify everything."
     },
     {
       "id": "US-009",
-      "title": "Add inline cross-linking within page content",
-      "description": "Create a linkify utility function that takes raw text + lookup maps (businesses, services, neighborhoods) and returns React nodes with internal links. Apply to: Service page business descriptions (link mentioned businesses to /directory/[slug]). Guide page markdown content (auto-link business names, service categories, and neighborhood names). Comparison page detailed sections (link mentioned businesses and services). Target: at least 3 contextual internal links per page within content, not just in footer related links section.",
-      "acceptanceCriteria": [
-        "lib/linkify.tsx utility created with lookup map support",
-        "Service pages link business names within descriptions to /directory/[slug]",
-        "Guide pages auto-link recognized entities in markdown content",
-        "Comparison pages link businesses and services mentioned in text",
-        "At least 3 internal links per page within content (not footer)",
-        "No broken links (all links point to existing pages)",
-        "TypeScript compiles"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Internal linking is a strong SEO signal. Currently all links are in footer only."
-    },
-    {
-      "id": "US-010",
-      "title": "Build weekly SEO monitoring skill (/seo-weekly)",
-      "description": "Create a Claude Code skill at .claude/skills/seo-weekly/SKILL.md that generates a weekly SEO/AEO monitoring report. The skill uses existing GSC MCP tools (mcp__gsc__search_analytics, mcp__gsc__enhanced_search_analytics with enableQuickWins) and GA4 MCP tools (mcp__google-analytics__run_report) to pull data for libertyvillage.co. Report sections: 1) Executive Summary (3-5 key findings), 2) Quick Wins (position 4-20, 50+ impressions, CTR <5%), 3) Position Movers (week-over-week changes), 4) Content Decay Alerts (declining metrics), 5) Engagement Issues (bounce rate >70%), 6) Keyword Cannibalization (2+ pages per query), 7) Recommended Actions. Site config: GSC siteUrl='sc-domain:libertyvillage.co', GA4 propertyId='523614078'. Report saves to tasks/seo-weekly-report-YYYY-MM-DD.md.",
-      "acceptanceCriteria": [
-        ".claude/skills/seo-weekly/SKILL.md exists with complete instructions",
-        "Skill uses GSC MCP tools for search analytics data",
-        "Skill uses GA4 MCP tools for traffic/engagement data",
-        "Report includes all 7 sections with tables",
-        "Report saves to tasks/ directory with date in filename",
-        "Skill handles 'no data yet' gracefully (new site scenario)",
-        "Running /seo-weekly produces a complete report"
-      ],
-      "priority": 1,
-      "passes": true,
-      "notes": "This is the weekly operating loop from the AEO workflow doc."
-    },
-    {
-      "id": "US-011",
-      "title": "Update homepage with answer-first content and breadcrumbs",
-      "description": "Update app/page.tsx: 1) Replace generic hero tagline with an answer-block style intro: 'Liberty Village is a walkable Toronto neighborhood of 9,000+ residents with 600+ businesses, known for its converted industrial lofts, dog-friendly culture, and thriving food scene along King Street West.' 2) Add breadcrumb schema (Home only). 3) Update meta description to be answer-block style. Also update app/directory/page.tsx to add breadcrumbs (Home > Business Directory) with BreadcrumbSchema.",
-      "acceptanceCriteria": [
-        "Homepage hero has answer-first content (not generic tagline)",
-        "Homepage has BreadcrumbList schema",
-        "Directory page has breadcrumb navigation and schema",
-        "Meta descriptions updated to answer-block style",
-        "TypeScript compiles and pages render correctly"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Lower priority — homepage already works well, this is incremental."
-    },
-    {
-      "id": "US-012",
-      "title": "Fix LibertyVillage.so references in schema.ts",
-      "description": "lib/schema.ts still has 'LibertyVillage.so' as the site name in ArticleSchema publisher/author and WebsiteSchema. These should be 'LibertyVillage.co' to match the actual domain. Fix all occurrences.",
-      "acceptanceCriteria": [
-        "No references to 'LibertyVillage.so' remain in lib/schema.ts",
-        "All schema references use 'LibertyVillage.co'",
-        "TypeScript compiles"
-      ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Bug fix — leftover from earlier domain confusion."
-    },
-    {
-      "id": "US-013",
-      "title": "Comprehensive code review and site audit",
-      "description": "Run code-reviewer agent on entire codebase. Verify: 1) TypeScript compiles with zero errors, 2) All 179 pages have answer blocks when data exists, 3) Schema validates on spot-check of 5 representative pages, 4) No broken internal links, 5) All FAQs are specific (no generic templates remaining on service pages), 6) next build succeeds for static generation, 7) No accessibility regressions. If issues found, fix and re-review until clean.",
+      "title": "Final code review and build verification",
+      "description": "Run comprehensive code review on entire blog implementation. Verify: 1) TypeScript compiles with zero errors, 2) npm run build succeeds, 3) All new files follow existing code patterns and style, 4) Blog post page has correct schema (BlogPosting, FAQPage, Speakable), 5) Sitemap includes /blog and /blog/[slug] URLs, 6) No broken imports or missing components, 7) Header/MobileNav show Blog link, 8) Blog index shows empty state OR first post correctly. Fix any issues found.",
       "acceptanceCriteria": [
         "npx tsc --noEmit passes with zero errors",
         "npm run build completes successfully",
         "Code review finds zero MAJOR issues",
-        "All 59 service pages have specific FAQs",
-        "Schema spot-check passes on 5 pages",
-        "No broken internal links detected"
+        "All schemas validate on blog pages",
+        "Navigation includes Blog link",
+        "Sitemap includes blog URLs"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Final gate. Loop until clean."
+      "notes": "Final quality gate. Must pass before marking PRD complete."
     }
   ]
 }

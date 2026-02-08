@@ -3,6 +3,7 @@ import Link from "next/link";
 const quickLinks = [
   { href: "/", label: "Home" },
   { href: "/directory", label: "Directory" },
+  { href: "/blog", label: "Blog" },
   { href: "/guide/parking-guide", label: "Guides" },
 ];
 
