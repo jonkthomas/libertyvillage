@@ -78,7 +78,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Phase 1 — Independent. The actual image sourcing runs inside the agent via the system prompt. This story creates the reference docs and template the prompt will use. Check existing scripts/generate-blog-images.js for the branded card pattern."
     },
     {
