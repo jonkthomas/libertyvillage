@@ -12,6 +12,7 @@ export interface Service {
   relatedServices: string[];
   searchVolume: "high" | "medium" | "low";
   competitiveness: "easy" | "medium" | "hard";
+  image?: string;
 }
 
 export interface Topic {
@@ -31,6 +32,7 @@ export interface Topic {
   faqs: FAQ[];
   relatedTopics: string[];
   relatedServices: string[];
+  image?: string;
 }
 
 export interface DetailedComparison {
@@ -67,6 +69,7 @@ export interface Neighborhood {
   verdict: Verdict;
   detailedComparison: DetailedComparison;
   faqs: FAQ[];
+  image?: string;
 }
 
 export interface Business {
@@ -85,4 +88,5 @@ export interface Business {
   tags: string[];
   featured: boolean;
   proTip: string;
+  image?: string;
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getAllServices, getAllTopics, getBusinessesByCategory } from "@/lib/data";
 import { generateHomePageMeta } from "@/lib/meta";
 import ServiceCard from "@/components/ServiceCard";
@@ -26,7 +27,7 @@ const topCategoryOrder = [
 
 export default function Home() {
   const services = getAllServices();
-  let topics: { slug: string; title: string; description: string }[] = [];
+  let topics: { slug: string; title: string; description: string; image?: string }[] = [];
   try {
     topics = getAllTopics().slice(0, 6);
   } catch {
@@ -47,26 +48,32 @@ export default function Home() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-amber-50 to-white px-4 py-16 sm:py-24">
-        <div className="mx-auto max-w-4xl text-center">
-          <h1 className="text-4xl font-bold text-warm-900 sm:text-5xl">
+      <section className="relative overflow-hidden px-4 py-16 sm:py-24">
+        {/* Background image */}
+        <div className="absolute inset-0">
+          <Image
+            src="/images/neighborhood/brick-loft-streetscape.jpg"
+            alt="Liberty Village streetscape"
+            fill
+            className="object-cover object-bottom"
+            priority
+            sizes="100vw"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-white/90" />
+        </div>
+        <div className="relative mx-auto max-w-4xl text-center">
+          <h1 className="text-4xl font-bold text-white sm:text-5xl drop-shadow-sm">
             Your guide to Liberty Village, Toronto
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-warm-600">
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-white/90 drop-shadow-sm">
             Everything you need to know about the neighborhood — from a neighbor.
             Find the best local businesses, read guides, and compare neighborhoods.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link
-              href="/directory"
-              className="rounded-full bg-amber-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
-            >
+            <Link href="/directory" className="rounded-full bg-amber-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-600">
               Browse Directory
             </Link>
-            <Link
-              href="/guide/moving-guide"
-              className="rounded-full border border-warm-300 bg-white px-6 py-3 text-sm font-semibold text-warm-700 transition-colors hover:bg-warm-50"
-            >
+            <Link href="/guide/moving-guide" className="rounded-full border border-white/60 bg-white/20 backdrop-blur-sm px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/30">
               New to LV? Start Here
             </Link>
           </div>
@@ -105,17 +112,16 @@ export default function Home() {
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {topics.map((topic) => (
-                <Link
-                  key={topic.slug}
-                  href={`/guide/${topic.slug}`}
-                  className="rounded-xl border border-warm-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <h3 className="font-semibold text-warm-900">
-                    {topic.title}
-                  </h3>
-                  <p className="mt-1 text-sm text-warm-500 line-clamp-2">
-                    {topic.description}
-                  </p>
+                <Link key={topic.slug} href={`/guide/${topic.slug}`} className="group overflow-hidden rounded-xl border border-warm-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                  {topic.image && (
+                    <div className="relative aspect-video overflow-hidden">
+                      <Image src={topic.image} alt={topic.title} fill className="object-cover transition-transform group-hover:scale-105" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <h3 className="font-semibold text-warm-900">{topic.title}</h3>
+                    <p className="mt-1 text-sm text-warm-500 line-clamp-2">{topic.description}</p>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -133,22 +139,21 @@ export default function Home() {
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {accommodations.map((rental) => (
-                <Link
-                  key={rental.slug}
-                  href={`/directory/${rental.slug}`}
-                  className="rounded-xl border border-warm-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <h3 className="font-semibold text-warm-900">
-                    {rental.name}
-                  </h3>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-amber-500">{"★".repeat(Math.floor(rental.rating))}</span>
-                    <span className="text-sm text-warm-500">{rental.rating}</span>
-                    <span className="text-sm text-warm-400">{rental.priceRange}</span>
+                <Link key={rental.slug} href={`/directory/${rental.slug}`} className="group overflow-hidden rounded-xl border border-warm-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                  {rental.image && (
+                    <div className="relative aspect-video overflow-hidden">
+                      <Image src={rental.image} alt={rental.name} fill className="object-cover transition-transform group-hover:scale-105" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <h3 className="font-semibold text-warm-900">{rental.name}</h3>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="text-amber-500">{"★".repeat(Math.floor(rental.rating))}</span>
+                      <span className="text-sm text-warm-500">{rental.rating}</span>
+                      <span className="text-sm text-warm-400">{rental.priceRange}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-warm-500 line-clamp-2">{rental.description}</p>
                   </div>
-                  <p className="mt-2 text-sm text-warm-500 line-clamp-2">
-                    {rental.description}
-                  </p>
                 </Link>
               ))}
             </div>

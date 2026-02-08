@@ -18,6 +18,7 @@ export function generateLocalBusinessSchema(business: Business) {
     telephone: business.phone || undefined,
     url: business.website || undefined,
     priceRange: business.priceRange,
+    ...(business.image ? { image: `${SITE_URL}${business.image}` } : {}),
     aggregateRating: {
       "@type": "AggregateRating",
       ratingValue: business.rating,

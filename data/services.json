@@ -14,7 +14,8 @@
       "short-term-rentals"
     ],
     "searchVolume": "high",
-    "competitiveness": "hard"
+    "competitiveness": "hard",
+    "image": "/images/services/restaurants.jpg"
   },
   {
     "slug": "coffee-shops",
@@ -29,7 +30,8 @@
       "bakeries"
     ],
     "searchVolume": "high",
-    "competitiveness": "hard"
+    "competitiveness": "hard",
+    "image": "/images/services/coffee-shops.jpg"
   },
   {
     "slug": "brunch-spots",
@@ -44,7 +46,8 @@
       "bakeries"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/brunch-spots.jpg"
   },
   {
     "slug": "bars",
@@ -60,7 +63,8 @@
       "nightlife-guide"
     ],
     "searchVolume": "high",
-    "competitiveness": "hard"
+    "competitiveness": "hard",
+    "image": "/images/services/bars.jpg"
   },
   {
     "slug": "patios",
@@ -75,7 +79,8 @@
       "breweries"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/patios.jpg"
   },
   {
     "slug": "gyms",
@@ -90,7 +95,8 @@
       "physiotherapy"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/gyms.jpg"
   },
   {
     "slug": "yoga-studios",
@@ -105,7 +111,8 @@
       "personal-trainers"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/yoga-studios.jpg"
   },
   {
     "slug": "pilates",
@@ -120,7 +127,8 @@
       "physiotherapy"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/pilates.jpg"
   },
   {
     "slug": "dentists",
@@ -134,7 +142,8 @@
       "pharmacies"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/dentists.jpg"
   },
   {
     "slug": "doctors",
@@ -150,7 +159,8 @@
       "optometrists"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/doctors.jpg"
   },
   {
     "slug": "veterinarians",
@@ -164,7 +174,8 @@
       "pet-stores"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/veterinarians.jpg"
   },
   {
     "slug": "dog-walkers",
@@ -178,7 +189,8 @@
       "pet-stores"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/dog-walkers.jpg"
   },
   {
     "slug": "dog-groomers",
@@ -192,7 +204,8 @@
       "pet-stores"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/dog-groomers.jpg"
   },
   {
     "slug": "hair-salons",
@@ -206,7 +219,8 @@
       "massage-therapy"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/hair-salons.jpg"
   },
   {
     "slug": "barbers",
@@ -219,7 +233,8 @@
       "nail-salons"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/barbers.jpg"
   },
   {
     "slug": "nail-salons",
@@ -233,7 +248,8 @@
       "massage-therapy"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/nail-salons.jpg"
   },
   {
     "slug": "house-cleaning",
@@ -247,7 +263,8 @@
       "tailors"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/house-cleaning.jpg"
   },
   {
     "slug": "movers",
@@ -261,7 +278,8 @@
       "insurance-agents"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/movers.jpg"
   },
   {
     "slug": "personal-trainers",
@@ -276,7 +294,8 @@
       "physiotherapy"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/personal-trainers.jpg"
   },
   {
     "slug": "daycares",
@@ -289,7 +308,8 @@
       "family-activities"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/daycares.jpg"
   },
   {
     "slug": "coworking-spaces",
@@ -303,7 +323,8 @@
       "accountants"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/coworking-spaces.jpg"
   },
   {
     "slug": "grocery-stores",
@@ -317,7 +338,8 @@
       "florists"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/grocery-stores.jpg"
   },
   {
     "slug": "pharmacies",
@@ -331,7 +353,8 @@
       "grocery-stores"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/pharmacies.jpg"
   },
   {
     "slug": "dry-cleaners",
@@ -345,7 +368,8 @@
       "laundromats"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/dry-cleaners.jpg"
   },
   {
     "slug": "tailors",
@@ -359,7 +383,8 @@
       "barbers"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/tailors.jpg"
   },
   {
     "slug": "auto-repair",
@@ -372,7 +397,8 @@
       "insurance-agents"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/auto-repair.jpg"
   },
   {
     "slug": "bike-shops",
@@ -386,7 +412,8 @@
       "gyms"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/bike-shops.jpg"
   },
   {
     "slug": "massage-therapy",
@@ -401,7 +428,8 @@
       "pilates"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/massage-therapy.jpg"
   },
   {
     "slug": "physiotherapy",
@@ -416,7 +444,8 @@
       "personal-trainers"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/physiotherapy.jpg"
   },
   {
     "slug": "chiropractors",
@@ -430,7 +459,8 @@
       "doctors"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/chiropractors.jpg"
   },
   {
     "slug": "optometrists",
@@ -444,7 +474,8 @@
       "pharmacies"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/optometrists.jpg"
   },
   {
     "slug": "accountants",
@@ -459,7 +490,8 @@
       "coworking-spaces"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/accountants.jpg"
   },
   {
     "slug": "lawyers",
@@ -473,7 +505,8 @@
       "insurance-agents"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/lawyers.jpg"
   },
   {
     "slug": "real-estate-agents",
@@ -488,7 +521,8 @@
       "accountants"
     ],
     "searchVolume": "high",
-    "competitiveness": "hard"
+    "competitiveness": "hard",
+    "image": "/images/services/real-estate-agents.jpg"
   },
   {
     "slug": "insurance-agents",
@@ -503,7 +537,8 @@
       "banks"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/insurance-agents.jpg"
   },
   {
     "slug": "banks",
@@ -517,7 +552,8 @@
       "real-estate-agents"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/banks.jpg"
   },
   {
     "slug": "tutors",
@@ -530,7 +566,8 @@
       "daycares"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/tutors.jpg"
   },
   {
     "slug": "music-lessons",
@@ -544,7 +581,8 @@
       "photographers"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/music-lessons.jpg"
   },
   {
     "slug": "pet-stores",
@@ -558,7 +596,8 @@
       "dog-groomers"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/pet-stores.jpg"
   },
   {
     "slug": "florists",
@@ -573,7 +612,8 @@
       "grocery-stores"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/florists.jpg"
   },
   {
     "slug": "photographers",
@@ -588,7 +628,8 @@
       "real-estate-agents"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/photographers.jpg"
   },
   {
     "slug": "caterers",
@@ -603,7 +644,8 @@
       "photographers"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/caterers.jpg"
   },
   {
     "slug": "event-spaces",
@@ -618,7 +660,8 @@
       "bars"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/event-spaces.jpg"
   },
   {
     "slug": "breweries",
@@ -633,7 +676,8 @@
       "patios"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/breweries.jpg"
   },
   {
     "slug": "wine-bars",
@@ -648,7 +692,8 @@
       "patios"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/wine-bars.jpg"
   },
   {
     "slug": "pizza",
@@ -663,7 +708,8 @@
       "bars"
     ],
     "searchVolume": "high",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/pizza.jpg"
   },
   {
     "slug": "sushi",
@@ -677,7 +723,8 @@
       "bars"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/sushi.jpg"
   },
   {
     "slug": "thai-restaurants",
@@ -691,7 +738,8 @@
       "indian-restaurants"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/thai-restaurants.jpg"
   },
   {
     "slug": "italian-restaurants",
@@ -706,7 +754,8 @@
       "patios"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/italian-restaurants.jpg"
   },
   {
     "slug": "indian-restaurants",
@@ -720,7 +769,8 @@
       "sushi"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/indian-restaurants.jpg"
   },
   {
     "slug": "burger-joints",
@@ -735,7 +785,8 @@
       "breweries"
     ],
     "searchVolume": "medium",
-    "competitiveness": "medium"
+    "competitiveness": "medium",
+    "image": "/images/services/burger-joints.jpg"
   },
   {
     "slug": "bakeries",
@@ -750,7 +801,8 @@
       "caterers"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/bakeries.jpg"
   },
   {
     "slug": "laundromats",
@@ -764,7 +816,8 @@
       "tailors"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/laundromats.jpg"
   },
   {
     "slug": "tattoo-parlors",
@@ -778,7 +831,8 @@
       "nail-salons"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/tattoo-parlors.jpg"
   },
   {
     "slug": "spas",
@@ -793,7 +847,8 @@
       "yoga-studios"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/spas.jpg"
   },
   {
     "slug": "printing-services",
@@ -807,7 +862,8 @@
       "caterers"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/printing-services.jpg"
   },
   {
     "slug": "it-support",
@@ -821,7 +877,8 @@
       "insurance-agents"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/it-support.jpg"
   },
   {
     "slug": "interior-designers",
@@ -835,7 +892,8 @@
       "house-cleaning"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/interior-designers.jpg"
   },
   {
     "slug": "locksmith",
@@ -849,7 +907,8 @@
       "insurance-agents"
     ],
     "searchVolume": "low",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/locksmith.jpg"
   },
   {
     "slug": "short-term-rentals",
@@ -865,6 +924,7 @@
       "grocery-stores"
     ],
     "searchVolume": "medium",
-    "competitiveness": "easy"
+    "competitiveness": "easy",
+    "image": "/images/services/short-term-rentals.jpg"
   }
 ]

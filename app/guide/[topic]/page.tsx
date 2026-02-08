@@ -4,6 +4,7 @@ import { generateGuidePageMeta } from "@/lib/meta";
 import { generateArticleSchema } from "@/lib/schema";
 import { getRelatedGuides, getRelatedServices, getBreadcrumbs } from "@/lib/links";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
 import RelatedLinks from "@/components/RelatedLinks";
 
@@ -87,6 +88,10 @@ export default async function GuidePage({ params }: Props) {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <Breadcrumbs items={breadcrumbs} />
+
+      {topic.image && (
+        <HeroImage src={topic.image} alt={topic.title} />
+      )}
 
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
         Liberty Village {topic.title}

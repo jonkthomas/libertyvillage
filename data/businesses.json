@@ -20,7 +20,8 @@
       "weekend-brunch"
     ],
     "featured": true,
-    "proTip": "The Saturday brunch gets packed by 10:30am — arrive early or put your name in and grab a coffee at Balzac's while you wait."
+    "proTip": "The Saturday brunch gets packed by 10:30am — arrive early or put your name in and grab a coffee at Balzac's while you wait.",
+    "image": "/images/businesses/mildreds-temple-kitchen.jpg"
   },
   {
     "slug": "nodo-liberty-village",
@@ -43,7 +44,8 @@
       "date-night"
     ],
     "featured": true,
-    "proTip": "Ask for the burrata appetizer — it's not always on the menu but they almost always have it, and it pairs perfectly with a glass of their Montepulciano."
+    "proTip": "Ask for the burrata appetizer — it's not always on the menu but they almost always have it, and it pairs perfectly with a glass of their Montepulciano.",
+    "image": "/images/businesses/nodo-liberty-village.jpg"
   },
   {
     "slug": "chiang-mai-thai",
@@ -66,7 +68,8 @@
       "delivery"
     ],
     "featured": false,
-    "proTip": "The weekday lunch combo is the best value meal in Liberty Village — generous portions of curry, rice, spring roll, and soup for under $15."
+    "proTip": "The weekday lunch combo is the best value meal in Liberty Village — generous portions of curry, rice, spring roll, and soup for under $15.",
+    "image": "/images/businesses/chiang-mai-thai.jpg"
   },
   {
     "slug": "burger-drops",
@@ -89,7 +92,8 @@
       "quick-bite"
     ],
     "featured": true,
-    "proTip": "Order the double smash with cheese and add their garlic aioli fries — it's the definitive Burger Drops experience."
+    "proTip": "Order the double smash with cheese and add their garlic aioli fries — it's the definitive Burger Drops experience.",
+    "image": "/images/businesses/burger-drops.jpg"
   },
   {
     "slug": "impact-kitchen",
@@ -112,7 +116,8 @@
       "juice-bar"
     ],
     "featured": true,
-    "proTip": "Their weekly meal prep packages are a lifesaver if you work from home — order by Wednesday for Monday delivery and save 15% over individual orders."
+    "proTip": "Their weekly meal prep packages are a lifesaver if you work from home — order by Wednesday for Monday delivery and save 15% over individual orders.",
+    "image": "/images/businesses/impact-kitchen.jpg"
   },
   {
     "slug": "local-public-eatery",
@@ -135,7 +140,8 @@
       "brunch"
     ],
     "featured": true,
-    "proTip": "Their daily happy hour from 3-6pm has $7 appetizers and $2 off all draft beers — the best deal for after-work drinks in the neighbourhood."
+    "proTip": "Their daily happy hour from 3-6pm has $7 appetizers and $2 off all draft beers — the best deal for after-work drinks in the neighbourhood.",
+    "image": "/images/businesses/local-public-eatery.jpg"
   },
   {
     "slug": "school-restaurant",
@@ -158,7 +164,8 @@
       "heritage-building"
     ],
     "featured": true,
-    "proTip": "Request a table in the upstairs loft for the most intimate experience — it overlooks the main dining room and feels like a private dining space."
+    "proTip": "Request a table in the upstairs loft for the most intimate experience — it overlooks the main dining room and feels like a private dining space.",
+    "image": "/images/businesses/school-restaurant.jpg"
   },
   {
     "slug": "oeb-breakfast-co",
@@ -181,7 +188,8 @@
       "coffee"
     ],
     "featured": true,
-    "proTip": "Use their online waitlist on weekends — you can add your name from home and show up when your table is almost ready instead of standing outside."
+    "proTip": "Use their online waitlist on weekends — you can add your name from home and show up when your table is almost ready instead of standing outside.",
+    "image": "/images/businesses/oeb-breakfast-co.jpg"
   },
   {
     "slug": "brazen-head-irish-pub",
@@ -204,7 +212,8 @@
       "beer"
     ],
     "featured": true,
-    "proTip": "Wednesday trivia night is the best free entertainment in the neighbourhood — get there by 7pm to claim a good table because teams start forming early."
+    "proTip": "Wednesday trivia night is the best free entertainment in the neighbourhood — get there by 7pm to claim a good table because teams start forming early.",
+    "image": "/images/businesses/brazen-head-irish-pub.jpg"
   },
   {
     "slug": "moxies-liberty-village",
@@ -227,7 +236,8 @@
       "patio"
     ],
     "featured": false,
-    "proTip": "Their late-night menu kicks in after 9pm with half-price appetizers — great for a post-movie bite if you've been to the nearby cinema."
+    "proTip": "Their late-night menu kicks in after 9pm with half-price appetizers — great for a post-movie bite if you've been to the nearby cinema.",
+    "image": "/images/businesses/moxies-liberty-village.jpg"
   },
   {
     "slug": "the-rec-room-liberty-village",
@@ -250,7 +260,8 @@
       "live-music"
     ],
     "featured": true,
-    "proTip": "Load up your game card on a Tuesday when they run double-credit promotions — you'll get twice the arcade time for the same price."
+    "proTip": "Load up your game card on a Tuesday when they run double-credit promotions — you'll get twice the arcade time for the same price.",
+    "image": "/images/businesses/the-rec-room-liberty-village.jpg"
   },
   {
     "slug": "liberty-commons-big-rock-brewery",
@@ -273,7 +284,8 @@
       "group-friendly"
     ],
     "featured": true,
-    "proTip": "Ask your server about the brewer's small-batch — they always have an experimental beer on tap that's not listed on the main menu."
+    "proTip": "Ask your server about the brewer's small-batch — they always have an experimental beer on tap that's not listed on the main menu.",
+    "image": "/images/businesses/liberty-commons-big-rock-brewery.jpg"
   },
   {
     "slug": "craft-beer-market-liberty-village",
@@ -296,7 +308,8 @@
       "sports"
     ],
     "featured": true,
-    "proTip": "Grab a seat on the upper mezzanine during Leafs games — you get the atmosphere of a packed bar with more breathing room and a better view of the screens."
+    "proTip": "Grab a seat on the upper mezzanine during Leafs games — you get the atmosphere of a packed bar with more breathing room and a better view of the screens.",
+    "image": "/images/businesses/craft-beer-market-liberty-village.jpg"
   },
   {
     "slug": "pizza-libretto-liberty-village",
@@ -319,7 +332,8 @@
       "casual"
     ],
     "featured": true,
-    "proTip": "The Nduja pizza isn't always on the regular menu but ask if they have it — the spicy spreadable salami with honey is an absolute flavour bomb."
+    "proTip": "The Nduja pizza isn't always on the regular menu but ask if they have it — the spicy spreadable salami with honey is an absolute flavour bomb.",
+    "image": "/images/businesses/pizza-libretto-liberty-village.jpg"
   },
   {
     "slug": "pai-northern-thai",
@@ -342,7 +356,8 @@
       "popular"
     ],
     "featured": true,
-    "proTip": "Order the Khao Soi with crispy egg noodles on the side — you can add them gradually to keep them crunchy throughout the meal."
+    "proTip": "Order the Khao Soi with crispy egg noodles on the side — you can add them gradually to keep them crunchy throughout the meal.",
+    "image": "/images/businesses/pai-northern-thai.jpg"
   },
   {
     "slug": "cibo-liberty-village",
@@ -365,7 +380,8 @@
       "happy-hour"
     ],
     "featured": false,
-    "proTip": "Their Aperitivo hour from 4-6pm on weekdays offers half-price appetizers and $10 cocktails — it's essentially a discounted dinner if you order enough small plates."
+    "proTip": "Their Aperitivo hour from 4-6pm on weekdays offers half-price appetizers and $10 cocktails — it's essentially a discounted dinner if you order enough small plates.",
+    "image": "/images/businesses/cibo-liberty-village.jpg"
   },
   {
     "slug": "balzacs-coffee-liberty-village",
@@ -388,7 +404,8 @@
       "pastries"
     ],
     "featured": true,
-    "proTip": "The back room near the windows is the quietest spot for getting work done — most people crowd the front, so you'll have space and natural light."
+    "proTip": "The back room near the windows is the quietest spot for getting work done — most people crowd the front, so you'll have space and natural light.",
+    "image": "/images/businesses/balzacs-coffee-liberty-village.jpg"
   },
   {
     "slug": "louie-coffee-bar",
@@ -411,7 +428,8 @@
       "latte-art"
     ],
     "featured": false,
-    "proTip": "Try whatever their current seasonal latte is — they change it monthly and it's always more interesting than the standard menu options."
+    "proTip": "Try whatever their current seasonal latte is — they change it monthly and it's always more interesting than the standard menu options.",
+    "image": "/images/businesses/louie-coffee-bar.jpg"
   },
   {
     "slug": "arvo-coffee",
@@ -434,7 +452,8 @@
       "pastries"
     ],
     "featured": false,
-    "proTip": "Order the flat white with oat milk — it's the drink the baristas make for themselves and it's perfectly balanced with their current espresso blend."
+    "proTip": "Order the flat white with oat milk — it's the drink the baristas make for themselves and it's perfectly balanced with their current espresso blend.",
+    "image": "/images/businesses/arvo-coffee.jpg"
   },
   {
     "slug": "dark-horse-espresso-liberty-village",
@@ -457,7 +476,8 @@
       "independent"
     ],
     "featured": false,
-    "proTip": "Don't sleep on their cold brew in summer — they steep it for 24 hours and it's smooth enough to drink black, which is how the regulars order it."
+    "proTip": "Don't sleep on their cold brew in summer — they steep it for 24 hours and it's smooth enough to drink black, which is how the regulars order it.",
+    "image": "/images/businesses/dark-horse-espresso-liberty-village.jpg"
   },
   {
     "slug": "jimmys-coffee-liberty-village",
@@ -480,7 +500,8 @@
       "local-roaster"
     ],
     "featured": false,
-    "proTip": "Their peanut butter cookie is legitimately one of the best cookies in Toronto — get one before noon because they sell out on most days."
+    "proTip": "Their peanut butter cookie is legitimately one of the best cookies in Toronto — get one before noon because they sell out on most days.",
+    "image": "/images/businesses/jimmys-coffee-liberty-village.jpg"
   },
   {
     "slug": "goodlife-fitness-liberty-village",
@@ -503,7 +524,8 @@
       "personal-training"
     ],
     "featured": false,
-    "proTip": "Avoid the 5:30-7:30pm rush when every bench and squat rack is taken — the 6am opening or the 8:30pm window are the sweet spots for actually getting a workout in."
+    "proTip": "Avoid the 5:30-7:30pm rush when every bench and squat rack is taken — the 6am opening or the 8:30pm window are the sweet spots for actually getting a workout in.",
+    "image": "/images/businesses/goodlife-fitness-liberty-village.jpg"
   },
   {
     "slug": "f45-training-liberty-village",
@@ -526,7 +548,8 @@
       "morning-workout"
     ],
     "featured": false,
-    "proTip": "The 6:15am classes have the most consistent crew and the best energy — you'll make gym friends faster in the early morning sessions."
+    "proTip": "The 6:15am classes have the most consistent crew and the best energy — you'll make gym friends faster in the early morning sessions.",
+    "image": "/images/businesses/f45-training-liberty-village.jpg"
   },
   {
     "slug": "altea-active",
@@ -549,7 +572,8 @@
       "wellness"
     ],
     "featured": true,
-    "proTip": "The rooftop pool area is almost empty during weekday mornings — you'll feel like you have a private resort in the middle of Liberty Village."
+    "proTip": "The rooftop pool area is almost empty during weekday mornings — you'll feel like you have a private resort in the middle of Liberty Village.",
+    "image": "/images/businesses/altea-active.jpg"
   },
   {
     "slug": "orangetheory-fitness-liberty-village",
@@ -572,7 +596,8 @@
       "rowing"
     ],
     "featured": false,
-    "proTip": "Book classes through the app exactly 24 hours before the class starts — popular time slots fill instantly and the waitlist rarely moves."
+    "proTip": "Book classes through the app exactly 24 hours before the class starts — popular time slots fill instantly and the waitlist rarely moves.",
+    "image": "/images/businesses/orangetheory-fitness-liberty-village.jpg"
   },
   {
     "slug": "studio-lagree-liberty-village",
@@ -595,7 +620,8 @@
       "strength"
     ],
     "featured": false,
-    "proTip": "Wear grippy socks — they're required and the studio sells them, but you'll save money by ordering a pair of Toesox online before your first class."
+    "proTip": "Wear grippy socks — they're required and the studio sells them, but you'll save money by ordering a pair of Toesox online before your first class.",
+    "image": "/images/businesses/studio-lagree-liberty-village.jpg"
   },
   {
     "slug": "bsuite-hair-salon",
@@ -618,7 +644,8 @@
       "private-experience"
     ],
     "featured": false,
-    "proTip": "Check Instagram for the individual stylists' portfolios before booking — each one specializes in different techniques and the right match makes all the difference."
+    "proTip": "Check Instagram for the individual stylists' portfolios before booking — each one specializes in different techniques and the right match makes all the difference.",
+    "image": "/images/businesses/bsuite-hair-salon.jpg"
   },
   {
     "slug": "baz-and-banks-barber",
@@ -641,7 +668,8 @@
       "mens-grooming"
     ],
     "featured": false,
-    "proTip": "Book with one barber and stick with them — they'll remember your cut preferences and you'll save time explaining every visit."
+    "proTip": "Book with one barber and stick with them — they'll remember your cut preferences and you'll save time explaining every visit.",
+    "image": "/images/businesses/baz-and-banks-barber.jpg"
   },
   {
     "slug": "tips-and-toes-nail-salon",
@@ -664,7 +692,8 @@
       "walk-in"
     ],
     "featured": false,
-    "proTip": "Tuesday is the quietest day — you'll get in without a wait and the technicians can take their time instead of rushing between clients."
+    "proTip": "Tuesday is the quietest day — you'll get in without a wait and the technicians can take their time instead of rushing between clients.",
+    "image": "/images/businesses/tips-and-toes-nail-salon.jpg"
   },
   {
     "slug": "liberty-village-animal-hospital",
@@ -687,7 +716,8 @@
       "dental"
     ],
     "featured": true,
-    "proTip": "Book your annual check-up and vaccinations in January or February when the schedule is lighter — spring and summer appointments can be weeks out."
+    "proTip": "Book your annual check-up and vaccinations in January or February when the schedule is lighter — spring and summer appointments can be weeks out.",
+    "image": "/images/businesses/liberty-village-animal-hospital.jpg"
   },
   {
     "slug": "liberty-pooch",
@@ -710,7 +740,8 @@
       "condo-dogs"
     ],
     "featured": false,
-    "proTip": "Book a meet-and-greet walk before committing — they match your dog's temperament with the right walking group, and the fit matters for your pup's happiness."
+    "proTip": "Book a meet-and-greet walk before committing — they match your dog's temperament with the right walking group, and the fit matters for your pup's happiness.",
+    "image": "/images/businesses/liberty-pooch.jpg"
   },
   {
     "slug": "woofstock-pet-supplies",
@@ -733,7 +764,8 @@
       "local-products"
     ],
     "featured": false,
-    "proTip": "Ask about their auto-delivery program for food — they'll deliver to your condo lobby monthly, which beats hauling a 30-pound bag from the store."
+    "proTip": "Ask about their auto-delivery program for food — they'll deliver to your condo lobby monthly, which beats hauling a 30-pound bag from the store.",
+    "image": "/images/businesses/woofstock-pet-supplies.jpg"
   },
   {
     "slug": "liberty-village-dental",
@@ -756,7 +788,8 @@
       "evening-hours"
     ],
     "featured": true,
-    "proTip": "Book the first appointment of the day if you're anxious about the dentist — you'll go straight in without a wait, the staff are fresh, and there's no lingering dental-sound anxiety from sitting in the waiting room."
+    "proTip": "Book the first appointment of the day if you're anxious about the dentist — you'll go straight in without a wait, the staff are fresh, and there's no lingering dental-sound anxiety from sitting in the waiting room.",
+    "image": "/images/businesses/liberty-village-dental.jpg"
   },
   {
     "slug": "edition-dental",
@@ -779,7 +812,8 @@
       "boutique"
     ],
     "featured": false,
-    "proTip": "If you're considering veneers, book a free consultation first — they use digital smile design to show you a preview of your results before you commit."
+    "proTip": "If you're considering veneers, book a free consultation first — they use digital smile design to show you a preview of your results before you commit.",
+    "image": "/images/businesses/edition-dental.jpg"
   },
   {
     "slug": "liberty-village-physio",
@@ -802,7 +836,8 @@
       "shockwave"
     ],
     "featured": false,
-    "proTip": "Book the early morning slots if you want the longer, more thorough sessions — the therapists aren't running behind schedule yet and you'll get their full attention."
+    "proTip": "Book the early morning slots if you want the longer, more thorough sessions — the therapists aren't running behind schedule yet and you'll get their full attention.",
+    "image": "/images/businesses/liberty-village-physio.jpg"
   },
   {
     "slug": "spaces-liberty-village",
@@ -825,7 +860,8 @@
       "rooftop"
     ],
     "featured": true,
-    "proTip": "Try a free day pass before committing to a membership — the atmosphere changes significantly between Monday-morning energy and Friday-afternoon ghost town."
+    "proTip": "Try a free day pass before committing to a membership — the atmosphere changes significantly between Monday-morning energy and Friday-afternoon ghost town.",
+    "image": "/images/businesses/spaces-liberty-village.jpg"
   },
   {
     "slug": "the-fueling-station",
@@ -848,7 +884,8 @@
       "events"
     ],
     "featured": false,
-    "proTip": "Attend one of their monthly community dinners before you sign up — you'll get a real feel for the people and decide if the vibe matches your work style."
+    "proTip": "Attend one of their monthly community dinners before you sign up — you'll get a real feel for the people and decide if the vibe matches your work style.",
+    "image": "/images/businesses/the-fueling-station.jpg"
   },
   {
     "slug": "wework-liberty-village",
@@ -871,7 +908,8 @@
       "craft-beer"
     ],
     "featured": false,
-    "proTip": "The top floor common area is the least crowded and has the best natural light — most people default to the ground floor and miss the best workspace in the building."
+    "proTip": "The top floor common area is the least crowded and has the best natural light — most people default to the ground floor and miss the best workspace in the building.",
+    "image": "/images/businesses/wework-liberty-village.jpg"
   },
   {
     "slug": "freshco-liberty-village",
@@ -894,7 +932,8 @@
       "convenient"
     ],
     "featured": false,
-    "proTip": "Shop before 10am on weekdays to avoid the cramped aisles — this store serves the entire neighbourhood and it shows during peak hours."
+    "proTip": "Shop before 10am on weekdays to avoid the cramped aisles — this store serves the entire neighbourhood and it shows during peak hours.",
+    "image": "/images/businesses/freshco-liberty-village.jpg"
   },
   {
     "slug": "shoppers-drug-mart-liberty-village",
@@ -917,7 +956,8 @@
       "late-hours"
     ],
     "featured": false,
-    "proTip": "Their Optimum points promotions on weekends often include 20x points events — time your bigger purchases for these days and the points add up fast."
+    "proTip": "Their Optimum points promotions on weekends often include 20x points events — time your bigger purchases for these days and the points add up fast.",
+    "image": "/images/businesses/shoppers-drug-mart-liberty-village.jpg"
   },
   {
     "slug": "king-west-dry-cleaners",
@@ -940,7 +980,8 @@
       "suits"
     ],
     "featured": false,
-    "proTip": "Set up a weekly pickup and delivery schedule if you wear dress shirts to work — they offer a 15% discount on recurring orders."
+    "proTip": "Set up a weekly pickup and delivery schedule if you wear dress shirts to work — they offer a 15% discount on recurring orders.",
+    "image": "/images/businesses/king-west-dry-cleaners.jpg"
   },
   {
     "slug": "yoga-tree-liberty-village",
@@ -963,7 +1004,8 @@
       "meditation"
     ],
     "featured": false,
-    "proTip": "The Sunday evening restorative class is the most underrated class on the schedule — it's never crowded and it's the perfect reset before the work week."
+    "proTip": "The Sunday evening restorative class is the most underrated class on the schedule — it's never crowded and it's the perfect reset before the work week.",
+    "image": "/images/businesses/yoga-tree-liberty-village.jpg"
   },
   {
     "slug": "liberty-village-chiropractic",
@@ -986,7 +1028,8 @@
       "direct-billing"
     ],
     "featured": false,
-    "proTip": "Mention you work from home or at a desk — they'll include a free ergonomic workstation assessment with your first visit that alone is worth the appointment."
+    "proTip": "Mention you work from home or at a desk — they'll include a free ergonomic workstation assessment with your first visit that alone is worth the appointment.",
+    "image": "/images/businesses/liberty-village-chiropractic.jpg"
   },
   {
     "slug": "liberty-village-massage-therapy",
@@ -1009,7 +1052,8 @@
       "direct-billing"
     ],
     "featured": false,
-    "proTip": "Book a 60-minute assessment for your first visit instead of a standard massage — they'll identify compensation patterns and make all future sessions more targeted."
+    "proTip": "Book a 60-minute assessment for your first visit instead of a standard massage — they'll identify compensation patterns and make all future sessions more targeted.",
+    "image": "/images/businesses/liberty-village-massage-therapy.jpg"
   },
   {
     "slug": "scotiabank-liberty-village",
@@ -1032,7 +1076,8 @@
       "investments"
     ],
     "featured": false,
-    "proTip": "Skip the branch entirely for routine transactions — their app handles almost everything, and save in-person visits for mortgage or investment consultations."
+    "proTip": "Skip the branch entirely for routine transactions — their app handles almost everything, and save in-person visits for mortgage or investment consultations.",
+    "image": "/images/businesses/scotiabank-liberty-village.jpg"
   },
   {
     "slug": "movati-athletic-liberty-village",
@@ -1055,7 +1100,8 @@
       "athletic-club"
     ],
     "featured": false,
-    "proTip": "The saltwater pool is almost empty between 1-3pm on weekdays — lane swimmers will get uninterrupted laps during this window."
+    "proTip": "The saltwater pool is almost empty between 1-3pm on weekdays — lane swimmers will get uninterrupted laps during this window.",
+    "image": "/images/businesses/movati-athletic-liberty-village.jpg"
   },
   {
     "slug": "liberty-village-optometry",
@@ -1078,7 +1124,8 @@
       "designer-frames"
     ],
     "featured": false,
-    "proTip": "Bring your insurance card and they'll bill directly and tell you exactly what's covered before you choose frames — no surprises at the checkout."
+    "proTip": "Bring your insurance card and they'll bill directly and tell you exactly what's covered before you choose frames — no surprises at the checkout.",
+    "image": "/images/businesses/liberty-village-optometry.jpg"
   },
   {
     "slug": "the-dog-house-grooming",
@@ -1101,7 +1148,8 @@
       "gentle-products"
     ],
     "featured": false,
-    "proTip": "Book a nail trim as a standalone visit first if your dog is nervous — it lets them get comfortable with the groomers before the full grooming experience."
+    "proTip": "Book a nail trim as a standalone visit first if your dog is nervous — it lets them get comfortable with the groomers before the full grooming experience.",
+    "image": "/images/businesses/the-dog-house-grooming.jpg"
   },
   {
     "slug": "liberty-village-family-medicine",
@@ -1124,7 +1172,8 @@
       "ohip"
     ],
     "featured": true,
-    "proTip": "Call on the first Monday of each month to ask about new patient intake — they open spots in batches and they fill within days."
+    "proTip": "Call on the first Monday of each month to ask about new patient intake — they open spots in batches and they fill within days.",
+    "image": "/images/businesses/liberty-village-family-medicine.jpg"
   },
   {
     "slug": "sweet-flour-bake-shop",
@@ -1147,7 +1196,8 @@
       "from-scratch"
     ],
     "featured": true,
-    "proTip": "Order your Thanksgiving and Christmas pies at least two weeks in advance — they cap their orders and sell out every single year without fail."
+    "proTip": "Order your Thanksgiving and Christmas pies at least two weeks in advance — they cap their orders and sell out every single year without fail.",
+    "image": "/images/businesses/sweet-flour-bake-shop.jpg"
   },
   {
     "slug": "studio-spin-liberty-village",
@@ -1170,7 +1220,8 @@
       "leaderboard"
     ],
     "featured": false,
-    "proTip": "Bike 3 and Bike 17 have the smoothest resistance dials — regulars know this and book them first, so snag one early if you want the best ride."
+    "proTip": "Bike 3 and Bike 17 have the smoothest resistance dials — regulars know this and book them first, so snag one early if you want the best ride.",
+    "image": "/images/businesses/studio-spin-liberty-village.jpg"
   },
   {
     "slug": "left-field-brewery",
@@ -1193,7 +1244,8 @@
       "local"
     ],
     "featured": true,
-    "proTip": "Grab a seat on the patio early on Saturday and order a flight — the four-pour sampler lets you try their seasonals without committing to a full pint of something adventurous."
+    "proTip": "Grab a seat on the patio early on Saturday and order a flight — the four-pour sampler lets you try their seasonals without committing to a full pint of something adventurous.",
+    "image": "/images/businesses/left-field-brewery.jpg"
   },
   {
     "slug": "florist-liberty-village",
@@ -1216,7 +1268,8 @@
       "delivery"
     ],
     "featured": false,
-    "proTip": "Subscribe to their weekly flower delivery for your home — it's cheaper per arrangement than buying individual bouquets and you'll always have fresh flowers."
+    "proTip": "Subscribe to their weekly flower delivery for your home — it's cheaper per arrangement than buying individual bouquets and you'll always have fresh flowers.",
+    "image": "/images/businesses/florist-liberty-village.jpg"
   },
   {
     "slug": "cleaning-liberty-village",
@@ -1239,7 +1292,8 @@
       "online-booking"
     ],
     "featured": false,
-    "proTip": "Book a recurring biweekly clean and you'll get priority scheduling — one-off bookings often get bumped to less convenient time slots during busy seasons."
+    "proTip": "Book a recurring biweekly clean and you'll get priority scheduling — one-off bookings often get bumped to less convenient time slots during busy seasons.",
+    "image": "/images/businesses/cleaning-liberty-village.jpg"
   },
   {
     "slug": "liberty-village-rbc",
@@ -1262,7 +1316,8 @@
       "atm"
     ],
     "featured": false,
-    "proTip": "Book mortgage appointments for Tuesday or Wednesday mornings — advisors are less rushed and can spend more time finding you the best rate."
+    "proTip": "Book mortgage appointments for Tuesday or Wednesday mornings — advisors are less rushed and can spend more time finding you the best rate.",
+    "image": "/images/businesses/liberty-village-rbc.jpg"
   },
   {
     "slug": "lavish-hair-studio",
@@ -1285,7 +1340,8 @@
       "keratin"
     ],
     "featured": false,
-    "proTip": "Ask for a consultation before booking your first colour appointment — the stylists prefer to see your hair in person to give an accurate quote and timeline."
+    "proTip": "Ask for a consultation before booking your first colour appointment — the stylists prefer to see your hair in person to give an accurate quote and timeline.",
+    "image": "/images/businesses/lavish-hair-studio.jpg"
   },
   {
     "slug": "benchmark-optometry",
@@ -1308,7 +1364,8 @@
       "contact-lenses"
     ],
     "featured": false,
-    "proTip": "If your insurance covers $200+ for frames, tell them your budget upfront — they'll steer you to brands where you maximize coverage without paying out of pocket."
+    "proTip": "If your insurance covers $200+ for frames, tell them your budget upfront — they'll steer you to brands where you maximize coverage without paying out of pocket.",
+    "image": "/images/businesses/benchmark-optometry.jpg"
   },
   {
     "slug": "personal-training-liberty-village",
@@ -1331,7 +1388,8 @@
       "results"
     ],
     "featured": false,
-    "proTip": "Commit to at least 8 sessions to see real results — the first 2-3 are assessment and baseline, and the real programming doesn't kick in until after that."
+    "proTip": "Commit to at least 8 sessions to see real results — the first 2-3 are assessment and baseline, and the real programming doesn't kick in until after that.",
+    "image": "/images/businesses/personal-training-liberty-village.jpg"
   },
   {
     "slug": "real-estate-liberty-village",
@@ -1354,7 +1412,8 @@
       "liberty-village-specialist"
     ],
     "featured": false,
-    "proTip": "Ask them which buildings have upcoming special assessments — this insider knowledge can save you tens of thousands or help you negotiate a better price."
+    "proTip": "Ask them which buildings have upcoming special assessments — this insider knowledge can save you tens of thousands or help you negotiate a better price.",
+    "image": "/images/businesses/real-estate-liberty-village.jpg"
   },
   {
     "slug": "bike-share-liberty-village",
@@ -1377,7 +1436,8 @@
       "accessories"
     ],
     "featured": false,
-    "proTip": "Bring your bike in for a spring tune-up in March before the April rush — by May the wait time for service can stretch to over a week."
+    "proTip": "Bring your bike in for a spring tune-up in March before the April rush — by May the wait time for service can stretch to over a week.",
+    "image": "/images/businesses/bike-share-liberty-village.jpg"
   },
   {
     "slug": "pure-barre-liberty-village",
@@ -1400,7 +1460,8 @@
       "community"
     ],
     "featured": false,
-    "proTip": "Take the foundations class first even if you're fit — barre technique is specific and learning the form early will make every subsequent class more effective."
+    "proTip": "Take the foundations class first even if you're fit — barre technique is specific and learning the form early will make every subsequent class more effective.",
+    "image": "/images/businesses/pure-barre-liberty-village.jpg"
   },
   {
     "slug": "liberty-village-accounting",
@@ -1423,7 +1484,8 @@
       "freelancer"
     ],
     "featured": false,
-    "proTip": "Don't wait until March to reach out for tax season — book your tax prep consultation in January and you'll get their full attention instead of being squeezed in."
+    "proTip": "Don't wait until March to reach out for tax season — book your tax prep consultation in January and you'll get their full attention instead of being squeezed in.",
+    "image": "/images/businesses/liberty-village-accounting.jpg"
   },
   {
     "slug": "rexall-liberty-village",
@@ -1446,7 +1508,8 @@
       "convenient"
     ],
     "featured": false,
-    "proTip": "Transfer your prescription here from Shoppers if the wait times there frustrate you — Rexall is consistently less busy and fills prescriptions faster."
+    "proTip": "Transfer your prescription here from Shoppers if the wait times there frustrate you — Rexall is consistently less busy and fills prescriptions faster.",
+    "image": "/images/businesses/rexall-liberty-village.jpg"
   },
   {
     "slug": "liberty-village-daycare",
@@ -1469,7 +1532,8 @@
       "licensed"
     ],
     "featured": false,
-    "proTip": "Get on the waitlist the moment you find out you're expecting — seriously, the wait can be 12-18 months and planning early is the only way to secure a spot."
+    "proTip": "Get on the waitlist the moment you find out you're expecting — seriously, the wait can be 12-18 months and planning early is the only way to secure a spot.",
+    "image": "/images/businesses/liberty-village-daycare.jpg"
   },
   {
     "slug": "caterers-liberty-village",
@@ -1492,7 +1556,8 @@
       "delivery"
     ],
     "featured": false,
-    "proTip": "For office lunches, order by 10am the day before and ask about their weekly rotating menu — it keeps your team fed without menu fatigue."
+    "proTip": "For office lunches, order by 10am the day before and ask about their weekly rotating menu — it keeps your team fed without menu fatigue.",
+    "image": "/images/businesses/caterers-liberty-village.jpg"
   },
   {
     "slug": "event-space-liberty-village",
@@ -1515,7 +1580,8 @@
       "heritage"
     ],
     "featured": true,
-    "proTip": "Book the main gallery for winter events — the massive windows catch the afternoon light beautifully, and you'll save on lighting costs compared to an evening booking."
+    "proTip": "Book the main gallery for winter events — the massive windows catch the afternoon light beautifully, and you'll save on lighting costs compared to an evening booking.",
+    "image": "/images/businesses/event-space-liberty-village.jpg"
   },
   {
     "slug": "sushi-liberty-village",
@@ -1538,7 +1604,8 @@
       "special-occasion"
     ],
     "featured": false,
-    "proTip": "Order the Aburi Salmon Oshi — it's the dish that made Miku famous and the one thing every first-timer should try before exploring the rest of the menu."
+    "proTip": "Order the Aburi Salmon Oshi — it's the dish that made Miku famous and the one thing every first-timer should try before exploring the rest of the menu.",
+    "image": "/images/businesses/sushi-liberty-village.jpg"
   },
   {
     "slug": "music-lessons-liberty-village",
@@ -1561,7 +1628,8 @@
       "voice"
     ],
     "featured": false,
-    "proTip": "Book a trial lesson before committing to a package — instructor fit is everything in music education and you want someone whose teaching style clicks."
+    "proTip": "Book a trial lesson before committing to a package — instructor fit is everything in music education and you want someone whose teaching style clicks.",
+    "image": "/images/businesses/music-lessons-liberty-village.jpg"
   },
   {
     "slug": "modern-liberty-village-townhouse",
@@ -1586,7 +1654,8 @@
       "self-check-in"
     ],
     "featured": true,
-    "proTip": "The rooftop patio is perfect for morning coffee with a great view of the neighborhood. The host lives in LV and has excellent restaurant recommendations — just ask."
+    "proTip": "The rooftop patio is perfect for morning coffee with a great view of the neighborhood. The host lives in LV and has excellent restaurant recommendations — just ask.",
+    "image": "/images/businesses/modern-liberty-village-townhouse.jpg"
   },
   {
     "slug": "liberty-village-loft-free-parking",
@@ -1610,7 +1679,8 @@
       "exposed-brick"
     ],
     "featured": false,
-    "proTip": "The free parking spot is a huge deal in Liberty Village — street parking is tough, especially on TFC game days."
+    "proTip": "The free parking spot is a huge deal in Liberty Village — street parking is tough, especially on TFC game days.",
+    "image": "/images/businesses/liberty-village-loft-free-parking.jpg"
   },
   {
     "slug": "chic-1br-loft-townhouse-liberty-village",
@@ -1634,7 +1704,8 @@
       "stylish"
     ],
     "featured": false,
-    "proTip": "The mezzanine layout makes this feel much larger than a typical one-bedroom. Great for couples."
+    "proTip": "The mezzanine layout makes this feel much larger than a typical one-bedroom. Great for couples.",
+    "image": "/images/businesses/chic-1br-loft-townhouse-liberty-village.jpg"
   },
   {
     "slug": "liberty-village-bmo-field-roof-patio",
@@ -1658,7 +1729,8 @@
       "self-check-in"
     ],
     "featured": false,
-    "proTip": "If you're here for a TFC game, you can walk to BMO Field in under 10 minutes. Skip the game-day parking nightmare."
+    "proTip": "If you're here for a TFC game, you can walk to BMO Field in under 10 minutes. Skip the game-day parking nightmare.",
+    "image": "/images/businesses/liberty-village-bmo-field-roof-patio.jpg"
   },
   {
     "slug": "spacious-private-townhouse-loft-lv",
@@ -1681,7 +1753,8 @@
       "wifi"
     ],
     "featured": false,
-    "proTip": "Good option if you're visiting with kids — more space than a typical condo rental and the neighbourhood is very walkable."
+    "proTip": "Good option if you're visiting with kids — more space than a typical condo rental and the neighbourhood is very walkable.",
+    "image": "/images/businesses/spacious-private-townhouse-loft-lv.jpg"
   },
   {
     "slug": "prime-location-stylish-lv-townhouse",
@@ -1705,7 +1778,8 @@
       "guidebook"
     ],
     "featured": false,
-    "proTip": "Ask the host for their local guidebook — it has genuinely good recommendations that you won't find on Google."
+    "proTip": "Ask the host for their local guidebook — it has genuinely good recommendations that you won't find on Google.",
+    "image": "/images/businesses/prime-location-stylish-lv-townhouse.jpg"
   },
   {
     "slug": "downtown-toronto-condo-liberty-village",
@@ -1728,7 +1802,8 @@
       "building-amenities"
     ],
     "featured": false,
-    "proTip": "Budget-friendly option that works well for solo travellers. The building gym saves you from needing a day pass elsewhere."
+    "proTip": "Budget-friendly option that works well for solo travellers. The building gym saves you from needing a day pass elsewhere.",
+    "image": "/images/businesses/downtown-toronto-condo-liberty-village.jpg"
   },
   {
     "slug": "apartment-in-liberty-village",
@@ -1751,6 +1826,7 @@
       "wifi"
     ],
     "featured": false,
-    "proTip": "Solid no-fuss option if you just need a clean place to sleep and plan to spend most of your time out exploring."
+    "proTip": "Solid no-fuss option if you just need a clean place to sleep and plan to spend most of your time out exploring.",
+    "image": "/images/businesses/apartment-in-liberty-village.jpg"
   }
 ]

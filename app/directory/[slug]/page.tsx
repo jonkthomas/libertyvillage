@@ -12,6 +12,7 @@ import {
   getBreadcrumbs,
 } from "@/lib/links";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
 import RelatedLinks from "@/components/RelatedLinks";
 
@@ -65,6 +66,10 @@ export default async function BusinessDetailPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <Breadcrumbs items={breadcrumbs} />
+
+      {business.image && (
+        <HeroImage src={business.image} alt={business.name} />
+      )}
 
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
         {business.name}{" "}

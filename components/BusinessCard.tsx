@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Business } from "@/lib/types";
 
 function StarRating({ rating, reviewCount }: { rating: number; reviewCount: number }) {
@@ -24,6 +25,17 @@ export default function BusinessCard({ business }: { business: Business }) {
       href={`/directory/${business.slug}`}
       className="block rounded-xl border border-warm-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
     >
+      {business.image && (
+        <div className="relative mb-3 overflow-hidden rounded-lg aspect-video">
+          <Image
+            src={business.image}
+            alt={business.name}
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 100vw, 400px"
+          />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold text-warm-900 truncate">
