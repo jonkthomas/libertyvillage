@@ -94,7 +94,16 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 border-t border-white/20 pt-6 text-center">
+        <div className="mt-10 border-t border-white/20 pt-6 flex flex-col items-center gap-2">
+          <div className="flex gap-4">
+            <Link href="/terms" className="text-sm text-white/60 hover:text-white transition-colors">
+              Terms of Service
+            </Link>
+            <span className="text-white/30">|</span>
+            <Link href="/privacy" className="text-sm text-white/60 hover:text-white transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
           <p className="text-sm text-white/60">
             Made with love in Liberty Village, Toronto &copy; {new Date().getFullYear()} LibertyVillage.co
           </p>

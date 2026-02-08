@@ -91,3 +91,19 @@ export function generateBlogIndexPageMeta(): Metadata {
     "/blog"
   );
 }
+
+export function generateTermsPageMeta(): Metadata {
+  return buildMeta(
+    "Terms of Service | libertyvillage.co",
+    "Terms of Service for libertyvillage.co, a local directory and neighborhood guide for Liberty Village, Toronto, Canada.",
+    "/terms"
+  );
+}
+
+export function generatePrivacyPageMeta(): Metadata {
+  return buildMeta(
+    "Privacy Policy | libertyvillage.co",
+    "Privacy Policy for libertyvillage.co. Learn how we handle your data, our use of Google Analytics, and your privacy rights under Canadian law.",
+    "/privacy"
+  );
+}

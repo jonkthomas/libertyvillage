@@ -115,7 +115,7 @@ export function getRelatedServicesForPost(serviceSlugs: string[]): LinkItem[] {
     }));
 }
 
-type PageType = "service" | "neighborhood" | "business" | "guide" | "blog";
+type PageType = "service" | "neighborhood" | "business" | "guide" | "blog" | "terms" | "privacy";
 
 export function getBreadcrumbs(
   pageType: PageType,
@@ -134,5 +134,9 @@ export function getBreadcrumbs(
       return [home, { label: "Guides", href: "/guide/parking-guide" }, { label, href: "#" }];
     case "blog":
       return [home, { label: "Blog", href: "/blog" }, { label, href: "#" }];
+    case "terms":
+      return [home, { label, href: "#" }];
+    case "privacy":
+      return [home, { label, href: "#" }];
   }
 }
