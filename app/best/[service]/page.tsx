@@ -7,7 +7,6 @@ import {
 import { generateServicePageMeta } from "@/lib/meta";
 import {
   generateCollectionPageSchema,
-  generateFAQSchema,
   generateSpeakableSchema,
 } from "@/lib/schema";
 import {
@@ -157,10 +156,6 @@ export default async function ServicePage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(generateFAQSchema(faqs)) }}
       />
       {speakableSchema && (
         <script

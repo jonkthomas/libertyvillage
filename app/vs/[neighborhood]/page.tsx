@@ -4,7 +4,7 @@ import {
   getNeighborhoodBySlug,
 } from "@/lib/data";
 import { generateComparisonPageMeta } from "@/lib/meta";
-import { generateArticleSchema, generateFAQSchema, generateSpeakableSchema } from "@/lib/schema";
+import { generateArticleSchema, generateSpeakableSchema } from "@/lib/schema";
 import { getNearbyNeighborhoods, getBreadcrumbs } from "@/lib/links";
 import { linkifyText, type LinkEntry } from "@/lib/linkify";
 import { getAllServices, getAllBusinesses } from "@/lib/data";
@@ -63,7 +63,6 @@ export default async function ComparisonPage({ params }: Props) {
     neighborhood.verdict.summary,
     new Date().toISOString().split("T")[0]
   );
-  const faqSchema = generateFAQSchema(neighborhood.faqs);
   const speakableSchema = neighborhood.answerBlock
     ? generateSpeakableSchema(`/vs/${neighborhood.slug}`)
     : null;
@@ -200,10 +199,6 @@ export default async function ComparisonPage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
       {speakableSchema && (
         <script
