@@ -69,11 +69,11 @@ jobs:
         run: |
           git config user.name "LV Content Bot"
           git config user.email "noreply@libertyvillage.co"
-          git add data/posts.json "public/images/blog/" "tasks/seo-data-latest.json" "tasks/auto-blog-runs/"
-          git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git stash --keep-index --include-untracked
+          git stash --all
           git pull --rebase origin main
           git stash pop || true
+          git add data/posts.json "public/images/blog/" "tasks/seo-data-latest.json" "tasks/auto-blog-runs/"
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "blog: auto-publish weekly post $(date +%Y-%m-%d)"
           git push origin main
 
