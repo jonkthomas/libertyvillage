@@ -1,0 +1,44 @@
+{
+  "collectedAt": "2026-02-09T00:00:00Z",
+  "gsc": {
+    "searchAnalytics": {
+      "responseAggregationType": "byPage",
+      "rows": []
+    },
+    "quickWins": {
+      "message": "No data available for quick wins analysis"
+    },
+    "sitemapStatus": {
+      "sitemap": [
+        {
+          "path": "https://libertyvillage.co/sitemap.xml",
+          "lastSubmitted": "2026-02-08T01:02:02.611Z",
+          "isPending": false,
+          "isSitemapsIndex": false,
+          "type": "sitemap",
+          "lastDownloaded": "2026-02-08T01:02:24.263Z",
+          "warnings": "0",
+          "errors": "0",
+          "contents": [
+            {
+              "type": "web",
+              "submitted": "177",
+              "indexed": "0"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "ga4": {
+    "trafficByPage": [],
+    "note": "GA4 MCP tool not available"
+  },
+  "analysis": {
+    "status": "Site is in early indexing phase",
+    "sitemapSubmitted": 177,
+    "sitemapIndexed": 0,
+    "searchImpressions": 0,
+    "note": "No SEO data available - proceeding with evergreen topic selection"
+  }
+}
