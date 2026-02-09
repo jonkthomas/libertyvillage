@@ -24,6 +24,9 @@ concurrency:
   group: weekly-blog
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   generate-blog:
     runs-on: ubuntu-latest
