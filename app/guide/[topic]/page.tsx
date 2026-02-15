@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getAllTopics, getTopicBySlug } from "@/lib/data";
 import { generateGuidePageMeta } from "@/lib/meta";
 import { generateArticleSchema, generateDefinedTermSetSchema, generateSpeakableSchema } from "@/lib/schema";
-import { getRelatedGuides, getRelatedServices, getBreadcrumbs } from "@/lib/links";
+import { getRelatedGuides, getRelatedServices, getRelatedPostsForTopic, getBreadcrumbs } from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
@@ -44,6 +44,7 @@ export default async function GuidePage({ params }: Props) {
 
   const relatedGuideLinks = getRelatedGuides(slug);
   const relatedServiceLinks = getServiceLinksFromSlugs(topic.relatedServices);
+  const relatedBlogPosts = getRelatedPostsForTopic(slug);
   const breadcrumbs = getBreadcrumbs("guide", topic.title);
 
   const articleSchema = generateArticleSchema(
@@ -118,6 +119,7 @@ export default async function GuidePage({ params }: Props) {
 
       <RelatedLinks heading="Related Guides" links={relatedGuideLinks} />
       <RelatedLinks heading="Related Services" links={relatedServiceLinks} />
+      <RelatedLinks heading="From the Blog" links={relatedBlogPosts} />
 
       <script
         type="application/ld+json"

@@ -12,6 +12,7 @@ import {
 import {
   getRelatedServices,
   getRelatedGuides,
+  getRelatedPostsForService,
   getBreadcrumbs,
 } from "@/lib/links";
 import { linkifyText, type LinkEntry } from "@/lib/linkify";
@@ -59,6 +60,7 @@ export default async function ServicePage({ params }: Props) {
   const allBusinesses = getAllBusinesses();
   const relatedServices = getRelatedServices(slug);
   const relatedGuides = getRelatedGuides(slug);
+  const relatedBlogPosts = getRelatedPostsForService(slug);
 
   // Build cross-link lookups for business names in descriptions
   const businessLookups: LinkEntry[] = allBusinesses
@@ -152,6 +154,7 @@ export default async function ServicePage({ params }: Props) {
 
       <RelatedLinks heading="Related Services" links={relatedServices} />
       <RelatedLinks heading="Related Guides" links={relatedGuides} />
+      <RelatedLinks heading="From the Blog" links={relatedBlogPosts} />
 
       <script
         type="application/ld+json"

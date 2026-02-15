@@ -5,12 +5,12 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import DirectoryFilter from "@/components/DirectoryFilter";
 
 export const metadata: Metadata = {
-  title: "Liberty Village Business Directory — Find Local Services | libertyvillage.co",
+  title: "Liberty Village Business Directory — Browse All Local Businesses | libertyvillage.co",
   description:
-    "Browse the complete Liberty Village business directory. Search and filter restaurants, services, shops, and more in your neighborhood.",
+    "Browse and search the complete Liberty Village business directory. Find local shops, services, and businesses in your neighborhood.",
   openGraph: {
-    title: "Liberty Village Business Directory",
-    description: "Browse the complete Liberty Village business directory.",
+    title: "Liberty Village Business Directory — Browse All",
+    description: "Browse and search the complete Liberty Village business directory.",
     type: "website",
     url: "https://libertyvillage.co/directory",
     siteName: "LibertyVillage.co",

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { getAllServices, getAllTopics, getBusinessesByCategory } from "@/lib/data";
+import { getAllServices, getAllTopics, getBusinessesByCategory, getRecentPosts } from "@/lib/data";
 import { generateHomePageMeta } from "@/lib/meta";
 import { generateBreadcrumbSchema, generateWebsiteSchema } from "@/lib/schema";
 import ServiceCard from "@/components/ServiceCard";
@@ -33,6 +33,13 @@ export default function Home() {
     topics = getAllTopics().slice(0, 6);
   } catch {
     // topics.json may not exist yet during build
+  }
+
+  let recentPosts: { slug: string; title: string; description: string; category: string; image?: string }[] = [];
+  try {
+    recentPosts = getRecentPosts(3);
+  } catch {
+    // posts.json may not exist yet during build
   }
 
   const accommodations = getBusinessesByCategory("short-term-rentals").slice(0, 3);
@@ -127,6 +134,42 @@ export default function Home() {
                   </div>
                 </Link>
               ))}
+            </div>
+          </section>
+        )}
+
+        {/* Latest from the Blog */}
+        {recentPosts.length > 0 && (
+          <section className="mb-16">
+            <h2 className="text-2xl font-bold text-warm-900">
+              Latest from the Blog
+            </h2>
+            <p className="mt-1 text-warm-500">
+              News, tips, and stories from the neighborhood.
+            </p>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {recentPosts.map((post) => (
+                <Link key={post.slug} href={`/blog/${post.slug}`} className="group overflow-hidden rounded-xl border border-warm-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                  {post.image && (
+                    <div className="relative aspect-video overflow-hidden">
+                      <Image src={post.image} alt={post.title} fill className="object-cover transition-transform group-hover:scale-105" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <span className="text-xs font-medium uppercase text-amber-600">{post.category.replace(/-/g, " ")}</span>
+                    <h3 className="mt-1 font-semibold text-warm-900 group-hover:text-amber-600 transition-colors">{post.title}</h3>
+                    <p className="mt-1 text-sm text-warm-500 line-clamp-2">{post.description}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-4">
+              <Link
+                href="/blog"
+                className="text-sm font-medium text-amber-600 hover:underline"
+              >
+                Read more on the blog &rarr;
+              </Link>
             </div>
           </section>
         )}

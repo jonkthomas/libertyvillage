@@ -115,6 +115,30 @@ export function getRelatedServicesForPost(serviceSlugs: string[]): LinkItem[] {
     }));
 }
 
+export function getRelatedPostsForService(serviceSlug: string): LinkItem[] {
+  return getAllPosts()
+    .filter((p) => p.relatedServices?.includes(serviceSlug))
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, 3)
+    .map((p) => ({
+      title: p.title,
+      href: `/blog/${p.slug}`,
+      description: p.description,
+    }));
+}
+
+export function getRelatedPostsForTopic(topicSlug: string): LinkItem[] {
+  return getAllPosts()
+    .filter((p) => p.relatedTopics?.includes(topicSlug))
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, 3)
+    .map((p) => ({
+      title: p.title,
+      href: `/blog/${p.slug}`,
+      description: p.description,
+    }));
+}
+
 type PageType = "service" | "neighborhood" | "business" | "guide" | "blog" | "terms" | "privacy";
 
 export function getBreadcrumbs(
