@@ -1,0 +1,30 @@
+{
+  "runDate": "2026-02-15",
+  "status": "success",
+  "topicSelected": {
+    "topic": "Best Coffee Shops in Liberty Village",
+    "slug": "best-coffee-shops-liberty-village-2026",
+    "category": "food-drink",
+    "keywords": "coffee shops liberty village, cafe liberty village, coffee liberty village",
+    "justification": "SEO data shows search demand for cafe liberty village (position 55), no dedicated coffee shop blog post exists, food-drink category underrepresented (only 2/12 posts), and winter season makes coffee content highly relevant."
+  },
+  "qualityMetrics": {
+    "wordCount": 930,
+    "internalLinks": 5,
+    "businessMentions": 5,
+    "faqCount": 5,
+    "answerBlockWords": 65
+  },
+  "validationResults": {
+    "diagnostic": "PASSED",
+    "build": "PASSED",
+    "crossReferences": "ALL VALID"
+  },
+  "imageSource": "Pexels API (Tier 1)",
+  "filesModified": [
+    "data/posts.json",
+    "public/images/blog/best-coffee-shops-liberty-village-2026.jpg",
+    "tasks/seo-data-latest.json",
+    "tasks/auto-blog-runs/2026-02-15.json"
+  ]
+}

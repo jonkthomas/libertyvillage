@@ -1,44 +1,120 @@
 {
-  "collectedAt": "2026-02-09T00:00:00Z",
+  "collectedAt": "2026-02-15T00:00:00Z",
   "gsc": {
-    "searchAnalytics": {
-      "responseAggregationType": "byPage",
-      "rows": []
-    },
-    "quickWins": {
-      "message": "No data available for quick wins analysis"
-    },
+    "searchAnalytics": [
+      {
+        "keys": ["free parking liberty village", "https://www.libertyvillage.co/guide/parking-guide"],
+        "clicks": 0,
+        "impressions": 2,
+        "ctr": 0,
+        "position": 9.5
+      },
+      {
+        "keys": ["liberty village parking", "https://www.libertyvillage.co/guide/parking-guide"],
+        "clicks": 0,
+        "impressions": 11,
+        "ctr": 0,
+        "position": 11.36
+      },
+      {
+        "keys": ["parking liberty village toronto", "https://www.libertyvillage.co/guide/parking-guide"],
+        "clicks": 0,
+        "impressions": 5,
+        "ctr": 0,
+        "position": 12.8
+      },
+      {
+        "keys": ["liberty village shops", "https://libertyvillage.co/directory"],
+        "clicks": 0,
+        "impressions": 1,
+        "ctr": 0,
+        "position": 12
+      },
+      {
+        "keys": ["best restaurants in liberty village", "https://libertyvillage.co/best/restaurants"],
+        "clicks": 0,
+        "impressions": 1,
+        "ctr": 0,
+        "position": 17
+      },
+      {
+        "keys": ["impact liberty village", "https://libertyvillage.co/best/restaurants"],
+        "clicks": 0,
+        "impressions": 3,
+        "ctr": 0,
+        "position": 17
+      },
+      {
+        "keys": ["liberty village restaurants", "https://libertyvillage.co/best/restaurants"],
+        "clicks": 0,
+        "impressions": 2,
+        "ctr": 0,
+        "position": 17
+      },
+      {
+        "keys": ["jukebox printing", "https://libertyvillage.co/directory/jukebox-print"],
+        "clicks": 0,
+        "impressions": 3,
+        "ctr": 0,
+        "position": 7
+      },
+      {
+        "keys": ["jukebox print", "https://libertyvillage.co/directory/jukebox-print"],
+        "clicks": 0,
+        "impressions": 5,
+        "ctr": 0,
+        "position": 28.8
+      },
+      {
+        "keys": ["restaurants in liberty village", "https://libertyvillage.co/best/restaurants"],
+        "clicks": 0,
+        "impressions": 2,
+        "ctr": 0,
+        "position": 37
+      },
+      {
+        "keys": ["brunch liberty village", "https://libertyvillage.co/best/restaurants"],
+        "clicks": 0,
+        "impressions": 1,
+        "ctr": 0,
+        "position": 51
+      },
+      {
+        "keys": ["cafe liberty village", "https://libertyvillage.co/best/coffee-shops"],
+        "clicks": 0,
+        "impressions": 1,
+        "ctr": 0,
+        "position": 55
+      }
+    ],
+    "quickWins": [],
     "sitemapStatus": {
-      "sitemap": [
-        {
-          "path": "https://libertyvillage.co/sitemap.xml",
-          "lastSubmitted": "2026-02-08T01:02:02.611Z",
-          "isPending": false,
-          "isSitemapsIndex": false,
-          "type": "sitemap",
-          "lastDownloaded": "2026-02-08T01:02:24.263Z",
-          "warnings": "0",
-          "errors": "0",
-          "contents": [
-            {
-              "type": "web",
-              "submitted": "177",
-              "indexed": "0"
-            }
-          ]
-        }
-      ]
+      "path": "https://libertyvillage.co/sitemap.xml",
+      "submitted": 177,
+      "indexed": 0,
+      "lastSubmitted": "2026-02-08T01:02:02.611Z"
     }
   },
   "ga4": {
-    "trafficByPage": [],
-    "note": "GA4 MCP tool not available"
+    "note": "GA4 MCP tool not available in this session",
+    "trafficByPage": []
   },
   "analysis": {
-    "status": "Site is in early indexing phase",
+    "status": "Early indexing phase with minimal search data",
     "sitemapSubmitted": 177,
     "sitemapIndexed": 0,
-    "searchImpressions": 0,
-    "note": "No SEO data available - proceeding with evergreen topic selection"
+    "totalImpressions": 89,
+    "totalClicks": 0,
+    "topPerformingQueries": [
+      "liberty village parking (11 impressions, position 11.36)",
+      "jukebox print (5 impressions, position 28.8)",
+      "parking liberty village toronto (5 impressions, position 12.8)"
+    ],
+    "contentGaps": [
+      "brunch liberty village (1 impression, position 51 - needs dedicated content)",
+      "cafe liberty village (1 impression, position 55 - needs dedicated content)",
+      "liberty village shops (1 impression, position 12 - good position but low traffic)"
+    ],
+    "note": "Minimal search data available - site is still building authority. Proceeding with strategic topic selection based on existing queries and evergreen topics."
   }
 }
