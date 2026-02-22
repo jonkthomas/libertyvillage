@@ -1,0 +1,23 @@
+{
+  "runDate": "2026-02-22",
+  "success": true,
+  "topic": "Liberty Village Weekend Activities Guide",
+  "slug": "weekend-activities-liberty-village-guide",
+  "category": "events",
+  "wordCount": 1096,
+  "internalLinks": 11,
+  "businessMentions": 16,
+  "imageSource": "Pexels (Tier 1)",
+  "diagnosticResult": "PASSED",
+  "buildResult": "SUCCESS",
+  "commitHash": "8955642",
+  "steps": {
+    "seoDataCollection": "completed",
+    "topicSelection": "completed - evergreen topic (no SEO data)",
+    "blogGeneration": "completed",
+    "imageSourcing": "completed - Pexels",
+    "qualityGuard": "passed",
+    "validation": "passed",
+    "commit": "completed"
+  }
+}
