@@ -108,7 +108,18 @@ If the `TOPIC_OVERRIDE` environment variable is set (non-empty):
 - Generate a title, slug, keywords, and category from the override
 - Proceed directly to Step 3 (Blog Generation)
 
-### 2.3 Topic Selection Criteria
+### 2.3 World Cup Priority (March-July 2026)
+
+During March through July 2026, prioritize World Cup-adjacent topics when they score well on other criteria. These include:
+- Match-specific guides (per-game day guides for each of the 6 Toronto matches)
+- Diaspora fan guides (German, Croatian, Ghanaian, Panamanian, Senegalese fans in Toronto)
+- Pre/post-game logistics updates
+- Fan Festival coverage and updates
+- Liberty Village match-day atmosphere recaps (post-event content)
+
+After the World Cup (August+), return to normal topic selection weighting.
+
+### 2.4 Topic Selection Criteria
 
 Score potential topics on these factors (1-5 scale each):
 
@@ -129,7 +140,7 @@ Before finalizing a topic, verify:
 
 1. **No slug collision**: The proposed slug does NOT exist in `data/posts.json`
 2. **No title overlap**: No existing post title is substantially similar (>60% word overlap)
-3. **Recent topic check**: The selected category has NOT been used in the last 4 posts
+3. **Recent topic check**: The selected category has NOT been used in the last 2 posts
 4. **Keyword check**: The primary keyword is not already targeted by an existing post
 
 If any check fails, select the next-highest-scoring topic.
@@ -150,6 +161,13 @@ If no SEO data is available (Step 1 returned no data), select from this evergree
 | Liberty Village coffee shop guide | food-drink | coffee, cafes, work |
 | Nightlife in Liberty Village | food-drink | bars, nightlife, drinks |
 | Liberty Village family guide | community | family, kids, family-friendly |
+| World Cup match day guide (per match) | events | fifa, world cup, game day |
+| German fans guide to Toronto | community | germany, world cup, diaspora |
+| Croatian fans guide to Toronto | community | croatia, world cup, diaspora |
+| Best patios near BMO Field | food-drink | patios, bmo field, outdoor |
+| Liberty Village grocery guide | lifestyle | grocery, freshco, shopping |
+| Liberty Village running routes | lifestyle | running, martin goodman trail |
+| Toronto rental deals 2026 | real-estate | rent, deals, incentives |
 
 Select the first topic from this list that:
 - Has NOT been covered in existing posts
@@ -386,7 +404,7 @@ After sourcing from ANY tier, verify:
 
 1. **Slug uniqueness**: The proposed slug does NOT exist in `data/posts.json`
 2. **Title similarity**: No existing post title shares >60% of the same words (case-insensitive)
-3. **Recent topic check**: The selected category has NOT been used in the last 4 posts (by publishedAt date)
+3. **Recent topic check**: The selected category has NOT been used in the last 2 posts (by publishedAt date)
 4. **Keyword overlap**: The primary target keyword is not the primary keyword of any existing post
 
 If any check fails: select the next-best topic and re-check. If 3 topics fail, use an evergreen topic.

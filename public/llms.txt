@@ -1,0 +1,53 @@
+# libertyvillage.co
+
+> The definitive neighbourhood guide to Liberty Village, Toronto. Local restaurant reviews, service directories, transit guides, real estate data, and community news for residents and visitors.
+
+## Core Pages
+- [Homepage](https://libertyvillage.co/): Overview of Liberty Village neighbourhood with featured guides, services, and blog posts
+- [Blog](https://libertyvillage.co/blog): Weekly neighbourhood news, guides, and lifestyle content
+- [Directory](https://libertyvillage.co/directory): 120+ local business listings with reviews and details
+
+## Neighbourhood Guides
+- [Parking Guide](https://libertyvillage.co/guide/parking-guide): Street parking, condo parking, permits, and costs
+- [Transit Guide](https://libertyvillage.co/guide/transit-guide): 504 King streetcar, GO Transit, bike routes, Ontario Line updates
+- [Moving Guide](https://libertyvillage.co/guide/moving-guide): Complete relocation checklist for Liberty Village
+- [Fitness Guide](https://libertyvillage.co/guide/fitness-guide): Every gym, studio, and fitness option compared
+
+## Service Directories
+- [Best Restaurants](https://libertyvillage.co/best/restaurants): Top-rated restaurants with prices and reviews
+- [Best Coffee Shops](https://libertyvillage.co/best/coffee-shops): Cafes ranked for coffee quality, WiFi, and remote work
+- [Best Bars](https://libertyvillage.co/best/bars): Neighbourhood bars, breweries, and wine bars
+- [Best Brunch Spots](https://libertyvillage.co/best/brunch-spots): Weekend brunch guide with wait times and prices
+- [Best Gyms](https://libertyvillage.co/best/gyms): Gym comparison with monthly costs and amenities
+- [Best Patios](https://libertyvillage.co/best/patios): Outdoor dining and patio guide
+
+## Key Blog Posts
+- [FIFA World Cup 2026 Liberty Village Survival Guide](https://libertyvillage.co/blog/fifa-world-cup-2026-liberty-village-survival-guide): Match schedule, transit, road closures, where to watch
+- [Best Bars & Restaurants Near BMO Field](https://libertyvillage.co/blog/best-bars-restaurants-near-bmo-field-world-cup-2026): Pre-game dining, walkable venues from BMO Field, price ranges
+- [Walking from Liberty Village to BMO Field](https://libertyvillage.co/blog/walking-liberty-village-to-bmo-field-game-day-route): Turn-by-turn routes, 15-20 min walk, landmarks, transit alternatives
+- [World Cup Road Closures & Resident Access](https://libertyvillage.co/blog/liberty-village-world-cup-road-closures-resident-access): Lake Shore, Strachan, Dufferin closures, local access permits
+- [Watch World Cup Without Tickets](https://libertyvillage.co/blog/watch-world-cup-liberty-village-without-tickets): Bentway FIFA Fan Festival, bar watch parties, free viewing options
+- [Moving to Liberty Village 2026](https://libertyvillage.co/blog/moving-to-liberty-village-2026-essential-guide): Rent prices ($2,608 median), transit, groceries, honest pros and cons
+- [Best Restaurants Guide](https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide): Local's honest ranking of every restaurant
+- [Car-Free Living Guide](https://libertyvillage.co/blog/liberty-village-car-free-transit-guide-2026): How to live without a car, cost comparison, transit options
+- [Condo Market 2026](https://libertyvillage.co/blog/liberty-village-condo-market-2026-buyers-renters): Prices, trends, what's performing, buy vs rent analysis
+- [Best Patios 2026](https://libertyvillage.co/blog/best-patios-liberty-village-2026-guide): Ranked outdoor dining guide with capacity and reservations
+- [Coworking Spaces Compared](https://libertyvillage.co/blog/coworking-spaces-liberty-village-compared-2026): Every coworking option with prices, amenities, and day passes
+- [Grocery Guide](https://libertyvillage.co/blog/grocery-stores-liberty-village-complete-guide): FreshCo, Rabba, specialty shops, delivery options compared
+
+## Neighbourhood Comparisons
+- [Liberty Village vs King West](https://libertyvillage.co/vs/king-west)
+- [Liberty Village vs CityPlace](https://libertyvillage.co/vs/cityplace)
+- [Liberty Village vs Parkdale](https://libertyvillage.co/vs/parkdale)
+- [Liberty Village vs Queen West](https://libertyvillage.co/vs/queen-west)
+- [Liberty Village vs Leslieville](https://libertyvillage.co/vs/leslieville)
+
+## Key Facts
+- Location: Liberty Village, Toronto, Ontario, Canada
+- Area: 28-hectare neighbourhood bounded by King Street West, Dufferin Street, and the GO rail corridor
+- Population: ~7,500 residents, primarily young professionals aged 25-40
+- Median rent: $2,608/month for a one-bedroom (early 2026)
+- Median condo price: $610,000 (December 2025)
+- Transit: 504 King streetcar, Exhibition GO Station, Ontario Line coming 2031
+- Walk Score: 88 | Transit Score: 96
+- Adjacent to BMO Field (FIFA World Cup 2026 venue) and The Bentway FIFA Fan Festival
