@@ -42,7 +42,7 @@ export function generateHomePageMeta(): Metadata {
 export function generateServicePageMeta(service: Service): Metadata {
   return buildMeta(
     `Best ${service.pluralName} in Liberty Village (2026) | libertyvillage.co`,
-    `Find the best ${service.pluralName.toLowerCase()} in Liberty Village, Toronto. Ranked by locals with reviews, tips, and insider recommendations.`,
+    service.description.slice(0, 155),
     `/best/${service.slug}`,
     "/images/og/og-service.jpg"
   );
