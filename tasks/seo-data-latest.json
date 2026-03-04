@@ -1,58 +1,2450 @@
 {
-  "collectedAt": "2026-03-04T11:30:00.000Z",
-  "gsc": {
-    "searchAnalytics": [
-      {
-        "keys": ["spadina auto", "https://libertyvillage.co/directory/spadina-auto"],
-        "clicks": 0,
-        "impressions": 32,
-        "ctr": 0,
-        "position": 9.88
-      },
-      {
-        "keys": ["gym liberty village", "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"],
-        "clicks": 0,
-        "impressions": 9,
-        "ctr": 0,
-        "position": 11.22
-      },
-      {
-        "keys": ["f45 liberty village", "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"],
-        "clicks": 0,
-        "impressions": 6,
-        "ctr": 0,
-        "position": 27
-      },
-      {
-        "keys": ["fitness classes liberty village", "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"],
-        "clicks": 0,
-        "impressions": 6,
-        "ctr": 0,
-        "position": 13.83
-      },
-      {
-        "keys": ["liberty village restaurants", "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"],
-        "clicks": 0,
-        "impressions": 6,
-        "ctr": 0,
-        "position": 16.5
-      },
-      {
-        "keys": ["parking liberty village toronto", "https://libertyvillage.co/guide/parking-guide"],
-        "clicks": 0,
-        "impressions": 5,
-        "ctr": 0,
-        "position": 10.6
-      }
-    ],
-    "quickWins": [],
-    "sitemapStatus": {
-      "submitted": 241,
-      "indexed": 0,
-      "lastSubmitted": "2026-02-28T21:33:57.139Z"
+  "gscThisWeek": [
+    {
+      "keys": [
+        "#libertyvillage",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 12.333333333333334
+    },
+    {
+      "keys": [
+        "311 noise complaint",
+        "https://libertyvillage.co/guide/noise-complaints"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 84
+    },
+    {
+      "keys": [
+        "arvo liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 33
+    },
+    {
+      "keys": [
+        "best brunch liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 9.75
+    },
+    {
+      "keys": [
+        "best food liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 42
+    },
+    {
+      "keys": [
+        "best restaurant liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 31
+    },
+    {
+      "keys": [
+        "best restaurants in liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 27
+    },
+    {
+      "keys": [
+        "best restaurants in liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 86
+    },
+    {
+      "keys": [
+        "best restaurants in liberty village toronto",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 35
+    },
+    {
+      "keys": [
+        "best restaurants in liberty village toronto",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 83.5
+    },
+    {
+      "keys": [
+        "best restaurants liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 32
+    },
+    {
+      "keys": [
+        "best restaurants liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 91.5
+    },
+    {
+      "keys": [
+        "bmo field toronto",
+        "https://libertyvillage.co/blog/best-bars-restaurants-near-bmo-field-world-cup-2026"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "brunch in liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "brunch liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "coffee shop liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "coffee shops liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "f45 liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 27.5
+    },
+    {
+      "keys": [
+        "f45 training liberty village, gym/physical fitness center, toronto",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 17.25
+    },
+    {
+      "keys": [
+        "fitness classes liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 13.285714285714286
+    },
+    {
+      "keys": [
+        "food in liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "free parking liberty village",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 12.333333333333334
+    },
+    {
+      "keys": [
+        "goodlife fitness liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 36
+    },
+    {
+      "keys": [
+        "goodlife liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 22
+    },
+    {
+      "keys": [
+        "goodlife liberty village hours",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 15
+    },
+    {
+      "keys": [
+        "goodlife liberty village parking",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 12
+    },
+    {
+      "keys": [
+        "gym in liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 10.857142857142858
+    },
+    {
+      "keys": [
+        "gym liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 11,
+      "ctr": 0,
+      "position": 11.090909090909092
+    },
+    {
+      "keys": [
+        "gym near liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 10.75
+    },
+    {
+      "keys": [
+        "liberty commons offers",
+        "https://libertyvillage.co/blog/weekend-activities-liberty-village-guide"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 16.333333333333336
+    },
+    {
+      "keys": [
+        "liberty eats",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 71
+    },
+    {
+      "keys": [
+        "liberty gym",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+    },
+    {
+      "keys": [
+        "liberty house parking",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 53
+    },
+    {
+      "keys": [
+        "liberty st diner reviews",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+    },
+    {
+      "keys": [
+        "liberty tower",
+        "https://libertyvillage.co/blog/liberty-village-new-towers-development-2026"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 97
+    },
+    {
+      "keys": [
+        "liberty village",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 28.25
+    },
+    {
+      "keys": [
+        "liberty village brunch",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 10.333333333333334
+    },
+    {
+      "keys": [
+        "liberty village coffee shops",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 8
+    },
+    {
+      "keys": [
+        "liberty village condos",
+        "https://libertyvillage.co/blog/dog-owners-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+    },
+    {
+      "keys": [
+        "liberty village f45",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 26.5
+    },
+    {
+      "keys": [
+        "liberty village fitness",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+    },
+    {
+      "keys": [
+        "liberty village grocery store",
+        "https://libertyvillage.co/blog/grocery-stores-liberty-village-complete-guide"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 4.333333333333334
+    },
+    {
+      "keys": [
+        "liberty village gym",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 15
+    },
+    {
+      "keys": [
+        "liberty village gyms",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+    },
+    {
+      "keys": [
+        "liberty village locations",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 14
+    },
+    {
+      "keys": [
+        "liberty village parking",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 92
+    },
+    {
+      "keys": [
+        "liberty village parking",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 29
+    },
+    {
+      "keys": [
+        "liberty village pizza",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 13
+    },
+    {
+      "keys": [
+        "liberty village restaurants",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 16.5
+    },
+    {
+      "keys": [
+        "liberty village restaurants",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 67.33333333333333
+    },
+    {
+      "keys": [
+        "liberty village this weekend",
+        "https://libertyvillage.co/blog/weekend-activities-liberty-village-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+    },
+    {
+      "keys": [
+        "liberty village toronto",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 42.5
+    },
+    {
+      "keys": [
+        "liberty village toronto on",
+        "http://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+    },
+    {
+      "keys": [
+        "liberty village.",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 82
+    },
+    {
+      "keys": [
+        "loblaws liberty village",
+        "https://libertyvillage.co/blog/grocery-stores-liberty-village-complete-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 5.5
+    },
+    {
+      "keys": [
+        "local liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 34.8
+    },
+    {
+      "keys": [
+        "local liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 84
+    },
+    {
+      "keys": [
+        "local public eatery liberty village reviews",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 60
+    },
+    {
+      "keys": [
+        "locals liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 38
+    },
+    {
+      "keys": [
+        "moving to liberty village",
+        "https://libertyvillage.co/blog/moving-to-liberty-village-2026-essential-guide"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 7.75
+    },
+    {
+      "keys": [
+        "oeb liberty village",
+        "https://libertyvillage.co/directory/oeb-breakfast-co"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 38
+    },
+    {
+      "keys": [
+        "ontario line liberty village",
+        "https://libertyvillage.co/blog/ontario-line-construction-liberty-village-2026"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+    },
+    {
+      "keys": [
+        "parking in liberty village",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 88
+    },
+    {
+      "keys": [
+        "parking in liberty village",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 24.5
+    },
+    {
+      "keys": [
+        "parking liberty village",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 31
+    },
+    {
+      "keys": [
+        "parking liberty village toronto",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 10.6
+    },
+    {
+      "keys": [
+        "places to eat liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 42
+    },
+    {
+      "keys": [
+        "restaurants in liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 26
+    },
+    {
+      "keys": [
+        "restaurants in liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 35
+    },
+    {
+      "keys": [
+        "restaurants in liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 75
+    },
+    {
+      "keys": [
+        "restaurants liberty",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 32
+    },
+    {
+      "keys": [
+        "shoppers liberty village",
+        "https://libertyvillage.co/blog/grocery-stores-liberty-village-complete-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+    },
+    {
+      "keys": [
+        "spaces liberty village",
+        "https://libertyvillage.co/best/coworking-spaces"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 46
+    },
+    {
+      "keys": [
+        "spaces liberty village",
+        "https://libertyvillage.co/blog/coworking-spaces-liberty-village-compared-2026"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 97
+    },
+    {
+      "keys": [
+        "spadina auto",
+        "https://libertyvillage.co/directory/spadina-auto"
+      ],
+      "clicks": 0,
+      "impressions": 44,
+      "ctr": 0,
+      "position": 9.727272727272727
+    },
+    {
+      "keys": [
+        "spadina auto reviews",
+        "https://libertyvillage.co/directory/spadina-auto"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 8.428571428571429
+    },
+    {
+      "keys": [
+        "spadina auto service",
+        "https://libertyvillage.co/directory/spadina-auto"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 12
+    },
+    {
+      "keys": [
+        "strong liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 74
+    },
+    {
+      "keys": [
+        "the local liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 39.666666666666664
+    },
+    {
+      "keys": [
+        "the local liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 87
+    },
+    {
+      "keys": [
+        "underground latest 2026",
+        "https://libertyvillage.co/blog/ontario-line-construction-liberty-village-2026"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 25
+    },
+    {
+      "keys": [
+        "wework liberty village",
+        "https://libertyvillage.co/blog/remote-work-cafes-coworking-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 19
+    },
+    {
+      "keys": [
+        "where is liberty village located",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 65.5
+    },
+    {
+      "keys": [
+        "world cup village",
+        "https://libertyvillage.co/blog/fifa-world-cup-2026-liberty-village-survival-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
     }
-  },
-  "ga4": {
-    "note": "GA4 MCP tools not available - site is new with minimal traffic"
+  ],
+  "gscLastWeek": [
+    {
+      "keys": [
+        "#libertyvillage",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 8.666666666666668
+    },
+    {
+      "keys": [
+        "311 noise complaint",
+        "https://libertyvillage.co/guide/noise-complaints"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 83
+    },
+    {
+      "keys": [
+        "altea liberty village photos",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 59
+    },
+    {
+      "keys": [
+        "arvo liberty village",
+        "https://www.libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 47
+    },
+    {
+      "keys": [
+        "balzac's liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+    },
+    {
+      "keys": [
+        "bars in liberty village",
+        "https://libertyvillage.co/blog/date-night-liberty-village-every-budget"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 14
+    },
+    {
+      "keys": [
+        "bars in liberty village toronto",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 56
+    },
+    {
+      "keys": [
+        "best brunch liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "best food liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "best restaurant in the village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 29
+    },
+    {
+      "keys": [
+        "best restaurant liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 70
+    },
+    {
+      "keys": [
+        "best restaurant liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 28
+    },
+    {
+      "keys": [
+        "best restaurants in liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+    },
+    {
+      "keys": [
+        "best restaurants liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 9
+    },
+    {
+      "keys": [
+        "breakfast in liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 78
+    },
+    {
+      "keys": [
+        "breakfast in liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 26
+    },
+    {
+      "keys": [
+        "brunch in liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 73
+    },
+    {
+      "keys": [
+        "brunch in liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "brunch liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 69
+    },
+    {
+      "keys": [
+        "brunch liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 10.75
+    },
+    {
+      "keys": [
+        "cafe liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "cafes in liberty",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "cafes in liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 87
+    },
+    {
+      "keys": [
+        "coffee liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+    },
+    {
+      "keys": [
+        "coffee shop liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+    },
+    {
+      "keys": [
+        "coffee shops liberty village",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 13.333333333333334
+    },
+    {
+      "keys": [
+        "condo noise complaint",
+        "https://libertyvillage.co/guide/noise-complaints"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 52
+    },
+    {
+      "keys": [
+        "condo noise complaints",
+        "https://libertyvillage.co/guide/noise-complaints"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 82
+    },
+    {
+      "keys": [
+        "f45 liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 25.75
+    },
+    {
+      "keys": [
+        "f45 training liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 27.333333333333332
+    },
+    {
+      "keys": [
+        "fitness classes liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 12.5
+    },
+    {
+      "keys": [
+        "free parking liberty village",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "goodlife fitness liberty",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 13
+    },
+    {
+      "keys": [
+        "goodlife fitness liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 2
+    },
+    {
+      "keys": [
+        "goodlife liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 19
+    },
+    {
+      "keys": [
+        "green p liberty village",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "gym in liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 11,
+      "ctr": 0,
+      "position": 22.545454545454547
+    },
+    {
+      "keys": [
+        "gym liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 10,
+      "ctr": 0,
+      "position": 16.4
+    },
+    {
+      "keys": [
+        "gym near liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 16.166666666666664
+    },
+    {
+      "keys": [
+        "gyms in liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 8.5
+    },
+    {
+      "keys": [
+        "gyms liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 17
+    },
+    {
+      "keys": [
+        "impact liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 18.5
+    },
+    {
+      "keys": [
+        "jukebox canada",
+        "https://libertyvillage.co/directory/jukebox-print"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 68
+    },
+    {
+      "keys": [
+        "jukebox print",
+        "https://libertyvillage.co/directory/jukebox-print"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 18.333333333333332
+    },
+    {
+      "keys": [
+        "jukebox print toronto",
+        "https://libertyvillage.co/directory/jukebox-print"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 24
+    },
+    {
+      "keys": [
+        "jukebox printing",
+        "https://libertyvillage.co/directory/jukebox-print"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 8
+    },
+    {
+      "keys": [
+        "jukebox toronto",
+        "https://libertyvillage.co/directory/jukebox-print"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 58
+    },
+    {
+      "keys": [
+        "liberity village",
+        "https://www.libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 85
+    },
+    {
+      "keys": [
+        "liberty brunch",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "liberty coffee bar",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+    },
+    {
+      "keys": [
+        "liberty commons offers",
+        "https://libertyvillage.co/blog/weekend-activities-liberty-village-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 25
+    },
+    {
+      "keys": [
+        "liberty diner",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 74
+    },
+    {
+      "keys": [
+        "liberty fitness center, gym/physical fitness center, liberty",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 25
+    },
+    {
+      "keys": [
+        "liberty grounds coffee shop",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+    },
+    {
+      "keys": [
+        "liberty house parking",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 59
+    },
+    {
+      "keys": [
+        "liberty love toronto",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 72
+    },
+    {
+      "keys": [
+        "liberty market parking",
+        "https://www.libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+    },
+    {
+      "keys": [
+        "liberty parking",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+    },
+    {
+      "keys": [
+        "liberty restaurants",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+    },
+    {
+      "keys": [
+        "liberty st diner photos",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 95
+    },
+    {
+      "keys": [
+        "liberty village",
+        "https://www.libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 21.75
+    },
+    {
+      "keys": [
+        "liberty village brunch",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "liberty village cafe",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 84
+    },
+    {
+      "keys": [
+        "liberty village coffee shops",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 38
+    },
+    {
+      "keys": [
+        "liberty village f45",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 26.666666666666668
+    },
+    {
+      "keys": [
+        "liberty village food",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 46
+    },
+    {
+      "keys": [
+        "liberty village gyms",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 4.333333333333334
+    },
+    {
+      "keys": [
+        "liberty village market cafe",
+        "https://libertyvillage.co/best/coffee-shops"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 64
+    },
+    {
+      "keys": [
+        "liberty village park toronto",
+        "https://www.libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+    },
+    {
+      "keys": [
+        "liberty village parking",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 9.666666666666666
+    },
+    {
+      "keys": [
+        "liberty village parking",
+        "https://www.libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 8.833333333333332
+    },
+    {
+      "keys": [
+        "liberty village pizza",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 17
+    },
+    {
+      "keys": [
+        "liberty village plumbing",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 64
+    },
+    {
+      "keys": [
+        "liberty village restaurants",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 11.333333333333334
+    },
+    {
+      "keys": [
+        "liberty village restaurants",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 16.714285714285715
+    },
+    {
+      "keys": [
+        "liberty village restaurants",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 71.25
+    },
+    {
+      "keys": [
+        "liberty village shopping",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 20
+    },
+    {
+      "keys": [
+        "liberty village shops",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 12
+    },
+    {
+      "keys": [
+        "liberty village stores",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 9.666666666666666
+    },
+    {
+      "keys": [
+        "liberty village this weekend",
+        "https://libertyvillage.co/blog/weekend-activities-liberty-village-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "liberty village toronto",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 12.5
+    },
+    {
+      "keys": [
+        "liberty village toronto",
+        "https://www.libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 13.5
+    },
+    {
+      "keys": [
+        "liberty village toronto map",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 93
+    },
+    {
+      "keys": [
+        "liberty village toronto ontario",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 71
+    },
+    {
+      "keys": [
+        "liberty village toronto restaurants",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 12
+    },
+    {
+      "keys": [
+        "liberty village toronto, neighborhood, toronto",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 19
+    },
+    {
+      "keys": [
+        "liberty village wework",
+        "https://libertyvillage.co/blog/remote-work-cafes-coworking-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "liberty village.",
+        "https://www.libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+    },
+    {
+      "keys": [
+        "loberty village",
+        "https://libertyvillage.co/"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 72
+    },
+    {
+      "keys": [
+        "local eatery liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 61
+    },
+    {
+      "keys": [
+        "local in liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 33
+    },
+    {
+      "keys": [
+        "local liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 36
+    },
+    {
+      "keys": [
+        "local liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 79
+    },
+    {
+      "keys": [
+        "local public eatery liberty village photos",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+    },
+    {
+      "keys": [
+        "local restaurant liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 26
+    },
+    {
+      "keys": [
+        "local restaurant liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 78
+    },
+    {
+      "keys": [
+        "mildreds liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 23
+    },
+    {
+      "keys": [
+        "mildreds liberty village",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 50
+    },
+    {
+      "keys": [
+        "moving to liberty village",
+        "https://libertyvillage.co/blog/moving-to-liberty-village-2026-essential-guide"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 6.25
+    },
+    {
+      "keys": [
+        "nodo liberty reviews",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+    },
+    {
+      "keys": [
+        "noise complaint condo",
+        "https://libertyvillage.co/guide/noise-complaints"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 60
+    },
+    {
+      "keys": [
+        "ontario line liberty village",
+        "https://libertyvillage.co/blog/ontario-line-construction-liberty-village-2026"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+    },
+    {
+      "keys": [
+        "pai liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 19
+    },
+    {
+      "keys": [
+        "pai liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 82
+    },
+    {
+      "keys": [
+        "parking in liberty village",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 15.5
+    },
+    {
+      "keys": [
+        "parking in liberty village",
+        "https://www.libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 12
+    },
+    {
+      "keys": [
+        "parking liberty village",
+        "https://www.libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 13.5
+    },
+    {
+      "keys": [
+        "parking liberty village toronto",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 20
+    },
+    {
+      "keys": [
+        "parking liberty village toronto",
+        "https://www.libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 13
+    },
+    {
+      "keys": [
+        "parking near liberty village",
+        "https://libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 15
+    },
+    {
+      "keys": [
+        "parking near liberty village",
+        "https://www.libertyvillage.co/guide/parking-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 16
+    },
+    {
+      "keys": [
+        "restaurant in liberty village",
+        "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 12
+    },
+    {
+      "keys": [
+        "restaurants liberty village",
+        "https://libertyvillage.co/best/restaurants"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 18
+    },
+    {
+      "keys": [
+        "starbucks liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 67
+    },
+    {
+      "keys": [
+        "strong liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 83
+    },
+    {
+      "keys": [
+        "strong pilates liberty village",
+        "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 36
+    },
+    {
+      "keys": [
+        "sunday brunch in the villages",
+        "https://libertyvillage.co/blog/weekend-brunch-guide-liberty-village"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 66
+    },
+    {
+      "keys": [
+        "wework liberty village",
+        "https://libertyvillage.co/best/coworking-spaces"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "wework liberty village",
+        "https://libertyvillage.co/directory"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 58
+    },
+    {
+      "keys": [
+        "where is jukebox print located",
+        "https://libertyvillage.co/directory/jukebox-print"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+    }
+  ],
+  "gaThisWeek": [
+    {
+      "page": "/blog/fifa-world-cup-2026-liberty-village-survival-guide",
+      "sessions": 22,
+      "users": 16,
+      "bounceRate": 0.5454545454545454,
+      "avgDuration": 130.37762686363638,
+      "pageViews": 22
+    },
+    {
+      "page": "/blog/liberty-village-world-cup-road-closures-resident-access",
+      "sessions": 13,
+      "users": 13,
+      "bounceRate": 0.7692307692307693,
+      "avgDuration": 140.39130476923077,
+      "pageViews": 15
+    },
+    {
+      "page": "/",
+      "sessions": 8,
+      "users": 6,
+      "bounceRate": 0.5,
+      "avgDuration": 10.355070625,
+      "pageViews": 15
+    },
+    {
+      "page": "/blog",
+      "sessions": 6,
+      "users": 3,
+      "bounceRate": 0.16666666666666666,
+      "avgDuration": 151.17860533333334,
+      "pageViews": 12
+    },
+    {
+      "page": "/blog/best-bars-restaurants-near-bmo-field-world-cup-2026",
+      "sessions": 3,
+      "users": 3,
+      "bounceRate": 0.3333333333333333,
+      "avgDuration": 3.093897666666667,
+      "pageViews": 3
+    },
+    {
+      "page": "/blog/coworking-spaces-liberty-village-compared-2026",
+      "sessions": 3,
+      "users": 2,
+      "bounceRate": 0.3333333333333333,
+      "avgDuration": 75.68713666666666,
+      "pageViews": 3
+    },
+    {
+      "page": "/blog/best-restaurants-liberty-village-locals-guide",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 0.5,
+      "avgDuration": 27.066188,
+      "pageViews": 2
+    },
+    {
+      "page": "/blog/grocery-stores-liberty-village-complete-guide",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 0.5,
+      "avgDuration": 8.5587285,
+      "pageViews": 2
+    },
+    {
+      "page": "/blog/liberty-village-fitness-guide-every-gym-compared",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 0.5,
+      "avgDuration": 28.3886465,
+      "pageViews": 2
+    },
+    {
+      "page": "/blog/remote-work-cafes-coworking-liberty-village",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 1,
+      "avgDuration": 0,
+      "pageViews": 2
+    },
+    {
+      "page": "/blog/walking-liberty-village-to-bmo-field-game-day-route",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 0,
+      "avgDuration": 3.895043,
+      "pageViews": 2
+    },
+    {
+      "page": "/blog/weekend-activities-liberty-village-guide",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 0,
+      "avgDuration": 15.065095,
+      "pageViews": 2
+    },
+    {
+      "page": "/guide/parking-guide",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 0.5,
+      "avgDuration": 15.833667,
+      "pageViews": 4
+    },
+    {
+      "page": "/best/coffee-shops",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 1,
+      "avgDuration": 264.375491,
+      "pageViews": 1
+    },
+    {
+      "page": "/best/coworking-spaces",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 1,
+      "avgDuration": 295.439887,
+      "pageViews": 1
+    },
+    {
+      "page": "/best/restaurants",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 0,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog/date-night-liberty-village-every-budget",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 1,
+      "avgDuration": 79.851684,
+      "pageViews": 2
+    },
+    {
+      "page": "/blog/liberty-village-new-towers-development-2026",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 36.952162,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog/moving-to-liberty-village-2026-essential-guide",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 1,
+      "avgDuration": 134.908899,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog/rent-liberty-village-condo-world-cup-airbnb-guide",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 40.726318,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog/watch-world-cup-liberty-village-without-tickets",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 1,
+      "avgDuration": 813.791879,
+      "pageViews": 1
+    },
+    {
+      "page": "/directory",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 5.33361,
+      "pageViews": 1
+    },
+    {
+      "page": "/directory/mildreds-temple-kitchen",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 2965.757806,
+      "pageViews": 3
+    },
+    {
+      "page": "/directory/modern-liberty-village-townhouse",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 223.270269,
+      "pageViews": 2
+    },
+    {
+      "page": "/directory/the-fueling-station",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 180.904539,
+      "pageViews": 1
+    },
+    {
+      "page": "/guide/moving-guide",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 0,
+      "pageViews": 1
+    },
+    {
+      "page": "/guide/recycling-waste-guide",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 120.230109,
+      "pageViews": 1
+    },
+    {
+      "page": "/guide/remote-work-spots",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 4.413299,
+      "pageViews": 1
+    },
+    {
+      "page": "/guide/traffic-tips",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 150.654522,
+      "pageViews": 1
+    },
+    {
+      "page": "/vs/king-west",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 15.980512,
+      "pageViews": 2
+    }
+  ],
+  "gaLastWeek": [
+    {
+      "page": "/blog/fifa-world-cup-2026-liberty-village-survival-guide",
+      "sessions": 7,
+      "users": 6,
+      "bounceRate": 0.2857142857142857,
+      "avgDuration": 32.80121142857143,
+      "pageViews": 9
+    },
+    {
+      "page": "/",
+      "sessions": 6,
+      "users": 5,
+      "bounceRate": 0.16666666666666666,
+      "avgDuration": 11.519549499999998,
+      "pageViews": 6
+    },
+    {
+      "page": "/blog/liberty-village-condo-market-2026-buyers-renters",
+      "sessions": 5,
+      "users": 3,
+      "bounceRate": 0.4,
+      "avgDuration": 49.5481806,
+      "pageViews": 3
+    },
+    {
+      "page": "/blog/ontario-line-construction-liberty-village-2026",
+      "sessions": 4,
+      "users": 3,
+      "bounceRate": 0.25,
+      "avgDuration": 122.186589,
+      "pageViews": 3
+    },
+    {
+      "page": "/blog/liberty-village-fitness-guide-every-gym-compared",
+      "sessions": 3,
+      "users": 2,
+      "bounceRate": 0.6666666666666666,
+      "avgDuration": 92.130314,
+      "pageViews": 3
+    },
+    {
+      "page": "/blog/liberty-village-new-towers-development-2026",
+      "sessions": 3,
+      "users": 3,
+      "bounceRate": 0.6666666666666666,
+      "avgDuration": 54.20888466666667,
+      "pageViews": 3
+    },
+    {
+      "page": "/guide/parking-guide",
+      "sessions": 3,
+      "users": 3,
+      "bounceRate": 0,
+      "avgDuration": 217.35613966666665,
+      "pageViews": 3
+    },
+    {
+      "page": "/vs/king-west",
+      "sessions": 2,
+      "users": 2,
+      "bounceRate": 0.5,
+      "avgDuration": 45.548368,
+      "pageViews": 2
+    },
+    {
+      "page": "/best/coffee-shops",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 11.158879,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 0,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog/date-night-liberty-village-every-budget",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 144.040493,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog/dog-owners-guide-liberty-village",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 409.399553,
+      "pageViews": 1
+    },
+    {
+      "page": "/blog/weekend-brunch-guide-liberty-village",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 0,
+      "pageViews": 1
+    },
+    {
+      "page": "/directory",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 0,
+      "avgDuration": 11.77838,
+      "pageViews": 1
+    },
+    {
+      "page": "/directory/jukebox-print",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 1,
+      "avgDuration": 1.626643,
+      "pageViews": 1
+    },
+    {
+      "page": "/guide/traffic-tips",
+      "sessions": 1,
+      "users": 1,
+      "bounceRate": 1,
+      "avgDuration": 0,
+      "pageViews": 1
+    }
+  ],
+  "gaSourcesThisWeek": [
+    {
+      "source": "google",
+      "sessions": 36,
+      "users": 30
+    },
+    {
+      "source": "(direct)",
+      "sessions": 14,
+      "users": 10
+    },
+    {
+      "source": "(not set)",
+      "sessions": 5,
+      "users": 5
+    },
+    {
+      "source": "chatgpt.com",
+      "sessions": 2,
+      "users": 2
+    }
+  ],
+  "dateRange": {
+    "thisWeek": {
+      "start": "2026-02-25",
+      "end": "2026-03-03"
+    },
+    "lastWeek": {
+      "start": "2026-02-18",
+      "end": "2026-02-24"
+    }
   }
 }

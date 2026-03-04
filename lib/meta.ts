@@ -58,9 +58,15 @@ export function generateComparisonPageMeta(neighborhood: Neighborhood): Metadata
 }
 
 export function generateBusinessPageMeta(business: Business): Metadata {
+  const descParts = [business.name];
+  if (business.rating) descParts.push(`${business.rating}★ (${business.reviewCount} reviews)`);
+  if (business.hours) descParts.push(business.hours);
+  if (business.address) descParts.push(business.address);
+  const richDesc = descParts.join(" · ").slice(0, 155);
+
   return buildMeta(
-    `${business.name} in Liberty Village | libertyvillage.co`,
-    `${business.name} — ${business.description.slice(0, 120)}`,
+    `${business.name} — Reviews, Hours & Location | Liberty Village | libertyvillage.co`,
+    richDesc,
     `/directory/${business.slug}`,
     business.image || "/images/og/og-directory.jpg"
   );

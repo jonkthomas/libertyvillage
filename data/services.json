@@ -3,7 +3,7 @@
     "slug": "restaurants",
     "name": "Restaurant",
     "pluralName": "Restaurants",
-    "description": "From brunch spots to late-night eats, Liberty Village has some of Toronto's best neighborhood dining along King West and East Liberty.",
+    "description": "Best restaurants in Liberty Village ranked for 2026 — Mildred's, NODO, Pizza Libretto, and 20+ more with prices, reviews, and reservations.",
     "icon": "🍽️",
     "relatedServices": [
       "coffee-shops",
@@ -185,7 +185,7 @@
     "slug": "gyms",
     "name": "Gym",
     "pluralName": "Gyms",
-    "description": "From boutique fitness studios to full-service gyms, Liberty Village has no shortage of places to work out within walking distance of your condo.",
+    "description": "Every gym in Liberty Village compared for 2026 — GoodLife, F45, Altea Active, and more with monthly prices, class schedules, and honest reviews.",
     "icon": "🏋️",
     "relatedServices": [
       "personal-trainers",
