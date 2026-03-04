@@ -1,25 +1,58 @@
 {
-  "collectedAt": "2026-02-22T11:20:26.716Z",
+  "collectedAt": "2026-03-04T11:30:00.000Z",
   "gsc": {
-    "searchAnalytics": {
-      "rows": 100,
-      "totalImpressions": 177,
-      "totalClicks": 0,
-      "avgCtr": 0,
-      "note": "Site is in early indexing phase - 177 URLs submitted, 0 indexed"
-    },
-    "quickWins": {
-      "totalOpportunities": 0,
-      "note": "No quick wins detected - insufficient data"
-    },
+    "searchAnalytics": [
+      {
+        "keys": ["spadina auto", "https://libertyvillage.co/directory/spadina-auto"],
+        "clicks": 0,
+        "impressions": 32,
+        "ctr": 0,
+        "position": 9.88
+      },
+      {
+        "keys": ["gym liberty village", "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"],
+        "clicks": 0,
+        "impressions": 9,
+        "ctr": 0,
+        "position": 11.22
+      },
+      {
+        "keys": ["f45 liberty village", "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"],
+        "clicks": 0,
+        "impressions": 6,
+        "ctr": 0,
+        "position": 27
+      },
+      {
+        "keys": ["fitness classes liberty village", "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"],
+        "clicks": 0,
+        "impressions": 6,
+        "ctr": 0,
+        "position": 13.83
+      },
+      {
+        "keys": ["liberty village restaurants", "https://libertyvillage.co/blog/best-restaurants-liberty-village-locals-guide"],
+        "clicks": 0,
+        "impressions": 6,
+        "ctr": 0,
+        "position": 16.5
+      },
+      {
+        "keys": ["parking liberty village toronto", "https://libertyvillage.co/guide/parking-guide"],
+        "clicks": 0,
+        "impressions": 5,
+        "ctr": 0,
+        "position": 10.6
+      }
+    ],
+    "quickWins": [],
     "sitemapStatus": {
-      "submitted": 177,
+      "submitted": 241,
       "indexed": 0,
-      "lastSubmitted": "2026-02-08T01:02:02.611Z"
+      "lastSubmitted": "2026-02-28T21:33:57.139Z"
     }
   },
   "ga4": {
-    "note": "GA4 data not available - site in early phase",
-    "trafficByPage": []
+    "note": "GA4 MCP tools not available - site is new with minimal traffic"
   }
 }
