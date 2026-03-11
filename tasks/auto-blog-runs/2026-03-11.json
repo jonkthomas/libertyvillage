@@ -1,0 +1,24 @@
+{
+  "runDate": "2026-03-11",
+  "status": "success",
+  "topic": "Liberty Village running routes",
+  "slug": "liberty-village-running-routes-trails-guide",
+  "category": "lifestyle",
+  "seoData": {
+    "topQueries": ["f45 liberty village", "gym near liberty village", "best brunch liberty village"],
+    "totalImpressions": "Low (site in early indexing)",
+    "quickWins": 0
+  },
+  "qualityMetrics": {
+    "wordCount": 1170,
+    "internalLinks": 9,
+    "businessMentions": 10,
+    "faqCount": 5
+  },
+  "validation": {
+    "diagnosticPassed": true,
+    "buildPassed": true
+  },
+  "imageSource": "Pexels API (Tier 1)",
+  "completedAt": "2026-03-11T11:36:00.000Z"
+}
