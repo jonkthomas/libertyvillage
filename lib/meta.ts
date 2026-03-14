@@ -32,16 +32,19 @@ function buildMeta(
 
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
-    "Liberty Village, Toronto — Your Neighborhood Guide | libertyvillage.co",
-    "Liberty Village is a walkable Toronto neighborhood of 9,000+ residents with 600+ businesses, known for converted industrial lofts, dog-friendly culture, and a thriving food scene along King Street West.",
+    "Liberty Village Toronto — Local Neighborhood Guide",
+    "Your local guide to Liberty Village — restaurants, gyms, parking, transit, and 600+ businesses. Real prices, honest reviews, and insider tips.",
     "/",
     "/images/og/og-home.jpg"
   );
 }
 
 export function generateServicePageMeta(service: Service): Metadata {
+  const suffix = " | libertyvillage.co";
+  const base = `Best ${service.pluralName} in Liberty Village (2026)`;
+  const title = base.length + suffix.length <= 60 ? `${base}${suffix}` : base;
   return buildMeta(
-    `Best ${service.pluralName} in Liberty Village (2026) | libertyvillage.co`,
+    title,
     service.description.slice(0, 155),
     `/best/${service.slug}`,
     "/images/og/og-service.jpg"
@@ -65,7 +68,7 @@ export function generateBusinessPageMeta(business: Business): Metadata {
   const richDesc = descParts.join(" · ").slice(0, 155);
 
   return buildMeta(
-    `${business.name} — Reviews, Hours & Location | Liberty Village | libertyvillage.co`,
+    `${business.name} — Reviews, Hours & Location | libertyvillage.co`,
     richDesc,
     `/directory/${business.slug}`,
     business.image || "/images/og/og-directory.jpg"
@@ -73,8 +76,12 @@ export function generateBusinessPageMeta(business: Business): Metadata {
 }
 
 export function generateGuidePageMeta(topic: Topic): Metadata {
+  const titleHasLV = topic.title.toLowerCase().includes("liberty village");
+  const suffix = " | libertyvillage.co";
+  const base = titleHasLV ? topic.title : `${topic.title} — Liberty Village`;
+  const title = base.length + suffix.length <= 60 ? `${base}${suffix}` : base;
   return buildMeta(
-    `${topic.title} — Liberty Village Guide | libertyvillage.co`,
+    title,
     topic.description.slice(0, 155),
     `/guide/${topic.slug}`,
     "/images/og/og-guide.jpg"
@@ -82,8 +89,12 @@ export function generateGuidePageMeta(topic: Topic): Metadata {
 }
 
 export function generateBlogPostPageMeta(post: BlogPost): Metadata {
+  const suffix = " | libertyvillage.co";
+  const title = post.title.length + suffix.length <= 60
+    ? `${post.title}${suffix}`
+    : post.title;
   return buildMeta(
-    `${post.title} — Liberty Village Blog | libertyvillage.co`,
+    title,
     post.description.slice(0, 155),
     `/blog/${post.slug}`,
     post.image

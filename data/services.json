@@ -3,7 +3,7 @@
     "slug": "restaurants",
     "name": "Restaurant",
     "pluralName": "Restaurants",
-    "description": "Best restaurants in Liberty Village ranked for 2026 — Mildred's, NODO, Pizza Libretto, and 20+ more with prices, reviews, and reservations.",
+    "description": "Top 25 Liberty Village restaurants ranked for 2026 — Mildred's, NODO, Pizza Libretto, Brazen Head, and more. Ratings, price ranges, and what to order.",
     "icon": "🍽️",
     "relatedServices": [
       "coffee-shops",
@@ -41,7 +41,7 @@
     "slug": "coffee-shops",
     "name": "Coffee Shop",
     "pluralName": "Coffee Shops",
-    "description": "Liberty Village's best coffee shops — Arvo for Australian flat whites, Balzac's for the neighbourhood living room, Dark Horse for espresso purists — all within a 10-minute walk, with WiFi and laptop-friendly seating for remote workers.",
+    "description": "Best coffee shops in Liberty Village for 2026 — Arvo, Balzac's, Dark Horse, and more ranked by WiFi speed, laptop-friendliness, and espresso quality.",
     "icon": "☕",
     "relatedServices": [
       "brunch-spots",
@@ -185,7 +185,7 @@
     "slug": "gyms",
     "name": "Gym",
     "pluralName": "Gyms",
-    "description": "Every gym in Liberty Village compared for 2026 — GoodLife, F45, Altea Active, and more with monthly prices, class schedules, and honest reviews.",
+    "description": "Every gym in Liberty Village compared: GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Class schedules, hours, and which fits your budget.",
     "icon": "🏋️",
     "relatedServices": [
       "personal-trainers",
