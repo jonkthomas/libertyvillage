@@ -1,15 +1,16 @@
 {
-  "collectedAt": "2026-03-08T00:00:00.000Z",
+  "collectedAt": "2026-03-15T00:00:00.000Z",
   "gsc": {
     "searchAnalytics": {
-      "totalClicks": 1,
+      "totalClicks": 0,
       "totalImpressions": 241,
       "topQueries": [
-        {"query": "f45 liberty village", "impressions": 13, "clicks": 0, "position": 26.08},
-        {"query": "liberty village", "impressions": 10, "clicks": 0, "position": 22.1},
-        {"query": "gym liberty village", "impressions": 8, "clicks": 0, "position": 11.25},
-        {"query": "gym in liberty village", "impressions": 7, "clicks": 0, "position": 10.71},
-        {"query": "gym near liberty village", "impressions": 7, "clicks": 0, "position": 12}
+        {"query": "liberty village parking", "impressions": 12, "clicks": 0, "position": 12.5},
+        {"query": "f45 liberty village", "impressions": 11, "clicks": 0, "position": 22.45},
+        {"query": "liberty village", "impressions": 10, "clicks": 0, "position": 23.7},
+        {"query": "liberty village gym", "impressions": 8, "clicks": 0, "position": 9.88},
+        {"query": "fitness classes liberty village", "impressions": 7, "clicks": 0, "position": 10.71},
+        {"query": "best brunch liberty village", "impressions": 5, "clicks": 0, "position": 9}
       ]
     },
     "quickWins": {
@@ -24,20 +25,23 @@
   },
   "analysis": {
     "topPerformingQueries": [
-      "f45 liberty village (13 impressions)",
-      "liberty village (10 impressions)",
-      "gym liberty village (8 impressions)"
+      "liberty village parking (12 impressions, position 12.5)",
+      "f45 liberty village (11 impressions, position 22.45)",
+      "liberty village gym (8 impressions, position 9.88)",
+      "best brunch liberty village (5 impressions, position 9)"
     ],
     "contentGaps": [
-      "World Cup / BMO Field content (limited queries)",
-      "Nightlife and bars",
-      "Pet services",
-      "Parks and recreation",
-      "Running routes"
+      "Nightlife and entertainment (limited coverage)",
+      "Pet services (vet, grooming, dog walking)",
+      "Home services (renovation, cleaning, handyman)",
+      "Seasonal content (spring/summer activities)",
+      "Specific business spotlight articles"
     ],
     "underperformingPages": [
-      "f45 liberty village - position 26 (should be higher)",
-      "fitness classes - position 11 but 0 clicks"
-    ]
+      "f45 liberty village - position 22 (needs improvement)",
+      "liberty village parking - position 12.5 (could reach top 10)",
+      "coffee shop queries - positions 10-40 (opportunity for dedicated article)"
+    ],
+    "note": "Site remains in early indexing phase with 0 indexed pages. Focus on evergreen content and World Cup topics (March-July priority period)."
   }
 }
