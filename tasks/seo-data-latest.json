@@ -1,47 +1,36 @@
 {
-  "collectedAt": "2026-03-15T00:00:00.000Z",
+  "collectedAt": "2026-03-18T11:46:00.000Z",
   "gsc": {
     "searchAnalytics": {
+      "totalRows": 100,
+      "totalImpressions": 195,
       "totalClicks": 0,
-      "totalImpressions": 241,
+      "avgPosition": 30.5,
       "topQueries": [
-        {"query": "liberty village parking", "impressions": 12, "clicks": 0, "position": 12.5},
-        {"query": "f45 liberty village", "impressions": 11, "clicks": 0, "position": 22.45},
-        {"query": "liberty village", "impressions": 10, "clicks": 0, "position": 23.7},
-        {"query": "liberty village gym", "impressions": 8, "clicks": 0, "position": 9.88},
-        {"query": "fitness classes liberty village", "impressions": 7, "clicks": 0, "position": 10.71},
-        {"query": "best brunch liberty village", "impressions": 5, "clicks": 0, "position": 9}
+        {"query": "liberty village parking", "impressions": 11, "position": 12},
+        {"query": "liberty village", "impressions": 7, "position": 34.3},
+        {"query": "liberty village restaurants", "impressions": 6, "position": 29.2},
+        {"query": "f45 liberty village", "impressions": 6, "position": 22.5},
+        {"query": "f45 training liberty village", "impressions": 5, "position": 22.8},
+        {"query": "fitness classes liberty village", "impressions": 5, "position": 9.6},
+        {"query": "best restaurants in liberty village", "impressions": 4, "position": 24.5},
+        {"query": "best brunch liberty village", "impressions": 4, "position": 9},
+        {"query": "brunch liberty village", "impressions": 4, "position": 9.5},
+        {"query": "gym liberty village", "impressions": 4, "position": 11.5}
       ]
     },
     "quickWins": {
       "totalOpportunities": 0,
-      "note": "No queries met the quick wins threshold (50+ impressions, position 4-10, CTR < 2%)"
+      "message": "No quick wins found in position 4-10 with >50 impressions"
     },
     "sitemapStatus": {
       "submitted": 241,
       "indexed": 0,
-      "note": "Site is in early indexing phase - 0 pages indexed so far"
+      "message": "Site is new - no URLs indexed yet"
     }
   },
-  "analysis": {
-    "topPerformingQueries": [
-      "liberty village parking (12 impressions, position 12.5)",
-      "f45 liberty village (11 impressions, position 22.45)",
-      "liberty village gym (8 impressions, position 9.88)",
-      "best brunch liberty village (5 impressions, position 9)"
-    ],
-    "contentGaps": [
-      "Nightlife and entertainment (limited coverage)",
-      "Pet services (vet, grooming, dog walking)",
-      "Home services (renovation, cleaning, handyman)",
-      "Seasonal content (spring/summer activities)",
-      "Specific business spotlight articles"
-    ],
-    "underperformingPages": [
-      "f45 liberty village - position 22 (needs improvement)",
-      "liberty village parking - position 12.5 (could reach top 10)",
-      "coffee shop queries - positions 10-40 (opportunity for dedicated article)"
-    ],
-    "note": "Site remains in early indexing phase with 0 indexed pages. Focus on evergreen content and World Cup topics (March-July priority period)."
+  "ga4": {
+    "message": "GA4 data not available - site is in early phase",
+    "trafficByPage": []
   }
 }
