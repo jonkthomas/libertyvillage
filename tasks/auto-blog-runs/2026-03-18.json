@@ -1,18 +1,11 @@
 {
-  "runDate": "2026-03-18",
-  "slug": "senegalese-fans-guide-world-cup-2026-toronto",
-  "title": "Senegalese Fans Guide to FIFA World Cup 2026 in Toronto",
-  "category": "events",
-  "wordCount": 1183,
-  "seoData": {
-    "topQuery": "liberty village parking",
-    "totalImpressions": 195,
-    "quickWins": 0
-  },
-  "imageSourcing": "Pexels API (Tier 1)",
-  "validations": {
-    "diagnostic": "PASS",
-    "build": "PASS"
-  },
-  "status": "SUCCESS"
+  "date": "2026-03-18T11:46:21.148Z",
+  "success": true,
+  "costUsd": 1.6677862499999998,
+  "turnsUsed": 43,
+  "durationMs": 386001,
+  "topicSelected": null,
+  "postSlug": null,
+  "seoDataSummary": null,
+  "errors": []
 }
