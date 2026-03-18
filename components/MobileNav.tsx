@@ -8,7 +8,7 @@ const navLinks = [
   { href: "/directory", label: "Directory" },
   { href: "/blog", label: "Blog" },
   { href: "/guide", label: "Guides" },
-  { href: "/vs/king-west", label: "Compare" },
+  { href: "/vs", label: "Compare" },
 ];
 
 export default function MobileNav() {

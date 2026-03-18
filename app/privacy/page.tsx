@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
           LibertyVillage.co (the &ldquo;Site&rdquo;) is committed to protecting
           your privacy. This Privacy Policy explains what information we collect,
           how we use it, and your rights regarding your data when you visit our
-          Site. LibertyVillage.co is a local directory and neighborhood guide for
+          Site. LibertyVillage.co is a local directory and neighbourhood guide for
           Liberty Village, Toronto, Canada.
         </p>
 

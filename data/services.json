@@ -3,7 +3,7 @@
     "slug": "restaurants",
     "name": "Restaurant",
     "pluralName": "Restaurants",
-    "description": "Top 25 Liberty Village restaurants ranked for 2026 — Mildred's, NODO, Pizza Libretto, Brazen Head, and more. Ratings, price ranges, and what to order.",
+    "description": "Best restaurants in Liberty Village ranked for 2026 — Mildred's, NODO, Pizza Libretto, Brazen Head, and more. Ratings, price ranges, and what to order.",
     "icon": "🍽️",
     "relatedServices": [
       "coffee-shops",
@@ -77,7 +77,7 @@
     "slug": "brunch-spots",
     "name": "Brunch Spot",
     "pluralName": "Brunch Spots",
-    "description": "Weekend brunch is a Liberty Village institution — expect lineups at the neighborhood's best spots along King West and East Liberty Street.",
+    "description": "Weekend brunch is a Liberty Village institution — expect lineups at the neighbourhood's best spots along King West and East Liberty Street.",
     "icon": "🥞",
     "relatedServices": [
       "restaurants",
@@ -185,7 +185,7 @@
     "slug": "gyms",
     "name": "Gym",
     "pluralName": "Gyms",
-    "description": "Every gym in Liberty Village compared: GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Class schedules, hours, and which fits your budget.",
+    "description": "Best gyms in Liberty Village for 2026: GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, class schedules, hours, and honest comparisons.",
     "icon": "🏋️",
     "relatedServices": [
       "personal-trainers",
@@ -221,7 +221,7 @@
     "slug": "yoga-studios",
     "name": "Yoga Studio",
     "pluralName": "Yoga Studios",
-    "description": "Liberty Village's yoga studios offer everything from hot yoga to vinyasa flow, many within converted warehouse spaces that define the neighborhood's vibe.",
+    "description": "Liberty Village's yoga studios offer everything from hot yoga to vinyasa flow, many within converted warehouse spaces that define the neighbourhood's vibe.",
     "icon": "🧘",
     "relatedServices": [
       "pilates",
@@ -365,7 +365,7 @@
     "slug": "veterinarians",
     "name": "Veterinarian",
     "pluralName": "Veterinarians",
-    "description": "Liberty Village is one of Toronto's most dog-friendly neighborhoods, and local vets along King West and Atlantic Ave keep the furry residents healthy.",
+    "description": "Liberty Village is one of Toronto's most dog-friendly neighbourhoods, and local vets along King West and Atlantic Ave keep the furry residents healthy.",
     "icon": "🐾",
     "relatedServices": [
       "dog-walkers",
@@ -435,7 +435,7 @@
     "slug": "dog-groomers",
     "name": "Dog Groomer",
     "pluralName": "Dog Groomers",
-    "description": "Keep your pup looking sharp with Liberty Village's local dog groomers, several of which offer pickup and drop-off service to neighborhood condos.",
+    "description": "Keep your pup looking sharp with Liberty Village's local dog groomers, several of which offer pickup and drop-off service to neighbourhood condos.",
     "icon": "✂️🐩",
     "relatedServices": [
       "veterinarians",
@@ -680,7 +680,7 @@
     "slug": "daycares",
     "name": "Daycare",
     "pluralName": "Daycares",
-    "description": "Daycare spots in Liberty Village fill up fast — getting on waitlists early is essential for the neighborhood's growing population of young families.",
+    "description": "Daycare spots in Liberty Village fill up fast — getting on waitlists early is essential for the neighbourhood's growing population of young families.",
     "icon": "👶",
     "relatedServices": [
       "tutors"
@@ -993,7 +993,7 @@
     "slug": "physiotherapy",
     "name": "Physiotherapy Clinic",
     "pluralName": "Physiotherapy Clinics",
-    "description": "Liberty Village physio clinics treat everything from desk-worker posture issues to sports injuries, with several located near the neighborhood's gyms.",
+    "description": "Liberty Village physio clinics treat everything from desk-worker posture issues to sports injuries, with several located near the neighbourhood's gyms.",
     "icon": "🏥",
     "relatedServices": [
       "massage-therapy",
@@ -1029,7 +1029,7 @@
     "slug": "chiropractors",
     "name": "Chiropractor",
     "pluralName": "Chiropractors",
-    "description": "Chiropractors in Liberty Village serve the neighborhood's active population and remote workers dealing with back and neck strain.",
+    "description": "Chiropractors in Liberty Village serve the neighbourhood's active population and remote workers dealing with back and neck strain.",
     "icon": "🦴",
     "relatedServices": [
       "physiotherapy",
@@ -1135,7 +1135,7 @@
     "slug": "lawyers",
     "name": "Lawyer",
     "pluralName": "Lawyers",
-    "description": "From real estate closings to condo board disputes, Liberty Village lawyers handle the legal needs of a neighborhood with a lot of property transactions.",
+    "description": "From real estate closings to condo board disputes, Liberty Village lawyers handle the legal needs of a neighbourhood with a lot of property transactions.",
     "icon": "⚖️",
     "relatedServices": [
       "accountants",
@@ -1170,7 +1170,7 @@
     "slug": "real-estate-agents",
     "name": "Real Estate Agent",
     "pluralName": "Real Estate Agents",
-    "description": "Liberty Village real estate moves fast — agents who specialize in the neighborhood know which buildings to avoid and which ones hold their value.",
+    "description": "Liberty Village real estate moves fast — agents who specialize in the neighbourhood know which buildings to avoid and which ones hold their value.",
     "icon": "🏠",
     "relatedServices": [
       "lawyers",
@@ -1346,7 +1346,7 @@
     "slug": "pet-stores",
     "name": "Pet Store",
     "pluralName": "Pet Stores",
-    "description": "Liberty Village pet stores stock premium food, treats, and gear for the neighborhood's famously large dog population.",
+    "description": "Liberty Village pet stores stock premium food, treats, and gear for the neighbourhood's famously large dog population.",
     "icon": "🐾",
     "relatedServices": [
       "veterinarians",
@@ -1453,7 +1453,7 @@
     "slug": "caterers",
     "name": "Caterer",
     "pluralName": "Caterers",
-    "description": "Caterers based in and around Liberty Village handle everything from office lunches to private events in the neighborhood's unique loft and gallery venues.",
+    "description": "Caterers based in and around Liberty Village handle everything from office lunches to private events in the neighbourhood's unique loft and gallery venues.",
     "icon": "🍱",
     "relatedServices": [
       "event-spaces",
@@ -1525,7 +1525,7 @@
     "slug": "breweries",
     "name": "Brewery",
     "pluralName": "Breweries",
-    "description": "Liberty Village's craft beer scene thrives in taprooms and microbreweries tucked into the neighborhood's industrial heritage buildings.",
+    "description": "Liberty Village's craft beer scene thrives in taprooms and microbreweries tucked into the neighbourhood's industrial heritage buildings.",
     "icon": "🍻",
     "relatedServices": [
       "bars",
@@ -1597,7 +1597,7 @@
     "slug": "pizza",
     "name": "Pizza Place",
     "pluralName": "Pizza Places",
-    "description": "Whether you crave Neapolitan, New York-style, or late-night slices, Liberty Village pizza spots deliver to every condo in the neighborhood.",
+    "description": "Whether you crave Neapolitan, New York-style, or late-night slices, Liberty Village pizza spots deliver to every condo in the neighbourhood.",
     "icon": "🍕",
     "relatedServices": [
       "restaurants",
@@ -1633,7 +1633,7 @@
     "slug": "sushi",
     "name": "Sushi Restaurant",
     "pluralName": "Sushi Restaurants",
-    "description": "Sushi lovers in Liberty Village can choose from all-you-can-eat spots to omakase-style counters without leaving the neighborhood.",
+    "description": "Sushi lovers in Liberty Village can choose from all-you-can-eat spots to omakase-style counters without leaving the neighbourhood.",
     "icon": "🍣",
     "relatedServices": [
       "restaurants",
@@ -1881,7 +1881,7 @@
     "slug": "tattoo-parlors",
     "name": "Tattoo Parlor",
     "pluralName": "Tattoo Parlors",
-    "description": "Liberty Village's creative streak extends to its tattoo artists, with parlors offering custom work in the neighborhood's signature industrial-chic spaces.",
+    "description": "Liberty Village's creative streak extends to its tattoo artists, with parlors offering custom work in the neighbourhood's signature industrial-chic spaces.",
     "icon": "🎨",
     "relatedServices": [
       "hair-salons",
@@ -1916,7 +1916,7 @@
     "slug": "spas",
     "name": "Spa",
     "pluralName": "Spas",
-    "description": "Relax without leaving the neighborhood — Liberty Village spas offer facials, body treatments, and wellness packages in calming settings.",
+    "description": "Relax without leaving the neighbourhood — Liberty Village spas offer facials, body treatments, and wellness packages in calming settings.",
     "icon": "🧖",
     "relatedServices": [
       "massage-therapy",
@@ -2057,7 +2057,7 @@
     "slug": "locksmith",
     "name": "Locksmith",
     "pluralName": "Locksmiths",
-    "description": "Locked out of your Liberty Village condo? Local locksmiths offer fast response times and understand the fob and key systems common in neighborhood buildings.",
+    "description": "Locked out of your Liberty Village condo? Local locksmiths offer fast response times and understand the fob and key systems common in neighbourhood buildings.",
     "icon": "🔑",
     "relatedServices": [
       "house-cleaning",
@@ -2092,7 +2092,7 @@
     "slug": "short-term-rentals",
     "name": "Short-Term Rental",
     "pluralName": "Short-Term Rentals",
-    "description": "Visiting Liberty Village? From stylish Airbnb lofts to spacious townhouses, the neighborhood has short-term rental options within walking distance of restaurants, BMO Field, and the King streetcar.",
+    "description": "Visiting Liberty Village? From stylish Airbnb lofts to spacious townhouses, the neighbourhood has short-term rental options within walking distance of restaurants, BMO Field, and the King streetcar.",
     "icon": "🏠",
     "relatedServices": [
       "restaurants",

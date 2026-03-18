@@ -32,12 +32,12 @@ export default function TermsOfServicePage() {
           2. Description of Service
         </h2>
         <p className="text-warm-700 leading-relaxed mb-4">
-          LibertyVillage.co is a local directory and neighborhood guide for
+          LibertyVillage.co is a local directory and neighbourhood guide for
           Liberty Village, Toronto, Canada. The Site provides information about
-          local businesses, services, neighborhood guides, community resources,
-          and neighborhood comparisons. The content is intended to help residents,
+          local businesses, services, neighbourhood guides, community resources,
+          and neighbourhood comparisons. The content is intended to help residents,
           visitors, and prospective residents learn about the Liberty Village
-          neighborhood.
+          neighbourhood.
         </p>
 
         <h2 className="text-xl font-semibold text-warm-900 mt-10 mb-3">

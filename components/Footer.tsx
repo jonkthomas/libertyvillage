@@ -20,6 +20,9 @@ const popularGuides = [
   { href: "/guide/parking-guide", label: "Parking Guide" },
   { href: "/guide/traffic-tips", label: "Traffic Tips" },
   { href: "/guide/moving-guide", label: "Moving Guide" },
+  { href: "/blog/weekend-brunch-guide-liberty-village", label: "Brunch Guide" },
+  { href: "/blog/liberty-village-fitness-guide-every-gym-compared", label: "Fitness Guide" },
+  { href: "/blog/fifa-world-cup-2026-liberty-village-survival-guide", label: "World Cup Guide" },
   { href: "/guide/safety-guide", label: "Safety Guide" },
   { href: "/guide/where-to-stay", label: "Where to Stay" },
 ];
@@ -35,7 +38,7 @@ export default function Footer() {
             </h3>
             <p className="mt-2 text-sm text-white/80 leading-relaxed">
               Your complete guide to Liberty Village, Toronto. Built by locals,
-              for locals. Everything you need to know about the neighborhood.
+              for locals. Everything you need to know about the neighbourhood.
             </p>
           </div>
 

@@ -82,7 +82,7 @@ export default async function ComparisonPage({ params }: Props) {
       <Breadcrumbs items={breadcrumbs} />
 
       {neighborhood.image && (
-        <HeroImage src={neighborhood.image} alt={`${neighborhood.name} neighborhood`} />
+        <HeroImage src={neighborhood.image} alt={`${neighborhood.name} neighbourhood`} />
       )}
 
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
@@ -185,7 +185,7 @@ export default async function ComparisonPage({ params }: Props) {
           {neighborhood.verdict.lvWinsAt.slice(0, 2).join(" and ").toLowerCase()},
           while {neighborhood.name} shines with{" "}
           {neighborhood.verdict.theyWinAt.slice(0, 2).join(" and ").toLowerCase()}.
-          Both are great Toronto neighborhoods — it comes down to your priorities.
+          Both are great Toronto neighbourhoods — it comes down to your priorities.
         </p>
       </section>
 

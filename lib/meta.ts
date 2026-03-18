@@ -32,8 +32,8 @@ function buildMeta(
 
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
-    "Liberty Village Toronto — Local Neighborhood Guide",
-    "Your local guide to Liberty Village — restaurants, gyms, parking, transit, and 600+ businesses. Real prices, honest reviews, and insider tips.",
+    "Liberty Village, Toronto — Complete Neighbourhood Guide 2026",
+    "Liberty Village is a walkable Toronto neighbourhood with 9,000+ residents and 600+ businesses. Restaurants, gyms, parking, transit — your complete local guide.",
     "/",
     "/images/og/og-home.jpg"
   );
@@ -54,7 +54,7 @@ export function generateServicePageMeta(service: Service): Metadata {
 export function generateComparisonPageMeta(neighborhood: Neighborhood): Metadata {
   return buildMeta(
     `Liberty Village vs ${neighborhood.name}: Where to Live? | libertyvillage.co`,
-    `Comparing Liberty Village and ${neighborhood.name} — rent, transit, nightlife, and community. Find out which Toronto neighborhood is right for you.`,
+    `Comparing Liberty Village and ${neighborhood.name} — rent, transit, nightlife, and community. Find out which Toronto neighbourhood is right for you.`,
     `/vs/${neighborhood.slug}`,
     "/images/og/og-comparison.jpg"
   );
@@ -112,7 +112,7 @@ export function generateBlogIndexPageMeta(): Metadata {
 export function generateTermsPageMeta(): Metadata {
   return buildMeta(
     "Terms of Service | libertyvillage.co",
-    "Terms of Service for libertyvillage.co, a local directory and neighborhood guide for Liberty Village, Toronto, Canada.",
+    "Terms of Service for libertyvillage.co, a local directory and neighbourhood guide for Liberty Village, Toronto, Canada.",
     "/terms"
   );
 }

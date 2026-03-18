@@ -5,9 +5,9 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import DirectoryFilter from "@/components/DirectoryFilter";
 
 export const metadata: Metadata = {
-  title: "Liberty Village Business Directory — Browse All Local Businesses | libertyvillage.co",
+  title: "Liberty Village Shops & Business Directory | libertyvillage.co",
   description:
-    "Browse and search the complete Liberty Village business directory. Find local shops, services, and businesses in your neighborhood.",
+    "Browse Liberty Village shops, restaurants, services, and local businesses. Search by category, name, or neighbourhood area.",
   openGraph: {
     title: "Liberty Village Business Directory — Browse All",
     description: "Browse and search the complete Liberty Village business directory.",
@@ -42,7 +42,7 @@ export default function DirectoryPage() {
         Liberty Village Business Directory
       </h1>
       <p className="mt-2 text-warm-500">
-        Find restaurants, services, and local businesses in your neighborhood.
+        Find restaurants, services, and local businesses in your neighbourhood.
       </p>
 
       <div className="mt-6">

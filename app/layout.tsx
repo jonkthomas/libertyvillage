@@ -5,9 +5,9 @@ import Footer from "@/components/Footer";
 import { generateWebsiteSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Liberty Village, Toronto — Your Neighborhood Guide | libertyvillage.co",
+  title: "Liberty Village, Toronto — Neighbourhood Guide | libertyvillage.co",
   description:
-    "Your complete guide to Liberty Village, Toronto. Find the best restaurants, services, and local businesses. Compare neighborhoods, read guides, and explore the community.",
+    "Your complete guide to Liberty Village, Toronto. Find the best restaurants, services, and local businesses. Compare neighbourhoods, read guides, and explore the community.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },

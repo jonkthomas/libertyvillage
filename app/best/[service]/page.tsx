@@ -98,7 +98,7 @@ export default async function ServicePage({ params }: Props) {
 
       <p className="mt-4 text-warm-600 leading-relaxed">
         {service.description} Whether you&apos;re a long-time resident or just moved
-        to the neighborhood, here are the top-rated {service.pluralName.toLowerCase()} in
+        to the neighbourhood, here are the top-rated {service.pluralName.toLowerCase()} in
         Liberty Village, ranked by local reviews and community reputation.
       </p>
 
@@ -154,7 +154,7 @@ export default async function ServicePage({ params }: Props) {
 
       <RelatedLinks heading="Related Services" links={relatedServices} />
       <RelatedLinks heading="Related Guides" links={relatedGuides} />
-      <RelatedLinks heading="From the Blog" links={relatedBlogPosts} />
+      <RelatedLinks heading="In-Depth Guides & Comparisons" links={relatedBlogPosts} />
 
       <script
         type="application/ld+json"

@@ -71,13 +71,15 @@ export default function Home() {
         </div>
         <div className="relative mx-auto max-w-4xl text-center">
           <h1 className="text-4xl font-bold text-white sm:text-5xl drop-shadow-sm">
-            Liberty Village, Toronto — Your Neighborhood Guide
+            Liberty Village, Toronto — Your Complete Neighbourhood Guide
           </h1>
           <p className="answer-block mx-auto mt-4 max-w-2xl text-lg text-white/90 drop-shadow-sm">
-            Liberty Village is a walkable Toronto neighborhood of 9,000+ residents
-            with 600+ businesses, known for its converted industrial lofts,
-            dog-friendly culture, and thriving food scene along King Street West.
-            Find the best local businesses, read guides, and compare neighborhoods.
+            Liberty Village is a vibrant Toronto neighbourhood bounded by King
+            Street West, the Gardiner Expressway, Dufferin Street, and Strachan
+            Avenue. Home to 9,000+ residents and 600+ businesses, it&apos;s known
+            for converted industrial lofts, a thriving restaurant scene, and
+            walkable streets. Explore our local business directory, read
+            neighbourhood guides, and find honest reviews.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link href="/directory" className="rounded-full bg-amber-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-600">
@@ -85,6 +87,9 @@ export default function Home() {
             </Link>
             <Link href="/guide/moving-guide" className="rounded-full border border-white/60 bg-white/20 backdrop-blur-sm px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/30">
               New to LV? Start Here
+            </Link>
+            <Link href="/blog/fifa-world-cup-2026-liberty-village-survival-guide" className="rounded-full border border-white/60 bg-white/20 backdrop-blur-sm px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/30">
+              World Cup Guide
             </Link>
           </div>
         </div>
@@ -102,7 +107,7 @@ export default function Home() {
             Explore Liberty Village
           </h2>
           <p className="mt-1 text-warm-500">
-            Find the best of what the neighborhood has to offer.
+            Find the best of what the neighbourhood has to offer.
           </p>
           <div className="mt-6 grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
             {topServices.map((service) => (
@@ -115,7 +120,7 @@ export default function Home() {
         {topics.length > 0 && (
           <section className="mb-16">
             <h2 className="text-2xl font-bold text-warm-900">
-              Neighborhood Guides
+              Neighbourhood Guides
             </h2>
             <p className="mt-1 text-warm-500">
               Local tips and advice from people who actually live here.
@@ -145,7 +150,7 @@ export default function Home() {
               Latest from the Blog
             </h2>
             <p className="mt-1 text-warm-500">
-              News, tips, and stories from the neighborhood.
+              News, tips, and stories from the neighbourhood.
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {recentPosts.map((post) => (
@@ -174,6 +179,35 @@ export default function Home() {
           </section>
         )}
 
+        {/* Popular Guides */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold text-warm-900">
+            Popular Guides
+          </h2>
+          <p className="mt-1 text-warm-500">
+            Our most-read local guides and comparisons.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { href: "/guide/parking-guide", label: "Parking Guide", desc: "Free & paid parking options" },
+              { href: "/blog/weekend-brunch-guide-liberty-village", label: "Best Brunch", desc: "Top brunch spots ranked" },
+              { href: "/blog/liberty-village-fitness-guide-every-gym-compared", label: "Gym Comparison", desc: "Every gym compared with prices" },
+              { href: "/blog/grocery-stores-liberty-village-complete-guide", label: "Grocery Guide", desc: "Every grocery option" },
+              { href: "/blog/fifa-world-cup-2026-liberty-village-survival-guide", label: "World Cup Guide", desc: "Your survival guide for 2026" },
+              { href: "/blog/liberty-village-world-cup-road-closures-resident-access", label: "Road Closures", desc: "World Cup street closures" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group rounded-xl border border-warm-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <h3 className="font-semibold text-warm-900 group-hover:text-amber-600 transition-colors">{item.label}</h3>
+                <p className="mt-1 text-sm text-warm-500">{item.desc}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+
         {/* Where to Stay */}
         {accommodations.length > 0 && (
           <section className="mb-16">
@@ -181,7 +215,7 @@ export default function Home() {
               Where to Stay
             </h2>
             <p className="mt-1 text-warm-500">
-              Visiting Liberty Village? Top-rated short-term rentals and Airbnbs in the neighborhood.
+              Visiting Liberty Village? Top-rated short-term rentals and Airbnbs in the neighbourhood.
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {accommodations.map((rental) => (
@@ -244,7 +278,7 @@ export default function Home() {
             New to Liberty Village?
           </h2>
           <p className="mx-auto mt-2 max-w-lg text-warm-600">
-            Moving to the neighborhood? Our comprehensive guide covers everything
+            Moving to the neighbourhood? Our comprehensive guide covers everything
             from parking to the best brunch spots.
           </p>
           <Link

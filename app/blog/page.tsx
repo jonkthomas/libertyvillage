@@ -44,7 +44,7 @@ export default function BlogIndexPage() {
         Liberty Village Blog
       </h1>
       <p className="mt-2 text-warm-500">
-        Local news, development updates, and community stories from the neighborhood.
+        Local news, development updates, and community stories from the neighbourhood.
       </p>
 
       {categories.length > 0 && (
