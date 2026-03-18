@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #FFFBF5;
-  --foreground: #1C1917;
+  --background: #FAF7F2;
+  --foreground: #1A1512;
 }
 
 @theme inline {
@@ -10,8 +10,9 @@
   --color-foreground: var(--foreground);
   --font-sans: 'DM Sans', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
 
-  /* Primary - Amber/Golden */
+  /* Primary - Amber/Golden (legacy) */
   --color-amber-500: #F59E0B;
   --color-amber-600: #D97706;
   --color-amber-700: #B45309;
@@ -41,14 +42,31 @@
   --color-warm-700: #44403C;
   --color-warm-800: #292524;
   --color-warm-900: #1C1917;
+
+  /* ── Liberty Village editorial palette ── */
+  --color-lv-brick: #C4533A;
+  --color-lv-brick-dark: #A8412B;
+  --color-lv-warm-black: #1A1512;
+  --color-lv-cream: #FAF7F2;
+  --color-lv-sand: #E8E0D5;
+  --color-lv-sage: #6B8F71;
+  --color-lv-sage-dark: #4A7050;
+  --color-lv-warm-grey: #7A6E65;
+  --color-lv-white: #FFFFFF;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-body), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  line-height: 1.6;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Display headings use Playfair Display */
+.font-display {
+  font-family: var(--font-display);
 }

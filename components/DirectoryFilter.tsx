@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Business, Service } from "@/lib/types";
 import BusinessCard from "./BusinessCard";
 
@@ -11,7 +12,14 @@ export default function DirectoryFilter({
   businesses: Business[];
   categories: Service[];
 }) {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
+
+  // Read ?q= param from URL on mount and when it changes
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) setSearch(q);
+  }, [searchParams]);
   const [activeCategory, setActiveCategory] = useState("");
 
   const filtered = useMemo(() => {

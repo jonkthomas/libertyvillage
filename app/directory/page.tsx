@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { getAllBusinesses, getAllServices } from "@/lib/data";
 import { generateItemListSchema, generateBreadcrumbSchema } from "@/lib/schema";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -46,7 +47,9 @@ export default function DirectoryPage() {
       </p>
 
       <div className="mt-6">
-        <DirectoryFilter businesses={businesses} categories={services} />
+        <Suspense fallback={<div className="py-8 text-center text-warm-400">Loading directory...</div>}>
+          <DirectoryFilter businesses={businesses} categories={services} />
+        </Suspense>
       </div>
 
       <script
