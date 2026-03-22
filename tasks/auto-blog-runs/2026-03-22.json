@@ -1,49 +1,11 @@
 {
-  "collectedAt": "2026-03-22T00:00:00Z",
-  "gsc": {
-    "searchAnalytics": {
-      "totalImpressions": 192,
-      "totalClicks": 1,
-      "avgPosition": 28.4,
-      "topQueries": [
-        {"query": "liberty village", "impressions": 44, "clicks": 0, "position": 15.93},
-        {"query": "liberty village toronto", "impressions": 11, "clicks": 0, "position": 22.27},
-        {"query": "liberty village parking", "impressions": 10, "clicks": 0, "position": 11},
-        {"query": "gym in liberty village", "impressions": 8, "clicks": 0, "position": 12.13},
-        {"query": "gym liberty village", "impressions": 6, "clicks": 0, "position": 11},
-        {"query": "fitness classes liberty village", "impressions": 6, "clicks": 0, "position": 11.67}
-      ]
-    },
-    "quickWins": [],
-    "sitemapStatus": {
-      "submitted": 241,
-      "indexed": 0,
-      "status": "Early indexing phase - no pages indexed yet"
-    }
-  },
-  "ga4": {
-    "status": "Not available - site too new",
-    "trafficByPage": []
-  },
-  "analysis": {
-    "topPerformingQueries": [
-      "liberty village (44 impressions)",
-      "liberty village toronto (11 impressions)",
-      "liberty village parking (10 impressions)"
-    ],
-    "contentGaps": [
-      "bars in liberty village toronto - 2 impressions, position 36-47, no dedicated bars page",
-      "best vet in liberty village - 1 impression, position 17, mentioned in dog guide but could be standalone",
-      "coffee shops liberty village - 2 impressions, position 9.5, good ranking but could optimize"
-    ],
-    "trendingTopics": [
-      "World Cup related: fifa road closures (4 impressions, position 9.75)",
-      "Fitness: gym/fitness queries total 30+ impressions",
-      "Parking: multiple parking queries, strong positions (9-14)"
-    ],
-    "underperformingPages": [
-      "Brunch guide: position 11-20 range, 0 CTR despite good ranking",
-      "Restaurants page: position 19-47, many related queries with 0 clicks"
-    ]
-  }
+  "date": "2026-03-22T11:21:23.178Z",
+  "success": true,
+  "costUsd": 1.3181117500000001,
+  "turnsUsed": 43,
+  "durationMs": 328857,
+  "topicSelected": null,
+  "postSlug": null,
+  "seoDataSummary": null,
+  "errors": []
 }
