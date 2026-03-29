@@ -1,23 +1,11 @@
 {
-  "runDate": "2026-03-29",
-  "status": "success",
-  "topicSelected": "Liberty Village Parks & Green Spaces Guide",
-  "slug": "liberty-village-parks-green-spaces-guide",
-  "category": "lifestyle",
-  "seoData": {
-    "gscImpressions": 100,
-    "topQueries": ["liberty village", "gym near liberty village", "gym liberty village"],
-    "quickWins": 0,
-    "sitemapStatus": "241 submitted, 0 indexed"
-  },
-  "qualityChecks": {
-    "wordCount": 1236,
-    "internalLinks": 8,
-    "businessMentions": 6,
-    "faqCount": 5,
-    "diagnosticPassed": true,
-    "buildPassed": true
-  },
-  "imageSource": "pexels",
-  "timestamp": "2026-03-29T11:30:00Z"
+  "date": "2026-03-29T11:26:51.959Z",
+  "success": true,
+  "costUsd": 1.5434602499999999,
+  "turnsUsed": 74,
+  "durationMs": 324820,
+  "topicSelected": null,
+  "postSlug": null,
+  "seoDataSummary": null,
+  "errors": []
 }
