@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getAllServices, getAllTopics, getBusinessesByCategory, getRecentPosts } from "@/lib/data";
 import { generateHomePageMeta } from "@/lib/meta";
-import { generateBreadcrumbSchema, generateWebsiteSchema, generateOrganizationSchema } from "@/lib/schema";
+import { generateBreadcrumbSchema, generateOrganizationSchema } from "@/lib/schema";
 import HeroAnimation from "@/components/HeroAnimation";
 import AnimatedStats from "@/components/AnimatedStats";
 import SectionReveal from "@/components/SectionReveal";
@@ -464,12 +464,7 @@ export default function Home() {
           ])),
         }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(generateWebsiteSchema()),
-        }}
-      />
+      {/* WebSite schema is in layout.tsx — only Organization schema here */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
