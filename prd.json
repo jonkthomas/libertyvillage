@@ -108,7 +108,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Use /seo-content skill. Current /best/bars has 75% bounce rate — content depth is the fix."
     },
     {
