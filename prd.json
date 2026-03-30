@@ -358,7 +358,7 @@
         "Verify in browser using dev-browser skill: /guide shows facts sidebar, history section, and all existing guide links"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (GuideHub type), US-003 (guide-hub.json). Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-6). Use nextjs-expert + frontend-expert agents."
     },
     {
