@@ -91,7 +91,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Use /seo-content skill. Read data/businesses.json for gym business details."
     },
     {
