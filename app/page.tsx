@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getAllServices, getAllTopics, getBusinessesByCategory, getRecentPosts } from "@/lib/data";
 import { generateHomePageMeta } from "@/lib/meta";
-import { generateBreadcrumbSchema, generateWebsiteSchema } from "@/lib/schema";
+import { generateBreadcrumbSchema, generateWebsiteSchema, generateOrganizationSchema } from "@/lib/schema";
 import HeroAnimation from "@/components/HeroAnimation";
 import AnimatedStats from "@/components/AnimatedStats";
 import SectionReveal from "@/components/SectionReveal";
@@ -468,6 +468,12 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(generateWebsiteSchema()),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateOrganizationSchema()),
         }}
       />
     </div>

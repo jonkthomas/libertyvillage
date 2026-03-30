@@ -177,6 +177,21 @@ export function generateBlogPostSchema(
   };
 }
 
+export function generateOrganizationSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "LibertyVillage.co",
+    url: SITE_URL,
+    description:
+      "Your complete guide to Liberty Village, Toronto. Find the best restaurants, services, and local businesses.",
+    areaServed: {
+      "@type": "Place",
+      name: "Liberty Village, Toronto, Ontario, Canada",
+    },
+  };
+}
+
 export function generateWebsiteSchema() {
   return {
     "@context": "https://schema.org",
