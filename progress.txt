@@ -1,8 +1,176 @@
 # Progress Log
 
-Started: Sat Feb 14 18:08:26 PST 2026
+Started: Sun Mar 29 23:44:04 EDT 2026
 Project: libertyvillage.co
 Goal: Unknown
 
 ---
+
+## 2026-03-29 - US-001: Extend TypeScript types for guide-depth content
+
+**What I did:**
+- Added comparisonTable, keyTakeaways, proTips, neighbourhoodContext, sections to Service interface
+- Added crossLinks and exploreCta to BlogPost interface (did NOT touch existing keyTakeaways)
+- Created GuideHub interface with all required fields
+- Added getGuideHubData() to lib/data.ts with try/catch fallback defaults
+
+**Files changed:**
+- lib/types.ts
+- lib/data.ts
+
+**Learnings:**
+- BlogPost.keyTakeaways is already required (string[]) — must not make it optional
+- loadJSON<T> pattern is used throughout data.ts — follow same pattern for new loaders
+- Build generates 120+ directory pages, 25+ blog pages — build takes ~30s
+- Typecheck and build both pass with zero existing data changes
+
+## 2026-03-29 - US-002: Add buildComparisonTable and resolveCrossLinks helpers
+
+**What I did:**
+- Added buildComparisonTable(serviceSlug) to lib/data.ts — auto-generates from businesses, manual override support
+- Added resolveCrossLinks(crossLinks?) to lib/links.ts — resolves service/guide slugs, filters invalid silently
+- Imported BlogPost type in links.ts for crossLinks type reference
+
+**Files changed:**
+- lib/data.ts
+- lib/links.ts
+
+**Learnings:**
+- getBusinessesByCategory already sorts by rating descending — good for comparison tables
+- LinkItem interface is in lib/links.ts, not lib/types.ts
+- resolveCrossLinks must handle undefined input (return []) per acceptance criteria
+
+## 2026-03-29 - US-003: Create guide-hub.json data file
+
+**What I did:**
+- Created data/guide-hub.json with all GuideHub fields
+- Population ~7,500, rent $2,608/mo, Walk Score 88, Transit Score 96
+- 4-paragraph history (Central Prison 1870s → industrial → condo transformation → present)
+- 6 pros, 6 cons, 10 quickFacts, 53-word answerSummary with 3+ numeric points
+
+**Files changed:**
+- data/guide-hub.json (new)
+
+**Learnings:**
+- answerSummary must be 40-60 words with 3+ numeric data points — verified at 53 words
+- Can't test getGuideHubData() via node directly (TypeScript) — build validation is sufficient
+
+## 2026-03-29 - US-004: Populate restaurants guide-depth data
+
+**What I did:**
+- Added comparisonTable (6 rows), keyTakeaways (5), proTips (5), neighbourhoodContext (156 words), sections (4), expanded FAQs to 8
+- Enriched answerBlock to 120 words with 4+ restaurant names and 3+ price points
+- All FAQ answers >=50 words with specific names/prices
+
+**Files changed:**
+- data/services.json (restaurants entry)
+
+**Learnings:**
+- Restaurant data from businesses.json: 5 restaurants with ratings 3.9-4.5
+- Businesses are: Mildred's, School, Impact Kitchen, LOCAL, Moxie's
+- Brazen Head exists in businesses.json under 'bars' category but is relevant to restaurants too
+- neighbourhoodContext needs minimum 150 words — keep paragraphs focused
+
+## 2026-03-29 - US-005: Populate gyms guide-depth data
+
+**What I did:**
+- Added comparisonTable (6 gyms with monthly costs), keyTakeaways (5), proTips (5), neighbourhoodContext (163 words), sections (3), expanded FAQs to 8
+
+**Files changed:**
+- data/services.json (gyms entry)
+
+**Learnings:**
+- Initial neighbourhoodContext was 142 words — had to expand to hit 150 minimum
+- Gym businesses: GoodLife, F45, Altea Active, Orangetheory, Movati, SpinCo
+
+## 2026-03-30 - US-014: Build ExploreCTA component
+
+**What I did:**
+- Committed pre-existing components/ExploreCTA.tsx (created in prior session, untracked)
+- Verified all acceptance criteria met: amber-50 bg, amber-500 border-l-4, min-h-[80px], null guard
+
+**Files changed:**
+- components/ExploreCTA.tsx (new)
+
+**Learnings:**
+- Several components were pre-built in prior sessions but left untracked — need to check git status before implementing
+- US-006 through US-013 were all completed by a parallel process; always re-read prd.json for fresh status
+
+## 2026-03-30 - US-016: Wire service page template with new components
+
+**What I did:**
+- Added ServiceComparisonTable, KeyTakeaways, ProTips imports to service page
+- Added className=key-takeaways to KeyTakeaways wrapper (done by parallel process)
+- Rendered neighbourhoodContext and sections conditionally
+- Page order: H1 → AnswerBlock → ComparisonTable → KeyTakeaways → Description → Neighbourhood Context → Sections → Definition → Businesses → ProTips → Methodology → FAQs → Related Links
+
+**Files changed:**
+- app/best/[service]/page.tsx
+- components/KeyTakeaways.tsx
+
+**Learnings:**
+- KeyTakeaways and schema updates were done by parallel process — always check current file state before editing
+
+## 2026-03-30 - US-017: Add ItemList schema for service comparison tables
+
+**What I did:**
+- Imported generateItemListSchema and wired it into service page
+- Schema generated from first column of comparison table rows
+- Only generates when comparison data exists
+
+**Files changed:**
+- app/best/[service]/page.tsx
+
+## 2026-03-30 - US-018: Wire blog post template with cross-links and ExploreCTA
+
+**What I did:**
+- Added ExploreCTA after article content, before FAQs
+- Added cross-links resolved via resolveCrossLinks() as Related Services & Guides
+
+**Files changed:**
+- app/blog/[slug]/page.tsx
+
+## 2026-03-30 - US-020: Upgrade guide hub page layout
+
+**What I did:**
+- Created NeighbourhoodHistory component with history text and pros/cons grid
+- Guide page restructured with AnswerBlock → History → 2-col grid (guides + facts sidebar)
+- NeighbourhoodFacts sidebar sticky on desktop, stacked on mobile
+
+**Files changed:**
+- components/NeighbourhoodHistory.tsx (new)
+- components/NeighbourhoodFacts.tsx (new, by parallel process)
+- app/guide/page.tsx
+
+## 2026-03-30 - US-022 through US-025: E2E Tests and UAT
+
+**What I did:**
+- Created/updated service-page-content.spec.ts for content depth assertions
+- Created uat-desktop.spec.ts for full desktop UAT flows
+- Created uat-mobile.spec.ts for 375px mobile UAT flows
+
+**Files changed:**
+- tests/e2e/service-page-content.spec.ts
+- tests/e2e/uat-desktop.spec.ts (new)
+- tests/e2e/uat-mobile.spec.ts (new)
+
+**Learnings:**
+- FAQSection uses <details> elements with <summary> — selector is simply `details`
+- Comparison table uses md: breakpoint for responsive — mobile cards in .md\:hidden container
+- A parallel process was completing stories simultaneously; both processes converged successfully
+
+## 2026-03-30 - ALL STORIES COMPLETE (25/25)
+
+**Summary:**
+All 25 user stories passed. Key deliverables:
+- 5 service pages enriched with guide-depth data (restaurants, gyms, bars, coffee-shops, coworking-spaces)
+- Comparison tables, key takeaways, pro tips, neighbourhood context, expanded FAQs
+- HeaderDropdown (Best Of) with ARIA compliance and MobileNav expansion
+- ExploreCTA and cross-links on 4 World Cup blog posts
+- Organization schema on homepage, ItemList schema on service pages
+- Guide hub page with NeighbourhoodFacts sidebar and NeighbourhoodHistory
+- AnswerBlock enhanced for AI citability (section + data-answer + sr-only h2)
+- Speakable schema updated with .key-takeaways and .pro-tips selectors
+- E2E tests created for service pages, navigation, cross-links
+- Full build passes with zero errors
 
