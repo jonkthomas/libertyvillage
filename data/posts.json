@@ -64,7 +64,30 @@
       "liberty-village-car-free-transit-guide-2026"
     ],
     "author": "LibertyVillage.co",
-    "image": "/images/blog/fifa-world-cup-2026-liberty-village-survival-guide.jpg"
+    "image": "/images/blog/fifa-world-cup-2026-liberty-village-survival-guide.jpg",
+    "crossLinks": [
+      {
+        "type": "service",
+        "slug": "restaurants"
+      },
+      {
+        "type": "service",
+        "slug": "bars"
+      },
+      {
+        "type": "guide",
+        "slug": "parking-guide"
+      },
+      {
+        "type": "guide",
+        "slug": "transit-guide"
+      }
+    ],
+    "exploreCta": {
+      "label": "Explore Liberty Village",
+      "href": "/directory",
+      "description": "Find restaurants, bars, and services near BMO Field"
+    }
   },
   {
     "slug": "best-restaurants-liberty-village-locals-guide",
@@ -189,7 +212,7 @@
   },
   {
     "slug": "remote-work-cafes-coworking-liberty-village",
-    "title": "Best Cafes and Coworking Spaces for Remote Work in LV",
+    "title": "Best Cafes and Coworking Spaces for Remote Work in Liberty Village",
     "description": "Where to work remotely in Liberty Village — the best cafes with wifi, dedicated coworking spaces, and tips for building a productive routine outside your condo.",
     "content": "## Your Condo Is Not an Office\n\nIf you have been working from your Liberty Village condo since 2020, you already know the problem: the couch is too comfortable, the fridge is too close, and your \"home office\" is a laptop on the kitchen island. The neighbourhood has plenty of options to break the cycle.\n\nHere is where to actually get work done.\n\n## Dedicated Coworking Spaces\n\nFor serious remote workers who need a consistent setup, Liberty Village has three solid [coworking spaces](/best/coworking-spaces).\n\n**Spaces Liberty Village** on East Liberty Street occupies a converted warehouse with the exposed brick and high ceilings you would expect. Hot desks start around $350 per month, dedicated desks around $500, and private offices scale from there. The wifi is fast, the coffee is included, and the community events — monthly mixers, lunch-and-learns — are actually worth attending. Best for freelancers and small teams who want a professional environment.\n\n**WeWork** at 100 Broadview (technically just east of the neighbourhood) offers the global coworking brand's standard package: hot desks, private offices, phone booths, and unlimited coffee. Pricing is higher than Spaces — expect $400 to $600 per month for a hot desk — but the 24/7 access and network perks may justify it for some.\n\n[The Fueling Station](/directory/the-fueling-station) on Mowat Avenue is the scrappier, more community-oriented option. Lower price point, smaller space, and a more intimate vibe. It caters to the creative and startup crowd. If you want a space where you know everyone by name within a week, this is it.\n\n## Cafes for the Occasional Work Day\n\nNot everyone needs a full coworking membership. Sometimes you just need a change of scenery, decent wifi, and a flat white. These [coffee shops](/best/coffee-shops) are the best for working.\n\n### Best Overall: Balzac's Coffee Roasters\n\n[Balzac's Coffee Roasters](/directory/balzacs-coffee-liberty-village) in the heritage brick building on Liberty Street is the neighbourhood's default work cafe. The space is large enough that you do not feel guilty camping for three hours. Wifi is reliable, outlets are available along the walls, and the coffee is excellent. The vibe is bustling but not distracting — mostly other remote workers and creatives.\n\nPeak hours (10 AM to noon) get crowded. Arrive before 9 AM to guarantee a good seat with an outlet.\n\n### Best for Focus: Dark Horse Espresso Bar\n\n[Dark Horse Espresso Bar](/directory/dark-horse-espresso-liberty-village) is smaller and quieter than Balzac's. The espresso is arguably better — they take their craft seriously. Fewer seats means it can fill up fast, but the trade-off is a calmer atmosphere. Good for deep-focus work.\n\n### Best for a Quick Session: Louie Coffee Bar\n\n**Louie Coffee Bar** is a compact spot that works for a 60-to-90-minute work sprint. Do not plan to camp here all day — the space is small and they appreciate turnover — but for a focused morning session with a great cortado, it does the job.\n\n### Best Vibe: Arvo Coffee\n\n[Arvo Coffee](/directory/arvo-coffee) brings a Melbourne-inspired aesthetic with solid pour-overs and a relaxed atmosphere. The seating area is moderate, and the wifi holds up for video calls if you grab one of the back tables.\n\n## Building a Routine\n\nThe most productive remote workers in Liberty Village tend to rotate between two or three spots. Here is a pattern that works:\n\n**Morning deep work (8 to 11 AM):** Start at a quiet cafe like **Dark Horse Espresso Bar** or **Arvo Coffee** before the lunch crowd arrives.\n\n**Midday meetings (11 AM to 1 PM):** Head to a coworking space where you have a proper desk, phone booths for calls, and fast wifi for video. **Spaces Liberty Village** and **WeWork** both handle this well.\n\n**Afternoon sprint (2 to 4 PM):** Return to your condo or switch to **Balzac's Coffee Roasters** for a second caffeine hit and final push.\n\n## Internet at Home\n\nYour [home internet](/guide/internet-providers) matters as much as your cafe choices. Liberty Village's condo buildings vary wildly in available providers and speeds. Bell Fibre and Rogers Ignite are the most common options, with speeds up to 1.5 Gbps in newer buildings. Older converted loft buildings may be limited to slower connections.\n\nFor a more detailed breakdown, see our [internet providers guide](/guide/internet-providers).\n\n## The Bottom Line\n\nLiberty Village's combination of walkable cafes and dedicated coworking spaces makes it one of Toronto's better neighbourhoods for remote work. The trick is not defaulting to your couch every day. Pick two or three spots, build a rotation, and your productivity — and sanity — will thank you.\n\nFor more options and tips, check our [remote work spots guide](/guide/remote-work-spots).",
     "publishedAt": "2026-02-07",
@@ -488,7 +511,7 @@
   },
   {
     "slug": "liberty-village-fitness-guide-every-gym-compared",
-    "title": "Fitness Classes & Every Gym in Liberty Village Compared (2026)",
+    "title": "Best Gyms & Fitness Classes in Liberty Village Compared (2026)",
     "description": "Every fitness class and gym in Liberty Village compared: GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, hours, and honest reviews.",
     "content": "## The Fitness Landscape\n\nFor a quick ranked directory, see our [best gyms in Liberty Village](/best/gyms).\n\nLiberty Village packs more fitness options per square kilometre than most Toronto neighbourhoods. Within a 10-minute walk, you can choose from big-box gyms, boutique studios, yoga, Pilates, and personal training. The challenge is not finding a place to work out — it is figuring out which one matches your goals and budget.\n\n## The Big Gyms\n\n### GoodLife Fitness Liberty Village\n\n**GoodLife Fitness Liberty Village** is the default choice for a reason. Open early to late, stocked with standard cardio and weight equipment, and priced at the mid-market range ($50 to $70 per month depending on the membership tier). The Liberty Village location stays busy during peak hours (6 to 8 AM and 5 to 7 PM), but the equipment turnover is fast enough that waits are manageable.\n\nBest for: People who want a no-frills gym with reliable equipment and flexible hours.\n\n### Altea Active\n\n**Altea Active** is the premium option. This is a full-service fitness club with a pool, hot tub, sauna, group classes, and a cafe. Membership runs higher — expect $100 to $150 per month — but you are getting a wellness facility, not just a gym. The spa services and recovery amenities set it apart.\n\nBest for: People who want an all-in-one fitness and wellness experience and are willing to pay for it.\n\n## Boutique Fitness Studios\n\n### F45 Training Liberty Village\n\n**F45 Training Liberty Village** runs 45-minute functional training classes that mix cardio, resistance, and HIIT. The class schedule is fixed and the workouts change daily, which keeps things fresh. Pricing is on the boutique end ($200 to $250 per month), but the accountability of showing up to a timed class works well for people who need structure.\n\nBest for: People who need external motivation and enjoy group energy.\n\n### Studio Lagree\n\n**Studio Lagree** uses the Megaformer machine for slow-burn, high-intensity Pilates-style workouts. It is harder than it looks — the controlled movements target stabilizer muscles that most gym routines miss. Class packs start around $25 to $30 per class.\n\nBest for: People who want a low-impact but challenging workout — particularly good for injury recovery and core strength.\n\n### Pure Barre Liberty Village\n\n**Pure Barre Liberty Village** combines ballet-inspired movements with isometric holds and small range-of-motion exercises. It is deceptively intense. Classes run about $25 to $30 each, with monthly unlimited options available.\n\nBest for: People who enjoy group classes and want a full-body toning workout.\n\n## Yoga and Mindfulness\n\n**Yoga Tree** is the neighbourhood's dedicated [yoga studio](/best/yoga-studios). They offer a range of class types from gentle restorative to power vinyasa, with pricing starting around $20 per drop-in class or $150 for monthly unlimited.\n\nFor [Pilates](/best/pilates) specifically, Studio Lagree and Pure Barre cover the mat and reformer options.\n\n## Personal Training\n\nIf you want one-on-one coaching, **Precision Athletics** offers [personal training](/best/personal-trainers) with programming tailored to your specific goals. Expect $80 to $120 per session. It is the most expensive option per hour, but also the most efficient if you have specific targets — weight loss, strength milestones, or rehabilitation.\n\n## Recovery and Wellness\n\nAfter the workout comes recovery. **Myodetox Liberty Village** specializes in [massage therapy](/best/massage-therapy) and movement therapy — they are popular with the boutique fitness crowd for addressing the muscle soreness that comes with high-intensity training.\n\n**Liberty Village Physiotherapy & Rehab** handles sports injuries and rehabilitation, including post-surgery recovery. See our [physiotherapy](/best/physiotherapy) and [chiropractor](/best/chiropractors) directories for more options.\n\nFor a more indulgent recovery, the [spas](/best/spas) in the area including **Beauty Room** and **King Liberty Health Centre** offer relaxation treatments.\n\n## The Comparison Table\n\n| Gym | Monthly Cost | Best For | Vibe |\n|-----|-------------|----------|------|\n| GoodLife | $50–$70 | General fitness | Big-box, reliable |\n| Altea Active | $100–$150 | All-in-one wellness | Premium, social |\n| F45 Training | $200–$250 | Group HIIT | High energy, structured |\n| Studio Lagree | $25–$30/class | Pilates/core | Boutique, challenging |\n| Pure Barre | $25–$30/class | Barre/toning | Group, motivating |\n| Yoga Tree | $20/class | Yoga | Calm, varied |\n| Precision Athletics | $80–$120/session | Personal training | 1-on-1, results |\n\n## How to Choose\n\nAsk yourself three questions:\n\n1. **Do you need accountability?** If yes, go with F45, Studio Lagree, or any class-based studio where you book a time slot.\n2. **Do you want flexibility?** GoodLife and Altea Active let you show up whenever the mood strikes.\n3. **What is your real budget?** Be honest. A $250-per-month F45 membership you use three times a week is better value than a $50 GoodLife membership you use once a month.\n\nFor a deeper dive into fitness in the neighbourhood, check our [fitness guide](/guide/fitness-guide).",
     "publishedAt": "2026-02-07",
@@ -935,7 +958,26 @@
       "Most venues sit within 5-10 minutes of BMO Field, allowing you to time your arrival perfectly for kickoff",
       "Book reservations in advance for sit-down venues, especially for Canada's June 12 match against Morocco"
     ],
-    "author": "LibertyVillage.co"
+    "author": "LibertyVillage.co",
+    "crossLinks": [
+      {
+        "type": "service",
+        "slug": "restaurants"
+      },
+      {
+        "type": "service",
+        "slug": "bars"
+      },
+      {
+        "type": "service",
+        "slug": "patios"
+      }
+    ],
+    "exploreCta": {
+      "label": "Explore Liberty Village",
+      "href": "/directory",
+      "description": "Find restaurants, bars, and services near BMO Field"
+    }
   },
   {
     "slug": "walking-liberty-village-to-bmo-field-game-day-route",
@@ -1068,7 +1110,22 @@
       "Ontario Line construction pauses on match days, eliminating surface work but resuming immediately after.",
       "Walking, cycling, and transit are more reliable than driving. Street parking will be prohibited; off-street lots will fill and charge premium rates."
     ],
-    "author": "LibertyVillage.co"
+    "author": "LibertyVillage.co",
+    "crossLinks": [
+      {
+        "type": "guide",
+        "slug": "parking-guide"
+      },
+      {
+        "type": "service",
+        "slug": "restaurants"
+      }
+    ],
+    "exploreCta": {
+      "label": "Explore Liberty Village",
+      "href": "/directory",
+      "description": "Find restaurants, bars, and services near BMO Field"
+    }
   },
   {
     "slug": "watch-world-cup-liberty-village-without-tickets",
@@ -1134,7 +1191,22 @@
       "Toronto's 40,000 Croatian-Canadians and 20,000 Ghanaian-Canadians will energize matches on June 17 and June 23 with cultural celebrations",
       "Optimal experience: watch first half at free festival, walk to Liberty Village bar for second half, food, drinks, and post-match celebration"
     ],
-    "author": "LibertyVillage.co"
+    "author": "LibertyVillage.co",
+    "crossLinks": [
+      {
+        "type": "service",
+        "slug": "bars"
+      },
+      {
+        "type": "service",
+        "slug": "coffee-shops"
+      }
+    ],
+    "exploreCta": {
+      "label": "Explore Liberty Village",
+      "href": "/directory",
+      "description": "Find restaurants, bars, and services near BMO Field"
+    }
   },
   {
     "slug": "rent-liberty-village-condo-world-cup-airbnb-guide",
