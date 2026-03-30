@@ -112,24 +112,65 @@
     "searchVolume": "high",
     "competitiveness": "hard",
     "image": "/images/services/coffee-shops.jpg",
-    "answerBlock": "Liberty Village is home to 5 excellent coffee shops. Arvo Coffee on Fraser Ave tops ratings at 4.4 with Australian-style flat whites, while Balzac's in the Liberty Market building is the neighbourhood's unofficial living room. Dark Horse Espresso on Liberty Street and Jimmy's Coffee on Atlantic Ave round out a strong indie scene, all priced between $4 and $7.",
+    "answerBlock": "Liberty Village is home to 5 excellent coffee shops, all independently owned. Arvo Coffee on Fraser Avenue tops ratings at 4.4/5 with Australian-style flat whites priced at $5.50. Balzac's Coffee Roasters in the Liberty Market building is the neighbourhood's unofficial living room, opening at 7 am with lattes from $5. Dark Horse Espresso Bar on Liberty Street and Jimmy's Coffee on Atlantic Avenue round out the indie scene at $4 to $6 per drink. Louie Coffee Bar on East Liberty pulls rotating single-origin espresso for the specialty crowd. Every shop offers WiFi, and most welcome laptops — making Liberty Village one of the best neighbourhoods in Toronto for remote work over coffee.",
     "definition": "Coffee shops in Liberty Village lean heavily toward independent specialty roasters in converted industrial spaces, serving the neighbourhood's large population of remote workers and creative professionals.",
+    "comparisonTable": {
+      "columns": ["Shop", "WiFi", "Laptop-Friendly", "Hours", "Best For"],
+      "rows": [
+        { "Shop": "Arvo Coffee", "WiFi": "Fast (50+ Mbps)", "Laptop-Friendly": "Yes (limited seating)", "Hours": "7:30am-4pm", "Best For": "Specialty flat whites" },
+        { "Shop": "Balzac's Coffee Roasters", "WiFi": "Fast", "Laptop-Friendly": "Yes (large space)", "Hours": "7am-7pm", "Best For": "Remote work & meetings" },
+        { "Shop": "Dark Horse Espresso", "WiFi": "Good", "Laptop-Friendly": "Yes (power outlets)", "Hours": "7am-6pm", "Best For": "Afternoon work sessions" },
+        { "Shop": "Jimmy's Coffee", "WiFi": "Good", "Laptop-Friendly": "Yes (cozy)", "Hours": "7am-6pm", "Best For": "Quiet mornings & drip coffee" },
+        { "Shop": "Louie Coffee Bar", "WiFi": "Good", "Laptop-Friendly": "Limited", "Hours": "7am-5pm", "Best For": "Single-origin espresso & latte art" }
+      ]
+    },
+    "keyTakeaways": [
+      "Arvo Coffee leads with a 4.4/5 rating and Australian-style flat whites at $5.50 — the best speciality coffee in Liberty Village",
+      "Balzac's in the Liberty Market building is the most laptop-friendly with 40+ seats, strong WiFi, and hours from 7 am to 7 pm weekdays",
+      "All five coffee shops are independently owned — no Starbucks or Tim Hortons in the core of Liberty Village",
+      "Drip coffee runs $3 to $4 across the neighbourhood while lattes and speciality drinks range from $5 to $7",
+      "Weekend hours start an hour later at most shops (8 am to 8:30 am) — Balzac's is the earliest Saturday opener at 8 am"
+    ],
+    "proTips": [
+      "Balzac's back corner near the Liberty Market entrance has the quietest tables and the best power outlet access — arrive before 9 am to claim one",
+      "Arvo Coffee closes at 4 pm daily and has only 15 seats — go before 10 am or after 2 pm to avoid standing room only",
+      "Dark Horse Espresso's cold brew ($5) is brewed in-house for 20 hours and sells out by 2 pm on hot days — order it early",
+      "Jimmy's Coffee on Atlantic Avenue is the least crowded option at lunch hour — most remote workers default to Balzac's, leaving Jimmy's wide open",
+      "Louie Coffee Bar rotates their single-origin beans weekly — ask for the current origin and tasting notes, the baristas know their beans well"
+    ],
+    "neighbourhoodContext": "Liberty Village's coffee culture is shaped by its unusually high concentration of remote workers, freelancers, and startup employees. With a Walk Score of 88, most residents live within a 5-minute walk of at least two coffee shops, making the morning coffee run a daily ritual rather than an occasional treat.\n\nThe dominance of independent shops is the defining characteristic. Unlike most Toronto neighbourhoods where chains occupy prime corners, Liberty Village's converted warehouse spaces attracted indie roasters who could afford the unique floor plans. Arvo's Australian influence, Balzac's literary-themed branding, and Dark Horse's Toronto-roasted beans each bring a distinct identity to the neighbourhood.\n\nFor the work-from-home crowd, coffee shops function as de facto coworking spaces. Balzac's 40-seat Liberty Market location and Dark Horse's outlet-lined walls see a steady stream of laptops from 8 am to closing. This has created an unspoken etiquette — buy a drink every 90 minutes, keep calls on mute, and share the power outlets.",
     "specificFaqs": [
       {
         "question": "What are the best coffee shops in Liberty Village for remote work?",
-        "answer": "Balzac's Coffee Roasters in the Liberty Market building is the neighbourhood's top laptop-friendly cafe with ample seating and great espresso. Dark Horse Espresso Bar on Liberty St has plenty of power outlets and strong WiFi. Jimmy's Coffee on Atlantic Ave is cozier but equally work-friendly."
+        "answer": "Balzac's Coffee Roasters in the Liberty Market building is the top pick for remote work — 40+ seats, reliable WiFi, power outlets along the walls, and hours from 7 am to 7 pm weekdays. Dark Horse Espresso Bar on Liberty Street has similar amenities in a slightly smaller space with good outlet access. Jimmy's Coffee on Atlantic Avenue is the least crowded option if you prefer a quieter environment."
       },
       {
         "question": "Are there specialty coffee shops in Liberty Village?",
-        "answer": "Yes. Arvo Coffee on Fraser Ave serves Australian-style flat whites with single-origin beans. Louie Coffee Bar on East Liberty pulls rotating single-origin espresso with beautiful latte art. Dark Horse Espresso is an established Toronto indie roaster with a loyal local following."
+        "answer": "Arvo Coffee on Fraser Avenue serves Australian-style flat whites and cortados using single-origin beans — widely considered the best espresso in the neighbourhood. Louie Coffee Bar on East Liberty pulls rotating single-origin espresso with meticulous latte art and changes their bean selection weekly. Dark Horse Espresso roasts their own beans at a Toronto facility, giving their drinks a consistent house flavour."
       },
       {
         "question": "What time do Liberty Village coffee shops open?",
-        "answer": "Most open early for the commuter crowd. Balzac's and Dark Horse Espresso open at 7am weekdays. Jimmy's Coffee on Atlantic Ave also opens at 7am. Arvo Coffee opens at 7:30am. Weekend hours typically start an hour later, around 8am to 8:30am across the neighbourhood."
+        "answer": "Weekday opening times range from 7 am to 7:30 am. Balzac's, Dark Horse, and Jimmy's all open at 7 am. Arvo Coffee opens slightly later at 7:30 am. Weekend hours start about an hour later across the board — Balzac's at 8 am, Arvo and Louie at 8:30 am. If you need early Saturday coffee, Balzac's is your only option before 8:30 am."
       },
       {
         "question": "How much does coffee cost in Liberty Village?",
-        "answer": "Expect to pay $4-6 for a latte or specialty drink at most Liberty Village cafes. Drip coffee runs $2.50-4 depending on the shop. Jimmy's Coffee and Dark Horse tend to be slightly cheaper than Balzac's, and Arvo's pricing is mid-range for the quality you get."
+        "answer": "Drip coffee runs $3 to $4 at most shops. Lattes and flat whites cost $5 to $6, with Arvo's flat white at $5.50 being the neighbourhood benchmark. Specialty drinks like cold brew and matcha lattes range from $5 to $7. Jimmy's Coffee and Dark Horse tend to be slightly cheaper overall, while Louie's single-origin pour-overs at $6 are the most expensive regular offering."
+      },
+      {
+        "question": "Which coffee shop has the best WiFi in Liberty Village?",
+        "answer": "Balzac's and Arvo Coffee both offer fast, reliable WiFi suitable for video calls and large file uploads. Dark Horse and Jimmy's have solid connections for general browsing and email but can slow during peak lunch hours. Louie Coffee Bar has WiFi but limited seating and a subtle no-laptop culture during busy periods — better for a quick espresso than a work session."
+      },
+      {
+        "question": "Are there coffee shops with outdoor seating in Liberty Village?",
+        "answer": "Balzac's has a few tables outside the Liberty Market entrance, though they fill quickly in summer. Jimmy's Coffee has a small sidewalk patio on Atlantic Avenue that catches morning sun. Arvo Coffee has a narrow patio with 4 seats. Dark Horse has the most dedicated outdoor space with a sidewalk patio on Liberty Street that seats about 10 people — the best option for working outside."
+      },
+      {
+        "question": "Do Liberty Village coffee shops serve food?",
+        "answer": "Most offer pastries and light bites. Balzac's has the widest food selection with croissants, muffins, and sandwiches from $4 to $8. Arvo serves Australian-inspired toasts and a small brunch menu on weekends. Jimmy's has baked goods and a few sandwich options. Louie keeps it minimal with pastries from local bakeries. For a full breakfast, you are better off at a nearby restaurant."
+      },
+      {
+        "question": "Is there a Starbucks in Liberty Village?",
+        "answer": "There is no Starbucks in the core of Liberty Village. The nearest locations are on King Street West outside the neighbourhood boundaries. This is actually a point of pride for the area — the five indie coffee shops serve higher-quality espresso at comparable prices. If you specifically need a Starbucks, the closest one is at King and Dufferin, about a 10-minute walk from the centre of Liberty Village."
       }
     ]
   },
