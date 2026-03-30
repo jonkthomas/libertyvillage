@@ -8,6 +8,7 @@ import {
   getAllPosts,
   getPostBySlug,
 } from "./data";
+import type { BlogPost } from "./types";
 
 export interface LinkItem {
   title: string;
@@ -137,6 +138,34 @@ export function getRelatedPostsForTopic(topicSlug: string): LinkItem[] {
       href: `/blog/${p.slug}`,
       description: p.description,
     }));
+}
+
+export function resolveCrossLinks(crossLinks?: BlogPost["crossLinks"]): LinkItem[] {
+  if (!crossLinks) return [];
+
+  return crossLinks
+    .map((link) => {
+      if (link.type === "service") {
+        const service = getServiceBySlug(link.slug);
+        if (!service) return null;
+        return {
+          title: link.label || `Best ${service.pluralName} in Liberty Village`,
+          href: `/best/${service.slug}`,
+          description: service.description,
+        };
+      }
+      if (link.type === "guide") {
+        const topic = getTopicBySlug(link.slug);
+        if (!topic) return null;
+        return {
+          title: link.label || topic.title,
+          href: `/guide/${topic.slug}`,
+          description: topic.description,
+        };
+      }
+      return null;
+    })
+    .filter((item): item is LinkItem => item !== null);
 }
 
 type PageType = "service" | "neighborhood" | "business" | "guide" | "blog" | "terms" | "privacy";

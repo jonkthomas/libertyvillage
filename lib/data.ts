@@ -82,6 +82,25 @@ export function getRecentPosts(limit: number = 10): BlogPost[] {
     .slice(0, limit);
 }
 
+// Comparison Table
+export function buildComparisonTable(serviceSlug: string): { columns: string[]; rows: Array<Record<string, string>> } {
+  const service = getServiceBySlug(serviceSlug);
+  if (service?.comparisonTable) {
+    return service.comparisonTable;
+  }
+
+  const businesses = getBusinessesByCategory(serviceSlug);
+  const columns = ["Name", "Rating", "Price Range", "Hours"];
+  const rows = businesses.map((b) => ({
+    Name: b.name,
+    Rating: `${b.rating}/5`,
+    "Price Range": b.priceRange,
+    Hours: b.hours,
+  }));
+
+  return { columns, rows };
+}
+
 // Guide Hub
 export function getGuideHubData(): GuideHub {
   try {
