@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getAllPosts, getPostBySlug } from "@/lib/data";
 import { generateBlogPostPageMeta } from "@/lib/meta";
 import { generateBlogPostSchema, generateSpeakableSchema } from "@/lib/schema";
-import { getRelatedPosts, getRelatedGuidesForPost, getRelatedServicesForPost, getBreadcrumbs } from "@/lib/links";
+import { getRelatedPosts, getRelatedGuidesForPost, getRelatedServicesForPost, getBreadcrumbs, resolveCrossLinks } from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
@@ -10,6 +10,7 @@ import FAQSection from "@/components/FAQSection";
 import RelatedLinks from "@/components/RelatedLinks";
 import AnswerBlock from "@/components/AnswerBlock";
 import KeyTakeaways from "@/components/KeyTakeaways";
+import ExploreCTA from "@/components/ExploreCTA";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -36,6 +37,7 @@ export default async function BlogPostPage({ params }: Props) {
   const relatedServiceLinks = getRelatedServicesForPost(post.relatedServices);
   const breadcrumbs = getBreadcrumbs("blog", post.title);
 
+  const crossLinks = resolveCrossLinks(post.crossLinks);
   const blogPostSchema = generateBlogPostSchema(post);
   const speakableSchema = generateSpeakableSchema(`/blog/${post.slug}`);
   const contentHtml = renderMarkdownContent(post.content);
@@ -72,6 +74,20 @@ export default async function BlogPostPage({ params }: Props) {
         className="mt-10 prose-warm"
         dangerouslySetInnerHTML={{ __html: contentHtml }}
       />
+
+      {post.exploreCta && (
+        <div className="mt-8">
+          <ExploreCTA
+            label={post.exploreCta.label}
+            href={post.exploreCta.href}
+            description={post.exploreCta.description}
+          />
+        </div>
+      )}
+
+      {crossLinks.length > 0 && (
+        <RelatedLinks heading="Related Services & Guides" links={crossLinks} />
+      )}
 
       <FAQSection faqs={post.faqs} />
 
