@@ -144,7 +144,7 @@ export function generateSpeakableSchema(url: string) {
     url: `${SITE_URL}${url}`,
     speakable: {
       "@type": "SpeakableSpecification",
-      cssSelector: [".answer-block", "h1"],
+      cssSelector: [".answer-block", "h1", ".key-takeaways", ".pro-tips"],
     },
   };
 }

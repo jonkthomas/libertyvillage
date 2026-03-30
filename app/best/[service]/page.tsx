@@ -23,6 +23,9 @@ import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
 import RelatedLinks from "@/components/RelatedLinks";
 import AnswerBlock from "@/components/AnswerBlock";
+import ServiceComparisonTable from "@/components/ServiceComparisonTable";
+import KeyTakeaways from "@/components/KeyTakeaways";
+import ProTips from "@/components/ProTips";
 
 interface Props {
   params: Promise<{ service: string }>;
@@ -96,11 +99,42 @@ export default async function ServicePage({ params }: Props) {
         <AnswerBlock>{linkifyText(service.answerBlock, businessLookups)}</AnswerBlock>
       )}
 
+      {service.comparisonTable && service.comparisonTable.rows.length > 0 && (
+        <ServiceComparisonTable
+          columns={service.comparisonTable.columns}
+          rows={service.comparisonTable.rows}
+        />
+      )}
+
+      {service.keyTakeaways && service.keyTakeaways.length > 0 && (
+        <KeyTakeaways items={service.keyTakeaways} />
+      )}
+
       <p className="mt-4 text-warm-600 leading-relaxed">
         {service.description} Whether you&apos;re a long-time resident or just moved
         to the neighbourhood, here are the top-rated {service.pluralName.toLowerCase()} in
         Liberty Village, ranked by local reviews and community reputation.
       </p>
+
+      {service.neighbourhoodContext && (
+        <div className="mt-6">
+          <h2 className="text-xl font-semibold text-warm-800">Liberty Village Neighbourhood Context</h2>
+          {service.neighbourhoodContext.split("\n").filter(Boolean).map((para, i) => (
+            <p key={i} className="mt-3 text-warm-600 leading-relaxed">{para}</p>
+          ))}
+        </div>
+      )}
+
+      {service.sections && service.sections.length > 0 && (
+        <div className="mt-8 space-y-6">
+          {service.sections.map((section, i) => (
+            <div key={i}>
+              <h2 className="text-xl font-semibold text-warm-800">{section.heading}</h2>
+              <p className="mt-2 text-warm-600 leading-relaxed">{section.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {service.definition && (
         <aside className="mt-4 rounded-lg border-l-4 border-sage-400 bg-sage-50 px-5 py-4">
@@ -131,6 +165,12 @@ export default async function ServicePage({ params }: Props) {
               Meanwhile, check out these related categories:
             </p>
           )}
+        </div>
+      )}
+
+      {service.proTips && service.proTips.length > 0 && (
+        <div className="mt-8">
+          <ProTips tips={service.proTips} />
         </div>
       )}
 
