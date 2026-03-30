@@ -16,24 +16,84 @@
     "searchVolume": "high",
     "competitiveness": "hard",
     "image": "/images/services/restaurants.jpg",
-    "answerBlock": "Liberty Village has 5 standout restaurants worth knowing. Mildred's Temple Kitchen on Hanna Ave leads with a 4.5 rating and legendary brunch, followed by School Restaurant in a restored 1890s schoolhouse on Fraser Ave. Impact Kitchen on Atlantic Ave serves the fitness crowd with macro-tracked bowls. Prices range from $15 lunch combos to $40 dinner entrees across the neighbourhood.",
+    "answerBlock": "Liberty Village has 5 standout restaurants worth knowing in 2026. Mildred's Temple Kitchen on Hanna Avenue leads with a 4.5/5 rating and legendary brunch — their blueberry buttermilk pancakes ($18) have been a Toronto institution since 2004. School Restaurant in a restored 1890s schoolhouse on Fraser Avenue is the top date-night pick at $35 to $45 per person. Impact Kitchen on Atlantic Avenue serves the fitness crowd with $14 to $18 macro-tracked bowls. LOCAL Public Eatery on East Liberty rounds out the scene with pub fare and a $12 Caesar bar on weekends. Brazen Head Irish Pub offers the neighbourhood's largest rooftop patio, opening each May. Prices across Liberty Village restaurants range from $14 lunch bowls to $45 dinner entrées.",
     "definition": "Restaurants in Liberty Village range from elevated Canadian dining in converted industrial spaces to casual neighbourhood eateries, concentrated along East Liberty Street and the surrounding warehouse district.",
+    "comparisonTable": {
+      "columns": ["Restaurant", "Cuisine", "Price Range", "Rating", "Best For"],
+      "rows": [
+        { "Restaurant": "Mildred's Temple Kitchen", "Cuisine": "Canadian", "Price Range": "$$", "Rating": "4.5/5", "Best For": "Brunch & special occasions" },
+        { "Restaurant": "School Restaurant", "Cuisine": "Canadian-Contemporary", "Price Range": "$$$", "Rating": "4.3/5", "Best For": "Date night & cocktails" },
+        { "Restaurant": "Impact Kitchen", "Cuisine": "Healthy/Bowls", "Price Range": "$$", "Rating": "4.2/5", "Best For": "Post-workout & macro-friendly" },
+        { "Restaurant": "LOCAL Public Eatery", "Cuisine": "Pub/Canadian", "Price Range": "$$", "Rating": "4.1/5", "Best For": "Sports nights & group dinners" },
+        { "Restaurant": "Moxie's Grill & Bar", "Cuisine": "Casual Dining", "Price Range": "$$", "Rating": "3.9/5", "Best For": "Late-night apps & family meals" },
+        { "Restaurant": "Brazen Head Irish Pub", "Cuisine": "Irish Pub", "Price Range": "$$", "Rating": "4.0/5", "Best For": "Patio season & pub food" }
+      ]
+    },
+    "keyTakeaways": [
+      "Mildred's Temple Kitchen leads Liberty Village dining with a 4.5/5 rating and brunch entrées from $18 to $24",
+      "School Restaurant charges $35-$45 per person for dinner in a restored 1890s schoolhouse — book Thursday for shorter waits",
+      "Impact Kitchen bowls run $14-$18 with full macro breakdowns, making it the neighbourhood's go-to post-gym meal",
+      "LOCAL Public Eatery's weekend brunch includes a $12 Caesar bar and $16 breakfast plates with no reservations needed",
+      "Happy hours at Brazen Head and LOCAL run 3 pm to 6 pm weekdays with $7 pints and $9 appetizers"
+    ],
+    "proTips": [
+      "Mildred's weekend brunch fills up by 10:30 am — arrive by 10 am or go for the quieter weekday lunch service starting at 11:30 am",
+      "School Restaurant doesn't take reservations for brunch, but the wait drops to under 15 minutes after 1 pm on Sundays",
+      "Impact Kitchen lets you order online for pickup through their app — skip the 12 pm lunch rush entirely",
+      "LOCAL Public Eatery's $7 Tuesday wing special is the best value in the neighbourhood — pair it with a $6 Mill Street draft",
+      "Brazen Head's 80-seat rooftop patio opens in May and never takes reservations — Thursday at 5 pm is the sweet spot"
+    ],
+    "neighbourhoodContext": "Liberty Village's restaurant scene is shaped by its unique mix of residents: young professionals in condos, tech workers from nearby offices, and fitness enthusiasts from the neighbourhood's many gyms. This creates demand for everything from $14 macro bowls at Impact Kitchen to $45 tasting-style dinners at School Restaurant.\n\nMost restaurants cluster along East Liberty Street and the surrounding blocks between Hanna Avenue and Atlantic Avenue. The converted warehouse spaces give many spots a distinctive industrial-chic atmosphere — exposed brick, high ceilings, and original timber beams are common design elements. Parking is scarce, so most diners walk or take the King streetcar.\n\nThe dining scene has evolved significantly since the neighbourhood's condo boom in the 2010s. What was once a handful of lunch counters serving factory workers is now a diverse strip of over 40 food and drink establishments. Weekend brunch culture dominates Saturday and Sunday mornings, with Mildred's and School drawing crowds from across the city.",
+    "sections": [
+      {
+        "heading": "Best for Brunch",
+        "content": "Mildred's Temple Kitchen at 85 Hanna Avenue is the undisputed brunch queen of Liberty Village. Their blueberry buttermilk pancakes ($18) have been a Toronto institution since 2004, and the smoked salmon benny ($22) is the other must-order. Expect a 30-to-45-minute wait on Saturdays by 10:30 am. School Restaurant on Fraser Avenue offers a more upscale brunch in a restored 1890s schoolhouse, with dishes like duck confit hash ($24) and a strong cocktail menu. For a healthier take, Impact Kitchen's acai bowls ($14) and avocado toast ($16) satisfy the post-gym crowd without the heavy carbs."
+      },
+      {
+        "heading": "Best for Date Night",
+        "content": "School Restaurant is Liberty Village's top date-night pick, with dim lighting, heritage architecture, and a menu of shareable plates ranging from $16 to $28. Their cocktail programme changes seasonally — ask the bartender for the off-menu creation. Mildred's Temple Kitchen transforms into a candlelit dining room in the evening, offering mains like braised short rib ($38) and pan-seared halibut ($42). For a more casual vibe, LOCAL Public Eatery's booth seating and craft cocktails work well for early-relationship dinners where a $$ bill keeps things low-pressure."
+      },
+      {
+        "heading": "Best for Quick Lunch",
+        "content": "Impact Kitchen on Atlantic Avenue is the fastest quality lunch in the neighbourhood — order through their app and pick up a $15 grain bowl in under 5 minutes. LOCAL Public Eatery runs a weekday lunch special with a burger and drink for $18, served in about 12 minutes. Moxie's has a $16 express lunch menu available Monday to Friday between 11 am and 2 pm, with guaranteed 15-minute service or the appetizer is free."
+      },
+      {
+        "heading": "Best for Families",
+        "content": "Moxie's Grill & Bar is the most family-friendly option in Liberty Village, with a kids' menu under $10, high chairs, and a booth-heavy layout that contains the noise. LOCAL Public Eatery works for families with older kids — their weekend brunch has enough variety to keep teenagers happy, and the atmosphere is lively without being overwhelming. Mildred's Temple Kitchen welcomes families for weekend brunch but note the tight table spacing makes strollers difficult to navigate."
+      }
+    ],
     "specificFaqs": [
       {
         "question": "What are the best restaurants in Liberty Village?",
-        "answer": "Liberty Village has a diverse dining scene with standouts like Mildred's Temple Kitchen for brunch, School Restaurant for date nights in a restored 1890s schoolhouse, Impact Kitchen for healthy bowls on Atlantic Ave, and LOCAL Public Eatery for pub food and craft beer on East Liberty."
+        "answer": "The top-rated restaurants in Liberty Village are Mildred's Temple Kitchen (4.5/5) for brunch and Canadian dining, School Restaurant (4.3/5) for date-night dinners in a restored 1890s schoolhouse, and Impact Kitchen (4.2/5) for healthy macro-friendly bowls. LOCAL Public Eatery and Brazen Head round out the top five with strong pub food and patio options."
       },
       {
         "question": "Are there good patio restaurants in Liberty Village?",
-        "answer": "Yes, Liberty Village has excellent patios. Liberty Commons at Big Rock Brewery and Brazen Head Irish Pub have the largest ones. LOCAL Public Eatery's patio fills up fast on summer evenings along East Liberty. Most patios open from May through October, weather permitting."
+        "answer": "Yes, Liberty Village has excellent patios. Brazen Head Irish Pub's 80-seat rooftop patio is the largest, opening in May with no reservations. LOCAL Public Eatery's sidewalk patio along East Liberty fills up by 6 pm on summer evenings. Liberty Commons at Big Rock Brewery also has a sizable patio with brewery-fresh beer on tap. Most patios operate from May through October."
       },
       {
         "question": "What's the best brunch spot in Liberty Village?",
-        "answer": "Mildred's Temple Kitchen at 85 Hanna Ave is the iconic Liberty Village brunch destination, famous for blueberry buttermilk pancakes since 2004. OEB Breakfast Co. on East Liberty is another top pick with shorter waits if you use their online waitlist system."
+        "answer": "Mildred's Temple Kitchen at 85 Hanna Avenue is the iconic Liberty Village brunch destination, famous for blueberry buttermilk pancakes ($18) since 2004. Arrive before 10 am on weekends to avoid the 30-to-45-minute wait. School Restaurant on Fraser Avenue is the upscale alternative with duck confit hash ($24) and craft cocktails, though they do not take brunch reservations."
       },
       {
         "question": "Are there late-night restaurants in Liberty Village?",
-        "answer": "Several spots serve food late. Brazen Head Irish Pub is open until 2am with a full pub menu. The Rec Room on Lynn Williams St serves food until midnight or later on weekends. Moxie's late-night menu kicks in after 9pm with half-price appetizers."
+        "answer": "Several spots serve food late. Brazen Head Irish Pub has a full pub menu until 2 am on weekends. LOCAL Public Eatery's kitchen stays open until midnight Thursday through Saturday. Moxie's runs a late-night menu after 9 pm with half-price appetizers, making it a popular post-event stop for BMO Field crowds heading back through the neighbourhood."
+      },
+      {
+        "question": "How much does dinner cost in Liberty Village?",
+        "answer": "Dinner prices vary by restaurant. A full dinner for two at School Restaurant runs $80 to $110 with drinks. Mildred's is slightly more affordable at $70 to $90 for two. LOCAL Public Eatery and Brazen Head are the budget-friendliest options at $40 to $60 for two, especially if you hit their happy hour specials between 3 pm and 6 pm."
+      },
+      {
+        "question": "Which Liberty Village restaurants take reservations?",
+        "answer": "Mildred's Temple Kitchen accepts dinner reservations through their website and OpenTable — highly recommended for Friday and Saturday nights. School Restaurant takes reservations for dinner only, not brunch. Moxie's accepts reservations for any meal through their app. LOCAL Public Eatery and Brazen Head are walk-in only, though wait times are rarely more than 15 minutes outside of weekend brunch."
+      },
+      {
+        "question": "Are there healthy restaurants in Liberty Village?",
+        "answer": "Impact Kitchen on Atlantic Avenue is the standout healthy option, with every menu item showing full macro breakdowns (calories, protein, carbs, fat). Bowls run $14 to $18 and include options like teriyaki salmon, Mediterranean chicken, and vegan Thai curry. Freshii at 51 East Liberty also offers salads, wraps, and smoothies in the $12 to $15 range."
+      },
+      {
+        "question": "What restaurants are best for groups in Liberty Village?",
+        "answer": "LOCAL Public Eatery handles groups of 8 to 12 comfortably with their large booth layout and shareable appetizer platters ($24 to $32). Brazen Head's upper level can be semi-reserved for groups of 15 or more on weeknights. Moxie's also accommodates large parties with advance booking. For a more upscale group dinner, Mildred's can seat parties of up to 10 with a pre-set menu arrangement."
       }
     ]
   },
@@ -113,7 +173,7 @@
     "slug": "bars",
     "name": "Bar",
     "pluralName": "Bars",
-    "description": "Liberty Village's bar scene ranges from craft cocktail lounges to casual sports bars buzzing on TFC and Argos game nights.",
+    "description": "Best bars in Liberty Village Toronto for 2026 — Brazen Head, Craft Beer Market, Left Field Brewery, and more. Craft beer, trivia nights, sports bars, and late-night spots ranked.",
     "icon": "🍺",
     "relatedServices": [
       "restaurants",
