@@ -54,7 +54,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Use /seo-content skill for content quality. Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-6)."
     },
     {
