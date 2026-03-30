@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import type { BlogPost, Business, Service, Neighborhood, Topic } from "./types";
+import type { BlogPost, Business, Service, Neighborhood, Topic, GuideHub } from "./types";
 
 const dataDir = join(process.cwd(), "data");
 
@@ -80,4 +80,23 @@ export function getRecentPosts(limit: number = 10): BlogPost[] {
   return getAllPosts()
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
     .slice(0, limit);
+}
+
+// Guide Hub
+export function getGuideHubData(): GuideHub {
+  try {
+    return loadJSON<GuideHub>("guide-hub.json");
+  } catch {
+    return {
+      population: "~7,500",
+      medianRent: "$2,608/month",
+      walkScore: 88,
+      transitScore: 96,
+      boundaries: "King St W, Dufferin St, GO rail corridor, Strachan Ave",
+      history: "",
+      prosCons: { pros: [], cons: [] },
+      quickFacts: [],
+      answerSummary: "",
+    };
+  }
 }

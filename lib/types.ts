@@ -16,6 +16,11 @@ export interface Service {
   answerBlock?: string;
   definition?: string;
   specificFaqs?: FAQ[];
+  comparisonTable?: { columns: string[]; rows: Array<Record<string, string>> };
+  keyTakeaways?: string[];
+  proTips?: string[];
+  neighbourhoodContext?: string;
+  sections?: Array<{ heading: string; content: string }>;
 }
 
 export interface Topic {
@@ -126,4 +131,18 @@ export interface BlogPost {
   relatedPosts: string[];
   keyTakeaways: string[];
   author: string;
+  crossLinks?: Array<{ type: "service" | "guide"; slug: string; label?: string }>;
+  exploreCta?: { label: string; href: string; description: string };
+}
+
+export interface GuideHub {
+  population: string;
+  medianRent: string;
+  walkScore: number;
+  transitScore: number;
+  boundaries: string;
+  history: string;
+  prosCons: { pros: string[]; cons: string[] };
+  quickFacts: Array<{ label: string; value: string }>;
+  answerSummary: string;
 }
