@@ -1,86 +1,449 @@
 {
   "project": "libertyvillage.co",
-  "branchName": "ralph/seo-blog-internal-linking",
-  "description": "SEO fixes from Week 2 report: Add internal links to blog posts from homepage, service pages, and guide pages to accelerate blog indexing. Fix keyword cannibalization between /directory and /best/* pages. Blog posts are currently 'unknown to Google' because they have near-zero internal links pointing to them.",
+  "branchName": "ralph/seo-aeo-page1-push",
+  "description": "SEO & AEO Page 1 Push — Transform thin service pages to guide-depth content, add Best Of navigation, cross-link World Cup posts, enhance AI citability, upgrade guide hub. Target: page 1 for 5+ queries, 71% AI citation rate.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add blog linking utility functions to lib/links.ts",
-      "description": "As a developer, I need functions to find blog posts related to a given service or guide topic, so that service and guide pages can link to relevant blog content. Add two new functions to lib/links.ts: (1) getRelatedPostsForService(serviceSlug: string): LinkItem[] — calls getAllPosts() from lib/data, filters to posts whose relatedServices array includes the serviceSlug, sorts by publishedAt descending, slices to 3, maps to { title: post.title, href: `/blog/${post.slug}`, description: post.description }. (2) getRelatedPostsForTopic(topicSlug: string): LinkItem[] — same logic but filters on relatedTopics array instead. Both functions should return LinkItem[] (the existing interface in lib/links.ts). Import getAllPosts from ./data (already imported in the file).",
+      "title": "Extend TypeScript types for guide-depth content",
+      "description": "As a developer, I need the Service, BlogPost, and GuideHub types updated so new data fields are available throughout the codebase.",
       "acceptanceCriteria": [
-        "getRelatedPostsForService is exported from lib/links.ts",
-        "getRelatedPostsForTopic is exported from lib/links.ts",
-        "Both return LinkItem[] matching the existing interface { title, href, description }",
-        "getRelatedPostsForService filters posts by relatedServices array containing the slug",
-        "getRelatedPostsForTopic filters posts by relatedTopics array containing the slug",
-        "Both sort by publishedAt descending and limit to 3 results",
+        "Add to Service interface in lib/types.ts: comparisonTable?: { columns: string[]; rows: Array<Record<string, string>> }, keyTakeaways?: string[], proTips?: string[], neighbourhoodContext?: string, sections?: Array<{ heading: string; content: string }>",
+        "Add to BlogPost interface: crossLinks?: Array<{ type: 'service' | 'guide'; slug: string; label?: string }>, exploreCta?: { label: string; href: string; description: string }",
+        "IMPORTANT: Do NOT modify existing BlogPost.keyTakeaways field — it is already required (string[]). Only add crossLinks and exploreCta as new optional fields.",
+        "Create GuideHub interface in lib/types.ts: { population: string; medianRent: string; walkScore: number; transitScore: number; boundaries: string; history: string; prosCons: { pros: string[]; cons: string[] }; quickFacts: Array<{ label: string; value: string }>; answerSummary: string }",
+        "Add getGuideHubData(): GuideHub function to lib/data.ts that loads data/guide-hub.json. Wrap in try/catch returning sensible defaults if file missing.",
+        "All new fields are optional — next build passes with ZERO existing data changes",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "getAllPosts is already imported in lib/links.ts on line 8. The LinkItem interface is defined on line 12-16."
+      "notes": "Reference: tasks/docs/seo-aeo-page1-design.md (sections: 2. Architecture). Use nextjs-expert agent."
     },
     {
       "id": "US-002",
-      "title": "Add 'Latest from the Blog' section to homepage",
-      "description": "As a visitor, I want to see recent blog posts on the homepage so I can discover blog content. Add a new section to app/page.tsx between the 'Neighborhood Guides' section (ends around line 132) and 'Where to Stay' section (starts around line 134). Import getRecentPosts from @/lib/data. Call getRecentPosts(3) to get the 3 most recent posts. Render a section with heading 'Latest from the Blog', a 3-column responsive grid (1 col mobile, 2 tablet, 3 desktop) of blog post cards. Each card should have: the post image (aspect-video, with hover zoom), a category badge (uppercase, small text), the post title as a Link to /blog/{slug}, and the description truncated to 2 lines. Add a 'Read more on the blog →' link to /blog below the grid. Style should match existing homepage sections (same heading size, spacing, card borders). Wrap in a try/catch like the topics section in case posts.json doesn't exist during build.",
+      "title": "Add buildComparisonTable and resolveCrossLinks helpers",
+      "description": "As a developer, I need data-layer functions that auto-generate comparison tables from businesses.json and resolve cross-link slugs to full link items.",
       "acceptanceCriteria": [
-        "Homepage has a 'Latest from the Blog' section between Neighborhood Guides and Where to Stay",
-        "Section displays 3 most recent blog posts in a responsive grid",
-        "Each card shows image, category badge, linked title, and description",
-        "Each card links to /blog/{slug}",
-        "'Read more on the blog →' link points to /blog",
-        "Section is wrapped in try/catch for build safety",
+        "Add buildComparisonTable(serviceSlug: string): { columns: string[]; rows: Array<Record<string, string>> } to lib/data.ts",
+        "Function reads businesses from getBusinessesByCategory(slug) and maps to rows with human-friendly column names: Name, Rating, Price Range, Hours",
+        "If service has manual comparisonTable in JSON, use that instead (manual overrides auto-generated)",
+        "Add resolveCrossLinks(crossLinks?: BlogPost['crossLinks']): LinkItem[] to lib/links.ts — function MUST handle undefined input (return empty array)",
+        "Function resolves service slugs via getServiceBySlug, guide slugs via getTopicBySlug",
+        "Invalid/missing slugs are filtered out silently (no error, no broken build). undefined input returns []",
+        "next build passes",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Use getRecentPosts(3) from @/lib/data. Follow the same card pattern used in app/blog/page.tsx for consistency. The homepage already imports Image and Link from next."
+      "passes": false,
+      "notes": "Reference: tasks/docs/seo-aeo-page1-design.md (sections: Data Flow). Use nextjs-expert agent."
     },
     {
       "id": "US-003",
-      "title": "Add 'From the Blog' links to service pages",
-      "description": "As a visitor on a service page like /best/restaurants, I want to see related blog posts so I can discover more content. In app/best/[service]/page.tsx: (1) Import getRelatedPostsForService from @/lib/links. (2) In the page component, call const relatedBlogPosts = getRelatedPostsForService(slug). (3) Add <RelatedLinks heading='From the Blog' links={relatedBlogPosts} /> after the existing RelatedLinks sections (after the 'Related Guides' RelatedLinks, before the JSON-LD script tags). The RelatedLinks component already handles empty arrays gracefully (renders nothing).",
+      "title": "Create guide-hub.json data file",
+      "description": "As a content author, I need neighbourhood facts, history, and pros/cons data for the guide hub page.",
       "acceptanceCriteria": [
-        "Service pages show 'From the Blog' RelatedLinks section when matching blog posts exist",
-        "Section appears after 'Related Guides' and before JSON-LD scripts",
-        "Links point to /blog/{slug} for each matching post",
-        "No section renders when no matching posts exist",
+        "Create data/guide-hub.json matching GuideHub interface from US-001",
+        "Uses canonical constants: population ~7,500, medianRent $2,608/month, walkScore 88, transitScore 96",
+        "Boundaries: King St W (north), Dufferin St (west), GO rail corridor (south), Strachan Ave (east)",
+        "History section: 3-4 paragraphs covering Toronto Central Prison origins (1870s), industrial era, condo transformation (2000s), present day",
+        "prosCons: minimum 4 pros and 4 cons with specific details (not generic)",
+        "quickFacts: minimum 8 entries (population, rent, walk score, transit score, area size, year established, notable landmarks, median condo price)",
+        "answerSummary: 40-60 words, self-contained, includes at least 3 numeric data points",
+        "getGuideHubData() successfully loads and returns the data",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "RelatedLinks component is already imported. Just add the import for getRelatedPostsForService and the function call + JSX."
+      "passes": false,
+      "notes": "Use /seo-content skill for content quality. Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-6)."
     },
     {
       "id": "US-004",
-      "title": "Add 'From the Blog' links to guide pages",
-      "description": "As a visitor on a guide page like /guide/parking-guide, I want to see related blog posts. In app/guide/[topic]/page.tsx: (1) Import getRelatedPostsForTopic from @/lib/links. (2) In the page component, call const relatedBlogPosts = getRelatedPostsForTopic(slug). (3) Add <RelatedLinks heading='From the Blog' links={relatedBlogPosts} /> after the existing RelatedLinks sections (after 'Related Services', before the JSON-LD script tags). The RelatedLinks component already handles empty arrays gracefully.",
+      "title": "Populate restaurants guide-depth data",
+      "description": "As a site visitor searching best restaurants liberty village, I want a comprehensive guide with comparison table, prices, and insider tips.",
       "acceptanceCriteria": [
-        "Guide pages show 'From the Blog' RelatedLinks section when matching blog posts exist",
-        "Section appears after 'Related Services' and before JSON-LD scripts",
-        "Links point to /blog/{slug} for each matching post",
-        "No section renders when no matching posts exist",
+        "Add comparisonTable to restaurants service in data/services.json: columns [Restaurant, Cuisine, Price Range, Rating, Best For], minimum 5 rows",
+        "Add keyTakeaways: exactly 5 items, each containing at least one specific price or number",
+        "Add proTips: exactly 5 items, each containing a specific name, time, or actionable detail",
+        "Add neighbourhoodContext: 2-3 paragraphs, minimum 150 words",
+        "Add sections: minimum 4 entries (Best for Brunch, Best for Date Night, Best for Quick Lunch, Best for Families)",
+        "Expand specificFaqs to exactly 8 FAQs — each answer minimum 50 words with specific names/prices",
+        "Enrich answerBlock to minimum 80 words with at least 3 restaurant names and 2 price points",
+        "next build passes",
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "RelatedLinks component is already imported. Just add the import for getRelatedPostsForTopic and the function call + JSX."
+      "passes": false,
+      "notes": "Use /seo-content skill. Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-2). Read existing data/businesses.json for restaurant details."
     },
     {
       "id": "US-005",
-      "title": "Fix keyword cannibalization on /directory page",
-      "description": "As an SEO practitioner, I need the /directory page to not compete with /best/* pages for category-specific queries like 'best restaurants liberty village'. In app/directory/page.tsx, update the static metadata object: (1) Change title to 'Liberty Village Business Directory — Browse All Local Businesses | libertyvillage.co'. (2) Change description to 'Browse and search the complete Liberty Village business directory. Find local shops, services, and businesses in your neighborhood.' (remove specific category mentions like 'restaurants'). (3) Change openGraph title to 'Liberty Village Business Directory — Browse All'. (4) Change openGraph description to 'Browse and search the complete Liberty Village business directory.' These changes differentiate /directory (browse/search all) from /best/* (curated category guides) to reduce keyword overlap.",
+      "title": "Populate gyms guide-depth data",
+      "description": "As a site visitor searching gyms in liberty village, I want a comparison of gym options with monthly costs and class types.",
       "acceptanceCriteria": [
-        "Directory page title no longer contains category-specific words like 'restaurants' or 'services'",
-        "Directory page title includes 'Browse All Local Businesses'",
-        "Directory page description focuses on 'browse and search' rather than listing specific categories",
-        "OpenGraph title and description are updated to match",
+        "Add comparisonTable to gyms service: columns [Gym, Monthly Cost, Classes, 24hr?, Best For], minimum 5 rows",
+        "Add keyTakeaways: exactly 5 items with specific prices (e.g., GoodLife $50/mo, F45 $200/mo)",
+        "Add proTips: exactly 5 items about peak hours, free trials, condo gym alternatives",
+        "Add neighbourhoodContext: minimum 150 words",
+        "Add sections: minimum 3 entries (Best for Weightlifting, Best for Classes, Best Budget Option)",
+        "Expand FAQs to exactly 8 covering pricing, free trials, class schedules, personal training",
+        "next build passes",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "The metadata object is at lines 7-23 of app/directory/page.tsx. Only change the text strings, not the structure."
+      "passes": false,
+      "notes": "Use /seo-content skill. Read data/businesses.json for gym business details."
+    },
+    {
+      "id": "US-006",
+      "title": "Populate bars guide-depth data",
+      "description": "As a site visitor, I want rich bar content so the page stops bouncing users at 75%.",
+      "acceptanceCriteria": [
+        "Add comparisonTable to bars: columns [Bar, Type, Happy Hour, Patio, Best For], minimum 5 rows",
+        "Add keyTakeaways: exactly 5 items",
+        "Add proTips: exactly 5 items with specific nights, times, or happy hour details",
+        "Add neighbourhoodContext: minimum 150 words",
+        "Expand FAQs to exactly 8",
+        "next build passes",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Use /seo-content skill. Current /best/bars has 75% bounce rate — content depth is the fix."
+    },
+    {
+      "id": "US-007",
+      "title": "Populate coffee-shops guide-depth data",
+      "description": "As a site visitor, I want coffee shop comparisons with WiFi and laptop-friendliness info.",
+      "acceptanceCriteria": [
+        "Add comparisonTable to coffee-shops: columns [Shop, WiFi, Laptop-Friendly, Hours, Best For], minimum 5 rows",
+        "Add keyTakeaways: exactly 5 items",
+        "Add proTips: exactly 5 items",
+        "Add neighbourhoodContext: minimum 150 words",
+        "Expand FAQs to exactly 8",
+        "next build passes",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Use /seo-content skill."
+    },
+    {
+      "id": "US-008",
+      "title": "Populate coworking-spaces guide-depth data",
+      "description": "As a site visitor, I want coworking space comparisons with pricing and amenities.",
+      "acceptanceCriteria": [
+        "Add comparisonTable to coworking-spaces: columns [Space, Day Pass, Monthly, Meeting Rooms, Best For], minimum 4 rows",
+        "Add keyTakeaways: exactly 5 items",
+        "Add proTips: exactly 5 items",
+        "Add neighbourhoodContext: minimum 150 words",
+        "Expand FAQs to exactly 6",
+        "next build passes",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Use /seo-content skill."
+    },
+    {
+      "id": "US-009",
+      "title": "Add World Cup cross-link data to posts.json",
+      "description": "As a site owner, I want high-traffic World Cup blog posts to funnel visitors to service pages.",
+      "acceptanceCriteria": [
+        "Add crossLinks to fifa-world-cup-2026-liberty-village-survival-guide: [{type:service,slug:restaurants},{type:service,slug:bars},{type:guide,slug:parking-guide},{type:guide,slug:transit-guide}]",
+        "Add crossLinks to liberty-village-world-cup-road-closures-resident-access: parking-guide, restaurants",
+        "Add crossLinks to best-bars-restaurants-near-bmo-field-world-cup-2026: restaurants, bars, patios",
+        "Add crossLinks to watch-world-cup-liberty-village-without-tickets: bars, coffee-shops",
+        "Add exploreCta to each: {label:Explore Liberty Village, href:/directory, description:Find restaurants bars and services near BMO Field}",
+        "All cross-link slugs resolve via resolveCrossLinks without errors",
+        "next build passes",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Depends on US-002 (resolveCrossLinks helper). Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-3)."
+    },
+    {
+      "id": "US-010",
+      "title": "Build ServiceComparisonTable component",
+      "description": "As a site visitor, I want a structured comparison table on service pages to quickly compare options.",
+      "acceptanceCriteria": [
+        "Create components/ServiceComparisonTable.tsx as a server component",
+        "Props: { columns: string[]; rows: Array<Record<string, string>> } — both required at TypeScript level",
+        "Desktop (>=768px): HTML <table> with <thead>, zebra-striped <tbody> rows",
+        "Mobile (<768px): stacked card layout, each row rendered as a card with label:value pairs",
+        "Returns null if rows.length === 0. The CALLER is responsible for only rendering when comparisonTable data exists.",
+        "Uses Tailwind classes from existing palette: warm-*, sage-*, amber-*",
+        "Table headers use <th scope=col> for accessibility",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Reference: tasks/docs/seo-aeo-page1-design.md (Component Hierarchy). Use frontend-expert agent."
+    },
+    {
+      "id": "US-011",
+      "title": "Build ProTips component",
+      "description": "As a site visitor, I want insider tips displayed in a visually distinct section.",
+      "acceptanceCriteria": [
+        "Create components/ProTips.tsx as a server component",
+        "Props: { tips: string[] }",
+        "Renders numbered list with lightbulb icon prefix, inside a sage-50 background with sage-400 left border",
+        "Wrapper has className=pro-tips (for Speakable schema targeting)",
+        "Returns null if tips is undefined or empty array",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Use frontend-expert agent."
+    },
+    {
+      "id": "US-012",
+      "title": "Build HeaderDropdown component",
+      "description": "As a site visitor, I want a Best Of dropdown in the header to navigate to service pages.",
+      "acceptanceCriteria": [
+        "Create components/HeaderDropdown.tsx with use client directive",
+        "IMPORTANT: HeaderDropdown CANNOT call getAllServices() directly (it uses readFileSync). Header.tsx (server component) must call getAllServices(), sort/slice to top 8, and pass as props: <HeaderDropdown services={topServices} />",
+        "Props: { services: Array<{ slug: string; pluralName: string }> }",
+        "Desktop: hover opens dropdown, mouse-leave closes after 150ms delay",
+        "Sort by searchVolume priority: high=1, medium=2, low=3. Tiebreaker: alphabetical by pluralName",
+        "Each item links to /best/{slug} with service pluralName as label",
+        "Escape key closes dropdown. Tab navigates items. Enter/Space activates.",
+        "ARIA: trigger has aria-expanded, aria-haspopup=menu. Menu has role=menu. Items have role=menuitem.",
+        "Update Header.tsx: call getAllServices(), sort/filter top 8, pass to HeaderDropdown. Insert Best Of between Home and Directory nav links",
+        "next build passes",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill: hover triggers dropdown, click navigates to /best/restaurants"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-1). Use frontend-expert agent."
+    },
+    {
+      "id": "US-013",
+      "title": "Update MobileNav with Best Of section",
+      "description": "As a mobile user, I need a Best Of expandable section in the mobile navigation.",
+      "acceptanceCriteria": [
+        "Update components/MobileNav.tsx to include expandable Best Of section",
+        "IMPORTANT: MobileNav is use client — it CANNOT call getAllServices(). Header.tsx must pass the same top-8 service list as props: <MobileNav services={topServices} />",
+        "Tap to expand/collapse, shows same 8 services as desktop dropdown",
+        "Each item links to /best/{slug} and closes mobile nav on click",
+        "Consistent with existing MobileNav animation/transition patterns",
+        "Typecheck passes",
+        "Verify in browser at 375px viewport: expand Best Of, tap Restaurants, verify navigation"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Depends on US-012 (Header.tsx changes that pass props). Use frontend-expert agent."
+    },
+    {
+      "id": "US-014",
+      "title": "Build ExploreCTA component",
+      "description": "As a blog reader, I want a prominent CTA to explore Liberty Village services.",
+      "acceptanceCriteria": [
+        "Create components/ExploreCTA.tsx as a server component",
+        "Props: { label: string; href: string; description: string }",
+        "Renders as a card with amber-50 background, amber-500 left border (4px), minimum height 80px",
+        "Contains heading (label), description text, and arrow link",
+        "Returns null if props are missing/empty",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Use frontend-expert agent."
+    },
+    {
+      "id": "US-015",
+      "title": "Enhance AnswerBlock for AI citability",
+      "description": "As an AI search system, I need semantic markup on the AnswerBlock to identify citable answer content.",
+      "acceptanceCriteria": [
+        "Change AnswerBlock outer element from <div> to <section data-answer=true role=region aria-label=Quick answer>",
+        "Add <h2 className=sr-only>Quick Answer</h2> as first child inside the section",
+        "Preserve existing className=answer-block (Speakable schema selector depends on it)",
+        "Preserve existing visual styling (amber-50 background, amber-200 border)",
+        "All existing usages of AnswerBlock across the site continue to render correctly",
+        "next build passes with zero errors",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-4). Use frontend-expert agent."
+    },
+    {
+      "id": "US-016",
+      "title": "Wire service page template with new components",
+      "description": "As a developer, I need the service page template updated to render all new content sections.",
+      "acceptanceCriteria": [
+        "Update app/best/[service]/page.tsx to import and render: ServiceComparisonTable, KeyTakeaways (existing), ProTips",
+        "IMPORTANT: Add className=key-takeaways to the wrapper div in existing components/KeyTakeaways.tsx (currently missing — needed for Speakable schema targeting). Preserve all existing classes.",
+        "Render sections as H2 headings + paragraph content blocks",
+        "Render neighbourhoodContext as a paragraph section",
+        "Page section order: H1 → AnswerBlock → ComparisonTable → KeyTakeaways → Description → Neighbourhood Context → Sections → Business Listings → ProTips → Methodology → FAQs → Related Links",
+        "Each new section renders ONLY when its data field is present (returns null for missing data)",
+        "Non-enriched service pages (e.g., /best/dentists) render exactly as before — no visual changes",
+        "Update Speakable schema selectors in lib/schema.ts to include .key-takeaways and .pro-tips",
+        "Verify no existing Playwright tests target div.answer-block (changed to section in US-015)",
+        "next build passes for all pages",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill: /best/restaurants shows comparison table, takeaways, tips. /best/dentists renders unchanged."
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "Depends on US-004-008 (data), US-010 (ComparisonTable), US-011 (ProTips), US-015 (AnswerBlock). Reference: tasks/docs/seo-aeo-page1-design.md. Use nextjs-expert + frontend-expert agents."
+    },
+    {
+      "id": "US-017",
+      "title": "Add ItemList schema for service comparison tables",
+      "description": "As a developer, I need ItemList schema.org JSON-LD generated for service pages with comparison data.",
+      "acceptanceCriteria": [
+        "Add generateItemListSchema(serviceName: string, items: Array<{name: string; url: string}>) to lib/schema.ts",
+        "Inject ItemList JSON-LD in app/best/[service]/page.tsx when comparisonTable data exists",
+        "Schema includes @type: ItemList, itemListElement array with ListItem entries",
+        "Only generates when comparison data exists (no empty schema)",
+        "next build passes",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "Depends on US-016. Schema generated at PAGE level, NOT inside components. Use nextjs-expert agent."
+    },
+    {
+      "id": "US-018",
+      "title": "Wire blog post template with cross-links and ExploreCTA",
+      "description": "As a developer, I need blog post pages to render cross-link sections and the Explore CTA.",
+      "acceptanceCriteria": [
+        "Update app/blog/[slug]/page.tsx to import and render ExploreCTA after article content, before FAQs",
+        "Render cross-links as a Related Services & Guides section using existing RelatedLinks component",
+        "Cross-links resolved via resolveCrossLinks() from lib/links.ts",
+        "Posts without crossLinks or exploreCta render exactly as before",
+        "next build passes — verify all 4 World Cup posts render cross-links",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill: /blog/fifa-world-cup-2026-liberty-village-survival-guide shows CTA and service links"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": "Depends on US-002 (resolveCrossLinks), US-009 (crosslink data), US-014 (ExploreCTA). Use nextjs-expert agent."
+    },
+    {
+      "id": "US-019",
+      "title": "Add Organization schema to homepage",
+      "description": "As an AI search system, I need Organization schema on the homepage for entity recognition.",
+      "acceptanceCriteria": [
+        "Add generateOrganizationSchema() to lib/schema.ts returning { @context: https://schema.org, @type: Organization, name: LibertyVillage.co, url: https://libertyvillage.co, description, areaServed: { @type: Place, name: Liberty Village Toronto Ontario Canada } }",
+        "NO sameAs field (no social profiles to reference)",
+        "Inject Organization schema JSON-LD in app/page.tsx (homepage) as a script type=application/ld+json tag",
+        "Co-exists with WebSite schema in app/layout.tsx — no duplication, no conflict",
+        "next build passes",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "Independent — can run anytime after US-001. Use nextjs-expert agent."
+    },
+    {
+      "id": "US-020",
+      "title": "Upgrade guide hub page layout",
+      "description": "As a site visitor, I want the /guide page to show neighbourhood facts and history alongside guide links.",
+      "acceptanceCriteria": [
+        "Create components/NeighbourhoodFacts.tsx: server component, renders key stats from GuideHub data (population, rent, walk/transit scores, boundaries) in a card",
+        "Create components/NeighbourhoodHistory.tsx: server component, renders history text and pros/cons from GuideHub data",
+        "Update app/guide/page.tsx layout: AnswerBlock at top → NeighbourhoodHistory → 2-column grid (guide topic links left, NeighbourhoodFacts sidebar right) → pros/cons",
+        "Desktop (>=1024px): sidebar is sticky top-24. Mobile: sidebar stacks above guide links",
+        "ALL existing guide topic links preserved — no content removed",
+        "next build passes",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill: /guide shows facts sidebar, history section, and all existing guide links"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": "Depends on US-001 (GuideHub type), US-003 (guide-hub.json). Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-6). Use nextjs-expert + frontend-expert agents."
+    },
+    {
+      "id": "US-021",
+      "title": "Update guide hub page metadata and schema",
+      "description": "As a developer, I need the guide hub page SEO metadata and schema updated to target liberty village neighbourhood guide.",
+      "acceptanceCriteria": [
+        "Update guide hub page metadata: title Liberty Village Neighbourhood Guide 2026 | libertyvillage.co, description includes neighbourhood guide + key facts",
+        "Add CollectionPage schema to the guide hub page",
+        "Add Speakable schema targeting .answer-block, h1, .key-takeaways, .pro-tips on the guide hub",
+        "next build passes",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "Depends on US-020. Use nextjs-expert agent."
+    },
+    {
+      "id": "US-022",
+      "title": "Playwright E2E Test — Service Page Content Depth",
+      "description": "As QA, I need E2E tests verifying enriched service pages render all new content sections.",
+      "acceptanceCriteria": [
+        "Create tests/e2e/service-page-content.spec.ts",
+        "Test navigates to /best/restaurants and asserts: h1 contains Best Restaurants, section[data-answer=true] exists, table exists with >=5 rows, .key-takeaways has >=5 li items, .pro-tips has >=5 li items, FAQ section has >=8 questions",
+        "Repeat core assertions for /best/gyms and /best/bars",
+        "Test /best/dentists does NOT show comparison table (backward compat)",
+        "Test at 375px viewport: comparison table renders as stacked cards",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": "Depends on US-016+017. Use Playwright MCP."
+    },
+    {
+      "id": "US-023",
+      "title": "Playwright E2E Test — Navigation and Cross-Links",
+      "description": "As QA, I need E2E tests verifying header dropdown and blog cross-links.",
+      "acceptanceCriteria": [
+        "Create tests/e2e/navigation-crosslinks.spec.ts",
+        "Test desktop: hover Best Of → dropdown appears → contains Restaurants link → click navigates to /best/restaurants",
+        "Test keyboard: Tab to Best Of → Enter opens → Tab to item → Enter navigates",
+        "Test /blog/fifa-world-cup-2026-liberty-village-survival-guide: ExploreCTA visible, cross-links section has >=3 links",
+        "Test mobile (375px): open mobile nav → Best Of section expandable → tap navigates",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "Depends on US-012+013+018. Use Playwright MCP."
+    },
+    {
+      "id": "US-024",
+      "title": "Playwright MCP UAT — Desktop Flows",
+      "description": "As QA, I need full user acceptance testing via Playwright MCP at desktop viewport.",
+      "acceptanceCriteria": [
+        "Start local dev server (npm run dev)",
+        "Navigate to homepage → verify page source contains @type:Organization JSON-LD",
+        "Hover Best Of → dropdown appears → click Restaurants → page loads with comparison table, 5+ takeaways, 5+ tips, 8+ FAQs",
+        "Navigate to /best/gyms → verify comparison table with monthly costs",
+        "Navigate to /best/bars → verify content depth (comparison table, tips, FAQs present)",
+        "Navigate to /guide → verify facts sidebar with Walk Score 88, history section, pros/cons, all guide links present",
+        "Navigate to /blog/fifa-world-cup-2026-liberty-village-survival-guide → verify ExploreCTA banner and cross-links",
+        "Take screenshot at each page for visual verification",
+        "All pages render without browser console errors",
+        "Run next build to verify SSG output succeeds for all pages"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": "Final UAT gate. Use Playwright MCP (mcp__playwright)."
+    },
+    {
+      "id": "US-025",
+      "title": "Playwright MCP UAT — Mobile Flows",
+      "description": "As QA, I need UAT at mobile viewport (375px) for all changed pages.",
+      "acceptanceCriteria": [
+        "Set viewport to 375x812 (iPhone SE)",
+        "Navigate to homepage → open mobile nav → verify Best Of expandable section → tap Restaurants → navigates correctly",
+        "/best/restaurants at 375px: comparison table renders as stacked cards (not horizontal table), all sections readable",
+        "/guide at 375px: NeighbourhoodFacts stacks above guide links (not sidebar), history section readable",
+        "/blog/fifa-world-cup-2026-liberty-village-survival-guide at 375px: ExploreCTA visible, cross-links tappable",
+        "Take screenshots at each viewport for visual verification",
+        "No horizontal scrolling on any page"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": "Final UAT gate — mobile. Use Playwright MCP (mcp__playwright)."
     }
   ]
 }
