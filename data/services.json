@@ -256,24 +256,80 @@
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/gyms.jpg",
-    "answerBlock": "Liberty Village has 6 gyms to fit every budget and workout style. F45 Training leads with a 4.5 rating for group HIIT classes on East Liberty Street, while Altea Active on Western Battery Rd offers a premium experience with pool and spa starting around $150 per month. GoodLife Fitness on Jefferson Ave handles the basics, and SpinCo and Orangetheory add boutique studio options.",
+    "answerBlock": "Liberty Village has 6 gyms covering every budget and workout style in 2026. F45 Training leads with a 4.5/5 rating for 45-minute group HIIT classes at $200 per month on East Liberty Street. Altea Active on Western Battery Road is the premium option at $150 to $200 per month, offering a saltwater pool, spa, and hot yoga studio. GoodLife Fitness on Jefferson Avenue starts at $30 to $50 per month for basic access with hours from 5 am to 11 pm. Orangetheory Fitness and SpinCo add boutique studio options in the $150 to $180 range, while Movati Athletic offers pool access at $60 to $80 monthly.",
     "definition": "Gyms in Liberty Village range from budget-friendly chains to luxury athletic clubs, reflecting the neighbourhood's young professional demographic and fitness-focused culture.",
+    "comparisonTable": {
+      "columns": ["Gym", "Monthly Cost", "Classes", "24hr?", "Best For"],
+      "rows": [
+        { "Gym": "GoodLife Fitness", "Monthly Cost": "$30-$50", "Classes": "Group fitness, yoga", "24hr?": "No (5am-11pm)", "Best For": "Budget-friendly basics" },
+        { "Gym": "F45 Training", "Monthly Cost": "$200", "Classes": "HIIT, functional training", "24hr?": "No (5:30am-7:30pm)", "Best For": "Group accountability & HIIT" },
+        { "Gym": "Altea Active", "Monthly Cost": "$150-$200", "Classes": "Yoga, spin, hot yoga", "24hr?": "No (5:30am-10pm)", "Best For": "Premium with pool & spa" },
+        { "Gym": "Orangetheory Fitness", "Monthly Cost": "$150-$180", "Classes": "Heart-rate interval training", "24hr?": "No (5:30am-8pm)", "Best For": "Data-driven cardio + strength" },
+        { "Gym": "Movati Athletic", "Monthly Cost": "$60-$80", "Classes": "Group fitness, aqua, hot yoga", "24hr?": "No (5am-11pm)", "Best For": "Pool access at mid-range price" },
+        { "Gym": "SpinCo", "Monthly Cost": "$150-$180", "Classes": "Indoor cycling", "24hr?": "No (6am-8pm)", "Best For": "High-energy spin with leaderboards" }
+      ]
+    },
+    "keyTakeaways": [
+      "GoodLife Fitness is the most affordable at $30 to $50 per month with the longest hours (5 am to 11 pm weekdays) on Jefferson Avenue",
+      "F45 Training charges $200 per month but holds a 4.5/5 rating — the highest in the neighbourhood — for its structured 45-minute HIIT sessions",
+      "Altea Active's $150 to $200 monthly fee includes saltwater pool, spa, hot yoga studio, and a rooftop pool deck",
+      "Movati Athletic at $60 to $80 per month offers the best value for members who want pool access without the premium Altea price",
+      "SpinCo and Orangetheory both run in the $150 to $180 range and offer free trial classes for first-time visitors"
+    ],
+    "proTips": [
+      "GoodLife's peak hours are 5:30 pm to 7:30 pm weekdays — go before 7 am or after 8:30 pm for open equipment",
+      "F45 offers a free one-week trial with no commitment — sign up online to avoid the in-studio sales pitch",
+      "Altea Active's rooftop pool is least crowded Tuesday and Thursday mornings before 8 am — lap swim without sharing a lane",
+      "Most Liberty Village condos (including the Toy Factory and Lofts at Liberty) have basic gyms — check yours before buying a membership",
+      "Orangetheory's 5:30 am classes fill 48 hours in advance — book immediately when the schedule drops on Sunday nights"
+    ],
+    "neighbourhoodContext": "Liberty Village's gym scene reflects the neighbourhood's demographics: a concentration of 25-to-40-year-old professionals who prioritise fitness and are willing to pay for convenience. The area supports six distinct gyms within a 10-minute walk, an unusually high density for a neighbourhood of just 0.45 km² and roughly 7,500 residents.\n\nThe pricing range spans from GoodLife's no-frills equipment floor at $30 per month to Altea Active's resort-style facility at $200. This spread means almost every budget and training style is covered without leaving the neighbourhood. Most residents can walk to their gym in under 7 minutes, which removes the commute excuse that kills gym habits elsewhere in the city.\n\nBoutique fitness studios like F45, SpinCo, and Orangetheory have thrived in Liberty Village because the community-driven class format appeals to remote workers who miss the social structure of an office. Morning classes in particular serve as a de facto social scene for the neighbourhood's large work-from-home population, with regulars building friendships through shared 5:30 am sessions.",
+    "sections": [
+      {
+        "heading": "Best for Weightlifting",
+        "content": "GoodLife Fitness on Jefferson Avenue has the most complete free weight section in Liberty Village, with squat racks, deadlift platforms, and dumbbells up to 120 pounds. The floor is least crowded before 7 am and after 8:30 pm. Altea Active also has a solid weight area with newer equipment, though the space is smaller. For serious powerlifters, neither gym is ideal — the nearest dedicated strength gym is Fortis Fitness on Sterling Road, a 10-minute drive west."
+      },
+      {
+        "heading": "Best for Classes",
+        "content": "F45 Training dominates the group class scene with its rotating daily workout format — no two sessions are the same in a 36-day cycle. Classes run 45 minutes and combine functional training, cardio, and resistance. SpinCo delivers high-energy cycling with real-time leaderboard competition and nightclub-style lighting. Orangetheory offers a structured blend of treadmill intervals and floor work, with heart-rate monitors tracking your effort zones. All three studios offer free trial classes."
+      },
+      {
+        "heading": "Best Budget Option",
+        "content": "GoodLife Fitness at $30 to $50 per month is the clear budget winner, with full equipment access and group fitness classes included. Movati Athletic at $60 to $80 is the next step up, adding a pool, steam room, and a wider variety of group classes. Many Liberty Village condos also have basic fitness rooms with cardio equipment and free weights — buildings like the Toy Factory Lofts and Liberty Central have gyms that cover the essentials for residents who only need occasional use."
+      }
+    ],
     "specificFaqs": [
       {
         "question": "How much do gyms cost in Liberty Village?",
-        "answer": "Gym memberships range widely. GoodLife Fitness starts around $30-50 per month for basic access. Movati Athletic runs $60-80 monthly with pool access. Premium Altea Active on Western Battery Rd costs $150-200 per month but includes a pool, spa, hot yoga studio, and restaurant."
+        "answer": "Gym memberships range from $30 to $200 per month. GoodLife Fitness starts at $30 to $50 for basic access. Movati Athletic runs $60 to $80 with pool access. Boutique studios like F45 ($200), Orangetheory ($150 to $180), and SpinCo ($150 to $180) charge more for structured class formats. Altea Active is the premium option at $150 to $200 including pool, spa, and hot yoga."
       },
       {
         "question": "Are there 24-hour gyms in Liberty Village?",
-        "answer": "GoodLife Fitness on Jefferson Ave has the longest hours, open from 5am to 11pm on weekdays. Movati Athletic on Lynn Williams St has similar extended hours. For true 24/7 access, the nearest options are just outside the neighbourhood on King Street West."
+        "answer": "No gym in Liberty Village is open 24 hours. GoodLife Fitness on Jefferson Avenue has the longest hours at 5 am to 11 pm on weekdays and 7 am to 9 pm on weekends. Movati Athletic matches those weekday hours. For true 24/7 access, the nearest option is Anytime Fitness on King Street West, about a 12-minute walk from the centre of Liberty Village."
       },
       {
         "question": "What fitness classes are available in Liberty Village?",
-        "answer": "Liberty Village has excellent variety. F45 Training on East Liberty offers functional HIIT classes. Studio Lagree on Atlantic Ave specializes in Megaformer Pilates. Orangetheory delivers heart-rate interval training, and SpinCo runs high-energy cycling classes. Most studios offer free trial classes for newcomers."
+        "answer": "Liberty Village has excellent class variety. F45 Training runs 45-minute functional HIIT sessions with a new workout each day. SpinCo offers high-energy indoor cycling with leaderboard tracking. Orangetheory combines treadmill intervals and strength work with heart-rate monitoring. Movati and GoodLife both include group fitness in their memberships, covering yoga, Zumba, and boot camp formats."
       },
       {
         "question": "Are there outdoor fitness options in Liberty Village?",
-        "answer": "Lamport Stadium Park is popular for outdoor workouts and has a running track. The rail corridor trail is great for jogging. Precision Athletics on Hanna Ave runs outdoor boot camps in warmer months, and several personal trainers offer sessions in local parks and condo courtyards."
+        "answer": "Lamport Stadium Park has a running track and open green space popular for boot camps and circuit training. The West Toronto Railpath is a 2 km paved trail ideal for running and cycling. Several personal trainers run outdoor group sessions in Liberty Village Park during spring and summer. Altea Active's rooftop pool deck also functions as an outdoor workout space in warmer months."
+      },
+      {
+        "question": "Do Liberty Village gyms offer free trials?",
+        "answer": "Most do. F45 Training offers a free one-week trial bookable through their website. Orangetheory gives one complimentary class to first-time visitors. SpinCo offers a discounted intro pack of 3 classes for $49. GoodLife Fitness sometimes runs free week passes through their website or local promotions. Altea Active offers a single-day guest pass for $25 that includes pool and spa access."
+      },
+      {
+        "question": "Which gym has the best pool in Liberty Village?",
+        "answer": "Altea Active has the standout pool facility — a 25-metre saltwater lap pool plus a rooftop pool deck that opens in summer. Movati Athletic also has a pool, though it is smaller and better suited for recreational swimming than serious lap training. GoodLife, F45, SpinCo, and Orangetheory do not have pools. If lap swimming is your primary workout, Altea Active is the only real option in the neighbourhood."
+      },
+      {
+        "question": "What are peak hours at Liberty Village gyms?",
+        "answer": "Peak hours at most Liberty Village gyms run from 5:30 pm to 7:30 pm on weekdays and 9 am to 11 am on weekends. GoodLife and Movati see the heaviest evening traffic. Morning slots before 7 am are consistently quieter across all locations. F45 and Orangetheory's 5:30 am classes fill up fastest — book 48 hours ahead to guarantee a spot."
+      },
+      {
+        "question": "Is personal training available in Liberty Village?",
+        "answer": "Yes, all major gyms offer personal training. GoodLife Fitness rates start around $60 to $80 per session. Altea Active's trainers charge $80 to $120 per session but include access to the full facility. Several independent trainers operate in Liberty Village as well, often meeting clients at condo gyms or outdoor spaces at rates of $50 to $100 per hour. Check Precision Athletics on Hanna Avenue for small-group training."
       }
     ]
   },
