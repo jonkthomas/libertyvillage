@@ -921,24 +921,56 @@
     "searchVolume": "medium",
     "competitiveness": "medium",
     "image": "/images/services/coworking-spaces.jpg",
-    "answerBlock": "Liberty Village has 3 coworking spaces for different work styles. The Fueling Station on Fraser Ave leads at 4.4 with genuine community in a converted warehouse. Spaces on East Liberty Street offers premium private offices with a rooftop patio. WeWork on Atlantic Ave brings polished interiors in a heritage building. Hot desks start around $300 per month, with private offices from $600 and up.",
+    "answerBlock": "Liberty Village has 3 dedicated coworking spaces plus several laptop-friendly coffee shops for different work styles and budgets. The Fueling Station on Fraser Avenue leads at 4.4/5 with genuine startup community in a converted warehouse, starting at $200 per month for hot desks. Spaces Liberty Village on East Liberty Street offers premium private offices with 24/7 member access from $350 per month. WeWork on Atlantic Avenue brings polished interiors in a heritage building at $350 to $500 monthly for dedicated desks. Day passes run $25 to $40 across all three spaces, and private offices start at $600 per month.",
     "definition": "Coworking spaces in Liberty Village occupy converted industrial buildings along Atlantic Ave and Fraser Ave, serving the neighbourhood's dense concentration of tech startups and freelancers.",
+    "comparisonTable": {
+      "columns": ["Space", "Day Pass", "Monthly", "Meeting Rooms", "Best For"],
+      "rows": [
+        { "Space": "The Fueling Station", "Day Pass": "$25", "Monthly": "From $200", "Meeting Rooms": "2 (bookable hourly)", "Best For": "Startups & freelancers" },
+        { "Space": "Spaces Liberty Village", "Day Pass": "$35", "Monthly": "From $350", "Meeting Rooms": "4 (credits included)", "Best For": "Premium offices & rooftop" },
+        { "Space": "WeWork", "Day Pass": "$40", "Monthly": "From $350", "Meeting Rooms": "3 (credits included)", "Best For": "Polished address & networking" },
+        { "Space": "Balzac's (café)", "Day Pass": "$5 coffee", "Monthly": "N/A", "Meeting Rooms": "No", "Best For": "Casual work with great espresso" }
+      ]
+    },
+    "keyTakeaways": [
+      "The Fueling Station offers the lowest entry point at $200 per month for hot desks with a 4.4/5 community rating",
+      "Spaces and WeWork both offer 24/7 member access — crucial for startup founders working non-standard hours",
+      "Day passes range from $25 at The Fueling Station to $40 at WeWork, making trial visits affordable before committing",
+      "Private offices start at $600 per month across all three spaces, with Spaces charging up to $1,200 for premium suites",
+      "All three coworking spaces include high-speed WiFi (100+ Mbps), printing, and kitchen facilities in their base plans"
+    ],
+    "proTips": [
+      "The Fueling Station runs free community events on the first Thursday of each month — attend before joining to test the vibe and meet current members",
+      "Spaces Liberty Village's rooftop patio is open to all members and is the best outdoor work spot in the neighbourhood — claim a table by 10 am in summer",
+      "WeWork offers a free day pass for first-time visitors — book through their app to avoid the walk-in sales pitch at reception",
+      "Most Liberty Village condo buildings have shared meeting rooms bookable through the concierge — a free alternative if you only need occasional meeting space",
+      "Balzac's in the Liberty Market is the unwritten fourth coworking option — buy a coffee every 90 minutes and you have a productive workspace at a fraction of the cost"
+    ],
+    "neighbourhoodContext": "Liberty Village's coworking scene exists because the neighbourhood is home to one of Toronto's densest concentrations of tech startups, creative agencies, and freelancers. The area's converted warehouse buildings provide the raw industrial spaces that coworking operators prize — high ceilings, exposed brick, and open floor plans that feel nothing like a corporate office.\n\nThe three dedicated coworking spaces serve distinct segments. The Fueling Station attracts early-stage startups and solo freelancers who value community over polish. Spaces Liberty Village draws established small businesses and remote teams from larger companies who need a professional environment with premium amenities. WeWork serves a similar market but with a stronger emphasis on networking events and a prestigious mailing address.\n\nBeyond the dedicated spaces, Liberty Village's coffee shops function as an informal coworking network. Balzac's, Dark Horse, and Jimmy's Coffee collectively seat over 80 laptop workers on any given weekday, creating a distributed workspace that costs nothing more than a $5 latte every couple of hours.",
     "specificFaqs": [
       {
         "question": "How much does coworking cost in Liberty Village?",
-        "answer": "Hot-desking starts around $250-350 per month at Spaces Liberty Village above East Liberty St. WeWork on Atlantic Ave charges $350-500 monthly for dedicated desks. The Fueling Station on Fraser Ave offers more affordable plans starting around $200 for community-focused freelancer and startup workspace."
+        "answer": "Hot desks start at $200 per month at The Fueling Station on Fraser Avenue, the most affordable option. Spaces Liberty Village on East Liberty Street charges $350 per month for hot desks and up to $1,200 for premium private offices. WeWork on Atlantic Avenue runs $350 to $500 for dedicated desks. Day passes are available at all three — $25, $35, and $40 respectively."
       },
       {
         "question": "Are there free coworking options in Liberty Village?",
-        "answer": "No dedicated free coworking exists, but several coffee shops serve the function. Balzac's Coffee Roasters in the Liberty Market building is the unofficial coworking hub with great WiFi and ample seating. Dark Horse Espresso and Jimmy's Coffee on Atlantic Ave are also popular with remote workers."
+        "answer": "No dedicated free coworking spaces exist, but Balzac's Coffee Roasters in the Liberty Market building is the neighbourhood's unofficial free workspace — reliable WiFi, 40+ seats, and power outlets along the walls. Dark Horse Espresso on Liberty Street and Jimmy's Coffee on Atlantic Avenue also welcome laptop workers. Many condo buildings also have shared lounges and meeting rooms available to residents at no extra cost."
       },
       {
         "question": "Which Liberty Village coworking space is best for startups?",
-        "answer": "The Fueling Station on Fraser Ave is specifically designed for startups and small creative agencies, with genuine community, networking events, and affordable pricing. WeWork on Atlantic Ave suits funded startups needing a polished address. Spaces Liberty Village works best for established small businesses wanting premium facilities."
+        "answer": "The Fueling Station on Fraser Avenue is purpose-built for early-stage startups and creative agencies. At $200 per month for hot desks, the barrier to entry is low. The community runs networking events, pitch nights, and skill-sharing sessions monthly. WeWork suits funded startups wanting a polished address and investor-meeting-ready boardrooms. Spaces serves established teams of 5 or more needing dedicated private office space."
       },
       {
         "question": "Do Liberty Village coworking spaces offer meeting rooms?",
-        "answer": "Yes. Spaces Liberty Village, WeWork on Atlantic Ave, and The Fueling Station all offer bookable meeting rooms in various sizes. Spaces and WeWork include meeting room credits with higher-tier memberships. The Fueling Station charges hourly rates that are typically lower than the larger chains."
+        "answer": "All three spaces offer bookable meeting rooms. The Fueling Station has 2 rooms available at $25 to $40 per hour. Spaces Liberty Village has 4 rooms with meeting credits included in higher-tier memberships. WeWork has 3 meeting rooms with credits for dedicated desk members and above. For occasional use, booking a meeting room through one of these spaces on a per-hour basis is often cheaper than a full membership."
+      },
+      {
+        "question": "Can I get a day pass at Liberty Village coworking spaces?",
+        "answer": "Yes, all three offer day passes. The Fueling Station charges $25 per day and requires no advance booking. Spaces Liberty Village sells day passes at $35 through their website. WeWork offers a free first-visit day pass bookable through their app, with subsequent passes at $40. Day passes include WiFi, a desk, kitchen access, and common-area amenities at all locations."
+      },
+      {
+        "question": "Do coworking spaces in Liberty Village have 24/7 access?",
+        "answer": "Spaces Liberty Village and WeWork both offer 24/7 key-card access for monthly members, making them suitable for founders and remote workers on non-standard schedules. The Fueling Station's regular hours are Monday to Friday 8 am to 10 pm and Saturday 10 am to 6 pm, with no after-hours access. If overnight or weekend access is important to you, Spaces or WeWork are the better choices."
       }
     ]
   },
