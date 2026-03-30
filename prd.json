@@ -291,7 +291,7 @@
         "Verify in browser using dev-browser skill: /best/restaurants shows comparison table, takeaways, tips. /best/dentists renders unchanged."
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-004-008 (data), US-010 (ComparisonTable), US-011 (ProTips), US-015 (AnswerBlock). Reference: tasks/docs/seo-aeo-page1-design.md. Use nextjs-expert + frontend-expert agents."
     },
     {
