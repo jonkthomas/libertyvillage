@@ -2,18 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { getAllTopics, getGuideHubData } from "@/lib/data";
-import { generateCollectionPageSchema, generateBreadcrumbSchema } from "@/lib/schema";
+import { generateCollectionPageSchema, generateBreadcrumbSchema, generateSpeakableSchema } from "@/lib/schema";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import AnswerBlock from "@/components/AnswerBlock";
 import NeighbourhoodFacts from "@/components/NeighbourhoodFacts";
 import NeighbourhoodHistory from "@/components/NeighbourhoodHistory";
 
 export const metadata: Metadata = {
-  title: "Liberty Village Guides — Neighbourhood Tips & How-Tos | libertyvillage.co",
-  description: "Practical guides for living in Liberty Village: parking, transit, moving, fitness, nightlife, remote work, and more. Written by locals for locals.",
+  title: "Liberty Village Neighbourhood Guide 2026 | libertyvillage.co",
+  description: "Complete neighbourhood guide to Liberty Village, Toronto. Walk Score 88, Transit Score 96, median rent $2,608/mo. Parking, transit, moving, fitness, nightlife, and more — written by locals.",
   openGraph: {
-    title: "Liberty Village Guides",
-    description: "Practical neighbourhood guides for Liberty Village, Toronto.",
+    title: "Liberty Village Neighbourhood Guide 2026",
+    description: "Complete neighbourhood guide to Liberty Village, Toronto — Walk Score 88, Transit Score 96, population ~7,500.",
     type: "website",
     url: "https://libertyvillage.co/guide",
     siteName: "LibertyVillage.co",
@@ -129,6 +129,12 @@ export default function GuideIndexPage() {
             { label: "Home", href: "/" },
             { label: "Guides", href: "/guide" },
           ])),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateSpeakableSchema("/guide")),
         }}
       />
     </div>
