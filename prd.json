@@ -73,7 +73,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Use /seo-content skill. Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-2). Read existing data/businesses.json for restaurant details."
     },
     {
