@@ -184,24 +184,65 @@
     "searchVolume": "high",
     "competitiveness": "hard",
     "image": "/images/services/bars.jpg",
-    "answerBlock": "Liberty Village has 3 standout bars covering every vibe. Craft Beer Market at 1 Liberty Street leads at 4.2 with over 100 craft taps in a converted warehouse. Brazen Head Irish Pub on East Liberty is the neighbourhood's beloved pub with a massive patio and weekly trivia. The Rec Room on Lynn Williams rounds it out with arcade games and live music.",
+    "answerBlock": "Liberty Village has 5 standout bars for 2026, anchored by Craft Beer Market at 1 Liberty Street with over 100 craft taps and a 4.2/5 rating. Brazen Head Irish Pub on East Liberty is the neighbourhood institution — open daily until 2 am with a wraparound patio, $7 pints during 3 pm to 6 pm happy hour, and Wednesday trivia starting at 7 pm. The Rec Room on Lynn Williams Street combines arcade games, bowling lanes, and a DJ-driven weekend nightlife scene. Liberty Commons at Big Rock Brewery pours house-brewed lagers in a 200-seat beer hall, while Left Field Brewery's taproom on Wagstaff Drive draws craft beer enthusiasts from across the city. Expect to spend $8 to $12 per pint at most spots.",
     "definition": "Bars in Liberty Village range from craft beer halls in converted warehouses to casual Irish pubs, with most concentrated along the East Liberty retail strip near BMO Field.",
+    "comparisonTable": {
+      "columns": ["Bar", "Type", "Happy Hour", "Patio", "Best For"],
+      "rows": [
+        { "Bar": "Craft Beer Market", "Type": "Craft beer hall", "Happy Hour": "3pm-6pm weekdays", "Patio": "Mezzanine", "Best For": "100+ craft taps & sports" },
+        { "Bar": "Brazen Head Irish Pub", "Type": "Irish pub", "Happy Hour": "3pm-6pm daily ($7 pints)", "Patio": "Wraparound (80 seats)", "Best For": "Trivia, late nights & patio" },
+        { "Bar": "The Rec Room", "Type": "Entertainment bar", "Happy Hour": "4pm-6pm weekdays", "Patio": "Small outdoor area", "Best For": "Arcade games & DJ nights" },
+        { "Bar": "Liberty Commons", "Type": "Brewery beer hall", "Happy Hour": "None", "Patio": "Large (200 seats)", "Best For": "House-brewed beer & groups" },
+        { "Bar": "Left Field Brewery", "Type": "Craft brewery taproom", "Happy Hour": "None", "Patio": "Small patio", "Best For": "Serious craft beer fans" }
+      ]
+    },
+    "keyTakeaways": [
+      "Craft Beer Market's 100+ rotating taps make it the largest craft beer selection in Liberty Village at $8 to $12 per pint",
+      "Brazen Head is the only bar open until 2 am seven days a week — its $7 happy hour pints (3 pm to 6 pm) are the neighbourhood's best deal",
+      "The Rec Room charges no cover on weeknights but $10 to $15 on Friday and Saturday DJ nights after 10 pm",
+      "Liberty Commons' 200-seat beer hall brews on-site and serves $8 house lagers — the best value for fresh craft beer",
+      "Left Field Brewery on Wagstaff Drive releases limited-edition cans every Friday — lineups start by 11 am for popular drops"
+    ],
+    "proTips": [
+      "Brazen Head's Wednesday trivia starts at 7 pm but teams claim tables by 6:30 — arrive early or sit on the patio where overflow spots open up",
+      "Craft Beer Market's happy hour runs 3 pm to 6 pm weekdays with $2 off all taps — the back corner booths are quietest for conversation",
+      "The Rec Room's arcade tokens are 4 for $5 on Tuesday nights versus 2 for $5 the rest of the week — the best time to bowl is before 8 pm",
+      "Liberty Commons fills to capacity by 6 pm on TFC match days — arrive an hour before kickoff or watch from Brazen Head instead",
+      "Left Field Brewery's taproom closes at 9 pm on weekdays — go Saturday afternoon for the full tap list and food truck outside"
+    ],
+    "neighbourhoodContext": "Liberty Village's bar scene punches above its weight for a neighbourhood of 7,500 people. The proximity to BMO Field means that every TFC match and major concert funnels thousands of visitors through the area, keeping bars busy on event nights year-round. This sports-adjacent energy defines the vibe — most bars have multiple screens, and Craft Beer Market transforms into a de facto stadium overflow on game days.\n\nThe split between craft beer culture and traditional pub culture is the defining feature of the bar scene here. Craft Beer Market and Left Field Brewery cater to Toronto's growing craft beer community, while Brazen Head anchors the traditional side with darts, trivia, and a no-pretense atmosphere that has kept regulars coming back for over a decade.\n\nSummer transforms the neighbourhood's bar scene entirely. Brazen Head's 80-seat wraparound patio, Liberty Commons' 200-seat beer hall patio, and Craft Beer Market's mezzanine become the primary draw from May through October, making Liberty Village one of the best patio destinations on the west side of Toronto.",
     "specificFaqs": [
       {
         "question": "What are the best bars in Liberty Village for craft beer?",
-        "answer": "Craft Beer Market at 1 Liberty St has over 100 taps of Canadian craft beer in a converted warehouse. Liberty Commons at Big Rock Brewery serves house-brewed craft beer with a beer hall atmosphere. Left Field Brewery on Wagstaff Dr is a must-visit taproom for serious beer drinkers."
+        "answer": "Craft Beer Market at 1 Liberty Street has over 100 rotating taps of Canadian and international craft beer in a converted warehouse. Liberty Commons at Big Rock Brewery serves house-brewed lagers and ales in a 200-seat beer hall. Left Field Brewery on Wagstaff Drive is a must-visit taproom for serious beer enthusiasts, known for their limited-edition Friday releases that draw lineups."
       },
       {
         "question": "Are there trivia nights at Liberty Village bars?",
-        "answer": "Brazen Head Irish Pub on East Liberty hosts popular Wednesday trivia nights starting at 7pm. It is the best free entertainment in the neighbourhood and teams form early, so arrive by 6:30pm to claim a good table. Craft Beer Market also runs occasional trivia events."
+        "answer": "Brazen Head Irish Pub hosts the neighbourhood's most popular trivia night every Wednesday starting at 7 pm. Teams of up to 6 compete for bar tabs and bragging rights — arrive by 6:30 pm to claim a table, as the pub fills to capacity by start time. Craft Beer Market runs occasional themed trivia events advertised on their Instagram, typically once a month on Thursday evenings."
       },
       {
         "question": "Which Liberty Village bars have the best patios?",
-        "answer": "Brazen Head Irish Pub has arguably the best wraparound patio in the neighbourhood. Craft Beer Market's upper mezzanine offers great atmosphere during sports games. The Rec Room on Lynn Williams St has an outdoor area that gets busy on summer weekends with DJs."
+        "answer": "Brazen Head Irish Pub has the best wraparound patio with 80 seats that opens in May. Liberty Commons at Big Rock Brewery has the largest patio overall at 200 seats, perfect for groups. Craft Beer Market's mezzanine-level patio offers a great atmosphere for sports viewing. The Rec Room has a smaller outdoor area that gets lively on summer weekends with DJ sets."
       },
       {
         "question": "Are there bars open late in Liberty Village?",
-        "answer": "Brazen Head Irish Pub stays open until 2am seven days a week. The Rec Room runs until 2am on Friday and Saturday nights with DJ events and a club-like atmosphere. Craft Beer Market closes at 1am on weekends. Most Liberty Village bars close earlier on weeknights."
+        "answer": "Brazen Head Irish Pub is the late-night anchor, open until 2 am seven days a week with a full kitchen running until last call. The Rec Room stays open until 2 am on Friday and Saturday with DJ events and a nightclub-style atmosphere after 10 pm. Craft Beer Market closes at 1 am on weekends. Most other Liberty Village bars close by 11 pm on weeknights."
+      },
+      {
+        "question": "How much do drinks cost at Liberty Village bars?",
+        "answer": "Pints at most Liberty Village bars run $8 to $12, with craft options at the higher end. Brazen Head's happy hour (3 pm to 6 pm daily) drops pints to $7, the best deal in the neighbourhood. Liberty Commons' house-brewed lagers are $8. Cocktails range from $14 to $18 across most bars. The Rec Room charges $10 to $14 for cocktails, with cheaper options during their 4 pm to 6 pm happy hour."
+      },
+      {
+        "question": "Which bars are best for watching sports in Liberty Village?",
+        "answer": "Craft Beer Market is the top sports bar with over 20 screens, a massive projector, and a game-day atmosphere fuelled by 100+ craft taps. Brazen Head Irish Pub is the classic choice for Leafs and Raptors games with multiple TVs and a rowdy pub crowd. Both bars are within walking distance of BMO Field, making them popular pre-game and post-game spots for TFC matches and concerts."
+      },
+      {
+        "question": "Are there any breweries in Liberty Village?",
+        "answer": "Liberty Commons at Big Rock Brewery is the neighbourhood's largest on-site brewery, producing their own lagers and seasonal ales served in a 200-seat beer hall. Left Field Brewery on Wagstaff Drive is an independent craft brewery with a taproom that releases limited-edition cans weekly. Both offer flights for tasting, making them ideal for visitors who want to sample multiple styles without committing to full pints."
+      },
+      {
+        "question": "What is the best bar for a date in Liberty Village?",
+        "answer": "Left Field Brewery's taproom offers an intimate atmosphere with interesting beer selections and food truck options outside — low-key and conversational. Craft Beer Market's back corner booths provide a quieter space than you would expect from a 100-tap beer hall, especially during weekday evenings before 7 pm. Avoid Brazen Head and The Rec Room on weekends if you want to actually hear each other talk."
       }
     ]
   },
