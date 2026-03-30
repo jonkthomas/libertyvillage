@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { getAllTopics } from "@/lib/data";
+import { getAllTopics, getGuideHubData } from "@/lib/data";
 import { generateCollectionPageSchema, generateBreadcrumbSchema } from "@/lib/schema";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import AnswerBlock from "@/components/AnswerBlock";
+import NeighbourhoodFacts from "@/components/NeighbourhoodFacts";
+import NeighbourhoodHistory from "@/components/NeighbourhoodHistory";
 
 export const metadata: Metadata = {
   title: "Liberty Village Guides — Neighbourhood Tips & How-Tos | libertyvillage.co",
@@ -32,6 +35,7 @@ const categoryLabels: Record<string, string> = {
 
 export default function GuideIndexPage() {
   const topics = getAllTopics();
+  const guideHub = getGuideHubData();
   const categories = [...new Set(topics.map((t) => t.category))];
 
   const collectionSchema = generateCollectionPageSchema(
@@ -55,6 +59,12 @@ export default function GuideIndexPage() {
         Practical tips and how-tos for living, eating, and getting around Liberty Village.
       </p>
 
+      {guideHub.answerSummary && (
+        <AnswerBlock>{guideHub.answerSummary}</AnswerBlock>
+      )}
+
+      <NeighbourhoodHistory data={guideHub} />
+
       {categories.length > 0 && (
         <div className="mt-6 flex flex-wrap gap-2">
           {categories.map((cat) => (
@@ -66,35 +76,43 @@ export default function GuideIndexPage() {
       )}
 
       {topics.length > 0 ? (
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {topics.map((topic) => (
-            <Link
-              key={topic.slug}
-              href={`/guide/${topic.slug}`}
-              className="group overflow-hidden rounded-xl border border-warm-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-            >
-              {topic.image && (
-                <div className="relative aspect-video overflow-hidden">
-                  <Image
-                    src={topic.image}
-                    alt={topic.title}
-                    fill
-                    className="object-cover transition-transform group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  />
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+          {/* Guide topic links — takes 2 columns on desktop */}
+          <div className="lg:col-span-2 grid gap-6 sm:grid-cols-2">
+            {topics.map((topic) => (
+              <Link
+                key={topic.slug}
+                href={`/guide/${topic.slug}`}
+                className="group overflow-hidden rounded-xl border border-warm-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+              >
+                {topic.image && (
+                  <div className="relative aspect-video overflow-hidden">
+                    <Image
+                      src={topic.image}
+                      alt={topic.title}
+                      fill
+                      className="object-cover transition-transform group-hover:scale-105"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    />
+                  </div>
+                )}
+                <div className="p-5">
+                  <div className="text-xs text-warm-400">
+                    {categoryLabels[topic.category] || topic.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </div>
+                  <h2 className="mt-2 font-semibold text-warm-900 group-hover:text-amber-600 transition-colors">
+                    {topic.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-warm-500 line-clamp-2">{topic.description}</p>
                 </div>
-              )}
-              <div className="p-5">
-                <div className="text-xs text-warm-400">
-                  {categoryLabels[topic.category] || topic.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                </div>
-                <h2 className="mt-2 font-semibold text-warm-900 group-hover:text-amber-600 transition-colors">
-                  {topic.title}
-                </h2>
-                <p className="mt-1 text-sm text-warm-500 line-clamp-2">{topic.description}</p>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            ))}
+          </div>
+
+          {/* Sidebar — NeighbourhoodFacts */}
+          <div className="lg:sticky lg:top-24 lg:self-start">
+            <NeighbourhoodFacts data={guideHub} />
+          </div>
         </div>
       ) : (
         <p className="mt-12 text-center text-warm-400">No guides yet. Check back soon.</p>
