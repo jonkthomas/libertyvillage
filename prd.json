@@ -324,7 +324,7 @@
         "Verify in browser using dev-browser skill: /blog/fifa-world-cup-2026-liberty-village-survival-guide shows CTA and service links"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-002 (resolveCrossLinks), US-009 (crosslink data), US-014 (ExploreCTA). Use nextjs-expert agent."
     },
     {
