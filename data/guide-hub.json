@@ -1,0 +1,39 @@
+{
+  "population": "~7,500",
+  "medianRent": "$2,608/month",
+  "walkScore": 88,
+  "transitScore": 96,
+  "boundaries": "King St W (north), Dufferin St (west), GO rail corridor (south), Strachan Ave (east)",
+  "history": "Liberty Village traces its roots to the 1870s when the Toronto Central Prison opened on the site, along with associated industrial workshops that employed inmates in brick-making, woodworking, and metal fabrication. The prison complex dominated the area for over a century, giving the neighbourhood its name — the land was eventually \"liberated\" from institutional use.\n\nThrough the early and mid-20th century, the area evolved into a bustling industrial district. Factories, warehouses, and manufacturing plants lined the streets, producing everything from carpets to machinery. Companies like Inglis (later Whirlpool) operated major appliance factories here, employing thousands of workers from across Toronto.\n\nThe transformation began in earnest in the early 2000s when the City of Toronto rezoned the former industrial lands for mixed-use development. Developers converted old brick warehouses into loft-style offices and condominiums, while new glass-and-steel towers rose alongside them. The neighbourhood's population surged from a few hundred residents to over 7,500 in just two decades.\n\nToday Liberty Village is one of Toronto's most dynamic neighbourhoods, home to a concentration of tech startups, creative agencies, and media companies. The mix of heritage industrial architecture and modern condominiums gives the area a distinctive character, while its proximity to Exhibition Place, BMO Field, and the waterfront trail makes it a hub for both work and play.",
+  "prosCons": {
+    "pros": [
+      "Walk Score of 88 means most daily errands — groceries, pharmacy, coffee — are within a 10-minute walk",
+      "Transit Score of 96 with the King streetcar, Liberty Village bus, and Exhibition GO station providing quick connections to downtown and Union Station",
+      "Vibrant restaurant and bar scene with over 40 dining options, from casual brunch spots like School to upscale dining at Mildred's Temple Kitchen",
+      "Strong tech and creative job market — companies like Shopify, Ubisoft, and hundreds of startups are headquartered in the neighbourhood",
+      "Dog-friendly community with two off-leash parks, pet-friendly patios, and multiple pet supply stores within walking distance",
+      "Active social scene with regular community events, farmers' markets, and proximity to BMO Field for TFC and concerts"
+    ],
+    "cons": [
+      "Traffic congestion at the King/Dufferin and King/Strachan intersections can add 15-20 minutes to rush-hour commutes",
+      "Limited street parking and monthly lot rates of $200-$300 make car ownership expensive",
+      "Median rent of $2,608/month for a one-bedroom is 12% above the Toronto average, with few affordable housing options",
+      "Grocery options are limited to a small Metro and a few convenience stores — most residents drive or take transit to larger supermarkets",
+      "Construction noise from ongoing condo development is a persistent issue, particularly along East Liberty Street",
+      "The GO rail corridor and Gardiner Expressway create physical barriers that can make the neighbourhood feel isolated from adjacent areas"
+    ]
+  },
+  "quickFacts": [
+    { "label": "Population", "value": "~7,500 residents" },
+    { "label": "Median Rent (1BR)", "value": "$2,608/month" },
+    { "label": "Walk Score", "value": "88/100" },
+    { "label": "Transit Score", "value": "96/100" },
+    { "label": "Area Size", "value": "0.45 km²" },
+    { "label": "Year Established", "value": "1870s (as Central Prison site)" },
+    { "label": "Notable Landmarks", "value": "BMO Field, Exhibition Place, Liberty Village Park" },
+    { "label": "Median Condo Price", "value": "$625,000 (2025)" },
+    { "label": "Major Employers", "value": "Shopify, Ubisoft, Corus Entertainment" },
+    { "label": "Off-Leash Dog Parks", "value": "2 (Stanley Park, Liberty Village Park)" }
+  ],
+  "answerSummary": "Liberty Village is a walkable Toronto neighbourhood with a population of roughly 7,500, a Walk Score of 88, and a Transit Score of 96. Median one-bedroom rent sits at $2,608 per month, while condos average $625,000. The 0.45 km² area is bounded by King Street West, Dufferin, the GO corridor, and Strachan Avenue."
+}
