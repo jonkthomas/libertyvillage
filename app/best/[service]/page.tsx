@@ -8,6 +8,7 @@ import { generateServicePageMeta } from "@/lib/meta";
 import {
   generateCollectionPageSchema,
   generateSpeakableSchema,
+  generateItemListSchema,
 } from "@/lib/schema";
 import {
   getRelatedServices,
@@ -81,6 +82,15 @@ export default async function ServicePage({ params }: Props) {
   const speakableSchema = service.answerBlock
     ? generateSpeakableSchema(`/best/${service.slug}`)
     : null;
+  const itemListSchema =
+    service.comparisonTable && service.comparisonTable.rows.length > 0
+      ? generateItemListSchema(
+          service.comparisonTable.rows.map((row) => ({
+            name: row[service.comparisonTable!.columns[0]],
+          })),
+          `Best ${service.pluralName} in Liberty Village`
+        )
+      : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -204,6 +214,12 @@ export default async function ServicePage({ params }: Props) {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(speakableSchema) }}
+        />
+      )}
+      {itemListSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
         />
       )}
     </div>
