@@ -425,7 +425,7 @@
         "Run next build to verify SSG output succeeds for all pages"
       ],
       "priority": 24,
-      "passes": false,
+      "passes": true,
       "notes": "Final UAT gate. Use Playwright MCP (mcp__playwright)."
     },
     {
