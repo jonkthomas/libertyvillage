@@ -389,7 +389,7 @@
         "Typecheck passes"
       ],
       "priority": 22,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-016+017. Use Playwright MCP."
     },
     {
