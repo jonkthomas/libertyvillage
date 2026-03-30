@@ -442,7 +442,7 @@
         "No horizontal scrolling on any page"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": "Final UAT gate — mobile. Use Playwright MCP (mcp__playwright)."
     }
   ]
