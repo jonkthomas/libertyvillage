@@ -235,7 +235,7 @@
         "Verify in browser at 375px viewport: expand Best Of, tap Restaurants, verify navigation"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-012 (Header.tsx changes that pass props). Use frontend-expert agent."
     },
     {
