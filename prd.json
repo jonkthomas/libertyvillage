@@ -307,7 +307,7 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-016. Schema generated at PAGE level, NOT inside components. Use nextjs-expert agent."
     },
     {
