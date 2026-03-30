@@ -11,7 +11,11 @@ const navLinks = [
   { href: "/vs", label: "Compare" },
 ];
 
-export default function MobileNav() {
+export default function MobileNav({
+  services,
+}: {
+  services?: Array<{ slug: string; pluralName: string }>;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
