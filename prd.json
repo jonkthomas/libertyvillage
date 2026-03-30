@@ -160,7 +160,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-002 (resolveCrossLinks helper). Reference: tasks/docs/seo-aeo-page1-requirements.md (REQ-3)."
     },
     {
