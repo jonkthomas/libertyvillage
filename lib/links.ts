@@ -178,13 +178,13 @@ export function getBreadcrumbs(
 
   switch (pageType) {
     case "service":
-      return [home, { label: "Best Services", href: "/best/restaurants" }, { label, href: "#" }];
+      return [home, { label: "Directory", href: "/directory" }, { label, href: "#" }];
     case "neighborhood":
-      return [home, { label: "Compare Neighborhoods", href: "/vs/king-west" }, { label, href: "#" }];
+      return [home, { label: "Compare Neighbourhoods", href: "/vs" }, { label, href: "#" }];
     case "business":
       return [home, { label: "Directory", href: "/directory" }, { label, href: "#" }];
     case "guide":
-      return [home, { label: "Guides", href: "/guide/parking-guide" }, { label, href: "#" }];
+      return [home, { label: "Guides", href: "/guide" }, { label, href: "#" }];
     case "blog":
       return [home, { label: "Blog", href: "/blog" }, { label, href: "#" }];
     case "terms":
