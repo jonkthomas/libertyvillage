@@ -1,36 +1,49 @@
 {
-  "collectedAt": "2026-03-25T11:42:12Z",
+  "collectedAt": "2026-04-05T00:00:00.000Z",
   "gsc": {
     "searchAnalytics": {
-      "totalRows": 101,
-      "dateRange": {
-        "startDate": "2026-03-18",
-        "endDate": "2026-03-25"
-      },
+      "totalImpressions": 73,
+      "totalClicks": 2,
       "topQueries": [
-        {"query": "liberty village", "impressions": 67, "clicks": 0, "position": 16.07},
-        {"query": "liberty village parking", "impressions": 15, "clicks": 0, "position": 11.67},
-        {"query": "liberty village toronto", "impressions": 10, "clicks": 0, "position": 10.8},
-        {"query": "liberty village restaurants", "impressions": 7, "clicks": 0, "position": 17.57},
-        {"query": "gym in liberty village", "impressions": 7, "clicks": 0, "position": 13.71},
-        {"query": "free parking liberty village", "impressions": 7, "clicks": 0, "position": 11},
-        {"query": "fitness classes liberty village", "impressions": 6, "clicks": 0, "position": 12.67},
-        {"query": "gym liberty village", "impressions": 5, "clicks": 0, "position": 11},
-        {"query": "liberty village coffee", "impressions": 4, "clicks": 0, "position": 9.75},
-        {"query": "green p liberty village", "impressions": 4, "clicks": 0, "position": 10}
+        {"query": "liberty village", "impressions": 73, "clicks": 0, "position": 12.16},
+        {"query": "gym in liberty village", "impressions": 8, "clicks": 0, "position": 12.13},
+        {"query": "fitness classes liberty village", "impressions": 7, "clicks": 0, "position": 13.43},
+        {"query": "coffee shops liberty village", "impressions": 6, "clicks": 0, "position": 9.5},
+        {"query": "f45 liberty village", "impressions": 6, "clicks": 0, "position": 27.67},
+        {"query": "free parking liberty village", "impressions": 5, "clicks": 0, "position": 10.4}
       ]
     },
-    "quickWins": {
-      "totalOpportunities": 0,
-      "opportunities": []
-    },
+    "quickWins": [],
     "sitemapStatus": {
       "submitted": 241,
       "indexed": 0,
-      "status": "pending_indexing"
+      "note": "Site is in early indexing phase"
     }
   },
-  "ga4": {
-    "status": "Site is new, no GA4 data available yet"
+  "analysis": {
+    "topPerformingQueries": [
+      "liberty village (73 impressions)",
+      "gym/fitness related (8+ impressions each)"
+    ],
+    "contentGaps": [
+      "Dedicated 'liberty village' overview page ranks at position 12 with 73 impressions but 0 clicks",
+      "Parking queries have good positions (6-10) but low search volume",
+      "Restaurant queries have poor positions (20-40) despite search interest",
+      "Coffee shop queries rank well (9-12) but no clicks yet"
+    ],
+    "trendingTopics": [
+      "World Cup road closures (fifa toronto road closures - position 12)",
+      "Coworking spaces (position 8.5)",
+      "Liberty Commons offers (bars/patios - position 9)"
+    ],
+    "underperformingPages": [
+      "Homepage for 'liberty village' - position 12, 0 CTR",
+      "Restaurants page - positions 20-40, 0 CTR"
+    ],
+    "opportunities": [
+      "World Cup content is timely (April 2026, matches start June)",
+      "Patio season approaching (April-May is planning time)",
+      "Spring outdoor activities and parks content"
+    ]
   }
 }
