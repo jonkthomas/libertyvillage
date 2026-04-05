@@ -3,7 +3,7 @@
     "slug": "restaurants",
     "name": "Restaurant",
     "pluralName": "Restaurants",
-    "description": "Best restaurants in Liberty Village ranked for 2026 — Mildred's, NODO, Pizza Libretto, Brazen Head, and more. Ratings, price ranges, and what to order.",
+    "description": "15 best restaurants in Liberty Village Toronto for 2026, ranked by locals. From Mildred's brunch to NODO pizza nights — ratings, prices, what to order, and date-night picks.",
     "icon": "🍽️",
     "relatedServices": [
       "coffee-shops",
@@ -327,7 +327,7 @@
     "slug": "gyms",
     "name": "Gym",
     "pluralName": "Gyms",
-    "description": "Best gyms in Liberty Village for 2026: GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, class schedules, hours, and honest comparisons.",
+    "description": "Every gym in Liberty Village compared for 2026 — GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, class types, hours, and which one fits your workout style.",
     "icon": "🏋️",
     "relatedServices": [
       "personal-trainers",
@@ -491,7 +491,7 @@
     "slug": "dentists",
     "name": "Dentist",
     "pluralName": "Dentists",
-    "description": "Finding a dentist accepting new patients in Liberty Village is easier than you think, with several clinics along King West and inside local condo plazas.",
+    "description": "Best dentists in Liberty Village Toronto accepting new patients in 2026. Clinics on King West and in condo plazas — insurance, hours, emergency care, and patient reviews compared.",
     "icon": "🦷",
     "relatedServices": [
       "doctors",

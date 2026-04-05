@@ -32,8 +32,8 @@ function buildMeta(
 
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
-    "Liberty Village, Toronto — Complete Neighbourhood Guide 2026",
-    "Liberty Village is a walkable Toronto neighbourhood with 9,000+ residents and 600+ businesses. Restaurants, gyms, parking, transit — your complete local guide.",
+    "Liberty Village Toronto — Neighbourhood Guide, Directory & Local Tips (2026)",
+    "The complete guide to Liberty Village, Toronto. Best restaurants, coffee shops, bars, gyms, parking, and 200+ local businesses. Written by residents for the 9,000+ people who call LV home.",
     "/",
     "/images/og/og-home.jpg"
   );
@@ -41,7 +41,7 @@ export function generateHomePageMeta(): Metadata {
 
 export function generateServicePageMeta(service: Service): Metadata {
   const suffix = " | libertyvillage.co";
-  const base = `Best ${service.pluralName} in Liberty Village (2026)`;
+  const base = `Best ${service.pluralName} in Liberty Village Toronto (2026)`;
   const title = base.length + suffix.length <= 60 ? `${base}${suffix}` : base;
   return buildMeta(
     title,

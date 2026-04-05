@@ -72,6 +72,7 @@ const topCategoryOrder = [
 ];
 
 const popularGuides = [
+  { href: "/guide/things-to-do", label: "Things to Do", desc: "Restaurants, patios, parks, gyms, nightlife, and weekend activities" },
   { href: "/guide/parking-guide", label: "Parking Guide", desc: "Free and paid parking options throughout the neighbourhood" },
   { href: "/blog/weekend-brunch-guide-liberty-village", label: "Best Brunch Spots", desc: "Top-rated brunch spots ranked by locals" },
   { href: "/blog/liberty-village-fitness-guide-every-gym-compared", label: "Gym Comparison", desc: "Every gym compared with prices and amenities" },
@@ -119,7 +120,7 @@ export default function Home() {
       {/* ═══════════════════════════════════════════
           1. HERO — Full-bleed photo, left-aligned
           ═══════════════════════════════════════════ */}
-      <section className="relative min-h-[85vh] overflow-hidden flex items-center sm:min-h-screen">
+      <section className="relative min-h-[60vh] overflow-hidden flex items-center sm:min-h-[70vh]">
         {/* Background image */}
         <div className="absolute inset-0">
           <Image
@@ -149,8 +150,8 @@ export default function Home() {
               data-hero-animate
               className="mt-5 max-w-lg text-lg leading-relaxed text-white/85 sm:text-xl"
             >
-              Your complete guide to Toronto&apos;s most vibrant neighbourhood
-              &mdash; restaurants, services, local tips, and honest reviews.
+              Find the best restaurants, parking, gyms, and bars
+              in Liberty Village &mdash; rated by locals, updated for 2026.
             </p>
             <div data-hero-animate className="mt-8 flex flex-wrap items-center gap-4">
               <Link
@@ -168,6 +169,25 @@ export default function Home() {
               >
                 New here? Start with our guide
               </Link>
+            </div>
+            {/* Quick-nav pills — direct paths to top-searched content */}
+            <div data-hero-animate className="mt-6 flex flex-wrap gap-2">
+              {[
+                { href: "/best/restaurants", label: "Restaurants" },
+                { href: "/guide/parking-guide", label: "Parking" },
+                { href: "/best/gyms", label: "Gyms" },
+                { href: "/best/bars", label: "Bars & Pubs" },
+                { href: "/best/coffee-shops", label: "Coffee" },
+                { href: "/guide/things-to-do", label: "Things to Do" },
+              ].map((pill) => (
+                <Link
+                  key={pill.href}
+                  href={pill.href}
+                  className="rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm transition-all hover:bg-white/25 hover:text-white"
+                >
+                  {pill.label}
+                </Link>
+              ))}
             </div>
           </HeroAnimation>
         </div>
