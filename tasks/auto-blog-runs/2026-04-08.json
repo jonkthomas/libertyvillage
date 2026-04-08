@@ -1,24 +1,11 @@
 {
-  "runDate": "2026-04-08",
-  "status": "success",
-  "topic": {
-    "title": "Pet Services in Liberty Village: Vets, Groomers & Pet Stores 2026",
-    "slug": "pet-services-liberty-village-vets-groomers-guide",
-    "category": "lifestyle",
-    "keywords": ["liberty village vet", "pet services liberty village", "dog grooming liberty village", "pet stores toronto"]
-  },
-  "seoData": {
-    "impressions": 192,
-    "clicks": 2,
-    "topQuery": "goodlife liberty village",
-    "sitemapIndexed": 0
-  },
-  "validations": {
-    "diagnostic": "passed",
-    "build": "passed",
-    "wordCount": 1117,
-    "internalLinks": 8,
-    "businessMentions": 4
-  },
-  "imageSource": "pexels"
+  "date": "2026-04-08T11:55:37.774Z",
+  "success": true,
+  "costUsd": 1.8718300000000005,
+  "turnsUsed": 51,
+  "durationMs": 388708,
+  "topicSelected": null,
+  "postSlug": null,
+  "seoDataSummary": null,
+  "errors": []
 }
