@@ -1,49 +1,33 @@
 {
-  "collectedAt": "2026-04-05T00:00:00.000Z",
+  "collectedAt": "2026-04-08T00:00:00.000Z",
   "gsc": {
     "searchAnalytics": {
-      "totalImpressions": 73,
+      "totalImpressions": 192,
       "totalClicks": 2,
+      "avgCTR": 0.010416666666666666,
       "topQueries": [
-        {"query": "liberty village", "impressions": 73, "clicks": 0, "position": 12.16},
-        {"query": "gym in liberty village", "impressions": 8, "clicks": 0, "position": 12.13},
-        {"query": "fitness classes liberty village", "impressions": 7, "clicks": 0, "position": 13.43},
-        {"query": "coffee shops liberty village", "impressions": 6, "clicks": 0, "position": 9.5},
-        {"query": "f45 liberty village", "impressions": 6, "clicks": 0, "position": 27.67},
-        {"query": "free parking liberty village", "impressions": 5, "clicks": 0, "position": 10.4}
+        {"query": "goodlife liberty village", "impressions": 24, "clicks": 1, "position": 12.75},
+        {"query": "liberty village gyms", "impressions": 2, "clicks": 1, "position": 10.5},
+        {"query": "liberty village", "impressions": 35, "clicks": 0, "position": 14.46},
+        {"query": "gym liberty village", "impressions": 10, "clicks": 0, "position": 10.4},
+        {"query": "gym in liberty village", "impressions": 8, "clicks": 0, "position": 12.25}
+      ],
+      "topPages": [
+        {"page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared", "impressions": 86, "clicks": 2},
+        {"page": "https://libertyvillage.co/", "impressions": 36, "clicks": 0},
+        {"page": "https://libertyvillage.co/directory", "impressions": 25, "clicks": 0},
+        {"page": "https://libertyvillage.co/best/restaurants", "impressions": 18, "clicks": 0},
+        {"page": "https://libertyvillage.co/best/coffee-shops", "impressions": 17, "clicks": 0}
       ]
     },
     "quickWins": [],
     "sitemapStatus": {
       "submitted": 241,
       "indexed": 0,
-      "note": "Site is in early indexing phase"
+      "status": "Early indexing phase - 0 pages indexed"
     }
   },
-  "analysis": {
-    "topPerformingQueries": [
-      "liberty village (73 impressions)",
-      "gym/fitness related (8+ impressions each)"
-    ],
-    "contentGaps": [
-      "Dedicated 'liberty village' overview page ranks at position 12 with 73 impressions but 0 clicks",
-      "Parking queries have good positions (6-10) but low search volume",
-      "Restaurant queries have poor positions (20-40) despite search interest",
-      "Coffee shop queries rank well (9-12) but no clicks yet"
-    ],
-    "trendingTopics": [
-      "World Cup road closures (fifa toronto road closures - position 12)",
-      "Coworking spaces (position 8.5)",
-      "Liberty Commons offers (bars/patios - position 9)"
-    ],
-    "underperformingPages": [
-      "Homepage for 'liberty village' - position 12, 0 CTR",
-      "Restaurants page - positions 20-40, 0 CTR"
-    ],
-    "opportunities": [
-      "World Cup content is timely (April 2026, matches start June)",
-      "Patio season approaching (April-May is planning time)",
-      "Spring outdoor activities and parks content"
-    ]
+  "ga4": {
+    "status": "No data available - site in early phase"
   }
 }
