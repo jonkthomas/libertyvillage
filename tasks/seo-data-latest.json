@@ -1,36 +1,33 @@
 {
-  "collectedAt": "2026-03-25T11:42:12Z",
+  "collectedAt": "2026-04-08T00:00:00.000Z",
   "gsc": {
     "searchAnalytics": {
-      "totalRows": 101,
-      "dateRange": {
-        "startDate": "2026-03-18",
-        "endDate": "2026-03-25"
-      },
+      "totalImpressions": 192,
+      "totalClicks": 2,
+      "avgCTR": 0.010416666666666666,
       "topQueries": [
-        {"query": "liberty village", "impressions": 67, "clicks": 0, "position": 16.07},
-        {"query": "liberty village parking", "impressions": 15, "clicks": 0, "position": 11.67},
-        {"query": "liberty village toronto", "impressions": 10, "clicks": 0, "position": 10.8},
-        {"query": "liberty village restaurants", "impressions": 7, "clicks": 0, "position": 17.57},
-        {"query": "gym in liberty village", "impressions": 7, "clicks": 0, "position": 13.71},
-        {"query": "free parking liberty village", "impressions": 7, "clicks": 0, "position": 11},
-        {"query": "fitness classes liberty village", "impressions": 6, "clicks": 0, "position": 12.67},
-        {"query": "gym liberty village", "impressions": 5, "clicks": 0, "position": 11},
-        {"query": "liberty village coffee", "impressions": 4, "clicks": 0, "position": 9.75},
-        {"query": "green p liberty village", "impressions": 4, "clicks": 0, "position": 10}
+        {"query": "goodlife liberty village", "impressions": 24, "clicks": 1, "position": 12.75},
+        {"query": "liberty village gyms", "impressions": 2, "clicks": 1, "position": 10.5},
+        {"query": "liberty village", "impressions": 35, "clicks": 0, "position": 14.46},
+        {"query": "gym liberty village", "impressions": 10, "clicks": 0, "position": 10.4},
+        {"query": "gym in liberty village", "impressions": 8, "clicks": 0, "position": 12.25}
+      ],
+      "topPages": [
+        {"page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared", "impressions": 86, "clicks": 2},
+        {"page": "https://libertyvillage.co/", "impressions": 36, "clicks": 0},
+        {"page": "https://libertyvillage.co/directory", "impressions": 25, "clicks": 0},
+        {"page": "https://libertyvillage.co/best/restaurants", "impressions": 18, "clicks": 0},
+        {"page": "https://libertyvillage.co/best/coffee-shops", "impressions": 17, "clicks": 0}
       ]
     },
-    "quickWins": {
-      "totalOpportunities": 0,
-      "opportunities": []
-    },
+    "quickWins": [],
     "sitemapStatus": {
       "submitted": 241,
       "indexed": 0,
-      "status": "pending_indexing"
+      "status": "Early indexing phase - 0 pages indexed"
     }
   },
   "ga4": {
-    "status": "Site is new, no GA4 data available yet"
+    "status": "No data available - site in early phase"
   }
 }
