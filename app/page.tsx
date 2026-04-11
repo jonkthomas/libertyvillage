@@ -178,6 +178,7 @@ export default function Home() {
                 { href: "/best/gyms", label: "Gyms" },
                 { href: "/best/bars", label: "Bars & Pubs" },
                 { href: "/best/coffee-shops", label: "Coffee" },
+                { href: "/blog/weekend-brunch-guide-liberty-village", label: "Brunch" },
                 { href: "/guide/things-to-do", label: "Things to Do" },
               ].map((pill) => (
                 <Link

@@ -3788,5 +3788,187 @@
       "Residents wanting an established, licensed locksmith"
     ],
     "image": "/images/businesses/asap-lock-service.jpg"
+  },
+  {
+    "slug": "kinton-ramen-liberty-village",
+    "name": "Kinton Ramen",
+    "category": "restaurants",
+    "subcategory": "Japanese",
+    "address": "171 East Liberty St, Toronto, ON M6K 3P6",
+    "description": "Popular Japanese ramen chain with a Liberty Village location. Known for rich tonkotsu broth, karaage chicken, and customizable noodle bowls. A reliable lunch spot for the neighbourhood's office workers.",
+    "rating": 4.3,
+    "reviewCount": 850,
+    "priceRange": "$$",
+    "hours": "Mon-Sun 11:30 AM - 10 PM",
+    "phone": "(416) 551-8882",
+    "website": "",
+    "tags": [
+      "ramen",
+      "japanese",
+      "noodles",
+      "lunch"
+    ],
+    "featured": false,
+    "proTip": "The spicy garlic tonkotsu with extra chashu is the move.",
+    "image": "",
+    "answerBlock": "Kinton Ramen on East Liberty Street serves rich Japanese ramen bowls with tonkotsu broth, karaage chicken, and customizable toppings. Popular lunch spot in Liberty Village.",
+    "bestFor": [
+      "Quick ramen lunch"
+    ],
+    "categories": [
+      "restaurants"
+    ]
+  },
+  {
+    "slug": "fox-and-john-liberty-village",
+    "name": "Fox & John",
+    "category": "bars",
+    "subcategory": "Pub",
+    "address": "51 East Liberty St, Toronto, ON M6K 3P8",
+    "description": "Neighbourhood pub on East Liberty with craft cocktails, local beers on tap, and a relaxed atmosphere. A newer addition to Liberty Village's bar scene with a cozy patio and weekend DJ nights.",
+    "rating": 4.2,
+    "reviewCount": 320,
+    "priceRange": "$$",
+    "hours": "Mon-Fri 4 PM - 2 AM, Sat-Sun 12 PM - 2 AM",
+    "phone": "(416) 792-4400",
+    "website": "",
+    "tags": [
+      "bar",
+      "cocktails",
+      "pub",
+      "patio",
+      "nightlife"
+    ],
+    "featured": false,
+    "proTip": "The patio is one of the best-kept secrets in LV — perfect for after-work drinks.",
+    "image": "",
+    "answerBlock": "Fox & John is a neighbourhood pub on East Liberty Street with craft cocktails, local beers, a cozy patio, and weekend DJ nights.",
+    "bestFor": [
+      "After-work drinks and patio season"
+    ],
+    "categories": [
+      "bars"
+    ]
+  },
+  {
+    "slug": "longos-liberty-village",
+    "name": "Longo's",
+    "category": "grocery",
+    "subcategory": "Supermarket",
+    "address": "45 Dufferin St, Toronto, ON M6K 1Y9",
+    "description": "Full-service grocery store near Liberty Village, popular with residents for fresh produce, deli counter, and prepared meals. The closest premium grocery option to the neighbourhood.",
+    "rating": 4.1,
+    "reviewCount": 620,
+    "priceRange": "$$",
+    "hours": "Mon-Sun 7 AM - 10 PM",
+    "phone": "(416) 535-8855",
+    "website": "",
+    "tags": [
+      "grocery",
+      "supermarket",
+      "fresh-food",
+      "deli"
+    ],
+    "featured": false,
+    "proTip": "Their prepared meals section is a lifesaver on busy weeknights.",
+    "image": "",
+    "answerBlock": "Longo's on Dufferin Street near Liberty Village offers fresh produce, a deli counter, and prepared meals. The closest premium grocery store to the neighbourhood.",
+    "bestFor": [
+      "Premium groceries and prepared meals"
+    ],
+    "categories": [
+      "grocery"
+    ]
+  },
+  {
+    "slug": "egg-club-liberty-village",
+    "name": "Egg Club",
+    "category": "restaurants",
+    "subcategory": "Brunch",
+    "address": "85 Hanna Ave, Toronto, ON M6K 3S3",
+    "description": "Trendy breakfast and brunch spot known for creative egg sandwiches, specialty coffee, and Instagram-worthy plating. Expect weekend lineups — arrive before 10 AM for the best chance at a table.",
+    "rating": 4.4,
+    "reviewCount": 510,
+    "priceRange": "$$",
+    "hours": "Mon-Fri 7 AM - 3 PM, Sat-Sun 8 AM - 4 PM",
+    "phone": "(416) 792-3344",
+    "website": "",
+    "tags": [
+      "breakfast",
+      "brunch",
+      "eggs",
+      "coffee"
+    ],
+    "featured": false,
+    "proTip": "Weekday mornings are the sweet spot — same food, no line.",
+    "image": "",
+    "answerBlock": "Egg Club on Hanna Avenue serves creative egg sandwiches and specialty coffee. A trendy brunch spot in Liberty Village — arrive before 10 AM on weekends to skip the line.",
+    "bestFor": [
+      "Weekend brunch and egg sandwiches"
+    ],
+    "categories": [
+      "restaurants",
+      "brunch-spots"
+    ]
+  },
+  {
+    "slug": "ono-poke-liberty-village",
+    "name": "Ono Poke",
+    "category": "restaurants",
+    "subcategory": "Poke",
+    "address": "1118 King St W, Toronto, ON M6K 1E4",
+    "description": "Build-your-own poke bowl restaurant on King Street West. Fresh fish, customizable toppings, and quick service make it a go-to lunch spot for the neighbourhood's health-conscious crowd.",
+    "rating": 4.2,
+    "reviewCount": 430,
+    "priceRange": "$$",
+    "hours": "Mon-Sun 11 AM - 9 PM",
+    "phone": "(416) 792-7653",
+    "website": "",
+    "tags": [
+      "poke",
+      "healthy",
+      "lunch",
+      "quick-service"
+    ],
+    "featured": false,
+    "proTip": "Add the crispy onions and spicy mayo — trust us.",
+    "image": "",
+    "answerBlock": "Ono Poke on King Street West offers build-your-own poke bowls with fresh fish and customizable toppings. A quick, healthy lunch option near Liberty Village.",
+    "bestFor": [
+      "Healthy lunch"
+    ],
+    "categories": [
+      "restaurants"
+    ]
+  },
+  {
+    "slug": "kitchen-hub-food-hall-liberty-village",
+    "name": "Kitchen Hub Food Hall",
+    "category": "restaurants",
+    "subcategory": "Food Hall",
+    "address": "5 Fraser Ave, Toronto, ON M6K 1Y7",
+    "description": "Multi-vendor ghost kitchen and food hall in Liberty Village. Order from multiple restaurant brands under one roof — burgers, sushi, Thai, and more — with delivery and pickup options.",
+    "rating": 3.9,
+    "reviewCount": 280,
+    "priceRange": "$$",
+    "hours": "Mon-Sun 11 AM - 11 PM",
+    "phone": "(416) 792-8800",
+    "website": "",
+    "tags": [
+      "food-hall",
+      "delivery",
+      "multi-cuisine",
+      "ghost-kitchen"
+    ],
+    "featured": false,
+    "proTip": "Great for groups who cannot agree on a cuisine — everyone orders from a different vendor.",
+    "image": "",
+    "answerBlock": "Kitchen Hub Food Hall on Fraser Avenue is a multi-vendor food hall and ghost kitchen. Order burgers, sushi, Thai, and more from multiple brands with delivery and pickup.",
+    "bestFor": [
+      "Group orders and delivery"
+    ],
+    "categories": [
+      "restaurants"
+    ]
   }
 ]
