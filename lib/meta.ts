@@ -32,7 +32,7 @@ function buildMeta(
 
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
-    "Liberty Village Toronto — Neighbourhood Guide, Directory & Local Tips (2026)",
+    "Liberty Village, Toronto — Neighbourhood Guide (2026)",
     "The complete guide to Liberty Village, Toronto. Best restaurants, coffee shops, bars, gyms, parking, and 200+ local businesses. Written by residents for the 9,000+ people who call LV home.",
     "/",
     "/images/og/og-home.jpg"

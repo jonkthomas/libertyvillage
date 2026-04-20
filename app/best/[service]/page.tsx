@@ -49,9 +49,24 @@ function getServiceFAQs(service: { pluralName: string; slug: string; specificFaq
   if (service.specificFaqs && service.specificFaqs.length > 0) {
     return service.specificFaqs;
   }
+  const plural = service.pluralName.toLowerCase();
   return [
-    { question: `How much do ${service.pluralName.toLowerCase()} cost in Liberty Village?`, answer: `Prices vary depending on the specific business and service level. Liberty Village generally reflects Toronto pricing. Check individual listings above for price range indicators.` },
-    { question: `Are there ${service.pluralName.toLowerCase()} open on weekends in Liberty Village?`, answer: `Many ${service.pluralName.toLowerCase()} in Liberty Village offer weekend hours, though availability varies. We recommend checking the specific business hours listed on each profile.` },
+    {
+      question: `What are the best ${plural} in Liberty Village, Toronto?`,
+      answer: `The top-rated ${plural} in Liberty Village are ranked above based on Google Reviews, volume of local reviews, consistency of service, and firsthand recommendations from residents. Most cluster along East Liberty Street, King Street West, and Atlantic Ave.`,
+    },
+    {
+      question: `How much do ${plural} cost in Liberty Village?`,
+      answer: `Prices in Liberty Village reflect Toronto west-end pricing. Check individual listings above for $ to $$$$ indicators. Boutique and premium options cluster near Atlantic Ave and East Liberty; budget-friendly options are more common near King Street West.`,
+    },
+    {
+      question: `Are there ${plural} open on weekends in Liberty Village?`,
+      answer: `Most ${plural} in Liberty Village offer Saturday hours; Sunday availability varies by category. Check each business's hours listed on its individual profile. Weekend demand is highest between 10am and 2pm, so book ahead for popular options.`,
+    },
+    {
+      question: `How do you rank ${plural} in Liberty Village?`,
+      answer: `Rankings combine Google Reviews ratings, review volume, service consistency, and firsthand input from Liberty Village residents. We prioritize businesses actually located in or immediately serving Liberty Village over locations 10+ minutes away.`,
+    },
   ];
 }
 

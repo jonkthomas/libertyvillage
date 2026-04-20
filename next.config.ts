@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/guide/moving-guide",
+        destination: "/blog/moving-to-liberty-village-2026-essential-guide",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

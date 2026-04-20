@@ -182,13 +182,30 @@ export function generateOrganizationSchema() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "LibertyVillage.co",
+    alternateName: "Liberty Village Toronto Guide",
     url: SITE_URL,
+    logo: `${SITE_URL}/apple-touch-icon.png`,
     description:
-      "Your complete guide to Liberty Village, Toronto. Find the best restaurants, services, and local businesses.",
+      "The definitive neighbourhood guide to Liberty Village, Toronto. Local restaurant reviews, service directories, transit guides, real estate data, and community news.",
+    foundingDate: "2024",
     areaServed: {
       "@type": "Place",
       name: "Liberty Village, Toronto, Ontario, Canada",
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: 43.6384,
+        longitude: -79.4200,
+      },
     },
+    knowsAbout: [
+      "Liberty Village Toronto",
+      "Toronto neighbourhood guides",
+      "Liberty Village restaurants",
+      "Liberty Village real estate",
+      "Liberty Village transit",
+      "FIFA World Cup 2026 Toronto",
+      "BMO Field",
+    ],
   };
 }
 

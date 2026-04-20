@@ -501,24 +501,66 @@
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/dentists.jpg",
-    "answerBlock": "Liberty Village has 2 well-rated dental clinics accepting new patients. Edition Dental on Jefferson Ave leads at 4.5 with a boutique spa-like experience and cosmetic specialties including veneers. Liberty Village Dental at 171 East Liberty Street scores 4.4 and offers evening and Saturday hours that suit working professionals. Both clinics handle general and cosmetic dentistry with direct insurance billing.",
+    "answerBlock": "The two best dentists near East Liberty Street in Liberty Village are Edition Dental (4.5★, 65 Jefferson Ave) and Liberty Village Dental (4.4★, 171 East Liberty St). Both accept new patients, bill insurance directly, and offer Saturday appointments. Edition Dental specializes in cosmetic and boutique care; Liberty Village Dental focuses on general and family dentistry with evening hours for working professionals.",
     "definition": "Dentists in Liberty Village serve the neighbourhood's dense condo population from clinics along East Liberty Street and Jefferson Ave, with most offering extended evening hours for professionals.",
+    "keyTakeaways": [
+      "Edition Dental (4.5★) and Liberty Village Dental (4.4★) are the two active Liberty Village clinics accepting new patients.",
+      "Both clinics offer Saturday hours — the only weekend availability inside the neighbourhood.",
+      "Liberty Village Dental has evening hours until 7pm Mon–Thu; Edition Dental closes at 6pm.",
+      "Direct insurance billing is standard at both clinics.",
+      "For after-hours dental emergencies, Toronto Western Hospital's dental ER is the closest option."
+    ],
+    "comparisonTable": {
+      "columns": ["Clinic", "Rating", "Location", "Weekend", "Evenings", "Specialty"],
+      "rows": [
+        {
+          "Clinic": "Edition Dental",
+          "Rating": "4.5★ (198 reviews)",
+          "Location": "65 Jefferson Ave",
+          "Weekend": "Sat 10am–3pm",
+          "Evenings": "Until 6pm",
+          "Specialty": "Cosmetic, veneers, whitening"
+        },
+        {
+          "Clinic": "Liberty Village Dental",
+          "Rating": "4.4★ (312 reviews)",
+          "Location": "171 East Liberty St",
+          "Weekend": "Sat 9am–3pm",
+          "Evenings": "Until 7pm Mon–Thu",
+          "Specialty": "General, Invisalign, family"
+        }
+      ]
+    },
+    "proTips": [
+      "Book Saturday slots 2–3 weeks ahead — they fill first and are the only weekend option in Liberty Village.",
+      "If you have insurance, call ahead to confirm direct billing for your provider before the appointment.",
+      "For a cosmetic consult (veneers, whitening) go to Edition Dental; for family and Invisalign, Liberty Village Dental has more evening capacity.",
+      "Emergency cases: call during morning hours — both clinics reserve same-day slots but they go quickly."
+    ],
     "specificFaqs": [
       {
+        "question": "What is the best family dental clinic near East Liberty Street in Toronto?",
+        "answer": "Liberty Village Dental at 171 East Liberty St is the closest family dental clinic to East Liberty Street, with a 4.4★ rating across 312 reviews. They handle general dentistry, cleanings, Invisalign, and cosmetic work, and offer evening hours Mon–Thu until 7pm plus Saturday 9am–3pm. Edition Dental at 65 Jefferson Ave is a 3-minute walk away and is the other option for family care, scoring 4.5★."
+      },
+      {
+        "question": "Are there evening or weekend dentist appointments near East Liberty Street, Toronto?",
+        "answer": "Yes. Liberty Village Dental at 171 East Liberty St is open evenings until 7pm Monday through Thursday and Saturdays from 9am to 3pm. Edition Dental at 65 Jefferson Ave offers Saturday 10am–3pm and weekday hours to 6pm. Sunday dental appointments are not available inside Liberty Village — the closest Sunday option is a 10-minute drive into downtown Toronto."
+      },
+      {
+        "question": "What are the reviews like for Edition Dental in Liberty Village?",
+        "answer": "Edition Dental at 65 Jefferson Ave holds a 4.5★ rating across 198 Google reviews. Patients describe it as a boutique, spa-like experience with a concierge-style booking process. Reviewers praise the modern office, attentive staff, and strong cosmetic work — especially veneers and whitening. The main criticisms are higher pricing ($$$ range) and appointment-only policy with no walk-ins."
+      },
+      {
         "question": "How much does a dental cleaning cost in Liberty Village?",
-        "answer": "Standard cleanings at Liberty Village dental offices run $200-350 without insurance. Liberty Village Dental on East Liberty and Edition Dental on Jefferson Ave both accept major insurance plans with direct billing, so you may pay nothing out of pocket depending on your coverage."
+        "answer": "Standard cleanings at Liberty Village dental offices run $200–350 without insurance. Liberty Village Dental on East Liberty and Edition Dental on Jefferson Ave both accept major insurance plans with direct billing, so you may pay nothing out of pocket depending on your coverage."
       },
       {
         "question": "Are there emergency dentists in Liberty Village?",
-        "answer": "Liberty Village Dental at 171 East Liberty St accommodates same-day emergency appointments during business hours, open Monday through Saturday. Edition Dental on Jefferson Ave also handles urgent cases. For after-hours emergencies, the nearest option is the dental ER at Toronto Western Hospital."
+        "answer": "Liberty Village Dental at 171 East Liberty St accommodates same-day emergency appointments during business hours, Monday through Saturday. Edition Dental on Jefferson Ave also handles urgent cases. For after-hours emergencies, the nearest option is the dental ER at Toronto Western Hospital, a 10-minute drive from Liberty Village."
       },
       {
-        "question": "Do Liberty Village dentists offer weekend hours?",
-        "answer": "Yes. Liberty Village Dental offers Saturday hours from 9am to 3pm, and Edition Dental has Saturday appointments from 10am to 3pm. Sunday availability is rare in the neighbourhood, so book Saturday slots early as they fill quickly, especially for family appointments."
-      },
-      {
-        "question": "Do Liberty Village dentists accept walk-ins?",
-        "answer": "Liberty Village Dental sometimes accepts walk-ins for urgent issues depending on the day's schedule, but appointments are strongly recommended. Edition Dental is appointment-only. Call ahead in the morning for the best chance at a same-day slot at either clinic."
+        "question": "Do Liberty Village dentists accept new patients in 2026?",
+        "answer": "Yes — both Edition Dental and Liberty Village Dental are actively accepting new patients as of 2026. Initial booking may take 1–2 weeks depending on demand. Call or book online to start the intake process; both clinics accept direct insurance billing for most major Canadian providers."
       }
     ]
   },

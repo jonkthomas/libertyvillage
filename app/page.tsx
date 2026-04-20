@@ -77,6 +77,7 @@ const popularGuides = [
   { href: "/blog/weekend-brunch-guide-liberty-village", label: "Best Brunch Spots", desc: "Top-rated brunch spots ranked by locals" },
   { href: "/blog/liberty-village-fitness-guide-every-gym-compared", label: "Gym Comparison", desc: "Every gym compared with prices and amenities" },
   { href: "/blog/grocery-stores-liberty-village-complete-guide", label: "Grocery Guide", desc: "Every grocery option in and near the neighbourhood" },
+  { href: "/world-cup", label: "FIFA World Cup 2026 Hub", desc: "Every match, closure, bar, and volunteer guide for Toronto's 6 BMO Field matches" },
   { href: "/blog/fifa-world-cup-2026-liberty-village-survival-guide", label: "World Cup Survival Guide", desc: "Your essential guide for the 2026 FIFA World Cup" },
   { href: "/blog/liberty-village-world-cup-road-closures-resident-access", label: "Road Closures", desc: "World Cup street closures and resident access routes" },
 ];
@@ -145,6 +146,7 @@ export default function Home() {
               className="font-display text-[clamp(48px,7vw,100px)] font-bold leading-[1.05] tracking-tight text-white"
             >
               Discover<br />Liberty<br />Village
+              <span className="sr-only">, Toronto — your neighbourhood guide</span>
             </h1>
             <p
               data-hero-animate
@@ -164,7 +166,7 @@ export default function Home() {
                 </svg>
               </Link>
               <Link
-                href="/guide/moving-guide"
+                href="/blog/moving-to-liberty-village-2026-essential-guide"
                 className="inline-flex items-center rounded-xl border border-white/30 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20"
               >
                 New here? Start with our guide
@@ -462,7 +464,7 @@ export default function Home() {
               from parking to the best brunch spots.
             </p>
             <Link
-              href="/guide/moving-guide"
+              href="/blog/moving-to-liberty-village-2026-essential-guide"
               className="mt-8 inline-flex items-center rounded-xl bg-lv-brick px-8 py-4 text-base font-semibold text-white shadow-lg transition-all hover:bg-lv-brick-dark hover:shadow-xl"
             >
               Read the Moving Guide

@@ -19,7 +19,7 @@ const popularServices = [
 const popularGuides = [
   { href: "/guide/parking-guide", label: "Parking Guide" },
   { href: "/guide/traffic-tips", label: "Traffic Tips" },
-  { href: "/guide/moving-guide", label: "Moving Guide" },
+  { href: "/blog/moving-to-liberty-village-2026-essential-guide", label: "Moving Guide" },
   { href: "/blog/weekend-brunch-guide-liberty-village", label: "Brunch Guide" },
   { href: "/blog/liberty-village-fitness-guide-every-gym-compared", label: "Fitness Guide" },
   { href: "/blog/fifa-world-cup-2026-liberty-village-survival-guide", label: "World Cup Guide" },
