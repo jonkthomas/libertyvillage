@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getAllServices, getAllNeighborhoods, getAllBusinesses, getAllTopics, getAllPosts } from "@/lib/data";
+import { getAllServices, getAllNeighborhoods, getAllBusinesses, getAllTopics, getAllPosts, getAllBuildings } from "@/lib/data";
 
 const BASE_URL = "https://libertyvillage.co";
 
@@ -88,6 +88,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })),
   ];
 
+  const buildingPages: MetadataRoute.Sitemap = [
+    {
+      url: `${BASE_URL}/buildings`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.8,
+    },
+    ...getAllBuildings().map((b) => ({
+      url: `${BASE_URL}/buildings/${b.slug}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
+  ];
+
   return [
     ...staticPages,
     ...servicePages,
@@ -95,5 +110,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...businessPages,
     ...guidePages,
     ...blogPages,
+    ...buildingPages,
   ];
 }

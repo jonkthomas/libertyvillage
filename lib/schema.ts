@@ -1,4 +1,4 @@
-import type { Business, FAQ } from "./types";
+import type { Building, Business, FAQ } from "./types";
 
 const SITE_URL = "https://libertyvillage.co";
 
@@ -206,6 +206,36 @@ export function generateOrganizationSchema() {
       "FIFA World Cup 2026 Toronto",
       "BMO Field",
     ],
+  };
+}
+
+export function generateApartmentComplexSchema(building: Building) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ApartmentComplex",
+    name: building.name,
+    description: building.description,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: building.address.split(",")[0].trim(),
+      addressLocality: "Toronto",
+      addressRegion: "ON",
+      postalCode: building.postalCode,
+      addressCountry: "CA",
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: building.latitude,
+      longitude: building.longitude,
+    },
+    amenityFeature: building.amenities.map((amenity) => ({
+      "@type": "LocationFeatureSpecification",
+      name: amenity,
+      value: true,
+    })),
+    priceRange: `From $${building.avgRent1BR.toLocaleString()}/month`,
+    numberOfRooms: building.units,
+    url: `${SITE_URL}/buildings/${building.slug}`,
   };
 }
 

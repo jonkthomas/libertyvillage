@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { Service, Neighborhood, Business, Topic, BlogPost } from "./types";
+import type { Building, Service, Neighborhood, Business, Topic, BlogPost } from "./types";
 
 const SITE_URL = "https://libertyvillage.co";
 const SITE_NAME = "LibertyVillage.co";
@@ -122,5 +122,30 @@ export function generatePrivacyPageMeta(): Metadata {
     "Privacy Policy | libertyvillage.co",
     "Privacy Policy for libertyvillage.co. Learn how we handle your data, our use of Google Analytics, and your privacy rights under Canadian law.",
     "/privacy"
+  );
+}
+
+export function generateBuildingPageMeta(building: Building): Metadata {
+  const autoTitle = `${building.name} — Liberty Village Condos, Reviews & Rent 2026`;
+  const title = building.metaTitle
+    ? building.metaTitle.slice(0, 60)
+    : autoTitle.length <= 60
+    ? autoTitle
+    : autoTitle.slice(0, 60);
+
+  const autoDesc = building.metaDescription
+    ? building.metaDescription
+    : `${building.name} at ${building.address}. ${building.buildingType} building, ${building.units} units, built ${building.yearBuilt}. 1BR from $${building.avgRent1BR.toLocaleString()}/mo. Reviews, amenities & rent guide.`;
+  const description = autoDesc.slice(0, 155);
+
+  return buildMeta(title, description, `/buildings/${building.slug}`, "/images/og/og-buildings.jpg");
+}
+
+export function generateBuildingsHubMeta(): Metadata {
+  return buildMeta(
+    "Liberty Village Condo Buildings & Lofts — Complete Guide 2026",
+    "Every Liberty Village condo and loft building profiled: rents, amenities, reviews, and walk scores. 20+ buildings from Toy Factory Lofts to Reina.",
+    "/buildings",
+    "/images/og/og-buildings.jpg"
   );
 }

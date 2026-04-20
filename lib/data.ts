@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import type { BlogPost, Business, Service, Neighborhood, Topic, GuideHub } from "./types";
+import type { BlogPost, Building, Business, Service, Neighborhood, Topic, GuideHub } from "./types";
 
 const dataDir = join(process.cwd(), "data");
 
@@ -99,6 +99,19 @@ export function buildComparisonTable(serviceSlug: string): { columns: string[]; 
   }));
 
   return { columns, rows };
+}
+
+// Buildings
+export function getAllBuildings(): Building[] {
+  return loadJSON<Building[]>("buildings.json");
+}
+
+export function getBuildingBySlug(slug: string): Building | undefined {
+  return getAllBuildings().find((b) => b.slug === slug);
+}
+
+export function getBuildingsByType(type: string): Building[] {
+  return getAllBuildings().filter((b) => b.buildingType === type);
 }
 
 // Guide Hub

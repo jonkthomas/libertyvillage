@@ -7,6 +7,7 @@ import {
   getAllNeighborhoods,
   getAllPosts,
   getPostBySlug,
+  getAllBuildings,
 } from "./data";
 import type { BlogPost } from "./types";
 
@@ -166,6 +167,21 @@ export function resolveCrossLinks(crossLinks?: BlogPost["crossLinks"]): LinkItem
       return null;
     })
     .filter((item): item is LinkItem => item !== null);
+}
+
+export function getRelatedBuildings(
+  currentSlug: string,
+  type: string,
+  limit = 3
+): LinkItem[] {
+  return getAllBuildings()
+    .filter((b) => b.buildingType === type && b.slug !== currentSlug)
+    .slice(0, limit)
+    .map((b) => ({
+      title: b.name,
+      href: `/buildings/${b.slug}`,
+      description: b.description.slice(0, 120),
+    }));
 }
 
 type PageType = "service" | "neighborhood" | "business" | "guide" | "blog" | "terms" | "privacy";

@@ -74,6 +74,7 @@ const topCategoryOrder = [
 const popularGuides = [
   { href: "/guide/things-to-do", label: "Things to Do", desc: "Restaurants, patios, parks, gyms, nightlife, and weekend activities" },
   { href: "/guide/parking-guide", label: "Parking Guide", desc: "Free and paid parking options throughout the neighbourhood" },
+  { href: "/buildings", label: "Condo Buildings Guide", desc: "Every Liberty Village condo and loft building — rents, reviews, amenities" },
   { href: "/blog/weekend-brunch-guide-liberty-village", label: "Best Brunch Spots", desc: "Top-rated brunch spots ranked by locals" },
   { href: "/blog/liberty-village-fitness-guide-every-gym-compared", label: "Gym Comparison", desc: "Every gym compared with prices and amenities" },
   { href: "/blog/grocery-stores-liberty-village-complete-guide", label: "Grocery Guide", desc: "Every grocery option in and near the neighbourhood" },

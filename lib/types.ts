@@ -146,3 +146,63 @@ export interface GuideHub {
   quickFacts: Array<{ label: string; value: string }>;
   answerSummary: string;
 }
+
+export interface Building {
+  // Identity
+  slug: string;
+  name: string;
+  alternateNames: string[];
+
+  // Location
+  address: string;
+  postalCode: string;
+  latitude: number;
+  longitude: number;
+
+  // Physical facts
+  yearBuilt: number;
+  units: number;
+  floors: number;
+  buildingType: "loft" | "condo" | "rental" | "townhouse" | "mixed";
+  developer?: string;
+
+  // Market data
+  avgRent1BR: number;
+  avgRent2BR: number;
+  avgPricePerSqft: number;
+  maintenanceFeePerSqft?: number;
+
+  // Walkability
+  walkScore: number;
+  transitScore: number;
+  bikeScore: number;
+  nearestTTC: string;
+
+  // Amenities
+  amenities: string[];
+  hasParking: boolean;
+  hasLockers: boolean;
+  petFriendly: boolean;
+
+  // Cross-references
+  nearestBusinessSlugs: string[];
+
+  // Content
+  description: string;
+  answerBlock: string;
+  keyTakeaways: string[];
+  proTips: string[];
+  pros: string[];
+  cons: string[];
+  specificFaqs: FAQ[];
+
+  // Tags
+  tags: string[];
+
+  // Media
+  image?: string;
+
+  // SEO overrides
+  metaTitle?: string;
+  metaDescription?: string;
+}
