@@ -4,7 +4,6 @@ import Link from "next/link";
 import { getAllBusinesses, getAllServices, getBusinessesByCategory } from "@/lib/data";
 import {
   generateItemListSchema,
-  generateBreadcrumbSchema,
   generateCollectionPageSchema,
 } from "@/lib/schema";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -118,7 +117,6 @@ export default function DirectoryPage() {
     businesses.map((b) => ({ name: b.name, url: `/directory/${b.slug}` })),
     "Liberty Village Business Directory"
   );
-  const breadcrumbSchema = generateBreadcrumbSchema(breadcrumbs);
   const collectionPageSchema = generateCollectionPageSchema(
     "Liberty Village Business Directory",
     "200+ local shops, restaurants, services, and businesses in Liberty Village, Toronto, ranked by rating.",
@@ -207,6 +205,7 @@ export default function DirectoryPage() {
         </div>
       </section>
 
+      {/* Breadcrumb JSON-LD is emitted by the Breadcrumbs component. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPageSchema) }}
@@ -214,10 +213,6 @@ export default function DirectoryPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
     </div>
   );

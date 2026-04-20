@@ -3,11 +3,7 @@ import Link from "next/link";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import FAQSection from "@/components/FAQSection";
 import { getAllPosts } from "@/lib/data";
-import {
-  generateBreadcrumbSchema,
-  generateFAQSchema,
-  generateItemListSchema,
-} from "@/lib/schema";
+import { generateItemListSchema } from "@/lib/schema";
 import type { BlogPost } from "@/lib/types";
 
 const SITE_URL = "https://libertyvillage.co";
@@ -132,8 +128,6 @@ export default function WorldCupHubPage() {
     { label: "FIFA World Cup 2026", href: "/world-cup" },
   ];
 
-  const faqSchema = generateFAQSchema(hubFaqs);
-  const breadcrumbSchema = generateBreadcrumbSchema(breadcrumbs);
   const matchListSchema = generateItemListSchema(
     torontoMatches.map((m) => ({ name: m.label })),
     "Toronto FIFA World Cup 2026 Matches at BMO Field"
@@ -261,14 +255,7 @@ export default function WorldCupHubPage() {
 
       <FAQSection faqs={hubFaqs} />
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      {/* Breadcrumb + FAQ JSON-LD are emitted by the Breadcrumbs and FAQSection components. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(matchListSchema) }}

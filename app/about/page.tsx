@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Breadcrumbs from "@/components/Breadcrumbs";
-import { generateBreadcrumbSchema, generateOrganizationSchema } from "@/lib/schema";
+import { generateOrganizationSchema } from "@/lib/schema";
 
 const SITE_URL = "https://libertyvillage.co";
 
@@ -175,18 +175,10 @@ export default function AboutPage() {
         </Link>
       </div>
 
+      {/* Breadcrumb JSON-LD is emitted by the Breadcrumbs component. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutPageSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(generateBreadcrumbSchema([
-            { label: "Home", href: "/" },
-            { label: "About", href: "/about" },
-          ])),
-        }}
       />
       <script
         type="application/ld+json"
