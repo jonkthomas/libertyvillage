@@ -1,33 +1,67 @@
 {
-  "collectedAt": "2026-04-08T00:00:00.000Z",
+  "collectedAt": "2026-04-22T00:00:00.000Z",
   "gsc": {
     "searchAnalytics": {
-      "totalImpressions": 192,
-      "totalClicks": 2,
-      "avgCTR": 0.010416666666666666,
+      "totalQueries": 100,
+      "totalImpressions": 321,
+      "totalClicks": 1,
+      "averagePosition": 21.8,
       "topQueries": [
-        {"query": "goodlife liberty village", "impressions": 24, "clicks": 1, "position": 12.75},
-        {"query": "liberty village gyms", "impressions": 2, "clicks": 1, "position": 10.5},
-        {"query": "liberty village", "impressions": 35, "clicks": 0, "position": 14.46},
-        {"query": "gym liberty village", "impressions": 10, "clicks": 0, "position": 10.4},
-        {"query": "gym in liberty village", "impressions": 8, "clicks": 0, "position": 12.25}
-      ],
-      "topPages": [
-        {"page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared", "impressions": 86, "clicks": 2},
-        {"page": "https://libertyvillage.co/", "impressions": 36, "clicks": 0},
-        {"page": "https://libertyvillage.co/directory", "impressions": 25, "clicks": 0},
-        {"page": "https://libertyvillage.co/best/restaurants", "impressions": 18, "clicks": 0},
-        {"page": "https://libertyvillage.co/best/coffee-shops", "impressions": 17, "clicks": 0}
+        {
+          "query": "goodlife liberty village",
+          "impressions": 48,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 12.25,
+          "page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+        },
+        {
+          "query": "dentist liberty village",
+          "impressions": 18,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 33.5,
+          "page": "https://libertyvillage.co/best/dentists"
+        },
+        {
+          "query": "f45 liberty village",
+          "impressions": 13,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 21.6,
+          "page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
+        },
+        {
+          "query": "edition dental reviews",
+          "impressions": 13,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 8.69,
+          "page": "https://libertyvillage.co/best/dentists"
+        },
+        {
+          "query": "bars in liberty village",
+          "impressions": 12,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 9.25,
+          "page": "https://libertyvillage.co/blog/best-bars-liberty-village-toronto-guide-2026"
+        }
       ]
     },
-    "quickWins": [],
+    "quickWins": {
+      "totalOpportunities": 0,
+      "opportunities": []
+    },
     "sitemapStatus": {
-      "submitted": 241,
+      "submitted": 299,
       "indexed": 0,
-      "status": "Early indexing phase - 0 pages indexed"
+      "lastSubmitted": "2026-04-20T16:40:01.565Z",
+      "status": "New site - indexing in progress"
     }
   },
   "ga4": {
-    "status": "No data available - site in early phase"
+    "note": "GA4 MCP tool not available - proceeding with GSC data only",
+    "trafficByPage": []
   }
 }
