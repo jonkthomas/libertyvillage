@@ -1,67 +1,21 @@
 {
-  "collectedAt": "2026-04-22T00:00:00.000Z",
+  "collectedAt": "2026-04-26T11:37:00Z",
   "gsc": {
     "searchAnalytics": {
       "totalQueries": 100,
-      "totalImpressions": 321,
-      "totalClicks": 1,
-      "averagePosition": 21.8,
-      "topQueries": [
-        {
-          "query": "goodlife liberty village",
-          "impressions": 48,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 12.25,
-          "page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
-        },
-        {
-          "query": "dentist liberty village",
-          "impressions": 18,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 33.5,
-          "page": "https://libertyvillage.co/best/dentists"
-        },
-        {
-          "query": "f45 liberty village",
-          "impressions": 13,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 21.6,
-          "page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared"
-        },
-        {
-          "query": "edition dental reviews",
-          "impressions": 13,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 8.69,
-          "page": "https://libertyvillage.co/best/dentists"
-        },
-        {
-          "query": "bars in liberty village",
-          "impressions": 12,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 9.25,
-          "page": "https://libertyvillage.co/blog/best-bars-liberty-village-toronto-guide-2026"
-        }
+      "topPerforming": [
+        {"query": "best bars in liberty village", "impressions": 1, "clicks": 1, "position": 6},
+        {"query": "liberty village gyms", "impressions": 5, "clicks": 1, "position": 8.4},
+        {"query": "edition dental reviews", "impressions": 13, "clicks": 0, "position": 8.15}
       ]
     },
-    "quickWins": {
-      "totalOpportunities": 0,
-      "opportunities": []
-    },
+    "quickWins": [],
     "sitemapStatus": {
       "submitted": 299,
-      "indexed": 0,
-      "lastSubmitted": "2026-04-20T16:40:01.565Z",
-      "status": "New site - indexing in progress"
+      "indexed": 0
     }
   },
   "ga4": {
-    "note": "GA4 MCP tool not available - proceeding with GSC data only",
-    "trafficByPage": []
+    "note": "Site is in early indexing phase - no traffic data available yet"
   }
 }
