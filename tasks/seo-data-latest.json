@@ -1,21 +1,55 @@
 {
-  "collectedAt": "2026-04-26T11:37:00Z",
+  "collectedAt": "2026-04-29T00:00:00.000Z",
   "gsc": {
     "searchAnalytics": {
-      "totalQueries": 100,
-      "topPerforming": [
-        {"query": "best bars in liberty village", "impressions": 1, "clicks": 1, "position": 6},
-        {"query": "liberty village gyms", "impressions": 5, "clicks": 1, "position": 8.4},
-        {"query": "edition dental reviews", "impressions": 13, "clicks": 0, "position": 8.15}
+      "totalRows": 100,
+      "topQueries": [
+        {
+          "query": "fifa free local access permits city of toronto",
+          "impressions": 135,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 7.8,
+          "page": "liberty-village-world-cup-road-closures-resident-access"
+        },
+        {
+          "query": "edition dental reviews",
+          "impressions": 20,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 10.2,
+          "page": "best/dentists"
+        },
+        {
+          "query": "f45 liberty village",
+          "impressions": 19,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 11.8,
+          "page": "liberty-village-fitness-guide-every-gym-compared"
+        },
+        {
+          "query": "breakfast liberty village",
+          "impressions": 13,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 9.5,
+          "page": "liberty-village-breakfast-spots-morning-guide"
+        }
       ]
     },
-    "quickWins": [],
+    "quickWins": [
+      {
+        "query": "fifa free local access permits city of toronto",
+        "impressions": 135,
+        "position": 7.8,
+        "opportunity": "High - World Cup road closures content"
+      }
+    ],
     "sitemapStatus": {
       "submitted": 299,
-      "indexed": 0
+      "indexed": 0,
+      "status": "New site - indexing in progress"
     }
-  },
-  "ga4": {
-    "note": "Site is in early indexing phase - no traffic data available yet"
   }
 }
