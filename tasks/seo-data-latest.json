@@ -1,55 +1,42 @@
 {
-  "collectedAt": "2026-04-29T00:00:00.000Z",
+  "collectedAt": "2026-05-03T00:00:00.000Z",
   "gsc": {
-    "searchAnalytics": {
-      "totalRows": 100,
-      "topQueries": [
-        {
-          "query": "fifa free local access permits city of toronto",
-          "impressions": 135,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 7.8,
-          "page": "liberty-village-world-cup-road-closures-resident-access"
-        },
-        {
-          "query": "edition dental reviews",
-          "impressions": 20,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 10.2,
-          "page": "best/dentists"
-        },
-        {
-          "query": "f45 liberty village",
-          "impressions": 19,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 11.8,
-          "page": "liberty-village-fitness-guide-every-gym-compared"
-        },
-        {
-          "query": "breakfast liberty village",
-          "impressions": 13,
-          "clicks": 0,
-          "ctr": 0,
-          "position": 9.5,
-          "page": "liberty-village-breakfast-spots-morning-guide"
-        }
-      ]
-    },
+    "searchAnalytics": [
+      {
+        "keys": ["brazen head trivia", "https://libertyvillage.co/best/bars"],
+        "clicks": 1,
+        "impressions": 1,
+        "ctr": 1,
+        "position": 9
+      },
+      {
+        "keys": ["fifa free local access permits city of toronto", "https://libertyvillage.co/blog/liberty-village-world-cup-road-closures-resident-access"],
+        "clicks": 0,
+        "impressions": 159,
+        "ctr": 0,
+        "position": 7.679245283018868
+      }
+    ],
     "quickWins": [
       {
         "query": "fifa free local access permits city of toronto",
-        "impressions": 135,
-        "position": 7.8,
-        "opportunity": "High - World Cup road closures content"
+        "page": "https://libertyvillage.co/blog/liberty-village-world-cup-road-closures-resident-access",
+        "currentPosition": 7.7,
+        "impressions": 159,
+        "currentClicks": 0,
+        "currentCtr": 0,
+        "potentialClicks": 8,
+        "additionalClicks": 8,
+        "opportunity": "High"
       }
     ],
     "sitemapStatus": {
       "submitted": 299,
       "indexed": 0,
-      "status": "New site - indexing in progress"
+      "note": "Site is in early indexing phase - no pages indexed yet"
     }
+  },
+  "ga4": {
+    "note": "GA4 data unavailable - site is new and in early indexing phase"
   }
 }
