@@ -1,42 +1,50 @@
 {
-  "collectedAt": "2026-05-03T00:00:00.000Z",
+  "collectedAt": "2026-05-06T00:00:00.000Z",
   "gsc": {
-    "searchAnalytics": [
-      {
-        "keys": ["brazen head trivia", "https://libertyvillage.co/best/bars"],
-        "clicks": 1,
-        "impressions": 1,
-        "ctr": 1,
-        "position": 9
+    "searchAnalytics": {
+      "dateRange": {
+        "startDate": "2026-04-29",
+        "endDate": "2026-05-06"
       },
-      {
-        "keys": ["fifa free local access permits city of toronto", "https://libertyvillage.co/blog/liberty-village-world-cup-road-closures-resident-access"],
-        "clicks": 0,
-        "impressions": 159,
-        "ctr": 0,
-        "position": 7.679245283018868
-      }
-    ],
-    "quickWins": [
-      {
-        "query": "fifa free local access permits city of toronto",
-        "page": "https://libertyvillage.co/blog/liberty-village-world-cup-road-closures-resident-access",
-        "currentPosition": 7.7,
-        "impressions": 159,
-        "currentClicks": 0,
-        "currentCtr": 0,
-        "potentialClicks": 8,
-        "additionalClicks": 8,
-        "opportunity": "High"
-      }
-    ],
+      "totalRows": 100,
+      "topQueries": [
+        {
+          "query": "breakfast liberty village",
+          "impressions": 25,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 7.48
+        },
+        {
+          "query": "edition dental reviews",
+          "impressions": 24,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 7.58
+        },
+        {
+          "query": "fifa free local access permits city of toronto",
+          "impressions": 11,
+          "clicks": 0,
+          "ctr": 0,
+          "position": 6.18
+        }
+      ]
+    },
+    "quickWins": [],
     "sitemapStatus": {
       "submitted": 299,
       "indexed": 0,
-      "note": "Site is in early indexing phase - no pages indexed yet"
+      "status": "New site - early indexing phase"
     }
   },
-  "ga4": {
-    "note": "GA4 data unavailable - site is new and in early indexing phase"
+  "analysis": {
+    "siteStatus": "New site in early indexing phase",
+    "worldCupTiming": "May 2026 - 1 month before tournament (June 12-July 19)",
+    "topPerformingQueries": [
+      "breakfast liberty village (25 impressions)",
+      "edition dental reviews (24 impressions)",
+      "fifa free local access permits (11 impressions)"
+    ]
   }
 }
