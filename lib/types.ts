@@ -44,6 +44,9 @@ export interface Topic {
   answerSummary?: string;
   keyTakeaways?: string[];
   definitions?: Array<{ term: string; definition: string }>;
+  publishedAt?: string;
+  updatedAt?: string;
+  lastUpdated?: string;
 }
 
 export interface DetailedComparison {
@@ -133,6 +136,7 @@ export interface BlogPost {
   author: string;
   crossLinks?: Array<{ type: "service" | "guide"; slug: string; label?: string }>;
   exploreCta?: { label: string; href: string; description: string };
+  canonicalUrl?: string;
 }
 
 export interface GuideHub {

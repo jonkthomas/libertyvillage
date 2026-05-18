@@ -33,7 +33,7 @@ function buildMeta(
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
     "Liberty Village, Toronto — Neighbourhood Guide (2026)",
-    "The complete guide to Liberty Village, Toronto. Best restaurants, coffee shops, bars, gyms, parking, and 200+ local businesses. Written by residents for the 9,000+ people who call LV home.",
+    "Liberty Village is Toronto's 28-hectare neighbourhood between King West and the lake. Local guide to 200+ restaurants, bars, gyms, parking, transit, and BMO Field — by residents, for 2026.",
     "/",
     "/images/og/og-home.jpg"
   );
@@ -93,12 +93,19 @@ export function generateBlogPostPageMeta(post: BlogPost): Metadata {
   const title = post.title.length + suffix.length <= 60
     ? `${post.title}${suffix}`
     : post.title;
-  return buildMeta(
+  const meta = buildMeta(
     title,
     post.description.slice(0, 155),
     `/blog/${post.slug}`,
     post.image
   );
+  if (post.canonicalUrl) {
+    meta.alternates = {
+      ...meta.alternates,
+      canonical: post.canonicalUrl,
+    };
+  }
+  return meta;
 }
 
 export function generateBlogIndexPageMeta(): Metadata {

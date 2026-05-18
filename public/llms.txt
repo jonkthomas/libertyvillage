@@ -2,6 +2,8 @@
 
 > The definitive neighbourhood guide to Liberty Village, Toronto. Local restaurant reviews, service directories, transit guides, real estate data, and community news for residents and visitors.
 
+Last updated: 2026-05-17
+
 ## Core Pages
 - [Homepage](https://libertyvillage.co/): Overview of Liberty Village neighbourhood with featured guides, services, and blog posts
 - [Blog](https://libertyvillage.co/blog): Weekly neighbourhood news, guides, and lifestyle content
