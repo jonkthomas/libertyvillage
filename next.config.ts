@@ -40,6 +40,12 @@ const nextConfig: NextConfig = {
         destination: "/guide/fitness-guide",
         permanent: true,
       },
+      // Orphaned 404s from old slash-less relative links on /buildings
+      // (e.g. href="mo" on /buildings resolved to /mo). The bad links are
+      // already gone from the live site; these clear the stale GSC entries.
+      { source: "/mo", destination: "/buildings", permanent: true },
+      { source: "/sqft/month", destination: "/buildings", permanent: true },
+      { source: "/100", destination: "/buildings", permanent: true },
     ];
   },
 };
