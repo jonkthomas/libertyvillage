@@ -145,7 +145,7 @@ async function main() {
     // 1) BUILDER — invokes vendored SEO skills
     const builder = await runStage('BUILDER', {
       systemPromptPath: P('seo-improve-system.md'),
-      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply. ' + (DRY ? 'DRESS REHEARSAL (dry run): make your data-backed edits normally — they will NOT be committed or deployed (the runner is discarded). Ensure at least one concrete, justified edit so the judge and reader stages have something real to evaluate. Then write tasks/seo-improve-summary.md.' : 'Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.'),
+      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply. ' + (DRY ? 'DRESS REHEARSAL (dry run): make your data-backed edits normally — they will NOT be committed or deployed (the runner is discarded). Ensure at least one concrete, justified edit so the judge and reader stages have something real to evaluate. Then write tasks/seo-improve-summary.md.' : ('Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.' + (process.env.FORCE_EDIT === 'true' ? ' Even if wins look marginal this week, make at least one concrete, justified improvement so a reviewable PR is produced.' : ''))),
       mcpServers: MCP.gscGa4,
       settingSources: ['project'],
       skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],

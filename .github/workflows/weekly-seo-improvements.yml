@@ -19,6 +19,11 @@ on:
         required: false
         type: boolean
         default: false
+      force_edit:
+        description: 'Force at least one improvement (guarantees a PR even on a marginal week)'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: weekly-seo
@@ -63,6 +68,7 @@ jobs:
           DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           DRY_RUN: ${{ inputs.dry_run }}
+          FORCE_EDIT: ${{ inputs.force_edit }}
         run: node scripts/seo-improve-agent.js
 
       - name: Show summary (dry run)
