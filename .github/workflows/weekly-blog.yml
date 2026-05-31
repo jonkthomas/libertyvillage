@@ -44,25 +44,19 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 
-      - name: Extract credentials
+      - name: Write service-account credentials
+        env:
+          GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
-          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > /tmp/gsa-credentials.json
-          GA4_EMAIL=$(jq -r '.client_email' /tmp/gsa-credentials.json)
-          GA4_KEY=$(jq -r '.private_key' /tmp/gsa-credentials.json)
-          echo "::add-mask::$GA4_EMAIL"
-          echo "::add-mask::$GA4_KEY"
-          echo "GA4_CLIENT_EMAIL=$GA4_EMAIL" >> $GITHUB_ENV
-          echo "GA4_PRIVATE_KEY<<GAEOF" >> $GITHUB_ENV
-          echo "$GA4_KEY" >> $GITHUB_ENV
-          echo "GAEOF" >> $GITHUB_ENV
+          install -m 600 /dev/null /tmp/gsa-credentials.json
+          printf '%s' "$GSA_JSON" > /tmp/gsa-credentials.json
+          jq -e . /tmp/gsa-credentials.json > /dev/null
 
       - name: Run blog pipeline
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
           GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
-          GA4_CLIENT_EMAIL: ${{ env.GA4_CLIENT_EMAIL }}
-          GA4_PRIVATE_KEY: ${{ env.GA4_PRIVATE_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           TOPIC_OVERRIDE: ${{ inputs.topic_override }}
           DRY_RUN: ${{ inputs.dry_run }}

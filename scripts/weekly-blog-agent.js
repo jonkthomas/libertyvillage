@@ -47,22 +47,36 @@ async function main() {
     prompt += '\n\nDRY RUN MODE: Do NOT commit changes. Save the generated post to tasks/auto-blog-dry-run.json for review.';
   }
 
-  // Configure MCP servers
+  // Load GA4 credentials from the service-account JSON file directly,
+  // so secrets never need to be exported as workflow env vars (and never
+  // appear in step-banner env dumps). The upstream MCP server reads
+  // GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY / GA_PROPERTY_ID.
+  const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json';
+  let gaClientEmail = '';
+  let gaPrivateKey = '';
+  try {
+    const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+    gaClientEmail = creds.client_email || '';
+    gaPrivateKey = creds.private_key || '';
+  } catch (err) {
+    console.warn(`[warn] Could not read GA credentials at ${credsPath}: ${err.message}`);
+  }
+
   const mcpServers = {
     gsc: {
       command: 'npx',
       args: ['-y', 'mcp-server-gsc'],
       env: {
-        GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json'
+        GOOGLE_APPLICATION_CREDENTIALS: credsPath
       }
     },
     ga4: {
       command: 'npx',
       args: ['-y', 'mcp-server-google-analytics'],
       env: {
-        GA4_PROPERTY_ID: process.env.GA_PROPERTY_ID || '',
-        GA4_CLIENT_EMAIL: process.env.GA4_CLIENT_EMAIL || '',
-        GA4_PRIVATE_KEY: process.env.GA4_PRIVATE_KEY || ''
+        GA_PROPERTY_ID: process.env.GA_PROPERTY_ID || '',
+        GOOGLE_CLIENT_EMAIL: gaClientEmail,
+        GOOGLE_PRIVATE_KEY: gaPrivateKey
       }
     },
     playwright: {
@@ -97,7 +111,7 @@ async function main() {
         model: 'claude-sonnet-4-5-20250929',
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
-        maxTurns: 50,
+        maxTurns: 75,
         maxBudgetUsd: 2.0,
         systemPrompt,
         mcpServers,
