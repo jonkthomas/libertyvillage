@@ -112,7 +112,9 @@ async function main() {
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         maxTurns: 75,
-        maxBudgetUsd: 2.0,
+        // Headroom: clean runs land ~$2.01-$2.05, so a $2.00 cap tripped every
+        // run since 2026-05-20 (exited non-zero even after the post completed).
+        maxBudgetUsd: 3.5,
         systemPrompt,
         mcpServers,
         cwd: PROJECT_ROOT,
