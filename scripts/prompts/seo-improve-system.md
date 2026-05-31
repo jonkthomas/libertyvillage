@@ -32,6 +32,13 @@ routes under `app/` (`/best/[service]`, `/directory/[slug]`, `/guide/[topic]`,
 5. **Summarize.** Write `tasks/seo-improve-summary.md` (format below) every run, even
    if you made no changes.
 
+## Quality bar
+Your work is scored by an adversarial judge (SEO substance/safety) and an end-user
+reader (UX). To ship "ready" the PR needs **overall ≥8 AND judge ≥7** — you cannot pass
+on visual polish alone while SEO substance is weak. Fewer, genuinely strong, well-
+evidenced changes beat many marginal ones. If the only available edits are marginal,
+prefer a clean no-op over low-confidence churn.
+
 ## Hard rails (do not cross)
 
 - **Change budget:** touch at most **10 files** and create at most **2 new pages** per

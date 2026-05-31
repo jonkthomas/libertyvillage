@@ -24,7 +24,10 @@ const P = (f) => path.join(__dirname, 'prompts', f);
 const SUMMARY_PATH = path.join(ROOT, 'tasks', 'seo-improve-summary.md');
 const SCORES_PATH = path.join(ROOT, 'tasks', 'seo-scores.json');
 const RUN_LOG_DIR = path.join(ROOT, 'tasks', 'seo-improve-runs');
-const THRESHOLD = 7;       // overall below this -> revise once, PR opens as draft
+const THRESHOLD = 8;       // overall must hit this to ship "ready"
+const JUDGE_FLOOR = 7;     // AND the adversarial judge must clear this (it has veto;
+                           // a page can't pass on reader polish while SEO substance is weak)
+const isPassed = (j, overall) => overall >= THRESHOLD && (j?.overall ?? 0) >= JUDGE_FLOOR;
 const DRY = process.env.DRY_RUN === 'true';
 
 const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json';
@@ -174,14 +177,14 @@ async function main() {
       let overall = weightedOverall(j, r);
       console.log(`\nScore round 1 — judge:${j?.overall} reader:${r?.overall} overall:${overall}`);
 
-      // 5) one revise loop if below threshold
+      // 5) one revise loop if it doesn't clear the bar (overall >=8 AND judge >=7)
       let revised = false;
-      if (overall < THRESHOLD) {
+      if (!isPassed(j, overall)) {
         revised = true;
         const issues = JSON.stringify({ judge: j?.blocking_issues || [], judge_suggestions: j?.suggestions || [], reader_problems: r?.problems || [] }, null, 2);
         await runStage('REVISE', {
           systemPromptPath: P('seo-improve-system.md'),
-          prompt: `Your prior changes scored ${overall}/10 (below ${THRESHOLD}). Address these review findings, staying within the same hard rails, then update tasks/seo-improve-summary.md:\n${issues}`,
+          prompt: `Your prior changes scored ${overall}/10 overall with judge ${j?.overall} (bar: overall ≥${THRESHOLD} AND judge ≥${JUDGE_FLOOR}). The adversarial judge is the SEO-substance gate — address its blocking issues directly, don't just polish. Stay within the hard rails, then update tasks/seo-improve-summary.md:\n${issues}`,
           mcpServers: MCP.gscGa4, settingSources: ['project'],
           skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
           maxTurns: 80, budget: 3.0
@@ -197,7 +200,7 @@ async function main() {
       }
 
       const scores = {
-        overall, threshold: THRESHOLD, passed: overall >= THRESHOLD, revised,
+        overall, threshold: THRESHOLD, judgeFloor: JUDGE_FLOOR, passed: isPassed(j, overall), revised,
         judge: j, reader: r, totalCostUsd: Math.round(totalCost * 100) / 100
       };
       fs.writeFileSync(SCORES_PATH, JSON.stringify(scores, null, 2));
@@ -205,7 +208,7 @@ async function main() {
       // append scoreboard to the PR summary
       const board = [
         '', '---', '## Review scores',
-        `**Overall: ${overall}/10** (threshold ${THRESHOLD} → ${scores.passed ? 'PASS' : 'BELOW — PR opens as draft'})${revised ? ' · revised once' : ''}`,
+        `**Overall: ${overall}/10** · judge ${j?.overall ?? '?'}/10 · reader ${r?.overall ?? '?'}/10 — bar: overall ≥${THRESHOLD} AND judge ≥${JUDGE_FLOOR} → ${scores.passed ? 'PASS (ready)' : 'BELOW BAR — opens as DRAFT'}${revised ? ' · revised once' : ''}`,
         '', '| Agent | Dimension scores | Overall |', '|---|---|---|',
         `| Adversarial judge | ${j ? Object.entries(j.scores || {}).map(([k, v]) => `${k} ${v}`).join(', ') : 'parse-failed'} | ${j?.overall ?? '?'} |`,
         `| End-user reader | ${r ? Object.entries(r.scores || {}).map(([k, v]) => `${k} ${v}`).join(', ') : 'parse-failed'} | ${r?.overall ?? '?'} |`,
