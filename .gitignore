@@ -53,3 +53,11 @@ data/build-*.js
 data/generate-*.js
 data/combine-*.js
 data/topics-part*.json
+
+# local run scratch / regenerated state
+/tasks/qa-loop-state.json
+/tasks/seo-analysis.json
+# superseded dated PRD snapshots
+/archive/
+# duplicate of generate-placeholder-images.mjs
+/scripts/generate-placeholder-images.js
