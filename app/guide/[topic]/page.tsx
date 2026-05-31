@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getAllTopics, getTopicBySlug } from "@/lib/data";
 import { generateGuidePageMeta } from "@/lib/meta";
-import { generateArticleSchema, generateDefinedTermSetSchema, generateSpeakableSchema } from "@/lib/schema";
+import { generateArticleSchema, generateDefinedTermSetSchema, generateSpeakableSchema, generateFAQSchema } from "@/lib/schema";
 import { getRelatedGuides, getRelatedServices, getRelatedPostsForTopic, getBreadcrumbs } from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -47,11 +47,18 @@ export default async function GuidePage({ params }: Props) {
   const relatedBlogPosts = getRelatedPostsForTopic(slug);
   const breadcrumbs = getBreadcrumbs("guide", topic.title);
 
-  const articleSchema = generateArticleSchema(
-    `Liberty Village ${topic.title}`,
-    topic.description,
-    new Date().toISOString().split("T")[0]
-  );
+  const today = new Date().toISOString().split("T")[0];
+  // Only treat an explicit date as a freshness signal — never the build day,
+  // otherwise dateModified/the "Updated" line advance on every CI rebuild.
+  const explicitUpdated = topic.lastUpdated || topic.updatedAt || null;
+  const articleSchema = {
+    ...generateArticleSchema(
+      `Liberty Village ${topic.title}`,
+      topic.description,
+      topic.publishedAt || explicitUpdated || today
+    ),
+    ...(explicitUpdated ? { dateModified: explicitUpdated } : {}),
+  };
   const definedTermSchema =
     topic.definitions && topic.definitions.length > 0
       ? generateDefinedTermSetSchema(topic.definitions)
@@ -59,6 +66,7 @@ export default async function GuidePage({ params }: Props) {
   const speakableSchema = topic.answerSummary
     ? generateSpeakableSchema(`/guide/${topic.slug}`)
     : null;
+  const faqSchema = topic.faqs && topic.faqs.length > 0 ? generateFAQSchema(topic.faqs) : null;
 
   const contentHtml = renderMarkdownContent(topic.content);
 
@@ -74,6 +82,13 @@ export default async function GuidePage({ params }: Props) {
         Liberty Village {topic.title}
       </h1>
       <p className="mt-3 text-lg text-warm-500">{topic.description}</p>
+      {explicitUpdated && (
+        <p className="mt-2 text-sm text-warm-400">
+          <time dateTime={explicitUpdated}>
+            Updated {new Date(explicitUpdated).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}
+          </time>
+        </p>
+      )}
 
       {topic.answerSummary && (
         <AnswerBlock>{topic.answerSummary}</AnswerBlock>
@@ -135,6 +150,12 @@ export default async function GuidePage({ params }: Props) {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(speakableSchema) }}
+        />
+      )}
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
         />
       )}
     </div>

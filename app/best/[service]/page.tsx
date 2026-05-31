@@ -9,6 +9,7 @@ import {
   generateCollectionPageSchema,
   generateSpeakableSchema,
   generateItemListSchema,
+  generateFAQSchema,
 } from "@/lib/schema";
 import {
   getRelatedServices,
@@ -98,7 +99,12 @@ export default async function ServicePage({ params }: Props) {
     ? generateSpeakableSchema(`/best/${service.slug}`)
     : null;
   const itemListSchema =
-    service.comparisonTable && service.comparisonTable.rows.length > 0
+    businesses.length > 0
+      ? generateItemListSchema(
+          businesses.map((b) => ({ name: b.name, url: `/directory/${b.slug}` })),
+          `Best ${service.pluralName} in Liberty Village`
+        )
+      : service.comparisonTable && service.comparisonTable.rows.length > 0
       ? generateItemListSchema(
           service.comparisonTable.rows.map((row) => ({
             name: row[service.comparisonTable!.columns[0]],
@@ -106,6 +112,7 @@ export default async function ServicePage({ params }: Props) {
           `Best ${service.pluralName} in Liberty Village`
         )
       : null;
+  const faqSchema = faqs && faqs.length > 0 ? generateFAQSchema(faqs) : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -235,6 +242,12 @@ export default async function ServicePage({ params }: Props) {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+        />
+      )}
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
         />
       )}
     </div>
