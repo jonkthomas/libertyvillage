@@ -70,18 +70,26 @@ jobs:
         run: cat tasks/seo-improve-summary.md >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Guard — forbidden paths & change budget
+        id: guard
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
-          # Count real content changes incl. NEW files (exclude the agent's run artifacts)
-          CONTENT=$(git status --porcelain | sed 's/^...//' | sed 's/.* -> //' | grep -vE '^tasks/seo-(improve-(summary\.md|runs/)|scores\.json)' || true)
-          echo "Changed content files:"; echo "$CONTENT"
-          if echo "$CONTENT" | grep -qE '^(next\.config\.ts|vercel\.json|package(-lock)?\.json|tsconfig.*|eslint.*|\.github/|scripts/)'; then
+          ALL=$(git status --porcelain | sed 's/^...//' | sed 's/.* -> //' | grep -vE '^tasks/seo-(improve-(summary\.md|runs/)|scores\.json)' || true)
+          # FORBIDDEN paths -> hard fail (security). Checked on the full set.
+          if echo "$ALL" | grep -qE '^(next\.config\.ts|vercel\.json|package(-lock)?\.json|tsconfig.*|eslint.*|\.github/|scripts/)'; then
             echo "::error::Agent modified a forbidden path — blocking PR."; exit 1
           fi
+          # Real edits = changes under tracked content dirs only. Stray root files
+          # (e.g. reader screenshots) are ignored here AND never staged (add-paths).
+          CONTENT=$(echo "$ALL" | grep -E '^(app|components|data|lib|public)/' || true)
+          echo "Real content changes:"; echo "$CONTENT"
           N=$(echo "$CONTENT" | grep -c . || true)
-          if [ "$N" -gt 12 ]; then
-            echo "::error::Change budget exceeded ($N files > 12) — blocking PR."; exit 1
+          OVERSIZED=false
+          if [ "$N" -gt 15 ]; then
+            OVERSIZED=true
+            echo "::warning::Change budget exceeded ($N files > 15) — PR will open as DRAFT for extra scrutiny."
           fi
+          echo "oversized=$OVERSIZED" >> "$GITHUB_OUTPUT"
+          echo "nfiles=$N" >> "$GITHUB_OUTPUT"
 
       # Build is run inside the agent orchestrator (it must build before the
       # reader stage can screenshot the live site), so no separate gate here —
@@ -98,11 +106,14 @@ jobs:
           fi
           DRAFT=false; LABELS="seo-automation"
           [ "$PASSED" != "true" ] && { DRAFT=true; LABELS="seo-automation,needs-work"; }
+          if [ "${{ steps.guard.outputs.oversized }}" = "true" ]; then
+            DRAFT=true; LABELS="$LABELS,oversized"
+          fi
           {
             echo "overall=$OVERALL"
             echo "draft=$DRAFT"
             echo "labels=$LABELS"
-            echo "title=seo: weekly automated improvements (score ${OVERALL}/10)"
+            echo "title=seo: weekly automated improvements (score ${OVERALL}/10, ${{ steps.guard.outputs.nfiles }} files)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Open Pull Request

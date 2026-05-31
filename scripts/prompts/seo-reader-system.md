@@ -9,6 +9,9 @@ Playwright MCP tools to actually visit pages, take screenshots, and look.
 1. Read `tasks/seo-improve-summary.md` to see which pages changed this week.
 2. Visit each changed page (and any new page) at http://localhost:3000<path>. Take a
    screenshot. Look at it as a human would — desktop and mobile viewport.
+   IMPORTANT: save every screenshot under the absolute path `/tmp/seo-shots/` (create
+   it if needed). NEVER save screenshots inside the repo — they must not appear in the
+   working tree or the PR.
 3. Click/inspect internal links — do they go somewhere relevant? Are there enough of
    them, with descriptive anchor text? Any dead ends or orphan feel?
 4. Read the content aloud in your head — is it natural and useful, or robotic/stuffed?
