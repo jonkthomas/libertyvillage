@@ -61,3 +61,7 @@ data/topics-part*.json
 /archive/
 # duplicate of generate-placeholder-images.mjs
 /scripts/generate-placeholder-images.js
+
+# weekly SEO agent run artifacts (PR body / run logs; ephemeral)
+/tasks/seo-improve-summary.md
+/tasks/seo-improve-runs/
