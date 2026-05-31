@@ -9,7 +9,6 @@ import {
   generateCollectionPageSchema,
   generateSpeakableSchema,
   generateItemListSchema,
-  generateFAQSchema,
 } from "@/lib/schema";
 import {
   getRelatedServices,
@@ -112,7 +111,6 @@ export default async function ServicePage({ params }: Props) {
           `Best ${service.pluralName} in Liberty Village`
         )
       : null;
-  const faqSchema = faqs && faqs.length > 0 ? generateFAQSchema(faqs) : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -143,7 +141,7 @@ export default async function ServicePage({ params }: Props) {
       )}
 
       <p className="mt-4 text-warm-600 leading-relaxed">
-        {service.description} Whether you&apos;re a long-time resident or just moved
+        {linkifyText(service.description, businessLookups)} Whether you&apos;re a long-time resident or just moved
         to the neighbourhood, here are the top-rated {service.pluralName.toLowerCase()} in
         Liberty Village, ranked by local reviews and community reputation.
       </p>
@@ -152,7 +150,7 @@ export default async function ServicePage({ params }: Props) {
         <div className="mt-6">
           <h2 className="text-xl font-semibold text-warm-800">Liberty Village Neighbourhood Context</h2>
           {service.neighbourhoodContext.split("\n").filter(Boolean).map((para, i) => (
-            <p key={i} className="mt-3 text-warm-600 leading-relaxed">{para}</p>
+            <p key={i} className="mt-3 text-warm-600 leading-relaxed">{linkifyText(para, businessLookups)}</p>
           ))}
         </div>
       )}
@@ -162,7 +160,7 @@ export default async function ServicePage({ params }: Props) {
           {service.sections.map((section, i) => (
             <div key={i}>
               <h2 className="text-xl font-semibold text-warm-800">{section.heading}</h2>
-              <p className="mt-2 text-warm-600 leading-relaxed">{section.content}</p>
+              <p className="mt-2 text-warm-600 leading-relaxed">{linkifyText(section.content, businessLookups)}</p>
             </div>
           ))}
         </div>
@@ -222,7 +220,7 @@ export default async function ServicePage({ params }: Props) {
         </div>
       )}
 
-      <FAQSection faqs={faqs} />
+      <FAQSection faqs={faqs} linkLookups={businessLookups} />
 
       <RelatedLinks heading="Related Services" links={relatedServices} />
       <RelatedLinks heading="Related Guides" links={relatedGuides} />
@@ -242,12 +240,6 @@ export default async function ServicePage({ params }: Props) {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
-        />
-      )}
-      {faqSchema && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
         />
       )}
     </div>

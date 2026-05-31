@@ -1,12 +1,17 @@
 import type { FAQ } from "@/lib/types";
 import { generateFAQSchema } from "@/lib/schema";
+import { linkifyText, type LinkEntry } from "@/lib/linkify";
 
 export default function FAQSection({
   faqs,
   heading = "Frequently Asked Questions",
+  linkLookups = [],
 }: {
   faqs: FAQ[];
   heading?: string;
+  // When provided, entity-name mentions in answers are linked to their pages
+  // (e.g. a business name -> its /directory page). Schema still uses raw text.
+  linkLookups?: LinkEntry[];
 }) {
   if (faqs.length === 0) return null;
 
@@ -28,7 +33,7 @@ export default function FAQSection({
               </span>
             </summary>
             <div className="px-5 pb-4 text-sm text-warm-600 leading-relaxed">
-              {faq.answer}
+              {linkLookups.length > 0 ? linkifyText(faq.answer, linkLookups) : faq.answer}
             </div>
           </details>
         ))}
