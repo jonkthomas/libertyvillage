@@ -48,17 +48,22 @@ export default async function GuidePage({ params }: Props) {
   const breadcrumbs = getBreadcrumbs("guide", topic.title);
 
   const today = new Date().toISOString().split("T")[0];
-  // Only treat an explicit date as a freshness signal — never the build day,
-  // otherwise dateModified/the "Updated" line advance on every CI rebuild.
+  // Only emit real dates. generateArticleSchema stamps both datePublished and
+  // dateModified from its date arg, so when a topic has no explicit date we
+  // strip both — otherwise they'd advance to the build day on every CI rebuild
+  // (a fabricated freshness signal Google can discount).
+  const explicitPublished = topic.publishedAt || null;
   const explicitUpdated = topic.lastUpdated || topic.updatedAt || null;
-  const articleSchema = {
+  const articleSchema: Record<string, unknown> = {
     ...generateArticleSchema(
       `Liberty Village ${topic.title}`,
       topic.description,
-      topic.publishedAt || explicitUpdated || today
+      explicitPublished || explicitUpdated || today
     ),
-    ...(explicitUpdated ? { dateModified: explicitUpdated } : {}),
   };
+  if (explicitUpdated) articleSchema.dateModified = explicitUpdated;
+  else delete articleSchema.dateModified;
+  if (!explicitPublished && !explicitUpdated) delete articleSchema.datePublished;
   const definedTermSchema =
     topic.definitions && topic.definitions.length > 0
       ? generateDefinedTermSetSchema(topic.definitions)
