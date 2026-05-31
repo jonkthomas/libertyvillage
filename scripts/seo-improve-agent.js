@@ -145,7 +145,7 @@ async function main() {
     // 1) BUILDER — invokes vendored SEO skills
     const builder = await runStage('BUILDER', {
       systemPromptPath: P('seo-improve-system.md'),
-      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply. ' + (DRY ? 'DRY RUN: analyze + write tasks/seo-improve-summary.md only, make NO edits.' : 'Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.'),
+      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply. ' + (DRY ? 'DRESS REHEARSAL (dry run): make your data-backed edits normally — they will NOT be committed or deployed (the runner is discarded). Ensure at least one concrete, justified edit so the judge and reader stages have something real to evaluate. Then write tasks/seo-improve-summary.md.' : 'Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.'),
       mcpServers: MCP.gscGa4,
       settingSources: ['project'],
       skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
@@ -153,10 +153,11 @@ async function main() {
     });
     if (!builder.success) runLog.errors.push('builder did not finish cleanly');
 
-    if (DRY) {
-      runLog.success = builder.success;
-    } else if (changedContentFiles().length === 0) {
-      console.log('No content changes — no-op week. Skipping judge/reader.');
+    // Full loop runs for BOTH real and dry runs (dry = dress rehearsal: edits
+    // happen in the ephemeral runner, judge/reader/score all run, but the
+    // workflow opens no PR and commits nothing). Only a true no-op skips review.
+    if (changedContentFiles().length === 0) {
+      console.log('No content changes — no-op. Skipping judge/reader.');
       runLog.success = true;
     } else {
       // 2) build gate
