@@ -1,206 +1,242 @@
 #!/usr/bin/env node
 /**
- * Weekly SEO/AEO Improvement Pipeline - Claude Agent SDK Orchestrator
- * Analyzes GSC performance and makes data-backed on-site improvements that a
- * human reviews as a PR. Mirrors weekly-blog-agent.js but opens a PR (CI does
- * the branch/commit/PR), never pushes to main.
+ * Weekly SEO/AEO Improvement Pipeline — multi-agent orchestrator.
  *
- * Usage: node scripts/seo-improve-agent.js
+ *   BUILDER (invokes vendored SEO skills + GSC/GA4 MCP) -> edits site
+ *   -> npm run build (gate) -> next start
+ *   -> JUDGE (adversarial, scores 0-10) + READER (end-user, Playwright, scores 0-10)
+ *   -> weighted overall score; if below threshold, ONE revise pass + re-score.
  *
- * Env:
- *   DRY_RUN=true                    - analyze + summarize, make NO file edits
- *   GOOGLE_APPLICATION_CREDENTIALS  - path to GCP service account JSON (GSC/GA4)
- *   GA_PROPERTY_ID                  - GA4 property ID
- *   DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD - optional DataForSEO REST creds
- *   GITHUB_STEP_SUMMARY             - GitHub Actions job summary file path
+ * Writes tasks/seo-improve-summary.md (PR body) and tasks/seo-scores.json
+ * (consumed by the workflow for draft/label/Slack). Never pushes — CI opens a PR.
+ *
+ * Env: DRY_RUN, GOOGLE_APPLICATION_CREDENTIALS, GA_PROPERTY_ID,
+ *      DATAFORSEO_LOGIN/PASSWORD, SERPER_API_KEY, GITHUB_STEP_SUMMARY
  */
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const { spawn, execSync } = require('child_process');
 
-const PROJECT_ROOT = path.join(__dirname, '..');
-const SYSTEM_PROMPT_PATH = path.join(__dirname, 'prompts', 'seo-improve-system.md');
-const RUN_LOG_DIR = path.join(PROJECT_ROOT, 'tasks', 'seo-improve-runs');
-const SUMMARY_PATH = path.join(PROJECT_ROOT, 'tasks', 'seo-improve-summary.md');
+const ROOT = path.join(__dirname, '..');
+const P = (f) => path.join(__dirname, 'prompts', f);
+const SUMMARY_PATH = path.join(ROOT, 'tasks', 'seo-improve-summary.md');
+const SCORES_PATH = path.join(ROOT, 'tasks', 'seo-scores.json');
+const RUN_LOG_DIR = path.join(ROOT, 'tasks', 'seo-improve-runs');
+const THRESHOLD = 7;       // overall below this -> revise once, PR opens as draft
+const DRY = process.env.DRY_RUN === 'true';
+
+const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json';
+let gaEmail = '', gaKey = '';
+try { const c = JSON.parse(fs.readFileSync(credsPath, 'utf8')); gaEmail = c.client_email || ''; gaKey = c.private_key || ''; } catch {}
+
+const MCP = {
+  gscGa4: {
+    gsc: { command: 'npx', args: ['-y', 'mcp-server-gsc'], env: { GOOGLE_APPLICATION_CREDENTIALS: credsPath } },
+    ga4: { command: 'npx', args: ['-y', 'mcp-server-google-analytics'], env: { GA_PROPERTY_ID: process.env.GA_PROPERTY_ID || '', GOOGLE_CLIENT_EMAIL: gaEmail, GOOGLE_PRIVATE_KEY: gaKey } }
+  },
+  playwright: {
+    playwright: { command: 'npx', args: ['@playwright/mcp', '--headless', '--allow-unrestricted-file-access'], env: {} }
+  }
+};
+
+let totalCost = 0;
+
+async function runStage(label, opts) {
+  const { query } = await import('@anthropic-ai/claude-agent-sdk');
+  const systemPrompt = fs.readFileSync(opts.systemPromptPath, 'utf8');
+  console.log(`\n=== STAGE: ${label} ===`);
+  const conversation = query({
+    prompt: opts.prompt,
+    options: {
+      model: 'claude-sonnet-4-5-20250929',
+      permissionMode: 'bypassPermissions',
+      allowDangerouslySkipPermissions: true,
+      maxTurns: opts.maxTurns,
+      maxBudgetUsd: opts.budget,
+      systemPrompt,
+      cwd: ROOT,
+      persistSession: false,
+      ...(opts.mcpServers ? { mcpServers: opts.mcpServers } : {}),
+      ...(opts.settingSources ? { settingSources: opts.settingSources } : {}),
+      ...(opts.skills ? { skills: opts.skills } : {})
+    }
+  });
+
+  let result = null;
+  const textChunks = [];
+  let done = false;
+  while (!done) {
+    const step = await conversation.next();
+    if (step.done) { if (step.value) result = result || step.value; done = true; continue; }
+    const m = step.value;
+    if (m.type === 'system' && m.subtype === 'init') {
+      console.log(`[${label}] tools:${m.tools?.length || 0} skills:${(m.skills || []).length || 'n/a'} mcp:${(m.mcp_servers || []).map(s => s.name + '(' + s.status + ')').join(',')}`);
+    } else if (m.type === 'assistant') {
+      const txt = (m.message?.content || []).filter(b => b.type === 'text').map(b => b.text).join(' ');
+      if (txt) { textChunks.push(txt); console.log(`[${label}] ${txt.slice(0, 160)}${txt.length > 160 ? '…' : ''}`); }
+      for (const t of (m.message?.content || []).filter(b => b.type === 'tool_use')) console.log(`[${label}:tool] ${t.name}`);
+    } else if (m.type === 'result') { result = m; }
+  }
+  const cost = result?.total_cost_usd || 0;
+  totalCost += cost;
+  const success = result?.subtype === 'success';
+  console.log(`[${label}] done — success:${success} cost:$${cost.toFixed(4)} turns:${result?.num_turns || 0}`);
+  return { success, cost, turns: result?.num_turns || 0, text: textChunks.join('\n') };
+}
+
+function extractJson(text) {
+  if (!text) return null;
+  const fence = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)].map(m => m[1]).pop();
+  const candidate = fence || text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  try { return JSON.parse(candidate); } catch { return null; }
+}
+
+function changedContentFiles() {
+  try {
+    return execSync('git status --porcelain', { cwd: ROOT }).toString()
+      .split('\n').map(l => l.slice(3).replace(/.* -> /, '')).filter(Boolean)
+      .filter(f => !/^tasks\/seo-(improve-(summary\.md|runs\/)|scores\.json)/.test(f));
+  } catch { return []; }
+}
+
+function startServer() {
+  const srv = spawn('npx', ['next', 'start', '-p', '3000'], { cwd: ROOT, detached: true, stdio: 'ignore' });
+  srv.unref();
+  return srv;
+}
+function waitForPort(timeoutMs = 60000) {
+  const start = Date.now();
+  return new Promise((resolve) => {
+    const tick = () => {
+      const req = http.get('http://localhost:3000/', (res) => { res.destroy(); resolve(true); });
+      req.on('error', () => { if (Date.now() - start > timeoutMs) resolve(false); else setTimeout(tick, 2000); });
+    };
+    tick();
+  });
+}
+
+async function judge() {
+  return runStage('JUDGE', {
+    systemPromptPath: P('seo-judge-system.md'),
+    prompt: 'Adversarially review the working-tree changes per your system prompt. Run git diff/status, read the changed files and tasks/seo-improve-summary.md, then output ONLY the scores JSON.',
+    maxTurns: 40, budget: 1.5
+  });
+}
+async function reader() {
+  return runStage('READER', {
+    systemPromptPath: P('seo-reader-system.md'),
+    prompt: 'Review the changed pages as a real user via http://localhost:3000 using Playwright (screenshots, desktop + mobile). Output ONLY the scores JSON.',
+    mcpServers: MCP.playwright, maxTurns: 50, budget: 2.0
+  });
+}
+const weightedOverall = (j, r) => {
+  const jo = j?.overall ?? 0, ro = r?.overall ?? 0;
+  return Math.round((jo * 0.6 + ro * 0.4) * 10) / 10;
+};
 
 async function main() {
-  const { query } = await import('@anthropic-ai/claude-agent-sdk');
-  const startTime = Date.now();
-
-  if (!fs.existsSync(SYSTEM_PROMPT_PATH)) {
-    console.error(`System prompt not found: ${SYSTEM_PROMPT_PATH}`);
-    process.exit(1);
-  }
-  const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, 'utf8');
-
-  let prompt = 'Execute the weekly SEO/AEO improvement pass. Follow the system prompt step by step: pull GSC data, diagnose the highest-leverage opportunities, make data-backed edits within the hard rails, run the build, and write tasks/seo-improve-summary.md.';
-  if (process.env.DRY_RUN === 'true') {
-    prompt += '\n\nDRY RUN MODE: Do NOT edit any source/data files. Only analyze and write tasks/seo-improve-summary.md describing what you WOULD change.';
-  }
-
-  // Read GA creds directly from the service-account file (never via env dumps).
-  const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json';
-  let gaClientEmail = '';
-  let gaPrivateKey = '';
-  try {
-    const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-    gaClientEmail = creds.client_email || '';
-    gaPrivateKey = creds.private_key || '';
-  } catch (err) {
-    console.warn(`[warn] Could not read GA credentials at ${credsPath}: ${err.message}`);
-  }
-
-  const mcpServers = {
-    gsc: {
-      command: 'npx',
-      args: ['-y', 'mcp-server-gsc'],
-      env: { GOOGLE_APPLICATION_CREDENTIALS: credsPath }
-    },
-    ga4: {
-      command: 'npx',
-      args: ['-y', 'mcp-server-google-analytics'],
-      env: {
-        GA_PROPERTY_ID: process.env.GA_PROPERTY_ID || '',
-        GOOGLE_CLIENT_EMAIL: gaClientEmail,
-        GOOGLE_PRIVATE_KEY: gaPrivateKey
-      }
-    }
-  };
-
-  console.log('=== Weekly SEO Improvement Pipeline ===');
-  console.log(`Started: ${new Date().toISOString()}`);
-  console.log(`Dry Run: ${process.env.DRY_RUN || 'false'}`);
-  console.log('');
-
-  const runLog = {
-    date: new Date().toISOString(),
-    success: false,
-    costUsd: 0,
-    turnsUsed: 0,
-    durationMs: 0,
-    dryRun: process.env.DRY_RUN === 'true',
-    errors: []
-  };
+  const t0 = Date.now();
+  const runLog = { date: new Date().toISOString(), dryRun: DRY, success: false, totalCostUsd: 0, errors: [] };
+  let server = null;
 
   try {
-    const conversation = query({
-      prompt,
-      options: {
-        model: 'claude-sonnet-4-5-20250929',
-        permissionMode: 'bypassPermissions',
-        allowDangerouslySkipPermissions: true,
-        maxTurns: 110,
-        // Broad scope = more analysis + edits + a build. Start with real headroom
-        // (the blog agent's $2.0 cap caused weeks of failures); cost still bounded.
-        maxBudgetUsd: 5.0,
-        systemPrompt,
-        mcpServers,
-        cwd: PROJECT_ROOT,
-        persistSession: false
-      }
+    // 1) BUILDER — invokes vendored SEO skills
+    const builder = await runStage('BUILDER', {
+      systemPromptPath: P('seo-improve-system.md'),
+      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply. ' + (DRY ? 'DRY RUN: analyze + write tasks/seo-improve-summary.md only, make NO edits.' : 'Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.'),
+      mcpServers: MCP.gscGa4,
+      settingSources: ['project'],
+      skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
+      maxTurns: 110, budget: 4.0
     });
+    if (!builder.success) runLog.errors.push('builder did not finish cleanly');
 
-    let resultMessage = null;
-    let done = false;
-    while (!done) {
-      const step = await conversation.next();
-      if (step.done) {
-        if (step.value) resultMessage = resultMessage || step.value;
-        done = true;
-      } else {
-        const message = step.value;
-        switch (message.type) {
-          case 'system':
-            if (message.subtype === 'init') {
-              console.log(`[init] Model: ${message.model}, Tools: ${message.tools?.length || 0}`);
-              if (message.mcp_servers?.length) {
-                console.log(`[init] MCP: ${message.mcp_servers.map(s => `${s.name}(${s.status})`).join(', ')}`);
-              }
-            }
-            break;
-          case 'assistant': {
-            const textBlocks = (message.message?.content || [])
-              .filter(block => block.type === 'text')
-              .map(block => block.text);
-            if (textBlocks.length > 0) {
-              const text = textBlocks.join(' ');
-              console.log(`[agent] ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
-            }
-            for (const tool of (message.message?.content || []).filter(b => b.type === 'tool_use')) {
-              console.log(`[tool_use] ${tool.name}`);
-            }
-            break;
-          }
-          case 'result':
-            resultMessage = message;
-            break;
-          default:
-            if (message.type !== 'tool_progress') {
-              console.log(`[${message.type}${message.subtype ? ':' + message.subtype : ''}]`);
-            }
-            break;
-        }
-      }
-    }
-
-    if (resultMessage) {
-      runLog.costUsd = resultMessage.total_cost_usd || 0;
-      runLog.turnsUsed = resultMessage.num_turns || 0;
-      if (resultMessage.subtype === 'success') {
-        runLog.success = true;
-      } else {
-        runLog.errors.push(`Agent ended with subtype: ${resultMessage.subtype}`);
-        if (resultMessage.errors?.length) runLog.errors.push(...resultMessage.errors);
-      }
+    if (DRY) {
+      runLog.success = builder.success;
+    } else if (changedContentFiles().length === 0) {
+      console.log('No content changes — no-op week. Skipping judge/reader.');
+      runLog.success = true;
     } else {
-      runLog.errors.push('No result message received from SDK');
+      // 2) build gate
+      console.log('\n=== BUILD GATE ===');
+      execSync('npm run build', { cwd: ROOT, stdio: 'inherit' });
+      // 3) serve for reader
+      server = startServer();
+      const up = await waitForPort();
+      if (!up) { console.warn('server did not come up — reader will score 0 on visuals'); }
+
+      // 4) judge + reader
+      let j = extractJson((await judge()).text);
+      let r = extractJson((await reader()).text);
+      let overall = weightedOverall(j, r);
+      console.log(`\nScore round 1 — judge:${j?.overall} reader:${r?.overall} overall:${overall}`);
+
+      // 5) one revise loop if below threshold
+      let revised = false;
+      if (overall < THRESHOLD) {
+        revised = true;
+        const issues = JSON.stringify({ judge: j?.blocking_issues || [], judge_suggestions: j?.suggestions || [], reader_problems: r?.problems || [] }, null, 2);
+        await runStage('REVISE', {
+          systemPromptPath: P('seo-improve-system.md'),
+          prompt: `Your prior changes scored ${overall}/10 (below ${THRESHOLD}). Address these review findings, staying within the same hard rails, then update tasks/seo-improve-summary.md:\n${issues}`,
+          mcpServers: MCP.gscGa4, settingSources: ['project'],
+          skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
+          maxTurns: 80, budget: 3.0
+        });
+        execSync('npm run build', { cwd: ROOT, stdio: 'inherit' });
+        // restart server (content changed)
+        try { process.kill(-server.pid); } catch {}
+        server = startServer(); await waitForPort();
+        j = extractJson((await judge()).text);
+        r = extractJson((await reader()).text);
+        overall = weightedOverall(j, r);
+        console.log(`Score round 2 — judge:${j?.overall} reader:${r?.overall} overall:${overall}`);
+      }
+
+      const scores = {
+        overall, threshold: THRESHOLD, passed: overall >= THRESHOLD, revised,
+        judge: j, reader: r, totalCostUsd: Math.round(totalCost * 100) / 100
+      };
+      fs.writeFileSync(SCORES_PATH, JSON.stringify(scores, null, 2));
+
+      // append scoreboard to the PR summary
+      const board = [
+        '', '---', '## Review scores',
+        `**Overall: ${overall}/10** (threshold ${THRESHOLD} → ${scores.passed ? 'PASS' : 'BELOW — PR opens as draft'})${revised ? ' · revised once' : ''}`,
+        '', '| Agent | Dimension scores | Overall |', '|---|---|---|',
+        `| Adversarial judge | ${j ? Object.entries(j.scores || {}).map(([k, v]) => `${k} ${v}`).join(', ') : 'parse-failed'} | ${j?.overall ?? '?'} |`,
+        `| End-user reader | ${r ? Object.entries(r.scores || {}).map(([k, v]) => `${k} ${v}`).join(', ') : 'parse-failed'} | ${r?.overall ?? '?'} |`,
+        '',
+        ...(j?.blocking_issues?.length ? ['**Judge blocking issues:**', ...j.blocking_issues.map(s => `- ${s}`), ''] : []),
+        ...(r?.problems?.length ? ['**Reader problems:**', ...r.problems.map(s => `- ${s}`), ''] : [])
+      ].join('\n');
+      try { fs.appendFileSync(SUMMARY_PATH, board); } catch {}
+      runLog.success = true;
+      runLog.scores = scores;
     }
-  } catch (error) {
-    console.error(`Pipeline error: ${error.message}`);
-    runLog.errors.push(error.message);
+  } catch (e) {
+    console.error('Orchestrator error:', e.message);
+    runLog.errors.push(e.message);
+  } finally {
+    if (server) { try { process.kill(-server.pid); } catch {} }
   }
 
-  runLog.durationMs = Date.now() - startTime;
-
-  // Ensure a summary always exists for the PR body / Slack, even on failure.
   if (!fs.existsSync(SUMMARY_PATH)) {
     fs.mkdirSync(path.dirname(SUMMARY_PATH), { recursive: true });
-    fs.writeFileSync(
-      SUMMARY_PATH,
-      `# Weekly SEO Improvements — ${new Date().toISOString().split('T')[0]}\n\n` +
-      `## TL;DR\nNo summary was written by the agent` +
-      `${runLog.errors.length ? ` (errors: ${runLog.errors.join('; ')})` : ''}.\n`
-    );
+    fs.writeFileSync(SUMMARY_PATH, `# Weekly SEO Improvements — ${new Date().toISOString().split('T')[0]}\n\n## TL;DR\nNo summary written${runLog.errors.length ? ` (errors: ${runLog.errors.join('; ')})` : ''}.\n`);
   }
-
+  runLog.totalCostUsd = Math.round(totalCost * 100) / 100;
+  runLog.durationMs = Date.now() - t0;
   fs.mkdirSync(RUN_LOG_DIR, { recursive: true });
-  const logDate = new Date().toISOString().split('T')[0];
-  fs.writeFileSync(path.join(RUN_LOG_DIR, `${logDate}.json`), JSON.stringify(runLog, null, 2));
+  fs.writeFileSync(path.join(RUN_LOG_DIR, `${new Date().toISOString().split('T')[0]}.json`), JSON.stringify(runLog, null, 2));
 
-  console.log('');
-  console.log('=== Pipeline Complete ===');
-  console.log(`Success: ${runLog.success}`);
-  console.log(`Cost: $${runLog.costUsd.toFixed(4)}`);
-  console.log(`Turns: ${runLog.turnsUsed}`);
-  console.log(`Duration: ${(runLog.durationMs / 1000).toFixed(1)}s`);
-
+  console.log(`\n=== Pipeline Complete === success:${runLog.success} totalCost:$${runLog.totalCostUsd} dur:${(runLog.durationMs / 1000).toFixed(0)}s`);
   if (process.env.GITHUB_STEP_SUMMARY) {
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-      '## Weekly SEO Improvement Results',
-      '',
-      `| Status | ${runLog.success ? 'Success' : 'Failed'} |`,
-      '|--------|-------|',
-      `| Cost | $${runLog.costUsd.toFixed(4)} |`,
-      `| Turns | ${runLog.turnsUsed} |`,
-      `| Dry run | ${runLog.dryRun} |`,
-      ''
-    ].join('\n'));
+    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## SEO pipeline\n- success: ${runLog.success}\n- overall score: ${runLog.scores?.overall ?? 'n/a'}\n- total cost: $${runLog.totalCostUsd}\n`);
   }
-
   process.exit(runLog.success ? 0 : 1);
 }
 
-main().catch(err => {
-  console.error('Fatal error:', err);
-  process.exit(1);
-});
+main().catch(e => { console.error('Fatal:', e); process.exit(1); });

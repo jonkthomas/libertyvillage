@@ -65,3 +65,4 @@ data/topics-part*.json
 # weekly SEO agent run artifacts (PR body / run logs; ephemeral)
 /tasks/seo-improve-summary.md
 /tasks/seo-improve-runs/
+/tasks/seo-scores.json

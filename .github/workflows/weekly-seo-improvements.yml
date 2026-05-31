@@ -43,6 +43,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
       - name: Write service-account credentials
         env:
           GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -70,7 +73,7 @@ jobs:
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           # Count real content changes incl. NEW files (exclude the agent's run artifacts)
-          CONTENT=$(git status --porcelain | sed 's/^...//' | sed 's/.* -> //' | grep -vE '^tasks/seo-improve-(summary\.md|runs/)' || true)
+          CONTENT=$(git status --porcelain | sed 's/^...//' | sed 's/.* -> //' | grep -vE '^tasks/seo-(improve-(summary\.md|runs/)|scores\.json)' || true)
           echo "Changed content files:"; echo "$CONTENT"
           if echo "$CONTENT" | grep -qE '^(next\.config\.ts|vercel\.json|package(-lock)?\.json|tsconfig.*|eslint.*|\.github/|scripts/)'; then
             echo "::error::Agent modified a forbidden path — blocking PR."; exit 1
@@ -80,9 +83,27 @@ jobs:
             echo "::error::Change budget exceeded ($N files > 12) — blocking PR."; exit 1
           fi
 
-      - name: Build gate
+      # Build is run inside the agent orchestrator (it must build before the
+      # reader stage can screenshot the live site), so no separate gate here —
+      # a build failure fails the agent step and stops the job before any PR.
+
+      - name: Read review scores
+        id: scores
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
-        run: npm run build
+        run: |
+          OVERALL="n/a"; PASSED="true"
+          if [ -f tasks/seo-scores.json ]; then
+            OVERALL=$(jq -r '.overall // "n/a"' tasks/seo-scores.json)
+            PASSED=$(jq -r '.passed // false' tasks/seo-scores.json)
+          fi
+          DRAFT=false; LABELS="seo-automation"
+          [ "$PASSED" != "true" ] && { DRAFT=true; LABELS="seo-automation,needs-work"; }
+          {
+            echo "overall=$OVERALL"
+            echo "draft=$DRAFT"
+            echo "labels=$LABELS"
+            echo "title=seo: weekly automated improvements (score ${OVERALL}/10)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Open Pull Request
         id: cpr
@@ -99,20 +120,24 @@ jobs:
             lib/**
             public/images/**
           commit-message: "seo: weekly automated improvements"
-          title: "seo: weekly automated improvements"
+          title: ${{ steps.scores.outputs.title }}
           body-path: tasks/seo-improve-summary.md
-          labels: seo-automation
-          draft: false
+          labels: ${{ steps.scores.outputs.labels }}
+          draft: ${{ steps.scores.outputs.draft }}
 
       - name: Notify Slack
         if: ${{ steps.cpr.outputs.pull-request-number != '' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+          OVERALL: ${{ steps.scores.outputs.overall }}
+          DRAFT: ${{ steps.scores.outputs.draft }}
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
           TLDR=$(sed -n '/## TL;DR/,/^## /p' tasks/seo-improve-summary.md | sed '1d;/^## /d' | head -6)
-          payload=$(jq -n --arg t ":mag: Weekly SEO PR opened: $PR_URL" --arg b "$TLDR" '{text: ($t + "\n" + $b)}')
+          STATUS=":mag: Weekly SEO PR opened — score ${OVERALL}/10"
+          [ "$DRAFT" = "true" ] && STATUS=":warning: Weekly SEO PR (DRAFT, below threshold) — score ${OVERALL}/10"
+          payload=$(jq -n --arg t "$STATUS: $PR_URL" --arg b "$TLDR" '{text: ($t + "\n" + $b)}')
           curl -s -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null && echo "Slack notified."
 
       - name: Cleanup credentials
