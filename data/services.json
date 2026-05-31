@@ -503,7 +503,7 @@
     "slug": "dentists",
     "name": "Dentist",
     "pluralName": "Dentists",
-    "description": "Best dentists in Liberty Village Toronto accepting new patients in 2026. Compare reviews, hours, insurance coverage, emergency care, and patient ratings for local dental clinics.",
+    "description": "Best dentists in Liberty Village, Toronto for 2026, accepting new patients. Compare reviews, hours, insurance, and emergency care across local King West clinics.",
     "icon": "🦷",
     "relatedServices": [
       "doctors",
@@ -1536,7 +1536,7 @@
     "slug": "banks",
     "name": "Bank",
     "pluralName": "Banks",
-    "description": "Full-service banking in Liberty Village on East Liberty Street. ATMs, mortgage consultations, Saturday hours, and investment services from major banks in 2026.",
+    "description": "Banking in Liberty Village on East Liberty St: RBC & Scotiabank branches with ATMs, Saturday hours, mortgages and investments. Compare hours, services and reviews.",
     "icon": "🏦",
     "relatedServices": [
       "accountants",
