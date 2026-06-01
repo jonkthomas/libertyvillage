@@ -327,7 +327,7 @@
     "slug": "gyms",
     "name": "Gym",
     "pluralName": "Gyms",
-    "description": "Every gym in Liberty Village compared for 2026 — GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, class types, hours, and which one fits your workout style.",
+    "description": "Best gyms in Liberty Village for 2026. GoodLife Fitness reviews (3.9★, $30-$50/mo), F45 (4.5★, $200/mo), Altea Active (4.2★, $150/mo). Compare prices, hours, and reviews.",
     "icon": "🏋️",
     "relatedServices": [
       "personal-trainers",
@@ -338,7 +338,7 @@
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/gyms.jpg",
-    "answerBlock": "Liberty Village has 6 gyms covering every budget and workout style in 2026. F45 Training leads with a 4.5/5 rating for 45-minute group HIIT classes at $200 per month on East Liberty Street. Altea Active on Western Battery Road is the premium option at $150 to $200 per month, offering a saltwater pool, spa, and hot yoga studio. GoodLife Fitness on Jefferson Avenue starts at $30 to $50 per month for basic access with hours from 5 am to 11 pm. Orangetheory Fitness and SpinCo add boutique studio options in the $150 to $180 range, while Movati Athletic offers pool access at $60 to $80 monthly.",
+    "answerBlock": "Liberty Village's best-reviewed gyms: F45 Training (4.5★, $200/mo, HIIT-focused with free one-week trial on East Liberty), Altea Active (4.2★, $150–$200/mo, premium with rooftop pool and spa), and GoodLife Fitness (3.9★, $30–$50/mo on Jefferson Ave, longest hours 5am–11pm). GoodLife Liberty Village reviews highlight its affordability and extensive equipment but note peak-hour crowding 5:30–7:30pm weekdays. F45 reviews praise the structured 45-minute workouts and community accountability. Altea reviews focus on the saltwater lap pool and spa amenities. Orangetheory, SpinCo, and Movati Athletic offer additional boutique options $60–$180/mo.",
     "definition": "Gyms in Liberty Village range from budget-friendly chains to luxury athletic clubs, reflecting the neighbourhood's young professional demographic and fitness-focused culture.",
     "comparisonTable": {
       "columns": ["Gym", "Monthly Cost", "Classes", "24hr?", "Best For"],
@@ -384,6 +384,10 @@
       {
         "question": "How much do gyms cost in Liberty Village?",
         "answer": "Gym memberships range from $30 to $200 per month. GoodLife Fitness starts at $30 to $50 for basic access. Movati Athletic runs $60 to $80 with pool access. Boutique studios like F45 ($200), Orangetheory ($150 to $180), and SpinCo ($150 to $180) charge more for structured class formats. Altea Active is the premium option at $150 to $200 including pool, spa, and hot yoga."
+      },
+      {
+        "question": "What are GoodLife Fitness Liberty Village reviews like?",
+        "answer": "GoodLife Fitness at 170 Jefferson Avenue holds a 3.9★ rating across Google reviews. Members praise the affordability ($30 to $50 per month), long hours (5am–11pm weekdays), and extensive free weight section with squat racks and dumbbells up to 120 pounds. Common criticisms focus on peak-hour crowding from 5:30pm to 7:30pm and occasional equipment wait times. For less crowded sessions, reviewers recommend visiting before 7am or after 8:30pm."
       },
       {
         "question": "Are there 24-hour gyms in Liberty Village?",
@@ -503,7 +507,7 @@
     "slug": "dentists",
     "name": "Dentist",
     "pluralName": "Dentists",
-    "description": "Best dentists in Liberty Village, Toronto for 2026, accepting new patients. Compare reviews, hours, insurance, and emergency care across local King West clinics.",
+    "description": "Best dentists in Liberty Village for 2026. Edition Dental (4.5★, 198 reviews) and Liberty Village Dental (4.4★, 312 reviews). Compare hours, insurance, and patient reviews.",
     "icon": "🦷",
     "relatedServices": [
       "doctors",
@@ -513,7 +517,7 @@
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/dentists.jpg",
-    "answerBlock": "The two best dentists near East Liberty Street in Liberty Village are Edition Dental (4.5★, 65 Jefferson Ave) and Liberty Village Dental (4.4★, 171 East Liberty St). Both accept new patients, bill insurance directly, and offer Saturday appointments. Edition Dental specializes in cosmetic and boutique care; Liberty Village Dental focuses on general and family dentistry with evening hours for working professionals.",
+    "answerBlock": "The two best-reviewed dentists in Liberty Village are Edition Dental (4.5★ from 198 reviews, 65 Jefferson Ave) and Liberty Village Dental (4.4★ from 312 reviews, 171 East Liberty St). Both accept new patients, bill insurance directly, and offer Saturday appointments. Edition Dental reviews highlight its boutique, spa-like experience and cosmetic expertise (veneers, whitening); Liberty Village Dental reviews praise its evening hours (until 7pm Mon–Thu) and family-focused care.",
     "definition": "Dentists in Liberty Village serve the neighbourhood's dense condo population from clinics along East Liberty Street and Jefferson Ave, with most offering extended evening hours for professionals.",
     "keyTakeaways": [
       "Edition Dental (4.5★) and Liberty Village Dental (4.4★) are the two active Liberty Village clinics accepting new patients.",
@@ -1546,12 +1550,16 @@
     "searchVolume": "medium",
     "competitiveness": "medium",
     "image": "/images/services/banks.jpg",
-    "answerBlock": "Liberty Village has 2 major bank branches for in-person banking. RBC Royal Bank at 1 East Liberty Street scores 3.7 with mortgage and investment services, while Scotiabank at 171 East Liberty Street has 24/7 ATM access. Both handle personal and small business accounts. Book mortgage appointments for Tuesday or Wednesday mornings when advisors have more time to find the best rates.",
+    "answerBlock": "Liberty Village has 2 major bank branches for in-person banking. RBC Liberty Village at 1 East Liberty Street (3.7★, Royal Bank Plaza) offers full mortgage and investment services, open weekdays 9:30am–5pm and Saturdays 10am–3pm. Scotiabank at 171 East Liberty Street has 24/7 ATM access. Both handle personal and small business accounts. Book RBC mortgage appointments for Tuesday or Wednesday mornings when advisors have more time to find the best rates.",
     "definition": "Banks in Liberty Village line the East Liberty retail strip, providing mortgage, investment, and everyday banking services to a neighbourhood where most routine transactions happen digitally.",
     "specificFaqs": [
       {
         "question": "Which banks have branches in Liberty Village?",
         "answer": "Scotiabank at 171 East Liberty St and RBC Royal Bank at 1 East Liberty St are the two full-service branches in Liberty Village. Both offer personal banking, mortgages, and investment services. Scotiabank has a 24/7 ATM. TD and BMO branches are available on nearby King Street West."
+      },
+      {
+        "question": "Where is the RBC branch in Liberty Village?",
+        "answer": "RBC Royal Bank Liberty Village is located at 1 East Liberty Street (Royal Bank Plaza), at the corner of East Liberty and Atlantic Avenue. The branch is open weekdays 9:30am to 5pm and Saturdays 10am to 3pm. Services include personal and small business banking, mortgage consultations, and investment advice. There's an ATM accessible 24/7 outside the branch entrance."
       },
       {
         "question": "Are Liberty Village banks open on Saturdays?",
