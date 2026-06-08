@@ -327,7 +327,7 @@
     "slug": "gyms",
     "name": "Gym",
     "pluralName": "Gyms",
-    "description": "Every gym in Liberty Village compared for 2026 — GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, class types, hours, and which one fits your workout style.",
+    "description": "Real reviews of every Liberty Village gym: GoodLife ($50/mo), F45 ($200/mo HIIT), Altea Active ($100/mo pool). Hours, crowds, equipment — which is worth joining in 2026?",
     "icon": "🏋️",
     "relatedServices": [
       "personal-trainers",
@@ -503,7 +503,7 @@
     "slug": "dentists",
     "name": "Dentist",
     "pluralName": "Dentists",
-    "description": "Best dentists in Liberty Village, Toronto for 2026, accepting new patients. Compare reviews, hours, insurance, and emergency care across local King West clinics.",
+    "description": "Edition Dental vs Liberty Village Dental: patient reviews, pricing, Saturday hours, insurance. Which clinic is best for you in 2026?",
     "icon": "🦷",
     "relatedServices": [
       "doctors",
@@ -1536,7 +1536,7 @@
     "slug": "banks",
     "name": "Bank",
     "pluralName": "Banks",
-    "description": "Banking in Liberty Village on East Liberty St: RBC & Scotiabank branches with ATMs, Saturday hours, mortgages and investments. Compare hours, services and reviews.",
+    "description": "RBC Royal Bank & Scotiabank on East Liberty St — branch hours, mortgage appointments, Saturday banking 10am-3pm, 24/7 ATMs. Which Liberty Village bank is right for you?",
     "icon": "🏦",
     "relatedServices": [
       "accountants",
@@ -1546,9 +1546,13 @@
     "searchVolume": "medium",
     "competitiveness": "medium",
     "image": "/images/services/banks.jpg",
-    "answerBlock": "Liberty Village has 2 major bank branches for in-person banking. RBC Royal Bank at 1 East Liberty Street scores 3.7 with mortgage and investment services, while Scotiabank at 171 East Liberty Street has 24/7 ATM access. Both handle personal and small business accounts. Book mortgage appointments for Tuesday or Wednesday mornings when advisors have more time to find the best rates.",
+    "answerBlock": "RBC Royal Bank at 1 East Liberty Street and Scotiabank at 171 East Liberty Street are Liberty Village's two full-service bank branches. RBC scores 3.7★ for mortgage and investment services with Saturday hours 10am-3pm. Scotiabank offers 24/7 ATM access at the same East Liberty location. Both handle personal banking, small business accounts, and in-person consultations — book Tuesday or Wednesday mornings for unhurried mortgage appointments.",
     "definition": "Banks in Liberty Village line the East Liberty retail strip, providing mortgage, investment, and everyday banking services to a neighbourhood where most routine transactions happen digitally.",
     "specificFaqs": [
+      {
+        "question": "Where is RBC Liberty Village located?",
+        "answer": "RBC Royal Bank Liberty Village is located at 1 East Liberty Street, right at the corner of Atlantic Ave. Open Monday to Friday 9:30am-5pm, Saturday 10am-3pm. This full-service branch offers personal banking, mortgage consultations, investment services, and 24/7 ATM access. Book mortgage appointments on Tuesday or Wednesday mornings for the best availability."
+      },
       {
         "question": "Which banks have branches in Liberty Village?",
         "answer": "Scotiabank at 171 East Liberty St and RBC Royal Bank at 1 East Liberty St are the two full-service branches in Liberty Village. Both offer personal banking, mortgages, and investment services. Scotiabank has a 24/7 ATM. TD and BMO branches are available on nearby King Street West."
