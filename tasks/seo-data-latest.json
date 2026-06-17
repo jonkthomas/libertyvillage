@@ -1,24 +1,71 @@
 {
-  "collectedAt": "2026-06-14T00:00:00.000Z",
+  "collectedAt": "2026-06-17T00:00:00.000Z",
   "gsc": {
-    "searchAnalytics": {
-      "topQueries": [
-        {"query": "liberty village world cup", "impressions": 68, "clicks": 11, "ctr": 0.162, "position": 6.2},
-        {"query": "liberty village fifa", "impressions": 61, "clicks": 9, "ctr": 0.148, "position": 5.8},
-        {"query": "toronto world cup road closures", "impressions": 17, "clicks": 5, "ctr": 0.294, "position": 3.5}
-      ]
-    },
-    "quickWins": [
-      {"query": "goodlife liberty village", "impressions": 130, "position": 6.8},
-      {"query": "edition dental reviews", "impressions": 101, "position": 8.0},
-      {"query": "rbc liberty village", "impressions": 53, "position": 9.4}
+    "searchAnalytics": [
+      {
+        "query": "liberty village world cup",
+        "page": "https://libertyvillage.co/world-cup",
+        "clicks": 10,
+        "impressions": 75,
+        "ctr": 0.133,
+        "position": 7.4
+      },
+      {
+        "query": "goodlife liberty village",
+        "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
+        "clicks": 0,
+        "impressions": 132,
+        "ctr": 0,
+        "position": 6.9
+      },
+      {
+        "query": "bars near bmo field",
+        "page": "https://libertyvillage.co/blog/best-bars-restaurants-near-bmo-field-world-cup-2026",
+        "clicks": 1,
+        "impressions": 34,
+        "ctr": 0.029,
+        "position": 4.4
+      }
     ],
-    "sitemapStatus": {"submitted": 307, "indexed": 0}
+    "quickWins": [
+      {
+        "query": "goodlife liberty village",
+        "impressions": 132,
+        "position": 6.9,
+        "opportunity": "High"
+      },
+      {
+        "query": "edition dental reviews",
+        "impressions": 104,
+        "position": 6.3,
+        "opportunity": "High"
+      },
+      {
+        "query": "rbc liberty village",
+        "impressions": 61,
+        "position": 8.7,
+        "opportunity": "High"
+      }
+    ],
+    "sitemapStatus": {
+      "submitted": 307,
+      "indexed": 0
+    }
   },
   "ga4": {
     "trafficByPage": [
-      {"/blog/liberty-village-world-cup-road-closures-resident-access": 184},
-      {"/world-cup": 142}
+      {
+        "pagePath": "/world-cup",
+        "sessions": 129,
+        "bounceRate": 0.395,
+        "screenPageViews": 153
+      },
+      {
+        "pagePath": "/blog/liberty-village-world-cup-road-closures-resident-access",
+        "sessions": 104,
+        "bounceRate": 0.625,
+        "screenPageViews": 104
+      }
     ]
   }
 }
