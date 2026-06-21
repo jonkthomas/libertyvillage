@@ -1,51 +1,20 @@
 {
-  "collectedAt": "2026-06-17T00:00:00.000Z",
+  "collectedAt": "2026-06-21T00:00:00Z",
   "gsc": {
-    "searchAnalytics": [
-      {
-        "query": "liberty village world cup",
-        "page": "https://libertyvillage.co/world-cup",
-        "clicks": 10,
-        "impressions": 75,
-        "ctr": 0.133,
-        "position": 7.4
-      },
-      {
-        "query": "goodlife liberty village",
-        "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
-        "clicks": 0,
-        "impressions": 132,
-        "ctr": 0,
-        "position": 6.9
-      },
-      {
-        "query": "bars near bmo field",
-        "page": "https://libertyvillage.co/blog/best-bars-restaurants-near-bmo-field-world-cup-2026",
-        "clicks": 1,
-        "impressions": 34,
-        "ctr": 0.029,
-        "position": 4.4
-      }
-    ],
+    "searchAnalytics": {
+      "topQueries": [
+        {"query": "liberty village world cup", "impressions": 39, "clicks": 5, "ctr": 0.128, "position": 6.28},
+        {"query": "liberty village fifa world cup", "impressions": 22, "clicks": 3, "ctr": 0.136, "position": 6.18},
+        {"query": "liberty village fifa", "impressions": 47, "clicks": 2, "ctr": 0.043, "position": 7.85},
+        {"query": "edition dental reviews", "impressions": 116, "clicks": 0, "ctr": 0, "position": 6.4},
+        {"query": "goodlife liberty village", "impressions": 109, "clicks": 0, "ctr": 0, "position": 7.1}
+      ]
+    },
     "quickWins": [
-      {
-        "query": "goodlife liberty village",
-        "impressions": 132,
-        "position": 6.9,
-        "opportunity": "High"
-      },
-      {
-        "query": "edition dental reviews",
-        "impressions": 104,
-        "position": 6.3,
-        "opportunity": "High"
-      },
-      {
-        "query": "rbc liberty village",
-        "impressions": 61,
-        "position": 8.7,
-        "opportunity": "High"
-      }
+      {"query": "edition dental reviews", "page": "https://libertyvillage.co/best/dentists", "position": 6.4, "impressions": 116, "potentialClicks": 6},
+      {"query": "goodlife liberty village", "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide", "position": 7.1, "impressions": 109, "potentialClicks": 5},
+      {"query": "jukebox print toronto", "page": "https://libertyvillage.co/directory/jukebox-print", "position": 9.2, "impressions": 70, "potentialClicks": 4},
+      {"query": "rbc liberty village", "page": "https://libertyvillage.co/best/banks", "position": 8.8, "impressions": 61, "potentialClicks": 3}
     ],
     "sitemapStatus": {
       "submitted": 307,
@@ -53,19 +22,10 @@
     }
   },
   "ga4": {
-    "trafficByPage": [
-      {
-        "pagePath": "/world-cup",
-        "sessions": 129,
-        "bounceRate": 0.395,
-        "screenPageViews": 153
-      },
-      {
-        "pagePath": "/blog/liberty-village-world-cup-road-closures-resident-access",
-        "sessions": 104,
-        "bounceRate": 0.625,
-        "screenPageViews": 104
-      }
+    "topPages": [
+      {"/world-cup": {"sessions": 103, "bounceRate": 0.51, "pageViews": 120}},
+      {"/blog/watch-world-cup-liberty-village-without-tickets": {"sessions": 51, "bounceRate": 0.57, "pageViews": 56}},
+      {"/blog/liberty-village-world-cup-road-closures-resident-access": {"sessions": 49, "bounceRate": 0.76, "pageViews": 46}}
     ]
   }
 }
