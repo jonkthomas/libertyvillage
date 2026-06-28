@@ -54,8 +54,11 @@ export default function AboutPage() {
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
         About LibertyVillage.co
       </h1>
+      {/* TODO verify against City of Toronto Open Data: canonical facts — population
+          "about 9,000" and area "28 hectares (0.28 km²)" — must stay identical to the
+          homepage answer block/FAQ schema and public/llms.txt. */}
       <p className="mt-3 text-lg text-warm-500">
-        An independent neighbourhood guide for the 9,000+ people who call
+        An independent neighbourhood guide for the roughly 9,000 people who call
         Liberty Village, Toronto home.
       </p>
 
@@ -68,7 +71,7 @@ export default function AboutPage() {
           LibertyVillage.co is an independent guide to Liberty Village, Toronto,
           started in 2024 by a small editorial team of neighbourhood residents.
           We review restaurants, services, and businesses that are actually
-          inside or immediately serving the 0.45 km&sup2; neighbourhood, not
+          inside or immediately serving the 28-hectare (0.28 km&sup2;) neighbourhood, not
           businesses 10+ minutes away. All rankings are based on Google Reviews,
           firsthand visits, and input from other residents. We don&apos;t accept
           payment for placement, and sponsored content is labelled clearly.
@@ -148,7 +151,7 @@ export default function AboutPage() {
         </div>
         <div className="rounded-lg border border-warm-200 bg-warm-50 px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-wide text-warm-500">Coverage area</dt>
-          <dd className="mt-1 text-base font-medium text-warm-900">Liberty Village, Toronto (0.45 km&sup2;)</dd>
+          <dd className="mt-1 text-base font-medium text-warm-900">Liberty Village, Toronto (28 ha / 0.28 km&sup2;)</dd>
         </div>
         <div className="rounded-lg border border-warm-200 bg-warm-50 px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-wide text-warm-500">Businesses tracked</dt>

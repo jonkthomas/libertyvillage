@@ -208,10 +208,13 @@ export default function Home() {
           2a. ANSWER BLOCK — "What is Liberty Village?"
           AEO target for navigational "liberty village" query
           ═══════════════════════════════════════════ */}
+      {/* TODO verify against City of Toronto Open Data: canonical neighbourhood facts
+          — population "about 9,000" and area "28 hectares (0.28 km²)" — must stay
+          identical here, in the FAQ schema below, /about, and public/llms.txt. */}
       <section className="mx-auto max-w-4xl px-6 pt-16 sm:px-10 lg:px-16">
         <SectionReveal>
           <AnswerBlock>
-            <strong>Liberty Village</strong> is a 28-hectare neighbourhood in west-downtown Toronto, bounded by King Street West, Dufferin Street, and the GO rail corridor. Home to roughly 9,000 residents — mostly young professionals aged 25 to 40 — it sits directly adjacent to <strong>BMO Field</strong>, host venue for six FIFA World Cup 2026 matches. Walk Score 88, Transit Score 96, median 1-bedroom rent $2,608, median condo price $610,000 (December 2025). This guide covers every restaurant, bar, gym, condo building, parking lot, and transit route in the neighbourhood — updated for 2026, written by residents.
+            <strong>Liberty Village</strong> is a 28-hectare (0.28 km²) neighbourhood in west-downtown Toronto, bounded by King Street West, Dufferin Street, and the GO rail corridor. Home to about 9,000 residents — mostly young professionals aged 25 to 40 — it sits directly adjacent to <strong>BMO Field</strong>, host venue for six FIFA World Cup 2026 matches. Walk Score 88, Transit Score 96, median 1-bedroom rent $2,608, median condo price $610,000 (December 2025). This guide covers every restaurant, bar, gym, condo building, parking lot, and transit route in the neighbourhood — updated for 2026, written by residents.
           </AnswerBlock>
         </SectionReveal>
       </section>
@@ -515,8 +518,10 @@ export default function Home() {
           __html: JSON.stringify(generateFAQSchema([
             {
               question: "What is Liberty Village?",
+              // TODO verify against City of Toronto Open Data: area "28 hectares (0.28 km²)"
+              // and population "about 9,000" must match the homepage answer block, /about, and llms.txt.
               answer:
-                "Liberty Village is a 28-hectare neighbourhood in west-downtown Toronto, bounded by King Street West, Dufferin Street, and the GO rail corridor. About 9,000 residents live there, mostly young professionals aged 25 to 40. The area has a Walk Score of 88 and Transit Score of 96, and sits adjacent to BMO Field — host venue for six FIFA World Cup 2026 matches.",
+                "Liberty Village is a 28-hectare (0.28 km²) neighbourhood in west-downtown Toronto, bounded by King Street West, Dufferin Street, and the GO rail corridor. About 9,000 residents live there, mostly young professionals aged 25 to 40. The area has a Walk Score of 88 and Transit Score of 96, and sits adjacent to BMO Field — host venue for six FIFA World Cup 2026 matches.",
             },
             {
               question: "Where is Liberty Village in Toronto?",
