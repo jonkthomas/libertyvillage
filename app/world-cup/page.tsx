@@ -133,6 +133,23 @@ export default function WorldCupHubPage() {
     "Toronto FIFA World Cup 2026 Matches at BMO Field"
   );
 
+  // Time-sensitive dated hub. datePublished is when this hub first went live;
+  // dateModified is the last editorial review (kept in sync with the answer
+  // block's "As of" date below). Bump dateModified whenever facts here change.
+  const HUB_PUBLISHED = "2026-02-15";
+  const HUB_MODIFIED = "2026-06-28";
+  const hubPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Liberty Village FIFA World Cup 2026 Guide",
+    description:
+      "Toronto's complete FIFA World Cup 2026 guide from Liberty Village: the six BMO Field matches, road closures, where to watch, and game-day logistics.",
+    url: `${SITE_URL}/world-cup`,
+    datePublished: HUB_PUBLISHED,
+    dateModified: HUB_MODIFIED,
+    mainEntity: matchListSchema,
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <Breadcrumbs items={breadcrumbs} />
@@ -161,6 +178,18 @@ export default function WorldCupHubPage() {
           The Bentway FIFA Fan Festival is the free official viewing site under the
           Gardiner for fans without tickets.
         </p>
+        <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-warm-500">
+          Key facts — as of <time dateTime="2026-06-28">June 28, 2026</time>
+        </p>
+        <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-warm-700 list-disc pl-5">
+          <li>6 Toronto matches at BMO Field: June 12, 17, 20, 23, 26, and July 2, 2026.</li>
+          <li>June 12 is Canada&apos;s Group A opener; July 2 is a Round of 32 knockout fixture.</li>
+          <li>BMO Field is a 15-minute walk from the centre of Liberty Village.</li>
+          <li>Expect 45,000+ fans per match; streets are busiest 3 hours before kickoff and 2 hours after.</li>
+          <li>Lake Shore Boulevard, Strachan Avenue, Dufferin Street, and Fleet Street close around each kickoff.</li>
+          <li>Residents need a free City of Toronto Local Access Permit to drive into the controlled zone.</li>
+          <li>The Bentway FIFA Fan Festival is the free official viewing site for fans without tickets.</li>
+        </ul>
       </section>
 
       <h2 className="mt-10 text-xl font-semibold text-warm-800">
@@ -258,7 +287,7 @@ export default function WorldCupHubPage() {
       {/* Breadcrumb + FAQ JSON-LD are emitted by the Breadcrumbs and FAQSection components. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(matchListSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(hubPageSchema) }}
       />
     </div>
   );

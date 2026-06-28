@@ -2,7 +2,7 @@
 
 > The definitive neighbourhood guide to Liberty Village, Toronto. Local restaurant reviews, service directories, transit guides, real estate data, and community news for residents and visitors.
 
-Last updated: 2026-05-17
+Last updated: 2026-06-28
 
 ## Core Pages
 - [Homepage](https://libertyvillage.co/): Overview of Liberty Village neighbourhood with featured guides, services, and blog posts
@@ -48,8 +48,8 @@ Last updated: 2026-05-17
 
 ## Key Facts
 - Location: Liberty Village, Toronto, Ontario, Canada
-- Area: 28-hectare neighbourhood bounded by King Street West, Dufferin Street, and the GO rail corridor
-- Population: ~7,500 residents, primarily young professionals aged 25-40
+- Area: 28-hectare (0.28 km²) neighbourhood bounded by King Street West, Dufferin Street, and the GO rail corridor
+- Population: about 9,000 residents, primarily young professionals aged 25-40
 - Median rent: $2,608/month for a one-bedroom (early 2026)
 - Median condo price: $610,000 (December 2025)
 - Transit: 504 King streetcar, Exhibition GO Station, Ontario Line coming 2031
