@@ -1,0 +1,56 @@
+name: Weekly business discovery
+
+# Discovers new Liberty Village businesses via SerpApi Google Maps and opens a PR
+# adding them to data/businesses.json. New /directory/[slug] pages generate
+# automatically from that data file.
+
+on:
+  schedule:
+    - cron: "0 13 * * 1" # Mondays 09:00 America/Toronto (13:00 UTC)
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "Max new businesses to add this run"
+        required: false
+        default: "15"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Discover new businesses
+        id: discover
+        env:
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: node scripts/discover-businesses.mjs --max=${{ github.event.inputs.max || '15' }}
+
+      - name: Open pull request
+        if: steps.discover.outputs.added != '' && steps.discover.outputs.added != '0'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: auto/business-discovery
+          base: main
+          commit-message: "directory: add ${{ steps.discover.outputs.added }} new LV businesses (weekly Maps discovery)"
+          title: "directory: ${{ steps.discover.outputs.added }} new Liberty Village businesses (weekly)"
+          body: |
+            Automated weekly discovery via SerpApi Google Maps.
+
+            - Deduped against the existing directory and filtered to the Liberty Village geo-box
+            - Quality bar: rating >= 4.0 and >= 50 Google reviews
+            - Records are basic (facts from Maps, templated copy) and flagged `_needsEnrichment: true`
+
+            Review, enrich the copy, then merge. New `/directory/[slug]` pages render automatically.
+          draft: true
+          delete-branch: true
+          labels: automated, directory
