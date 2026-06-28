@@ -1,6 +1,9 @@
 import type { Building, Business, FAQ } from "./types";
 
 const SITE_URL = "https://libertyvillage.co";
+// Collective byline used on /about. Used as the fallback author when a piece of
+// content has no explicit author of its own.
+const SITE_AUTHOR = "LibertyVillage.co Editorial";
 
 export function generateLocalBusinessSchema(business: Business) {
   return {
@@ -19,11 +22,23 @@ export function generateLocalBusinessSchema(business: Business) {
     url: business.website || undefined,
     priceRange: business.priceRange,
     ...(business.image ? { image: `${SITE_URL}${business.image}` } : {}),
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: business.rating,
-      reviewCount: business.reviewCount,
-    },
+    // Only emit aggregateRating when we actually have real aggregate review
+    // data (a rating value AND a non-zero review count). The dataset holds no
+    // individual review records, so we cannot emit standalone Review objects;
+    // emitting aggregateRating with a 0/undefined value would be an unsupported,
+    // potentially spam-flagged rich result, so we gate it off instead. The
+    // LocalBusiness node is itself the item being reviewed (itemReviewed).
+    ...(business.rating && business.reviewCount
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: business.rating,
+            reviewCount: business.reviewCount,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
   };
 }
 
@@ -62,7 +77,8 @@ export function generateItemListSchema(
 export function generateArticleSchema(
   title: string,
   description: string,
-  datePublished: string
+  datePublished: string,
+  author: string = SITE_AUTHOR
 ) {
   return {
     "@context": "https://schema.org",
@@ -77,24 +93,33 @@ export function generateArticleSchema(
       url: SITE_URL,
     },
     author: {
-      "@type": "Organization",
-      name: "LibertyVillage.co",
+      "@type": "Person",
+      name: author,
     },
   };
 }
 
 export function generateBreadcrumbSchema(
-  breadcrumbs: { label: string; href: string }[]
+  breadcrumbs: { label: string; href?: string }[]
 ) {
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: breadcrumbs.map((crumb, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
-      name: crumb.label,
-      item: `${SITE_URL}${crumb.href}`,
-    })),
+    itemListElement: breadcrumbs.map((crumb, index) => {
+      const isLast = index === breadcrumbs.length - 1;
+      const entry: Record<string, unknown> = {
+        "@type": "ListItem",
+        position: index + 1,
+        name: crumb.label,
+      };
+      // The final crumb is the current page itself. Per Google's guidance,
+      // omit `item` on it rather than pointing at a placeholder ("#") URL,
+      // which would resolve to "https://libertyvillage.co#".
+      if (!isLast && crumb.href && crumb.href !== "#") {
+        entry.item = `${SITE_URL}${crumb.href}`;
+      }
+      return entry;
+    }),
   };
 }
 
@@ -150,7 +175,7 @@ export function generateSpeakableSchema(url: string) {
 }
 
 export function generateBlogPostSchema(
-  post: { title: string; description: string; publishedAt: string; updatedAt: string; slug: string; image?: string }
+  post: { title: string; description: string; publishedAt: string; updatedAt: string; slug: string; image?: string; author?: string }
 ) {
   return {
     "@context": "https://schema.org",
@@ -167,8 +192,8 @@ export function generateBlogPostSchema(
       url: SITE_URL,
     },
     author: {
-      "@type": "Organization",
-      name: "LibertyVillage.co",
+      "@type": "Person",
+      name: post.author || SITE_AUTHOR,
     },
     mainEntityOfPage: {
       "@type": "WebPage",

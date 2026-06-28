@@ -189,23 +189,27 @@ type PageType = "service" | "neighborhood" | "business" | "guide" | "blog" | "te
 export function getBreadcrumbs(
   pageType: PageType,
   label: string
-): { label: string; href: string }[] {
+): { label: string; href?: string }[] {
   const home = { label: "Home", href: "/" };
 
+  // The final crumb is the current page itself, so it carries no href. Omitting
+  // it (rather than using a "#" placeholder) keeps the rendered span unlinked
+  // and keeps the BreadcrumbList JSON-LD from emitting an "item" that resolves
+  // to "https://libertyvillage.co#".
   switch (pageType) {
     case "service":
-      return [home, { label: "Directory", href: "/directory" }, { label, href: "#" }];
+      return [home, { label: "Directory", href: "/directory" }, { label }];
     case "neighborhood":
-      return [home, { label: "Compare Neighbourhoods", href: "/vs" }, { label, href: "#" }];
+      return [home, { label: "Compare Neighbourhoods", href: "/vs" }, { label }];
     case "business":
-      return [home, { label: "Directory", href: "/directory" }, { label, href: "#" }];
+      return [home, { label: "Directory", href: "/directory" }, { label }];
     case "guide":
-      return [home, { label: "Guides", href: "/guide" }, { label, href: "#" }];
+      return [home, { label: "Guides", href: "/guide" }, { label }];
     case "blog":
-      return [home, { label: "Blog", href: "/blog" }, { label, href: "#" }];
+      return [home, { label: "Blog", href: "/blog" }, { label }];
     case "terms":
-      return [home, { label, href: "#" }];
+      return [home, { label }];
     case "privacy":
-      return [home, { label, href: "#" }];
+      return [home, { label }];
   }
 }

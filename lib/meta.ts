@@ -67,8 +67,23 @@ export function generateBusinessPageMeta(business: Business): Metadata {
   if (business.address) descParts.push(business.address);
   const richDesc = descParts.join(" · ").slice(0, 155);
 
+  // Keep the <title> <= 60 chars. The full suffix is long, so step down to a
+  // shorter suffix for longer names, then truncate the name itself only as a
+  // last resort so the tag never overflows in SERPs.
+  const fullTitle = `${business.name} — Reviews, Hours & Location | libertyvillage.co`;
+  const shortSuffix = " — Liberty Village";
+  let title: string;
+  if (fullTitle.length <= 60) {
+    title = fullTitle;
+  } else if (business.name.length + shortSuffix.length <= 60) {
+    title = `${business.name}${shortSuffix}`;
+  } else {
+    const maxName = 60 - shortSuffix.length - 1; // room for the ellipsis
+    title = `${business.name.slice(0, maxName).trimEnd()}…${shortSuffix}`;
+  }
+
   return buildMeta(
-    `${business.name} — Reviews, Hours & Location | libertyvillage.co`,
+    title,
     richDesc,
     `/directory/${business.slug}`,
     business.image || "/images/og/og-directory.jpg"

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getAllTopics, getTopicBySlug } from "@/lib/data";
 import { generateGuidePageMeta } from "@/lib/meta";
-import { generateArticleSchema, generateDefinedTermSetSchema, generateSpeakableSchema, generateFAQSchema } from "@/lib/schema";
+import { generateArticleSchema, generateDefinedTermSetSchema, generateSpeakableSchema } from "@/lib/schema";
 import { getRelatedGuides, getRelatedServices, getRelatedPostsForTopic, getBreadcrumbs } from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -71,7 +71,8 @@ export default async function GuidePage({ params }: Props) {
   const speakableSchema = topic.answerSummary
     ? generateSpeakableSchema(`/guide/${topic.slug}`)
     : null;
-  const faqSchema = topic.faqs && topic.faqs.length > 0 ? generateFAQSchema(topic.faqs) : null;
+  // FAQPage JSON-LD is emitted once by <FAQSection> below — do not duplicate it
+  // here, or Google sees two FAQPage blocks on the same URL.
 
   const contentHtml = renderMarkdownContent(topic.content);
 
@@ -155,12 +156,6 @@ export default async function GuidePage({ params }: Props) {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(speakableSchema) }}
-        />
-      )}
-      {faqSchema && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
         />
       )}
     </div>

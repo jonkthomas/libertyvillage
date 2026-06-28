@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getAllPosts, getPostBySlug } from "@/lib/data";
 import { generateBlogPostPageMeta } from "@/lib/meta";
-import { generateBlogPostSchema, generateSpeakableSchema, generateFAQSchema } from "@/lib/schema";
+import { generateBlogPostSchema, generateSpeakableSchema } from "@/lib/schema";
 import { getRelatedPosts, getRelatedGuidesForPost, getRelatedServicesForPost, getBreadcrumbs, resolveCrossLinks } from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -41,7 +41,8 @@ export default async function BlogPostPage({ params }: Props) {
   const crossLinks = resolveCrossLinks(post.crossLinks);
   const blogPostSchema = generateBlogPostSchema(post);
   const speakableSchema = generateSpeakableSchema(`/blog/${post.slug}`);
-  const faqSchema = post.faqs && post.faqs.length > 0 ? generateFAQSchema(post.faqs) : null;
+  // FAQPage JSON-LD is emitted once by <FAQSection> below — do not duplicate it
+  // here, or Google sees two FAQPage blocks on the same URL.
   const contentHtml = renderMarkdownContent(post.content);
 
   return (
@@ -122,12 +123,6 @@ export default async function BlogPostPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(speakableSchema) }}
       />
-      {faqSchema && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-        />
-      )}
     </div>
   );
 }
