@@ -348,6 +348,48 @@ export default async function BusinessDetailPage({ params }: Props) {
         </div>
       )}
 
+      {/* Reviews — entity-specific summary (keeps brand "reviews" intent on the entity page) */}
+      {business.reviewExcerpt && (
+        <section className="mt-10">
+          <h2 className="text-xl font-semibold text-warm-900">
+            {business.name} Reviews
+          </h2>
+          <p className="mt-2 text-sm text-warm-600 leading-relaxed">
+            {business.reviewExcerpt}
+          </p>
+          <p className="mt-2 text-xs text-warm-400">
+            Based on {business.reviewCount.toLocaleString()} reviews · {business.rating} out of 5 stars
+          </p>
+        </section>
+      )}
+
+      {/* Entity-specific review Q&A (rendered as page content, not the getBusinessFAQs schema block) */}
+      {business.reviewFaqs && business.reviewFaqs.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold text-warm-900">
+            {business.name} Reviews — Common Questions
+          </h2>
+          <div className="mt-4 space-y-2">
+            {business.reviewFaqs.map((faq) => (
+              <details
+                key={faq.question}
+                className="group rounded-lg border border-warm-200 bg-white"
+              >
+                <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-warm-800 hover:text-amber-600 transition-colors list-none flex items-center justify-between">
+                  {faq.question}
+                  <span className="ml-2 text-warm-400 group-open:rotate-180 transition-transform">
+                    ▼
+                  </span>
+                </summary>
+                <div className="px-5 pb-4 text-sm text-warm-600 leading-relaxed">
+                  {faq.answer}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
+
       <FAQSection faqs={faqs} />
 
       <RelatedLinks

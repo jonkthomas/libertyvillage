@@ -107,6 +107,8 @@ export interface Business {
   image?: string;
   answerBlock?: string;
   bestFor?: string[];
+  reviewExcerpt?: string;
+  reviewFaqs?: FAQ[];
 }
 
 export interface BlogPost {
