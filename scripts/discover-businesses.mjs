@@ -9,13 +9,18 @@
  * additions; records can then be enriched (descriptions are intentionally
  * templated here so the deterministic job never hallucinates facts).
  *
- * Env: SERPAPI_API_KEY (required).
+ * Env: SERPAPI_API_KEY (required), PEXELS_API_KEY (optional - adds a
+ *      category-matched stock hero image per new business).
  * Usage: node scripts/discover-businesses.mjs [--max=15] [--dry]
  */
 import fs from "node:fs";
 import path from "node:path";
 
 const API_KEY = process.env.SERPAPI_API_KEY;
+const PEXELS_KEY = process.env.PEXELS_API_KEY;
+// Pexels' WAF 403s the default Node/urllib UA; a browser UA is required.
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 if (!API_KEY) {
   console.error("ERROR: SERPAPI_API_KEY env var is required.");
   process.exit(1);
@@ -83,6 +88,49 @@ async function maps(query) {
   if (!res.ok) throw new Error(`SerpApi ${res.status} for "${query}"`);
   const json = await res.json();
   return json.local_results || [];
+}
+
+// Category slug -> Pexels search query for a representative stock hero.
+const PEXELS_QUERY = {
+  restaurants: "restaurant interior dining", "italian-restaurants": "italian restaurant pasta",
+  "thai-restaurants": "thai food restaurant", "indian-restaurants": "indian restaurant food",
+  sushi: "sushi restaurant", pizza: "pizzeria pizza", "burger-joints": "burger restaurant",
+  "brunch-spots": "brunch cafe", bars: "cocktail bar interior", "wine-bars": "wine bar",
+  breweries: "brewery taproom", "coffee-shops": "coffee shop cafe interior", bakeries: "bakery pastries",
+  gyms: "modern gym interior", pilates: "pilates studio", "yoga-studios": "yoga studio",
+  "hair-salons": "hair salon interior", barbers: "barbershop", "nail-salons": "nail salon manicure",
+  spas: "spa treatment room", dentists: "dental clinic", physiotherapy: "physiotherapy clinic",
+  chiropractors: "chiropractic clinic", "massage-therapy": "massage therapy spa",
+  optometrists: "eyewear store", "pet-stores": "pet store", "dog-groomers": "dog grooming",
+  florists: "flower shop florist", "tattoo-parlors": "tattoo studio",
+};
+
+// Fetch a category-matched landscape image from Pexels, download to public/images/businesses/<slug>.jpg.
+// Returns the public path, or "" on any failure (records stay blank-image, which renders fine).
+async function fetchImage(slug, category) {
+  if (!PEXELS_KEY) return "";
+  const query = PEXELS_QUERY[category] || "toronto small business storefront";
+  try {
+    const res = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=5&orientation=landscape`,
+      { headers: { Authorization: PEXELS_KEY, "User-Agent": UA } }
+    );
+    if (!res.ok) return "";
+    const photos = (await res.json()).photos || [];
+    if (!photos.length) return "";
+    const src = photos[Math.floor(Math.random() * photos.length)].src.landscape.split("?")[0] +
+      "?auto=compress&cs=tinysrgb&w=1280&h=720&fit=crop";
+    const img = await fetch(src, { headers: { "User-Agent": UA } });
+    if (!img.ok) return "";
+    const buf = Buffer.from(await img.arrayBuffer());
+    if (buf.length < 5000) return "";
+    const dir = path.join(ROOT, "public", "images", "businesses");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${slug}.jpg`), buf);
+    return `/images/businesses/${slug}.jpg`;
+  } catch {
+    return "";
+  }
 }
 
 function toRecord(x, categorySlug) {
@@ -166,6 +214,13 @@ async function main() {
     rec.slug = s;
     haveSlug.add(s);
     batch.push(rec);
+  }
+
+  if (!DRY && PEXELS_KEY) {
+    for (const rec of batch) {
+      rec.image = await fetchImage(rec.slug, rec.category);
+    }
+    console.log(`Fetched ${batch.filter((b) => b.image).length}/${batch.length} Pexels images.`);
   }
 
   const date = new Date().toISOString().slice(0, 10);

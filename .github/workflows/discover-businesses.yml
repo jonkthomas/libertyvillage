@@ -32,6 +32,7 @@ jobs:
         id: discover
         env:
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: node scripts/discover-businesses.mjs --max=${{ github.event.inputs.max || '15' }}
 
       - name: Open pull request
