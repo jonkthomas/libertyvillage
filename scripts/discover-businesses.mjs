@@ -108,7 +108,7 @@ function toRecord(x, categorySlug) {
     tags: [categorySlug.replace(/-/g, " "), "liberty village", "toronto"],
     featured: false,
     proTip: "",
-    image: x.thumbnail || "",
+    image: "", // remote Maps thumbnails break next/image; enrich with local/Pexels images later
     answerBlock: `${name} is a ${rating}-star ${categorySlug.replace(/-/g, " ").replace(/s$/, "")} in Liberty Village${
       x.address ? ` at ${x.address}` : ""
     }, with ${reviewCount} Google reviews.`,
