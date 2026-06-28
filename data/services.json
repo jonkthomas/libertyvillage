@@ -3,97 +3,348 @@
     "slug": "restaurants",
     "name": "Restaurant",
     "pluralName": "Restaurants",
-    "description": "15 best restaurants in Liberty Village Toronto for 2026, ranked by locals. From Mildred's brunch to NODO pizza nights — ratings, prices, what to order, and date-night picks.",
+    "description": "The complete guide to Liberty Village restaurants, updated June 2026 — every sit-down spot in the neighbourhood, ranked by Google rating and review count. Pai Northern Thai, Mildred's Temple Kitchen, Pizza Libretto, School, Brazen Head and more, with ratings, prices, addresses, dietary and delivery options, plus what we actually order.",
     "icon": "🍽️",
     "relatedServices": [
-      "coffee-shops",
-      "bars",
-      "brunch-spots",
-      "patios",
+      "thai-restaurants",
       "pizza",
-      "short-term-rentals"
+      "italian-restaurants",
+      "indian-restaurants",
+      "brunch-spots",
+      "bars",
+      "sushi",
+      "burger-joints",
+      "wine-bars",
+      "patios",
+      "coffee-shops"
     ],
     "searchVolume": "high",
-    "competitiveness": "hard",
+    "competitiveness": "low",
     "image": "/images/services/restaurants.jpg",
-    "answerBlock": "The best restaurants in Liberty Village, Toronto in 2026 are Mildred's Temple Kitchen, School Restaurant, Impact Kitchen, LOCAL Public Eatery, and Brazen Head Irish Pub — five standout spots ranked by locals. Mildred's Temple Kitchen on Hanna Avenue leads with a 4.5/5 rating and legendary brunch — their blueberry buttermilk pancakes ($18) have been a Toronto institution since 2004. School Restaurant in a restored 1890s schoolhouse on Fraser Avenue is the top date-night pick at $35 to $45 per person. Impact Kitchen on Atlantic Avenue serves the fitness crowd with $14 to $18 macro-tracked bowls. LOCAL Public Eatery on East Liberty rounds out the scene with pub fare and a $12 Caesar bar on weekends. Brazen Head Irish Pub offers the neighbourhood's largest rooftop patio, opening each May. Prices across Liberty Village restaurants range from $14 lunch bowls to $45 dinner entrées.",
-    "definition": "Restaurants in Liberty Village range from elevated Canadian dining in converted industrial spaces to casual neighbourhood eateries, concentrated along East Liberty Street and the surrounding warehouse district.",
+    "answerBlock": "Liberty Village has more than 15 sit-down restaurants packed into roughly 0.28 km2, almost all of them in the neighbourhood proper along East Liberty Street, Liberty Street, Hanna Avenue and Fraser Avenue. Ranked by Google rating and review count as of June 2026, the highest-rated are Pai Northern Thai Kitchen (4.5/5, 1,534 reviews) for Khao Soi, Mildred's Temple Kitchen (4.5/5, 1,247 reviews) for brunch, and Maurya East Indian Roti (4.5/5, 340 reviews) for butter chicken roti. Pizza Libretto and NODO cover Neapolitan pizza, School Restaurant in a restored 1890s schoolhouse is the date-night pick, and LOCAL Public Eatery plus Brazen Head Irish Pub (4.0/5, 1,156 reviews — the neighbourhood's biggest patio) anchor the sports-and-patio scene. Impact Kitchen handles macro-counted healthy bowls, and Burger Drops does the best smash burgers. Prices run from $ (Chiang Mai, Burger Drops, Maurya) to $$$ (School, Cibo Wine Bar). A handful of spots people search next to Liberty Village — Ono Poke, Miku, Curryish, Aroma — actually sit just outside it and are flagged below. These are our Liberty Village team's tested picks, and most are a 5-minute walk apart, so you can compare two or three before deciding.",
+    "definition": "Restaurants in Liberty Village range from VPN-certified Neapolitan pizza and top-tier Northern Thai to heritage-building dining, Irish-pub patios and macro-counted health bowls, concentrated almost entirely along East Liberty Street and the converted-warehouse blocks between Hanna and Fraser Avenues.",
     "comparisonTable": {
-      "columns": ["Restaurant", "Cuisine", "Price Range", "Rating", "Best For"],
+      "columns": [
+        "Restaurant",
+        "Cuisine",
+        "Address",
+        "Price",
+        "Rating",
+        "Reviews",
+        "Location",
+        "Best For"
+      ],
       "rows": [
-        { "Restaurant": "Mildred's Temple Kitchen", "Cuisine": "Canadian", "Price Range": "$$", "Rating": "4.5/5", "Best For": "Brunch & special occasions" },
-        { "Restaurant": "School Restaurant", "Cuisine": "Canadian-Contemporary", "Price Range": "$$$", "Rating": "4.3/5", "Best For": "Date night & cocktails" },
-        { "Restaurant": "Impact Kitchen", "Cuisine": "Healthy/Bowls", "Price Range": "$$", "Rating": "4.2/5", "Best For": "Post-workout & macro-friendly" },
-        { "Restaurant": "LOCAL Public Eatery", "Cuisine": "Pub/Canadian", "Price Range": "$$", "Rating": "4.1/5", "Best For": "Sports nights & group dinners" },
-        { "Restaurant": "Moxie's Grill & Bar", "Cuisine": "Casual Dining", "Price Range": "$$", "Rating": "3.9/5", "Best For": "Late-night apps & family meals" },
-        { "Restaurant": "Brazen Head Irish Pub", "Cuisine": "Irish Pub", "Price Range": "$$", "Rating": "4.0/5", "Best For": "Patio season & pub food" }
+        {
+          "Restaurant": "Pai Northern Thai Kitchen",
+          "Cuisine": "Northern Thai",
+          "Address": "171 East Liberty St",
+          "Price": "$$",
+          "Rating": "4.5/5",
+          "Reviews": "1,534",
+          "Location": "In LV",
+          "Best For": "Khao Soi and the best Thai in the area"
+        },
+        {
+          "Restaurant": "Mildred's Temple Kitchen",
+          "Cuisine": "Canadian / Brunch",
+          "Address": "85 Hanna Ave",
+          "Price": "$$",
+          "Rating": "4.5/5",
+          "Reviews": "1,247",
+          "Location": "In LV",
+          "Best For": "Weekend brunch and special occasions"
+        },
+        {
+          "Restaurant": "Brazen Head Irish Pub",
+          "Cuisine": "Irish Pub",
+          "Address": "165 East Liberty St",
+          "Price": "$$",
+          "Rating": "4.0/5",
+          "Reviews": "1,156",
+          "Location": "In LV",
+          "Best For": "Biggest patio, trivia and late-night pints (open to 2am)"
+        },
+        {
+          "Restaurant": "School Restaurant",
+          "Cuisine": "Canadian-Contemporary",
+          "Address": "70 Fraser Ave",
+          "Price": "$$$",
+          "Rating": "4.3/5",
+          "Reviews": "1,089",
+          "Location": "In LV",
+          "Best For": "Date night in an 1890s schoolhouse"
+        },
+        {
+          "Restaurant": "Pizza Libretto",
+          "Cuisine": "Neapolitan Pizza",
+          "Address": "155 Liberty St",
+          "Price": "$$",
+          "Rating": "4.4/5",
+          "Reviews": "945",
+          "Location": "In LV",
+          "Best For": "Wood-fired pizza and wine"
+        },
+        {
+          "Restaurant": "LOCAL Public Eatery",
+          "Cuisine": "Pub / Sports Bar",
+          "Address": "55 East Liberty St",
+          "Price": "$$",
+          "Rating": "4.1/5",
+          "Reviews": "923",
+          "Location": "In LV",
+          "Best For": "Patio, games and 3-6pm happy hour"
+        },
+        {
+          "Restaurant": "NODO",
+          "Cuisine": "Italian / Pizza",
+          "Address": "1 East Liberty St",
+          "Price": "$$",
+          "Rating": "4.3/5",
+          "Reviews": "876",
+          "Location": "In LV",
+          "Best For": "Neapolitan pizza and house pasta"
+        },
+        {
+          "Restaurant": "Kinton Ramen",
+          "Cuisine": "Japanese / Ramen",
+          "Address": "171 East Liberty St",
+          "Price": "$$",
+          "Rating": "4.3/5",
+          "Reviews": "850",
+          "Location": "In LV",
+          "Best For": "Tonkotsu ramen lunch"
+        },
+        {
+          "Restaurant": "Cibo Wine Bar",
+          "Cuisine": "Italian / Wine Bar",
+          "Address": "100 Liberty St",
+          "Price": "$$$",
+          "Rating": "4.2/5",
+          "Reviews": "782",
+          "Location": "In LV",
+          "Best For": "Moody Italian date night and Aperitivo hour"
+        },
+        {
+          "Restaurant": "OEB Breakfast Co.",
+          "Cuisine": "Brunch / Breakfast",
+          "Address": "2 East Liberty St",
+          "Price": "$$",
+          "Rating": "4.4/5",
+          "Reviews": "756",
+          "Location": "In LV",
+          "Best For": "Eggs benny and weekend brunch"
+        },
+        {
+          "Restaurant": "Moxie's Grill & Bar",
+          "Cuisine": "Casual Dining",
+          "Address": "171 East Liberty St",
+          "Price": "$$",
+          "Rating": "3.9/5",
+          "Reviews": "678",
+          "Location": "In LV",
+          "Best For": "Chain fallback for indecisive groups and after-9pm half-price apps"
+        },
+        {
+          "Restaurant": "Chiang Mai Thai Restaurant",
+          "Cuisine": "Thai",
+          "Address": "45 East Liberty St",
+          "Price": "$",
+          "Rating": "4.0/5",
+          "Reviews": "612",
+          "Location": "In LV",
+          "Best For": "Best-value lunch combo, takeout and delivery"
+        },
+        {
+          "Restaurant": "Impact Kitchen",
+          "Cuisine": "Healthy / Bowls",
+          "Address": "109 Atlantic Ave",
+          "Price": "$$",
+          "Rating": "4.2/5",
+          "Reviews": "534",
+          "Location": "In LV",
+          "Best For": "Macro-counted, plant-friendly post-workout meals"
+        },
+        {
+          "Restaurant": "Egg Club",
+          "Cuisine": "Brunch / Breakfast",
+          "Address": "85 Hanna Ave",
+          "Price": "$$",
+          "Rating": "4.4/5",
+          "Reviews": "510",
+          "Location": "In LV",
+          "Best For": "Egg sandwiches and specialty coffee"
+        },
+        {
+          "Restaurant": "Burger Drops",
+          "Cuisine": "Smash Burgers",
+          "Address": "171 East Liberty St",
+          "Price": "$",
+          "Rating": "4.4/5",
+          "Reviews": "489",
+          "Location": "In LV",
+          "Best For": "Smash burgers, loaded fries and takeout"
+        },
+        {
+          "Restaurant": "Maurya East Indian Roti",
+          "Cuisine": "Indian / Roti",
+          "Address": "150 E Liberty St",
+          "Price": "$",
+          "Rating": "4.5/5",
+          "Reviews": "340",
+          "Location": "In LV",
+          "Best For": "Butter chicken roti and vegetarian Indian on a budget"
+        },
+        {
+          "Restaurant": "Kitchen Hub Food Hall",
+          "Cuisine": "Multi-cuisine / Food Hall",
+          "Address": "5 Fraser Ave",
+          "Price": "$$",
+          "Rating": "3.9/5",
+          "Reviews": "280",
+          "Location": "In LV",
+          "Best For": "Group delivery and overflow, not a destination"
+        },
+        {
+          "Restaurant": "Ono Poke",
+          "Cuisine": "Poke / Healthy",
+          "Address": "1118 King St W",
+          "Price": "$$",
+          "Rating": "4.2/5",
+          "Reviews": "430",
+          "Location": "Short walk (King W)",
+          "Best For": "Build-your-own poke bowls, customizable and gluten-friendly"
+        }
       ]
     },
     "keyTakeaways": [
-      "Mildred's Temple Kitchen leads Liberty Village dining with a 4.5/5 rating and brunch entrées from $18 to $24",
-      "School Restaurant charges $35-$45 per person for dinner in a restored 1890s schoolhouse — book Thursday for shorter waits",
-      "Impact Kitchen bowls run $14-$18 with full macro breakdowns, making it the neighbourhood's go-to post-gym meal",
-      "LOCAL Public Eatery's weekend brunch includes a $12 Caesar bar and $16 breakfast plates with no reservations needed",
-      "Happy hours at Brazen Head and LOCAL run 3 pm to 6 pm weekdays with $7 pints and $9 appetizers"
+      "Ratings and review counts on this page are Google figures as of June 2026, and our picks reflect meals our Liberty Village team has actually eaten, not a scraped listicle.",
+      "Pai Northern Thai Kitchen (4.5/5, 1,534 reviews) is the single highest-reviewed restaurant in Liberty Village. Order the Khao Soi with crispy egg noodles on the side.",
+      "Three restaurants tie for the top 4.5/5 rating: Pai, Mildred's Temple Kitchen (brunch) and Maurya East Indian Roti (butter chicken roti).",
+      "Brazen Head Irish Pub (4.0/5, 1,156 reviews) is the neighbourhood's biggest patio and its latest kitchen, open until 2am daily. It is the real late-night and big-group anchor, not Moxie's.",
+      "Almost every restaurant is within a 5-minute walk along East Liberty, Liberty, Hanna and Fraser. 171 East Liberty St alone houses Pai, Kinton Ramen, Burger Drops and Moxie's.",
+      "Cheapest sit-down eats are the $ tier: Chiang Mai's under-$15 lunch combo, Burger Drops smash burgers, and Maurya's butter chicken roti.",
+      "No restaurant in Liberty Village is fully vegan, but Maurya (Indian vegetarian), Impact Kitchen (plant-based, macro-labelled bowls) and Ono Poke (build-your-own) cover plant-based and gluten-friendly eating well.",
+      "For takeout and delivery, Chiang Mai (Thai) and Kitchen Hub Food Hall (multi-vendor, open to 11pm) are the workhorses. Kitchen Hub (3.9) is for convenience, not a night out.",
+      "Be honest about the misses: Moxie's (3.9) is the chain you pick when the group can't agree, and the highest ratings reward independents like Pai, Pizza Libretto and Maurya."
     ],
     "proTips": [
-      "Mildred's weekend brunch fills up by 10:30 am — arrive by 10 am or go for the quieter weekday lunch service starting at 11:30 am",
-      "School Restaurant doesn't take reservations for brunch, but the wait drops to under 15 minutes after 1 pm on Sundays",
-      "Impact Kitchen lets you order online for pickup through their app — skip the 12 pm lunch rush entirely",
-      "LOCAL Public Eatery's $7 Tuesday wing special is the best value in the neighbourhood — pair it with a $6 Mill Street draft",
-      "Brazen Head's 80-seat rooftop patio opens in May and never takes reservations — Thursday at 5 pm is the sweet spot"
+      "We always order the Pai Khao Soi with the crispy egg noodles on the side and add them gradually so they stay crunchy through the whole bowl.",
+      "171 East Liberty Street is a one-stop food building: Pai, Kinton Ramen, Burger Drops and Moxie's share the address, so a split group can order four ways and meet in the middle.",
+      "Mildred's Saturday brunch is full by 10:30am. Put your name in, then grab a coffee at one of the nearby [coffee shops](/best/coffee-shops) while you wait.",
+      "Use OEB's online waitlist from your condo on weekends and walk over when the table is nearly ready instead of standing outside.",
+      "Cibo Wine Bar's weekday Aperitivo (4-6pm) is half-price appetizers and $10 cocktails. Order enough small plates and it's essentially a discounted dinner.",
+      "Ask NODO for the off-menu burrata and Pizza Libretto for the Nduja pizza. Both are near-always available but rarely printed.",
+      "For delivery nights, Chiang Mai is our default for Thai and Kitchen Hub Food Hall is the move when one person wants a burger and another wants poke from the same order.",
+      "Vegetarian table? Maurya's saag paneer and Impact Kitchen's plant-based bowls keep everyone happy, and Ono Poke lets you build a no-fish, gluten-friendly bowl."
     ],
-    "neighbourhoodContext": "Liberty Village's restaurant scene is shaped by its unique mix of residents: young professionals in condos, tech workers from nearby offices, and fitness enthusiasts from the neighbourhood's many gyms. This creates demand for everything from $14 macro bowls at Impact Kitchen to $45 tasting-style dinners at School Restaurant.\n\nMost restaurants cluster along East Liberty Street and the surrounding blocks between Hanna Avenue and Atlantic Avenue. The converted warehouse spaces give many spots a distinctive industrial-chic atmosphere — exposed brick, high ceilings, and original timber beams are common design elements. Parking is scarce, so most diners walk or take the King streetcar.\n\nThe dining scene has evolved significantly since the neighbourhood's condo boom in the 2010s. What was once a handful of lunch counters serving factory workers is now a diverse strip of over 40 food and drink establishments. Weekend brunch culture dominates Saturday and Sunday mornings, with Mildred's and School drawing crowds from across the city.",
+    "neighbourhoodContext": "Liberty Village packs more than 15 restaurants into roughly 0.28 km2 (28 hectares) serving about 9,000 residents, giving the neighbourhood one of the densest food strips of any Toronto pocket its size. The Walk Score of 88 means almost everyone here eats on foot. Most diners walk or take the King streetcar rather than drive, since on-street parking is scarce.\n\nThe scene is shaped by who lives and works here: young professionals in condos (median condo around $610k, median rent around $2,608), tech workers from the converted-warehouse offices, and a heavy fitness crowd from the area's many gyms, Pilates and yoga studios. That mix explains the spread, from Impact Kitchen's macro-counted bowls to $$$ rooms like School and Cibo Wine Bar.\n\nGeographically, the dining clusters tightly. East Liberty Street is the spine, holding LOCAL, OEB, Chiang Mai, NODO, Maurya, Brazen Head, and the 171 East Liberty food building (Pai, Kinton, Burger Drops, Moxie's). Liberty Street adds Pizza Libretto and Cibo, Hanna Avenue holds Mildred's and Egg Club, and Fraser Avenue has School and Kitchen Hub Food Hall. Many spaces keep their industrial bones, with exposed brick, high ceilings and timber beams. The neighbourhood also sits next to BMO Field, so LOCAL, Brazen Head and Moxie's fill up on TFC and Argos game days. Weekend brunch is the dominant ritual, with Mildred's, School, OEB and Egg Club drawing lines from across the city by 10:30am.",
     "sections": [
       {
+        "heading": "Highest-Rated Restaurants in Liberty Village",
+        "content": "Rankings on this page use Google ratings and review counts as of June 2026, weighted by how many people have actually voted. Three restaurants share the top 4.5/5. Pai Northern Thai Kitchen (171 East Liberty St) is the most-reviewed restaurant in the neighbourhood with 1,534 reviews, and the Khao Soi is the dish to order. Mildred's Temple Kitchen (85 Hanna Ave, 1,247 reviews) matches it on rating and has been the area's brunch institution since 2004. Maurya East Indian Roti (150 E Liberty St) also holds 4.5/5 for butter chicken roti at a $ price. Just behind, a cluster of 4.4/5 spots covers different cravings: Pizza Libretto (155 Liberty St), OEB Breakfast Co. (2 East Liberty St), Burger Drops (171 East Liberty St) and Egg Club (85 Hanna Ave). Brazen Head Irish Pub (4.0/5) earns a place in any honest ranking too. Its 1,156 reviews are the most of any pub in Liberty Village, and the patio and 2am close make it a fixture even if the kitchen is pub-classic rather than destination dining. If you only have one meal here, Pai or Mildred's is the call."
+      },
+      {
+        "heading": "By Cuisine: Where to Go for What",
+        "content": "For Thai, Pai is the standout for Northern dishes like Khao Soi, while Chiang Mai (4.0/5, $) is the budget pick for a weekday lunch combo and reliable takeout. If you want options beyond these two, see the full [Thai restaurants guide](/best/thai-restaurants). Pizza and Italian run deep. Pizza Libretto fires VPN-certified Neapolitan pizza out of a 900-degree oven, NODO does 72-hour-fermented dough plus house pasta in a warm trattoria, and Cibo Wine Bar (100 Liberty St, $$$) handles refined pasta and a serious wine list. The full [pizza guide](/best/pizza) and [Italian restaurants guide](/best/italian-restaurants) go deeper. On the Japanese side, Kinton Ramen covers tonkotsu bowls in the neighbourhood; for sushi you have to leave Liberty Village, and our [sushi guide](/best/sushi) covers the closest options. Indian is anchored by Maurya for roti and butter chicken, with chef-driven and fine-dining rooms a short streetcar west; the [Indian restaurants guide](/best/indian-restaurants) maps them out. For burgers, Burger Drops does the double smash and the [burger guide](/best/burger-joints) has the rest. For healthy eating, Impact Kitchen leads on macros and Ono Poke (a short walk west) builds poke to order."
+      },
+      {
         "heading": "Best for Brunch",
-        "content": "Mildred's Temple Kitchen at 85 Hanna Avenue is the undisputed brunch queen of Liberty Village. Their blueberry buttermilk pancakes ($18) have been a Toronto institution since 2004, and the smoked salmon benny ($22) is the other must-order. Expect a 30-to-45-minute wait on Saturdays by 10:30 am. School Restaurant on Fraser Avenue offers a more upscale brunch in a restored 1890s schoolhouse, with dishes like duck confit hash ($24) and a strong cocktail menu. For a healthier take, Impact Kitchen's acai bowls ($14) and avocado toast ($16) satisfy the post-gym crowd without the heavy carbs."
+        "content": "Liberty Village is a genuine brunch destination, and our full [brunch guide](/best/brunch-spots) ranks every option. Mildred's Temple Kitchen (85 Hanna Ave, 4.5/5) is the original, famous for blueberry buttermilk pancakes in a converted factory. Weekend service fills by 10:30am. OEB Breakfast Co. (2 East Liberty St, 4.4/5) brought its Calgary brunch following here, with scratch-made crepes and premium eggs benny, and its online waitlist saves you the sidewalk. School Restaurant (70 Fraser Ave, 4.3/5) does an upscale brunch in the heritage schoolhouse but takes no brunch reservations. Egg Club (85 Hanna Ave, 4.4/5) is the casual pick for creative egg sandwiches and specialty coffee. Go on a weekday for the same food with no line. LOCAL Public Eatery adds a weekend Caesar bar for a boozier, sports-bar brunch."
       },
       {
         "heading": "Best for Date Night",
-        "content": "School Restaurant is Liberty Village's top date-night pick, with dim lighting, heritage architecture, and a menu of shareable plates ranging from $16 to $28. Their cocktail programme changes seasonally — ask the bartender for the off-menu creation. Mildred's Temple Kitchen transforms into a candlelit dining room in the evening, offering mains like braised short rib ($38) and pan-seared halibut ($42). For a more casual vibe, LOCAL Public Eatery's booth seating and craft cocktails work well for early-relationship dinners where a $$ bill keeps things low-pressure."
+        "content": "School Restaurant (70 Fraser Ave, 4.3/5) is the consensus date-night choice, a restored 1890s schoolhouse with soaring ceilings, original chalkboards and inventive cocktails. Request the upstairs loft for a near-private table over the dining room. Cibo Wine Bar (100 Liberty St, 4.2/5, $$$) is the moody Italian alternative with a strong wine list. Time it for the 4-6pm weekday Aperitivo and the bill drops considerably. Mildred's Temple Kitchen turns candlelit for evening service and suits an elevated-comfort dinner. For a lower-pressure early-relationship night, NODO's communal-table trattoria or a Pizza Libretto-and-wine evening keeps things at $$ without feeling like a casual bite. If wine is the point, the [wine bars guide](/best/wine-bars) has more."
       },
       {
-        "heading": "Best for Quick Lunch",
-        "content": "Impact Kitchen on Atlantic Avenue is the fastest quality lunch in the neighbourhood — order through their app and pick up a $15 grain bowl in under 5 minutes. LOCAL Public Eatery runs a weekday lunch special with a burger and drink for $18, served in about 12 minutes. Moxie's has a $16 express lunch menu available Monday to Friday between 11 am and 2 pm, with guaranteed 15-minute service or the appetizer is free."
+        "heading": "Best for a Quick or Cheap Lunch",
+        "content": "The $ tier is where Liberty Village eats fast. Chiang Mai (45 East Liberty St) has the best-value meal around: a weekday combo of curry, rice, spring roll and soup for under $15. Burger Drops (171 East Liberty St) turns out smash burgers, loaded fries and milkshakes from a tight menu. Maurya East Indian Roti (150 E Liberty St) does a quick, filling butter chicken roti. For healthier speed, Impact Kitchen (109 Atlantic Ave) has grab-and-go macro bowls and Ono Poke (1118 King St W, a short walk west) builds poke to order. Kinton Ramen (171 East Liberty St) is the fast ramen lunch. Most of these are counter-quick and cluster on East Liberty, so a lunch break rarely needs more than a 5-minute walk."
       },
       {
-        "heading": "Best for Families",
-        "content": "Moxie's Grill & Bar is the most family-friendly option in Liberty Village, with a kids' menu under $10, high chairs, and a booth-heavy layout that contains the noise. LOCAL Public Eatery works for families with older kids — their weekend brunch has enough variety to keep teenagers happy, and the atmosphere is lively without being overwhelming. Mildred's Temple Kitchen welcomes families for weekend brunch but note the tight table spacing makes strollers difficult to navigate."
+        "heading": "Best for Healthy & Macro-Friendly Eating",
+        "content": "The neighbourhood's fitness density supports a real healthy-eating scene. Impact Kitchen (109 Atlantic Ave, 4.2/5) is the anchor. Every dish lists its full macro breakdown, the menu runs to grass-fed burgers, plant-based bowls and cold-pressed juices, and weekly meal-prep packages (order by Wednesday for Monday delivery, 15% off versus individual orders) are a staple for work-from-home residents. Ono Poke (1118 King St W, 4.2/5, a short walk west) lets you build a poke bowl and control toppings, which also makes it easy to keep gluten-free. Even the brunch and Thai spots offer lighter options, but Impact is the one place built around tracking what you eat."
+      },
+      {
+        "heading": "Vegetarian, Vegan & Dietary Options",
+        "content": "Liberty Village does not have a dedicated vegan or vegetarian restaurant, so the honest answer to the search for a vegan restaurant in Liberty Village is to pick spots with strong plant-based menus rather than a single all-vegan room. Maurya East Indian Roti (4.5/5) is the best vegetarian value, with saag paneer, dal and chana that stand on their own. Impact Kitchen (4.2/5) is the go-to for plant-based and macro-labelled eating, with clearly marked vegan bowls and gluten-free options, which makes ordering for a mixed table simple. Ono Poke (1118 King St W, a short walk west) builds a no-fish, gluten-friendly bowl on request. Pai (4.5/5) and Chiang Mai handle vegetarian Thai with tofu and vegetable curries, and Pizza Libretto and NODO can do vegetarian Neapolitan pizzas. For vegan-friendly coffee and dessert options, check the [coffee shops guide](/best/coffee-shops)."
+      },
+      {
+        "heading": "Best for Takeout & Delivery",
+        "content": "If you are ordering to a condo rather than sitting down, a few spots are built for it. Chiang Mai (45 East Liberty St, 4.0/5) is the neighbourhood's reliable Thai takeout and delivery, and it is cheap enough to be a weeknight default. Kitchen Hub Food Hall (5 Fraser Ave, 3.9/5) is a multi-vendor ghost kitchen open to 11pm, which is the one to use when one person wants a burger and another wants a bowl from the same order. Just be clear-eyed about it: at 3.9 it is a convenience play, not a destination. Ono Poke (1118 King St W, a short walk west) and Burger Drops (171 East Liberty St) both travel well for quick pickup, and Pizza Libretto's takeout genuinely rivals its dine-in. Most of these are on the major delivery apps. For a sit-down meal with a similar group-pleasing range, the 171 East Liberty food building below is the in-person version."
+      },
+      {
+        "heading": "Best Patios, Groups & Late-Night",
+        "content": "For patios, Brazen Head Irish Pub (165 East Liberty St, 4.0/5) has the biggest one in Liberty Village, a wraparound space that is packed on warm evenings, and LOCAL Public Eatery (55 East Liberty St, 4.1/5) runs a close second with the area's best daily happy hour (3-6pm, $7 appetizers, $2 off drafts). Cibo Wine Bar and Moxie's have patios too. Our full [patios guide](/best/patios) ranks them all. For groups, the 171 East Liberty Street food building (Pai, Kinton, Burger Drops, Moxie's) lets a divided group order across four kitchens, and Kitchen Hub Food Hall (5 Fraser Ave) is a multi-vendor hall built for the same problem. Moxie's handles big tables when nobody can agree. For late-night, Brazen Head is the real anchor, with the kitchen and bar going until 2am every day. LOCAL stays open to 1am Thursday through Saturday, and Moxie's runs half-price appetizers after 9pm, which is handy after a BMO Field event. Kitchen Hub serves until 11pm daily. For a deeper bar-first list, see the [bars guide](/best/bars)."
+      },
+      {
+        "heading": "A Local's Honest Take: What to Skip and When to Settle",
+        "content": "A real guide says what is overrated, not just what is great. Moxie's (3.9/5) is fine, but it is a national chain. It is the right answer only when a big group cannot agree or you want half-price apps after 9pm, not a meal you plan a night around. Kitchen Hub (3.9/5) is overflow and delivery, useful but not a destination. Brazen Head (4.0/5) is a fantastic patio and pub, but order it for pints, trivia and sun rather than expecting standout food. Aroma Fine Indian on King West carries 2,260 reviews at just 3.9, so the volume can be misleading. For chef-driven Indian we would rather send you to Curryish Tavern (4.8/5) on Queen West, both outside the neighbourhood. The pattern is consistent: in Liberty Village the independents (Pai, Pizza Libretto, Maurya, Mildred's) earn the top scores, and the safe-feeling chains sit at the bottom. When in doubt, walk past the chain."
+      },
+      {
+        "heading": "How the Restaurants Are Laid Out (and Reservations)",
+        "content": "Liberty Village's restaurants form a compact grid you can walk end to end in under 15 minutes. East Liberty Street is the main spine (LOCAL, OEB, Chiang Mai, NODO, Maurya, Brazen Head, and the 171 East Liberty building with Pai, Kinton, Burger Drops and Moxie's). Liberty Street holds Pizza Libretto and Cibo, Hanna Avenue holds Mildred's and Egg Club, and Fraser Avenue has School and Kitchen Hub. On reservations, the brunch heavyweights (Mildred's on weekends, OEB, School brunch, Egg Club) are largely walk-in or waitlist, so use OEB's online list and arrive at Mildred's before 10am on weekends. School takes reservations for dinner only. Sit-down dinner rooms like Cibo and NODO take bookings and are worth reserving on Friday and Saturday, and Brazen Head can get a wait for its patio in summer. Counter spots (Burger Drops, Chiang Mai, Maurya, Impact, Ono Poke, Kinton) are walk-in. Because parking is scarce and the Walk Score is 88, plan to arrive on foot or by King streetcar."
       }
     ],
     "specificFaqs": [
       {
         "question": "What are the best restaurants in Liberty Village?",
-        "answer": "The top-rated restaurants in Liberty Village are Mildred's Temple Kitchen (4.5/5) for brunch and Canadian dining, School Restaurant (4.3/5) for date-night dinners in a restored 1890s schoolhouse, and Impact Kitchen (4.2/5) for healthy macro-friendly bowls. LOCAL Public Eatery and Brazen Head round out the top five with strong pub food and patio options."
+        "answer": "As of June 2026, the highest-rated restaurants in Liberty Village by Google rating and review count are Pai Northern Thai Kitchen (4.5/5, 1,534 reviews) for Northern Thai, Mildred's Temple Kitchen (4.5/5, 1,247 reviews) for brunch and Canadian comfort food, and Maurya East Indian Roti (4.5/5) for butter chicken roti. Close behind at 4.4/5 are Pizza Libretto, OEB Breakfast Co., Burger Drops and Egg Club. School Restaurant (4.3/5) is the top date-night pick, and LOCAL Public Eatery (4.1/5) and Brazen Head Irish Pub (4.0/5, 1,156 reviews) anchor the patio and pub scene."
       },
       {
-        "question": "Are there good patio restaurants in Liberty Village?",
-        "answer": "Yes, Liberty Village has excellent patios. Brazen Head Irish Pub's 80-seat rooftop patio is the largest, opening in May with no reservations. LOCAL Public Eatery's sidewalk patio along East Liberty fills up by 6 pm on summer evenings. Liberty Commons at Big Rock Brewery also has a sizable patio with brewery-fresh beer on tap. Most patios operate from May through October."
+        "question": "What's the best Thai restaurant in Liberty Village?",
+        "answer": "Pai Northern Thai Kitchen at 171 East Liberty St is the best Thai in Liberty Village and the neighbourhood's most-reviewed restaurant overall (4.5/5, 1,534 reviews). It's an outpost of one of Toronto's most acclaimed Thai kitchens. Order the Khao Soi and ask for the crispy egg noodles on the side. For a cheaper, faster option, Chiang Mai at 45 East Liberty St (4.0/5, $) has the best-value weekday lunch combo at under $15 and reliable delivery. See the full [Thai restaurants guide](/best/thai-restaurants) for more."
+      },
+      {
+        "question": "Where is the best pizza in Liberty Village?",
+        "answer": "Two spots lead. Pizza Libretto at 155 Liberty St (4.4/5) serves VPN-certified Neapolitan pizza with a leopard-spotted crust from a 900-degree oven. Ask about the off-menu Nduja pizza. NODO at 1 East Liberty St (4.3/5) makes Neapolitan pizza from 72-hour-fermented dough in a Naples-imported oven, plus house-made pasta. Ask for the off-menu burrata. The full [pizza guide](/best/pizza) covers the rest."
+      },
+      {
+        "question": "Are there vegan or vegetarian restaurants in Liberty Village?",
+        "answer": "Liberty Village has no fully vegan or vegetarian restaurant, but several spots do plant-based eating well. Maurya East Indian Roti (4.5/5) is the best vegetarian value, with saag paneer, dal and chana. Impact Kitchen (4.2/5) marks vegan and gluten-free options clearly across its bowls and is the easiest pick for a mixed table. Ono Poke (1118 King St W, a short walk west) builds a no-fish, gluten-friendly bowl on request, and Pai and Chiang Mai both do vegetarian Thai with tofu and vegetable curries."
+      },
+      {
+        "question": "Which Liberty Village restaurants are best for takeout and delivery?",
+        "answer": "Chiang Mai (45 East Liberty St, 4.0/5) is the reliable Thai for takeout and delivery, cheap enough for a weeknight. Kitchen Hub Food Hall (5 Fraser Ave, 3.9/5) is a multi-vendor ghost kitchen open until 11pm and is the best option when one order needs to cover different cravings, though at 3.9 it's a convenience play rather than a destination. Ono Poke (1118 King St W, a short walk west), Burger Drops (171 East Liberty St) and Pizza Libretto all travel well for pickup."
       },
       {
         "question": "What's the best brunch spot in Liberty Village?",
-        "answer": "Mildred's Temple Kitchen at 85 Hanna Avenue is the iconic Liberty Village brunch destination, famous for blueberry buttermilk pancakes ($18) since 2004. Arrive before 10 am on weekends to avoid the 30-to-45-minute wait. School Restaurant on Fraser Avenue is the upscale alternative with duck confit hash ($24) and craft cocktails, though they do not take brunch reservations."
+        "answer": "Mildred's Temple Kitchen (85 Hanna Ave, 4.5/5) is the iconic Liberty Village brunch destination, famous for blueberry buttermilk pancakes, and weekend service fills by 10:30am. OEB Breakfast Co. (2 East Liberty St, 4.4/5) is the other heavyweight. Use its online waitlist to skip the line. School Restaurant (4.3/5) does an upscale heritage-room brunch but takes no brunch reservations, and Egg Club (4.4/5) is the casual egg-sandwich pick. See the [brunch guide](/best/brunch-spots) for the full ranking."
+      },
+      {
+        "question": "What are the best date-night restaurants in Liberty Village?",
+        "answer": "School Restaurant (70 Fraser Ave, 4.3/5) is the top date-night choice, a restored 1890s schoolhouse with inventive cocktails. Request the upstairs loft. Cibo Wine Bar (100 Liberty St, 4.2/5, $$$) is the moody Italian alternative with a strong wine list and a 4-6pm weekday Aperitivo. Mildred's Temple Kitchen turns candlelit for dinner, and NODO offers a warmer, lower-key trattoria date."
+      },
+      {
+        "question": "What are the cheapest places to eat in Liberty Village?",
+        "answer": "The $ tier is cheapest: Chiang Mai (45 East Liberty St) has a weekday lunch combo under $15, Burger Drops (171 East Liberty St) does smash burgers and fries, and Maurya East Indian Roti (150 E Liberty St) serves a filling butter chicken roti on a budget. For value at $$, LOCAL Public Eatery's daily 3-6pm happy hour offers $7 appetizers and $2 off drafts."
+      },
+      {
+        "question": "Which Liberty Village restaurants have the best patios?",
+        "answer": "Brazen Head Irish Pub (165 East Liberty St, 4.0/5) has the largest patio in Liberty Village, a wraparound space that packs out on warm evenings. LOCAL Public Eatery (55 East Liberty St, 4.1/5) is a close second and pairs its patio with a daily 3-6pm happy hour. Cibo Wine Bar (100 Liberty St) and Moxie's Grill & Bar (171 East Liberty St) also have patios. Most run roughly May through October. See the [patios guide](/best/patios) for the full list."
       },
       {
         "question": "Are there late-night restaurants in Liberty Village?",
-        "answer": "Several spots serve food late. Brazen Head Irish Pub has a full pub menu until 2 am on weekends. LOCAL Public Eatery's kitchen stays open until midnight Thursday through Saturday. Moxie's runs a late-night menu after 9 pm with half-price appetizers, making it a popular post-event stop for BMO Field crowds heading back through the neighbourhood."
+        "answer": "Yes. Brazen Head Irish Pub is the latest, with kitchen and bar open until 2am every day, which makes it the default after a game or a long evening. LOCAL Public Eatery stays open until 1am Thursday through Saturday (and midnight earlier in the week). Moxie's Grill & Bar runs half-price appetizers after 9pm, popular with crowds leaving BMO Field, and Kitchen Hub Food Hall serves until 11pm daily for late delivery and pickup."
       },
       {
-        "question": "How much does dinner cost in Liberty Village?",
-        "answer": "Dinner prices vary by restaurant. A full dinner for two at School Restaurant runs $80 to $110 with drinks. Mildred's is slightly more affordable at $70 to $90 for two. LOCAL Public Eatery and Brazen Head are the budget-friendliest options at $40 to $60 for two, especially if you hit their happy hour specials between 3 pm and 6 pm."
+        "question": "Where can I find healthy food in Liberty Village?",
+        "answer": "Impact Kitchen at 109 Atlantic Ave (4.2/5) is the standout. Every dish lists a full macro breakdown, the menu includes grass-fed burgers, plant-based bowls and cold-pressed juices, and weekly meal-prep packages (order by Wednesday) save 15%. Ono Poke at 1118 King St W (4.2/5, a short walk west) builds fresh poke bowls to order for a lighter, quick, gluten-friendly lunch."
+      },
+      {
+        "question": "Is there good sushi or Japanese food near Liberty Village?",
+        "answer": "For ramen, Kinton Ramen at 171 East Liberty St (4.3/5) serves rich tonkotsu bowls right in the neighbourhood. For sushi you have to leave Liberty Village. The closest splurge is Miku Toronto (4.6/5, 1,876 reviews, $$$$), known for its torched aburi-style sushi, but it's downtown at 161 Bay St, roughly a 15-minute streetcar ride away rather than a Liberty Village restaurant. See the [sushi guide](/best/sushi) for options."
+      },
+      {
+        "question": "Which Liberty Village restaurants are overrated or just for convenience?",
+        "answer": "Being honest: Moxie's Grill & Bar (3.9/5) is a national chain, best for indecisive big groups or half-price apps after 9pm rather than a planned dinner, and Kitchen Hub Food Hall (3.9/5) is overflow and delivery, not a destination. Brazen Head (4.0/5) is excellent for its patio, pints and trivia but pub-classic on food. Outside the neighbourhood, Aroma Fine Indian on King West has 2,260 reviews at 3.9, so its volume can mislead. In Liberty Village the independents like Pai, Pizza Libretto, Maurya and Mildred's consistently earn the highest scores."
       },
       {
         "question": "Which Liberty Village restaurants take reservations?",
-        "answer": "Mildred's Temple Kitchen accepts dinner reservations through their website and OpenTable — highly recommended for Friday and Saturday nights. School Restaurant takes reservations for dinner only, not brunch. Moxie's accepts reservations for any meal through their app. LOCAL Public Eatery and Brazen Head are walk-in only, though wait times are rarely more than 15 minutes outside of weekend brunch."
+        "answer": "Sit-down dinner rooms like Cibo Wine Bar and NODO take reservations and are worth booking on Friday and Saturday. School Restaurant takes reservations for dinner only, not brunch, and Moxie's accepts bookings. The brunch heavyweights (Mildred's on weekends, OEB and Egg Club) are largely walk-in or waitlist, so use OEB's online list and arrive at Mildred's before 10am. Counter spots like Burger Drops, Chiang Mai, Maurya, Impact Kitchen, Kinton Ramen and Ono Poke are walk-in only, and Brazen Head's patio can get a summer wait."
       },
       {
-        "question": "Are there healthy restaurants in Liberty Village?",
-        "answer": "Impact Kitchen on Atlantic Avenue is the standout healthy option, with every menu item showing full macro breakdowns (calories, protein, carbs, fat). Bowls run $14 to $18 and include options like teriyaki salmon, Mediterranean chicken, and vegan Thai curry. Freshii at 51 East Liberty also offers salads, wraps, and smoothies in the $12 to $15 range."
-      },
-      {
-        "question": "What restaurants are best for groups in Liberty Village?",
-        "answer": "LOCAL Public Eatery handles groups of 8 to 12 comfortably with their large booth layout and shareable appetizer platters ($24 to $32). Brazen Head's upper level can be semi-reserved for groups of 15 or more on weeknights. Moxie's also accommodates large parties with advance booking. For a more upscale group dinner, Mildred's can seat parties of up to 10 with a pre-set menu arrangement."
+        "question": "What restaurants in Liberty Village are best for groups?",
+        "answer": "The 171 East Liberty Street food building is ideal for divided groups. Pai, Kinton Ramen, Burger Drops and Moxie's share the address, so everyone orders what they want. Kitchen Hub Food Hall (5 Fraser Ave) is a multi-vendor hall built for the same problem. Moxie's Grill & Bar handles large tables with a varied menu, Brazen Head's big patio suits casual crowds, and LOCAL Public Eatery works for game nights and group dinners."
       }
     ]
   },
@@ -1052,7 +1303,7 @@
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/grocery-stores.jpg",
-    "answerBlock": "FreshCo at 171 East Liberty Street is Liberty Village's primary full-service grocery store with a 3.6 rating and the lowest prices in the neighbourhood. The produce section is surprisingly good for a discount grocer, and it anchors the main retail strip. Many residents combine FreshCo runs with weekend trips to larger stores on King Street West for specialty items not stocked locally.",
+    "answerBlock": "Two: FreshCo at 171 East Liberty St (discount, $), open daily 8am-10pm, and Longo's at 45 Dufferin St on the western edge (higher-end, $$), open daily 7am-10pm. FreshCo is the everyday-staples pick; Longo's wins on produce, prepared foods and selection.",
     "definition": "Grocery stores in Liberty Village have historically been limited, though the FreshCo on East Liberty Street now serves as the neighbourhood's main source for everyday groceries and fresh produce.",
     "specificFaqs": [
       {
@@ -1546,7 +1797,7 @@
     "searchVolume": "medium",
     "competitiveness": "medium",
     "image": "/images/services/banks.jpg",
-    "answerBlock": "Liberty Village has two full-service bank branches, both on East Liberty Street: RBC Royal Bank at 1 East Liberty Street (3.7 rating, mortgage and investment advisors) and Scotiabank at 171 East Liberty Street (24/7 ATM access). Both open Monday to Friday 9:30am-5pm and Saturday 10am-3pm, and handle personal and small business accounts. The nearest TD and BMO branches are a short walk away on King Street West. Book mortgage appointments for Tuesday or Wednesday mornings, when advisors have more time to compare rates.",
+    "answerBlock": "Liberty Village has two full-service branches, Scotiabank and RBC, both on East Liberty Street and both open Mon-Fri 9:30am-5pm and Sat 10am-3pm, closed Sunday. There is no TD, CIBC or BMO branch inside the neighbourhood, and the nearest sit east toward King West.",
     "definition": "Banks in Liberty Village line the East Liberty retail strip, providing mortgage, investment, and everyday banking services to a neighbourhood where most routine transactions happen digitally.",
     "specificFaqs": [
       {
