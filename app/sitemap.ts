@@ -77,11 +77,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
+  // Entity (business) pages carry brand-search demand (e.g. "edition dental reviews"),
+  // so they are prioritized above generic listings to favor them over /best category pages.
   const businessPages: MetadataRoute.Sitemap = getAllBusinesses().map((b) => ({
     url: `${BASE_URL}/directory/${b.slug}`,
     lastModified: now,
     changeFrequency: "monthly" as const,
-    priority: 0.6,
+    priority: 0.7,
   }));
 
   const guidePages: MetadataRoute.Sitemap = getAllTopics().map((t) => ({
