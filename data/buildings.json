@@ -2,7 +2,11 @@
   {
     "slug": "toy-factory-lofts",
     "name": "Toy Factory Lofts",
-    "alternateNames": ["TFL", "Toy Factory", "43 Hanna"],
+    "alternateNames": [
+      "TFL",
+      "Toy Factory",
+      "43 Hanna"
+    ],
     "address": "43 Hanna Ave, Toronto, ON",
     "postalCode": "M6K 1X6",
     "latitude": 43.6381,
@@ -20,11 +24,22 @@
     "transitScore": 95,
     "bikeScore": 82,
     "nearestTTC": "504 King streetcar at Dufferin (4 min walk)",
-    "amenities": ["Rooftop Terrace", "Concierge", "Gym", "Party Room", "Bike Storage"],
+    "amenities": [
+      "Rooftop Terrace",
+      "Concierge",
+      "Gym",
+      "Party Room",
+      "Bike Storage"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["goodlife-fitness-liberty-village", "balzacs-coffee-liberty-village", "mildreds-temple-kitchen", "liberty-village-dental"],
+    "nearestBusinessSlugs": [
+      "goodlife-fitness-liberty-village",
+      "balzacs-coffee-liberty-village",
+      "mildreds-temple-kitchen",
+      "liberty-village-dental"
+    ],
     "description": "Toy Factory Lofts is a landmark conversion of the historic 1920s Irwin Toy factory, featuring genuine exposed brick, soaring ceilings, and original timber beams throughout. Located at 43 Hanna Ave, this 276-unit building pioneered the Liberty Village loft renaissance and remains the neighbourhood's most iconic address. Residents enjoy a rooftop terrace with panoramic views of the Toronto skyline and Lake Ontario.",
     "answerBlock": "Toy Factory Lofts at 43 Hanna Ave is a 276-unit converted loft building in Liberty Village, built in 2004 from the original 1920s Irwin Toy factory. One-bedroom units rent from $2,450/month with authentic exposed brick and soaring 12-foot ceilings. The building is pet-friendly, has concierge service, and a rooftop terrace overlooking the Toronto skyline.",
     "keyTakeaways": [
@@ -35,9 +50,9 @@
       "Pet-friendly building with dedicated bike storage and short walk to the 504 King streetcar"
     ],
     "proTips": [
-      "Request a south-facing unit for the best Lake Ontario views from the rooftop terrace — the NW corner units see both the lake and downtown skyline.",
+      "Request a south-facing unit for the best Lake Ontario views from the rooftop terrace \u2014 the NW corner units see both the lake and downtown skyline.",
       "The building's heritage status means no window replacement noise from neighbouring developments; the eastern exposure also avoids afternoon traffic rumble from Dufferin.",
-      "Visitor parking is extremely limited — inform guests to use the Green P on East Liberty Street rather than circling the building.",
+      "Visitor parking is extremely limited \u2014 inform guests to use the Green P on East Liberty Street rather than circling the building.",
       "The Irwin Toy building bones mean exceptional sound insulation between floors; concrete slab construction keeps inter-unit noise minimal."
     ],
     "pros": [
@@ -49,13 +64,13 @@
     ],
     "cons": [
       "Higher maintenance fees than comparable newer buildings ($0.73/sqft/month)",
-      "Visitor parking is scarce — street parking often needed",
+      "Visitor parking is scarce \u2014 street parking often needed",
       "Some units have limited natural light on lower north-facing floors"
     ],
     "specificFaqs": [
       {
         "question": "What is the average rent at Toy Factory Lofts in Liberty Village?",
-        "answer": "One-bedroom lofts at Toy Factory Lofts (43 Hanna Ave) average $2,450/month, while two-bedroom units run $3,350/month. Rents fluctuate with market conditions; lofts with exposed brick or rooftop access command a 10–15% premium over standard units."
+        "answer": "One-bedroom lofts at Toy Factory Lofts (43 Hanna Ave) average $2,450/month, while two-bedroom units run $3,350/month. Rents fluctuate with market conditions; lofts with exposed brick or rooftop access command a 10\u201315% premium over standard units."
       },
       {
         "question": "Are pets allowed at Toy Factory Lofts?",
@@ -63,7 +78,7 @@
       },
       {
         "question": "What year was Toy Factory Lofts built?",
-        "answer": "Toy Factory Lofts was converted and completed in 2004 by Freed Developments. The original Irwin Toy factory building at 43 Hanna Ave dates from the 1920s — much of the industrial character (exposed brick, timber, concrete) was preserved during the residential conversion."
+        "answer": "Toy Factory Lofts was converted and completed in 2004 by Freed Developments. The original Irwin Toy factory building at 43 Hanna Ave dates from the 1920s \u2014 much of the industrial character (exposed brick, timber, concrete) was preserved during the residential conversion."
       },
       {
         "question": "Does Toy Factory Lofts have parking?",
@@ -78,15 +93,26 @@
         "answer": "Maintenance fees at Toy Factory Lofts run approximately $0.73 per square foot per month, which is slightly above the Liberty Village average. Fees include water, building insurance, concierge, gym access, rooftop terrace maintenance, and contribution to the reserve fund."
       }
     ],
-    "tags": ["loft", "heritage", "pet-friendly", "concierge", "rooftop", "factory-conversion"]
+    "tags": [
+      "loft",
+      "heritage",
+      "pet-friendly",
+      "concierge",
+      "rooftop",
+      "factory-conversion"
+    ],
+    "image": "/images/buildings/toy-factory-lofts.jpg"
   },
   {
     "slug": "liberty-central-by-the-green",
     "name": "Liberty Central by the Green",
-    "alternateNames": ["Liberty Central", "85 East Liberty"],
+    "alternateNames": [
+      "Liberty Central",
+      "85 East Liberty"
+    ],
     "address": "85 East Liberty St, Toronto, ON",
     "postalCode": "M6K 3R4",
-    "latitude": 43.6370,
+    "latitude": 43.637,
     "longitude": -79.4178,
     "yearBuilt": 2012,
     "units": 330,
@@ -101,28 +127,39 @@
     "transitScore": 96,
     "bikeScore": 84,
     "nearestTTC": "504 King streetcar at Dufferin (3 min walk)",
-    "amenities": ["Rooftop Pool", "Gym", "Concierge", "Party Room", "Guest Suites"],
+    "amenities": [
+      "Rooftop Pool",
+      "Gym",
+      "Concierge",
+      "Party Room",
+      "Guest Suites"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["impact-kitchen", "orangetheory-fitness-liberty-village", "arvo-coffee", "liberty-village-dental"],
+    "nearestBusinessSlugs": [
+      "impact-kitchen",
+      "orangetheory-fitness-liberty-village",
+      "arvo-coffee",
+      "liberty-village-dental"
+    ],
     "description": "Liberty Central by the Green is a 17-storey modern condo tower at 85 East Liberty St, fronting Liberty Village's central green space and offering some of the most park-adjacent units in the neighbourhood. Completed in 2012, the building features a rooftop pool and direct access to the pedestrian green corridor. Its central location puts residents within a short walk of the neighbourhood's best restaurants and transit.",
     "answerBlock": "Liberty Central by the Green at 85 East Liberty St is a 330-unit, 17-storey condo building completed in 2012, fronting the Liberty Village green. One-bedroom condos rent from $2,380/month. The building features a rooftop pool, concierge, and guest suites, making it one of the most amenity-rich addresses in Liberty Village.",
     "keyTakeaways": [
       "Rooftop pool is one of very few in the Liberty Village condo market",
-      "Faces the central green corridor — ideal for residents who value outdoor space",
+      "Faces the central green corridor \u2014 ideal for residents who value outdoor space",
       "17 storeys offer a range of skyline and park views",
       "Competitively priced maintenance fees at $0.64/sqft relative to building amenities",
       "Steps from Impact Kitchen, Arvo Coffee, and the 504 King streetcar"
     ],
     "proTips": [
       "Units on floors 10 and above on the south side offer unobstructed views over the green and toward Lake Ontario.",
-      "The rooftop pool fills up quickly on summer weekends — residents recommend booking through the concierge app in advance.",
+      "The rooftop pool fills up quickly on summer weekends \u2014 residents recommend booking through the concierge app in advance.",
       "Guest suites at Liberty Central by the Green are fairly priced relative to nearby hotels; great option for visiting family.",
       "The green corridor beside the building doubles as a quiet morning run route before the neighbourhood gets busy."
     ],
     "pros": [
-      "Rooftop pool — rare amenity in Liberty Village",
+      "Rooftop pool \u2014 rare amenity in Liberty Village",
       "Park-fronting units on the central green",
       "Lower maintenance fees relative to building quality",
       "Guest suites reduce the need for nearby hotel bookings",
@@ -136,7 +173,7 @@
     "specificFaqs": [
       {
         "question": "Does Liberty Central by the Green have a pool?",
-        "answer": "Yes, Liberty Central by the Green has a rooftop pool — one of the few condo buildings in Liberty Village with this amenity. The pool is open seasonally during summer months and is managed by the condo corporation."
+        "answer": "Yes, Liberty Central by the Green has a rooftop pool \u2014 one of the few condo buildings in Liberty Village with this amenity. The pool is open seasonally during summer months and is managed by the condo corporation."
       },
       {
         "question": "What is the average rent at Liberty Central by the Green?",
@@ -152,19 +189,31 @@
       },
       {
         "question": "How are maintenance fees at Liberty Central by the Green?",
-        "answer": "Maintenance fees at Liberty Central by the Green run approximately $0.64/sqft/month — below the Liberty Village average for a building with this amenity package. Fees cover building insurance, rooftop pool maintenance, gym, concierge, and reserve fund contributions."
+        "answer": "Maintenance fees at Liberty Central by the Green run approximately $0.64/sqft/month \u2014 below the Liberty Village average for a building with this amenity package. Fees cover building insurance, rooftop pool maintenance, gym, concierge, and reserve fund contributions."
       },
       {
         "question": "What transit options are near Liberty Central by the Green?",
         "answer": "Liberty Central by the Green is a 3-minute walk from the 504 King streetcar at Dufferin. The 29 Dufferin bus stops directly on Dufferin at King. Both provide quick access to downtown Toronto, St. Andrew subway station, and the Financial District."
       }
     ],
-    "tags": ["condo", "rooftop-pool", "park-facing", "concierge", "pet-friendly", "central"]
+    "tags": [
+      "condo",
+      "rooftop-pool",
+      "park-facing",
+      "concierge",
+      "pet-friendly",
+      "central"
+    ],
+    "image": "/images/buildings/liberty-central-by-the-green.jpg"
   },
   {
     "slug": "liberty-market-lofts",
     "name": "Liberty Market Lofts",
-    "alternateNames": ["LML", "8 Fraser", "Fraser Ave Lofts"],
+    "alternateNames": [
+      "LML",
+      "8 Fraser",
+      "Fraser Ave Lofts"
+    ],
     "address": "8 Fraser Ave, Toronto, ON",
     "postalCode": "M6K 1Y6",
     "latitude": 43.6388,
@@ -182,15 +231,26 @@
     "transitScore": 93,
     "bikeScore": 80,
     "nearestTTC": "504 King streetcar at Shaw (5 min walk)",
-    "amenities": ["Gym", "Rooftop Deck", "Bike Storage", "Party Room", "Media Room"],
+    "amenities": [
+      "Gym",
+      "Rooftop Deck",
+      "Bike Storage",
+      "Party Room",
+      "Media Room"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["balzacs-coffee-liberty-village", "left-field-brewery", "f45-training-liberty-village", "liberty-village-physio"],
+    "nearestBusinessSlugs": [
+      "balzacs-coffee-liberty-village",
+      "left-field-brewery",
+      "f45-training-liberty-village",
+      "liberty-village-physio"
+    ],
     "description": "Liberty Market Lofts at 8 Fraser Ave occupies a beautifully converted industrial building adjacent to the Liberty Market complex, retaining original brick exteriors and industrial window frames. Built in 2009 by Concert Properties, this 184-unit hard loft is known for its quieter western edge location while remaining steps from Liberty Market food hall and craft breweries. The rooftop deck faces west toward Parkdale and the Toronto sunset.",
     "answerBlock": "Liberty Market Lofts at 8 Fraser Ave is a 184-unit converted loft building completed in 2009, adjacent to the Liberty Market complex. One-bedroom lofts average $2,320/month. The building preserves original industrial brick and steel windows, and is well-suited for residents who want authentic loft character in a lower-density, quieter section of Liberty Village.",
     "keyTakeaways": [
-      "Adjacent to Liberty Market building — direct access to food hall and artisan vendors",
+      "Adjacent to Liberty Market building \u2014 direct access to food hall and artisan vendors",
       "Western exposure means stunning sunset views from the rooftop deck",
       "Lower-density neighbourhood position means less traffic noise than East Liberty St buildings",
       "Original industrial steel window frames preserved throughout the conversion",
@@ -199,8 +259,8 @@
     "proTips": [
       "The west-facing rooftop deck is best enjoyed in the late afternoon when Parkdale and the Gardiner Expressway take on golden-hour light.",
       "8 Fraser is one block closer to the Gardiner on-ramp than most Liberty Village buildings, making it convenient for residents who drive regularly.",
-      "Ask about units with original brick feature walls on the east side — they retain more of the factory conversion character.",
-      "Liberty Market food hall is steps away, but vendors close around 7pm on weekdays — plan accordingly for weeknight grocery runs."
+      "Ask about units with original brick feature walls on the east side \u2014 they retain more of the factory conversion character.",
+      "Liberty Market food hall is steps away, but vendors close around 7pm on weekdays \u2014 plan accordingly for weeknight grocery runs."
     ],
     "pros": [
       "Authentic brick and steel industrial conversion with preserved original features",
@@ -221,7 +281,7 @@
       },
       {
         "question": "Is Liberty Market Lofts a hard loft or soft loft?",
-        "answer": "Liberty Market Lofts is a true hard loft conversion — the building was converted from genuine industrial use, retaining original brick, exposed ductwork, and steel window frames. This distinguishes it from soft lofts like newer condo buildings designed to mimic loft aesthetics."
+        "answer": "Liberty Market Lofts is a true hard loft conversion \u2014 the building was converted from genuine industrial use, retaining original brick, exposed ductwork, and steel window frames. This distinguishes it from soft lofts like newer condo buildings designed to mimic loft aesthetics."
       },
       {
         "question": "Are there amenities at Liberty Market Lofts?",
@@ -240,16 +300,27 @@
         "answer": "Yes, Liberty Market Lofts is pet-friendly. The location is particularly practical for dog owners given the proximity to the Liberty Village pedestrian corridor and nearby Lamport Stadium Park off King Street."
       }
     ],
-    "tags": ["loft", "hard-loft", "heritage", "pet-friendly", "rooftop", "liberty-market"]
+    "tags": [
+      "loft",
+      "hard-loft",
+      "heritage",
+      "pet-friendly",
+      "rooftop",
+      "liberty-market"
+    ],
+    "image": "/images/buildings/liberty-market-lofts.jpg"
   },
   {
     "slug": "electra-lofts",
     "name": "Electra Lofts",
-    "alternateNames": ["38 Niagara", "Electra"],
+    "alternateNames": [
+      "38 Niagara",
+      "Electra"
+    ],
     "address": "38 Niagara St, Toronto, ON",
     "postalCode": "M5V 1C3",
     "latitude": 43.6411,
-    "longitude": -79.4130,
+    "longitude": -79.413,
     "yearBuilt": 2007,
     "units": 120,
     "floors": 8,
@@ -263,29 +334,39 @@
     "transitScore": 97,
     "bikeScore": 86,
     "nearestTTC": "504 King streetcar at Niagara (2 min walk)",
-    "amenities": ["Rooftop Terrace", "Gym", "Bike Storage", "Party Room"],
+    "amenities": [
+      "Rooftop Terrace",
+      "Gym",
+      "Bike Storage",
+      "Party Room"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": false,
-    "nearestBusinessSlugs": ["pai-northern-thai", "cibo-liberty-village", "dark-horse-espresso-liberty-village", "yoga-tree-liberty-village"],
+    "nearestBusinessSlugs": [
+      "pai-northern-thai",
+      "cibo-liberty-village",
+      "dark-horse-espresso-liberty-village",
+      "yoga-tree-liberty-village"
+    ],
     "description": "Electra Lofts at 38 Niagara St was converted from the original Electra Electrical Appliance Company factory, a rare opportunity to live inside authentic 1930s industrial architecture on Liberty Village's northeastern edge. The 120-unit building features 10-foot ceilings, polished concrete floors in many units, and an intimate scale that larger towers lack. Its location at Niagara and King means the 504 streetcar is literally steps away.",
     "answerBlock": "Electra Lofts at 38 Niagara St is a 120-unit hard loft building converted from a 1930s electrical factory, completed in 2007. One-bedroom units rent from $2,280/month. The building is at the northeast corner of Liberty Village, putting residents within 2 minutes of the 504 King streetcar and the restaurant corridor along King Street West.",
     "keyTakeaways": [
-      "Converted from the 1930s Electra Electrical Appliance factory — authentic heritage loft character",
-      "2-minute walk to the 504 King streetcar — best transit access of any Liberty Village loft",
+      "Converted from the 1930s Electra Electrical Appliance factory \u2014 authentic heritage loft character",
+      "2-minute walk to the 504 King streetcar \u2014 best transit access of any Liberty Village loft",
       "Smaller 120-unit building means quieter, more community-oriented living",
       "Polished concrete floors and 10-foot ceilings are standard in many units",
       "Niagara Street location gives direct access to King West restaurant corridor"
     ],
     "proTips": [
-      "The northeast corner of the building faces directly onto the King/Niagara intersection — noise from streetcars and late-night restaurant traffic is noticeable on lower floors; request upper floors if street noise is a concern.",
+      "The northeast corner of the building faces directly onto the King/Niagara intersection \u2014 noise from streetcars and late-night restaurant traffic is noticeable on lower floors; request upper floors if street noise is a concern.",
       "Smaller buildings like Electra typically have faster elevator wait times and better neighbour familiarity.",
-      "Maintenance fees are slightly elevated for the building's age — verify reserve fund health before purchasing a unit.",
+      "Maintenance fees are slightly elevated for the building's age \u2014 verify reserve fund health before purchasing a unit.",
       "The building is not pet-friendly, which means lower tenant turnover and a quieter environment overall."
     ],
     "pros": [
       "Authentic 1930s factory conversion with exceptional industrial character",
-      "2-minute walk to 504 King streetcar — unbeatable transit access",
+      "2-minute walk to 504 King streetcar \u2014 unbeatable transit access",
       "Intimate 120-unit scale with community feel",
       "King West restaurants and bars on the doorstep",
       "Polished concrete floors standard in many units"
@@ -321,12 +402,23 @@
         "answer": "Electra Lofts has a rooftop terrace, gym, bike storage, and a party room. The amenity package is leaner than larger condo buildings, which is reflected in the building's relative price competitiveness and the more intimate community atmosphere."
       }
     ],
-    "tags": ["loft", "hard-loft", "heritage", "transit-accessible", "factory-conversion", "no-pets"]
+    "tags": [
+      "loft",
+      "hard-loft",
+      "heritage",
+      "transit-accessible",
+      "factory-conversion",
+      "no-pets"
+    ],
+    "image": "/images/buildings/electra-lofts.jpg"
   },
   {
     "slug": "liberty-lofts",
     "name": "Liberty Lofts",
-    "alternateNames": ["12 Hanna", "LV Lofts"],
+    "alternateNames": [
+      "12 Hanna",
+      "LV Lofts"
+    ],
     "address": "12 Hanna Ave, Toronto, ON",
     "postalCode": "M6K 1X6",
     "latitude": 43.6379,
@@ -344,28 +436,38 @@
     "transitScore": 94,
     "bikeScore": 81,
     "nearestTTC": "504 King streetcar at Dufferin (5 min walk)",
-    "amenities": ["Gym", "Party Room", "Bike Storage", "Rooftop Patio"],
+    "amenities": [
+      "Gym",
+      "Party Room",
+      "Bike Storage",
+      "Rooftop Patio"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["goodlife-fitness-liberty-village", "balzacs-coffee-liberty-village", "sweet-flour-bake-shop", "liberty-village-physio"],
+    "nearestBusinessSlugs": [
+      "goodlife-fitness-liberty-village",
+      "balzacs-coffee-liberty-village",
+      "sweet-flour-bake-shop",
+      "liberty-village-physio"
+    ],
     "description": "Liberty Lofts at 12 Hanna Ave is one of Liberty Village's original residential conversions, completed in 2002 by Freed Developments before the neighbourhood reached its current fame. The 165-unit building occupies a former manufacturing facility with preserved brick walls, heavy timber joinery, and original factory windows that flood units with natural light. Its Hanna Avenue location, shared with the more celebrated Toy Factory Lofts next door, forms the centrepiece of Liberty Village's loft heritage strip.",
-    "answerBlock": "Liberty Lofts at 12 Hanna Ave is a 165-unit pioneer loft conversion completed in 2002 — one of Liberty Village's first residential buildings. One-bedroom lofts rent from $2,200/month. The building features original heavy timber, exposed brick, and factory windows, and is located on Hanna Ave adjacent to Toy Factory Lofts at one of the neighbourhood's most recognisable addresses.",
+    "answerBlock": "Liberty Lofts at 12 Hanna Ave is a 165-unit pioneer loft conversion completed in 2002 \u2014 one of Liberty Village's first residential buildings. One-bedroom lofts rent from $2,200/month. The building features original heavy timber, exposed brick, and factory windows, and is located on Hanna Ave adjacent to Toy Factory Lofts at one of the neighbourhood's most recognisable addresses.",
     "keyTakeaways": [
-      "One of the earliest residential conversions in Liberty Village — completed 2002 before the neighbourhood boomed",
+      "One of the earliest residential conversions in Liberty Village \u2014 completed 2002 before the neighbourhood boomed",
       "Heavy timber joinery and original factory windows preserved throughout",
       "Hanna Ave location is the heart of Liberty Village's historic loft strip",
       "Among the most affordably priced loft units in the neighbourhood per square foot",
       "Pet-friendly with access to Hanna Ave pedestrian path and nearby dog parks"
     ],
     "proTips": [
-      "Units in Liberty Lofts tend to have slightly larger footprints than comparably priced units in newer buildings — worth measuring carefully during viewings.",
+      "Units in Liberty Lofts tend to have slightly larger footprints than comparably priced units in newer buildings \u2014 worth measuring carefully during viewings.",
       "Higher maintenance fees ($0.77/sqft) reflect the building's age; verify reserve fund status with a status certificate before purchasing.",
       "The Hanna Ave pedestrian strip between Liberty Lofts and Toy Factory Lofts is one of the neighbourhood's safest walking routes to the 504 King streetcar.",
-      "Some upper-floor units have partial CN Tower sightlines — worth asking the listing agent specifically."
+      "Some upper-floor units have partial CN Tower sightlines \u2014 worth asking the listing agent specifically."
     ],
     "pros": [
-      "Original 2002 pioneer status — established condo corporation with long track record",
+      "Original 2002 pioneer status \u2014 established condo corporation with long track record",
       "Large unit footprints relative to maintenance costs",
       "Heavy timber and factory windows give genuine industrial character",
       "Pet-friendly with practical dog-walking access on Hanna Ave",
@@ -395,19 +497,30 @@
       },
       {
         "question": "Is Liberty Lofts a hard loft?",
-        "answer": "Yes, Liberty Lofts is a genuine hard loft conversion from an original manufacturing facility. The building retains authentic exposed brick, heavy timber beams, and original factory windows — unlike soft lofts which mimic the aesthetic in new construction."
+        "answer": "Yes, Liberty Lofts is a genuine hard loft conversion from an original manufacturing facility. The building retains authentic exposed brick, heavy timber beams, and original factory windows \u2014 unlike soft lofts which mimic the aesthetic in new construction."
       },
       {
         "question": "What are the amenities at Liberty Lofts?",
         "answer": "Liberty Lofts has a gym, party room, bike storage, and rooftop patio. The amenity package is modest relative to newer condo towers in Liberty Village, which is reflected in a more affordable price point for loft units with authentic industrial character."
       }
     ],
-    "tags": ["loft", "hard-loft", "pioneer", "pet-friendly", "affordable", "heritage"]
+    "tags": [
+      "loft",
+      "hard-loft",
+      "pioneer",
+      "pet-friendly",
+      "affordable",
+      "heritage"
+    ],
+    "image": "/images/buildings/liberty-lofts.jpg"
   },
   {
     "slug": "link-condos",
     "name": "Link Condos",
-    "alternateNames": ["36 Lisgar", "Link LV"],
+    "alternateNames": [
+      "36 Lisgar",
+      "Link LV"
+    ],
     "address": "36 Lisgar St, Toronto, ON",
     "postalCode": "M6J 0C6",
     "latitude": 43.6416,
@@ -425,12 +538,24 @@
     "transitScore": 97,
     "bikeScore": 85,
     "nearestTTC": "501 Queen streetcar at Lisgar (3 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Concierge", "Bike Storage", "Guest Suites", "Yoga Studio"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Concierge",
+      "Bike Storage",
+      "Guest Suites",
+      "Yoga Studio"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["jimmys-coffee-liberty-village", "altea-active", "yoga-tree-liberty-village", "liberty-village-chiropractic"],
-    "description": "Link Condos at 36 Lisgar St is a 14-storey modern condo tower on the northern edge of Liberty Village, bordering the Queen West corridor and offering residents quick access to both neighbourhoods. Completed in 2014 by Lifetime Developments, Link stands out for its yoga studio — rare in the neighbourhood — and its dual-access position connecting Liberty Village and Queen West cultures. Maintenance fees are among the lowest in the area relative to the amenity package.",
+    "nearestBusinessSlugs": [
+      "jimmys-coffee-liberty-village",
+      "altea-active",
+      "yoga-tree-liberty-village",
+      "liberty-village-chiropractic"
+    ],
+    "description": "Link Condos at 36 Lisgar St is a 14-storey modern condo tower on the northern edge of Liberty Village, bordering the Queen West corridor and offering residents quick access to both neighbourhoods. Completed in 2014 by Lifetime Developments, Link stands out for its yoga studio \u2014 rare in the neighbourhood \u2014 and its dual-access position connecting Liberty Village and Queen West cultures. Maintenance fees are among the lowest in the area relative to the amenity package.",
     "answerBlock": "Link Condos at 36 Lisgar St is a 228-unit, 14-storey condo building completed in 2014, positioned at the junction of Liberty Village and Queen West. One-bedroom condos rent from $2,350/month. The building features a yoga studio, rooftop terrace, and concierge, with some of the lowest maintenance fees in the neighbourhood at $0.62/sqft/month.",
     "keyTakeaways": [
       "On-site yoga studio is one of the only in-building yoga facilities in Liberty Village",
@@ -442,11 +567,11 @@
     "proTips": [
       "Link's northern exposure toward Queen West means residents benefit from two distinct neighbourhood food and social scenes within a short walk.",
       "The yoga studio has limited class slots; early registration is recommended for popular instructors.",
-      "Lisgar Street is quieter than East Liberty Street — units here benefit from reduced street noise compared to the neighbourhood's main corridor.",
+      "Lisgar Street is quieter than East Liberty Street \u2014 units here benefit from reduced street noise compared to the neighbourhood's main corridor.",
       "The 501 Queen streetcar is a useful alternative to the 504 King for reaching the downtown east side."
     ],
     "pros": [
-      "In-building yoga studio — unique in Liberty Village",
+      "In-building yoga studio \u2014 unique in Liberty Village",
       "Lowest maintenance fees in its category at $0.62/sqft",
       "Access to both Liberty Village and Queen West neighbourhoods",
       "Pet-friendly with quiet Lisgar Street surroundings",
@@ -460,7 +585,7 @@
     "specificFaqs": [
       {
         "question": "Does Link Condos have a yoga studio?",
-        "answer": "Yes, Link Condos at 36 Lisgar St has an in-building yoga studio — one of the only residential buildings in Liberty Village with this amenity. The studio runs scheduled classes managed through the building's amenity booking system."
+        "answer": "Yes, Link Condos at 36 Lisgar St has an in-building yoga studio \u2014 one of the only residential buildings in Liberty Village with this amenity. The studio runs scheduled classes managed through the building's amenity booking system."
       },
       {
         "question": "What are the maintenance fees at Link Condos?",
@@ -483,12 +608,23 @@
         "answer": "Link Condos at 36 Lisgar St is a 3-minute walk from the 501 Queen streetcar at Lisgar. The 504 King streetcar is accessible by walking south on Lisgar to King Street, approximately 5-7 minutes. Both routes connect to downtown Toronto and the Yonge-University subway line."
       }
     ],
-    "tags": ["condo", "yoga-studio", "pet-friendly", "low-maintenance-fees", "queen-west-adjacent"]
+    "tags": [
+      "condo",
+      "yoga-studio",
+      "pet-friendly",
+      "low-maintenance-fees",
+      "queen-west-adjacent"
+    ],
+    "image": "/images/buildings/link-condos.jpg"
   },
   {
     "slug": "icon-at-king-and-dufferin",
     "name": "Icon at King & Dufferin",
-    "alternateNames": ["Icon Condos", "Icon LV", "31 Brock"],
+    "alternateNames": [
+      "Icon Condos",
+      "Icon LV",
+      "31 Brock"
+    ],
     "address": "31 Brock Ave, Toronto, ON",
     "postalCode": "M6K 2L7",
     "latitude": 43.6393,
@@ -506,15 +642,28 @@
     "transitScore": 96,
     "bikeScore": 83,
     "nearestTTC": "29 Dufferin bus and 504 King streetcar at King/Dufferin (2 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Concierge", "Party Room", "Theatre Room", "Outdoor BBQ Area", "Bike Storage"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Concierge",
+      "Party Room",
+      "Theatre Room",
+      "Outdoor BBQ Area",
+      "Bike Storage"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["orangetheory-fitness-liberty-village", "local-public-eatery", "louie-coffee-bar", "liberty-village-dental"],
+    "nearestBusinessSlugs": [
+      "orangetheory-fitness-liberty-village",
+      "local-public-eatery",
+      "louie-coffee-bar",
+      "liberty-village-dental"
+    ],
     "description": "Icon at King & Dufferin at 31 Brock Ave is a 20-storey luxury condo tower completed in 2017, positioned at the prominent King and Dufferin intersection that marks the western gateway to Liberty Village. One of the taller buildings in the neighbourhood, Icon offers panoramic west and north views alongside an extensive amenity package including a theatre room and outdoor BBQ area. Its location at the King/Dufferin hub provides the best transit access in all of Liberty Village.",
     "answerBlock": "Icon at King & Dufferin at 31 Brock Ave is a 410-unit, 20-storey luxury condo completed in 2017 at the King/Dufferin transit hub. One-bedroom condos rent from $2,520/month. The building has the most comprehensive amenity package of any Liberty Village condo, including a theatre room, concierge, and rooftop terrace, with both the 504 King streetcar and 29 Dufferin bus steps away.",
     "keyTakeaways": [
-      "At King/Dufferin — the best transit intersection in Liberty Village with two major routes",
+      "At King/Dufferin \u2014 the best transit intersection in Liberty Village with two major routes",
       "20-storey height delivers exceptional city views from upper floors",
       "Theatre room is one of the rarest amenities in the neighbourhood's condo market",
       "Largest building in the area at 410 units with full concierge services",
@@ -522,9 +671,9 @@
     ],
     "proTips": [
       "Upper floors on the north side of Icon overlook the Dufferin/King intersection and have CN Tower sightlines on clear days.",
-      "The theatre room is popular for sports nights and movie screenings — book through the concierge at least a week ahead for weekend evenings.",
+      "The theatre room is popular for sports nights and movie screenings \u2014 book through the concierge at least a week ahead for weekend evenings.",
       "King/Dufferin intersection can be busy and noisy at street level; units above floor 10 have significantly reduced traffic noise.",
-      "The outdoor BBQ area is a strong social hub in summer — a good way to meet neighbours in a larger building."
+      "The outdoor BBQ area is a strong social hub in summer \u2014 a good way to meet neighbours in a larger building."
     ],
     "pros": [
       "Best transit access in Liberty Village (504 King + 29 Dufferin at the door)",
@@ -541,11 +690,11 @@
     "specificFaqs": [
       {
         "question": "What is the average rent at Icon at King & Dufferin?",
-        "answer": "One-bedroom condos at Icon at King & Dufferin (31 Brock Ave) average $2,520/month, and two-bedroom units average $3,420/month. Upper-floor units with panoramic city views command a 15–20% premium over lower floors."
+        "answer": "One-bedroom condos at Icon at King & Dufferin (31 Brock Ave) average $2,520/month, and two-bedroom units average $3,420/month. Upper-floor units with panoramic city views command a 15\u201320% premium over lower floors."
       },
       {
         "question": "Does Icon at King & Dufferin have a theatre room?",
-        "answer": "Yes, Icon at King & Dufferin has an in-building theatre room — one of the few residential buildings in Liberty Village with this amenity. It's bookable through the building's concierge system and popular for group screenings and sports events."
+        "answer": "Yes, Icon at King & Dufferin has an in-building theatre room \u2014 one of the few residential buildings in Liberty Village with this amenity. It's bookable through the building's concierge system and popular for group screenings and sports events."
       },
       {
         "question": "What transit is near Icon at King & Dufferin?",
@@ -561,15 +710,27 @@
       },
       {
         "question": "How are maintenance fees at Icon at King & Dufferin?",
-        "answer": "Maintenance fees at Icon at King & Dufferin run approximately $0.67/sqft/month. For the amenity package — which includes theatre room, gym, rooftop terrace, concierge, outdoor BBQ, and party room — this is competitively priced for a 2017 build."
+        "answer": "Maintenance fees at Icon at King & Dufferin run approximately $0.67/sqft/month. For the amenity package \u2014 which includes theatre room, gym, rooftop terrace, concierge, outdoor BBQ, and party room \u2014 this is competitively priced for a 2017 build."
       }
     ],
-    "tags": ["condo", "luxury", "theatre-room", "rooftop", "transit-hub", "20-storeys", "pet-friendly"]
+    "tags": [
+      "condo",
+      "luxury",
+      "theatre-room",
+      "rooftop",
+      "transit-hub",
+      "20-storeys",
+      "pet-friendly"
+    ],
+    "image": "/images/buildings/icon-at-king-and-dufferin.jpg"
   },
   {
     "slug": "sixty-five-east-liberty",
     "name": "65 East Liberty",
-    "alternateNames": ["65 East Liberty St", "65EL"],
+    "alternateNames": [
+      "65 East Liberty St",
+      "65EL"
+    ],
     "address": "65 East Liberty St, Toronto, ON",
     "postalCode": "M6K 3R3",
     "latitude": 43.6368,
@@ -587,28 +748,39 @@
     "transitScore": 95,
     "bikeScore": 83,
     "nearestTTC": "504 King streetcar at Dufferin (3 min walk)",
-    "amenities": ["Gym", "Concierge", "Rooftop Terrace", "Party Room", "Visitor Parking"],
+    "amenities": [
+      "Gym",
+      "Concierge",
+      "Rooftop Terrace",
+      "Party Room",
+      "Visitor Parking"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["impact-kitchen", "nodo-liberty-village", "arvo-coffee", "liberty-commons-big-rock-brewery"],
+    "nearestBusinessSlugs": [
+      "impact-kitchen",
+      "nodo-liberty-village",
+      "arvo-coffee",
+      "liberty-commons-big-rock-brewery"
+    ],
     "description": "65 East Liberty is a 15-storey condo tower at the heart of Liberty Village's main commercial strip, completed in 2010 by Urbancorp. The building sits on East Liberty Street surrounded by the neighbourhood's best restaurants, coffee shops, and boutiques, making it one of the most walkable addresses in the area. Its mid-height profile and central location have made it a consistent performer in the Liberty Village rental market.",
     "answerBlock": "65 East Liberty at 65 East Liberty St is a 295-unit, 15-storey condo tower completed in 2010, situated on Liberty Village's main retail strip. One-bedroom condos rent from $2,340/month. The building has concierge, rooftop terrace, and gym, and is surrounded by Liberty Village's best dining and coffee options on the doorstep.",
     "keyTakeaways": [
       "Centrally located on East Liberty Street at the heart of the neighbourhood's dining and retail",
       "15 floors with southward views over Liberty Village's green and toward Lake Ontario",
-      "Completed 2010 — established building with long condo corporation track record",
-      "One of the most walkable addresses in the neighbourhood — everything within 5 minutes on foot",
+      "Completed 2010 \u2014 established building with long condo corporation track record",
+      "One of the most walkable addresses in the neighbourhood \u2014 everything within 5 minutes on foot",
       "Consistent rental demand due to prime location on the main commercial strip"
     ],
     "proTips": [
       "East Liberty Street-facing units have front-row views of the neighbourhood's activity but come with street noise; ask for interior or north-facing units if quiet is a priority.",
-      "The lobby concierge doubles as a neighbourhood info desk — new residents can learn about local services quickly through building staff.",
-      "Impact Kitchen and Arvo Coffee are literally steps from the front entrance — convenient for meal prep alternatives.",
+      "The lobby concierge doubles as a neighbourhood info desk \u2014 new residents can learn about local services quickly through building staff.",
+      "Impact Kitchen and Arvo Coffee are literally steps from the front entrance \u2014 convenient for meal prep alternatives.",
       "Visitor parking spaces are limited; direct guests to the Green P on East Liberty Street rather than occupying building spots."
     ],
     "pros": [
-      "Most central East Liberty Street location — surrounded by restaurants and cafes",
+      "Most central East Liberty Street location \u2014 surrounded by restaurants and cafes",
       "Consistent rental demand and strong resale market",
       "Concierge service and visitor parking available",
       "Established 2010 condo corporation with proven management",
@@ -616,7 +788,7 @@
     ],
     "cons": [
       "East Liberty Street-facing units experience significant daytime noise",
-      "Building completed in 2010 — some finishes and common areas showing age",
+      "Building completed in 2010 \u2014 some finishes and common areas showing age",
       "Limited green space immediately adjacent to building"
     ],
     "specificFaqs": [
@@ -645,12 +817,23 @@
         "answer": "65 East Liberty St is surrounded by Liberty Village's best dining. Impact Kitchen, Nodo, Arvo Coffee, and Liberty Commons Big Rock Brewery are all within a 2-minute walk. The full East Liberty Street dining strip extends in both directions from the building's entrance."
       }
     ],
-    "tags": ["condo", "central", "east-liberty", "pet-friendly", "concierge", "dining-adjacent"]
+    "tags": [
+      "condo",
+      "central",
+      "east-liberty",
+      "pet-friendly",
+      "concierge",
+      "dining-adjacent"
+    ],
+    "image": "/images/buildings/sixty-five-east-liberty.jpg"
   },
   {
     "slug": "fifty-one-east-liberty",
     "name": "51 East Liberty",
-    "alternateNames": ["51 East Liberty St", "51EL"],
+    "alternateNames": [
+      "51 East Liberty St",
+      "51EL"
+    ],
     "address": "51 East Liberty St, Toronto, ON",
     "postalCode": "M6K 3R2",
     "latitude": 43.6369,
@@ -668,25 +851,36 @@
     "transitScore": 95,
     "bikeScore": 83,
     "nearestTTC": "504 King streetcar at Dufferin (4 min walk)",
-    "amenities": ["Gym", "Party Room", "Rooftop Terrace", "Visitor Parking", "Bike Storage"],
+    "amenities": [
+      "Gym",
+      "Party Room",
+      "Rooftop Terrace",
+      "Visitor Parking",
+      "Bike Storage"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["mildreds-temple-kitchen", "nodo-liberty-village", "balzacs-coffee-liberty-village", "altea-active"],
+    "nearestBusinessSlugs": [
+      "mildreds-temple-kitchen",
+      "nodo-liberty-village",
+      "balzacs-coffee-liberty-village",
+      "altea-active"
+    ],
     "description": "51 East Liberty is a 14-storey condo tower completed in 2008 by Urbancorp, among the first conventional condo towers to rise on East Liberty Street during Liberty Village's residential explosion. The building has an established condo corporation with over 15 years of governance, a relatively affordable price point compared to newer neighbours, and a central location that puts residents in the heart of the neighbourhood's dining and social scene.",
     "answerBlock": "51 East Liberty at 51 East Liberty St is a 260-unit, 14-storey condo completed in 2008, one of the earliest tower-style condos on Liberty Village's main strip. One-bedroom units rent from $2,290/month. With over 15 years of condo corporation history, the building offers proven management, competitive pricing, and a central location surrounded by Liberty Village's best dining.",
     "keyTakeaways": [
-      "One of Liberty Village's earliest condo towers — 2008 completion with 15+ years of governance history",
+      "One of Liberty Village's earliest condo towers \u2014 2008 completion with 15+ years of governance history",
       "Competitive pricing for East Liberty Street central location",
       "Established condo corporation with mature reserve fund and proven management",
       "Walking distance to Mildred's Temple Kitchen, Balzac's, and Nodo",
       "Pet-friendly with direct access to East Liberty pedestrian corridor"
     ],
     "proTips": [
-      "A 2008-vintage building means you can verify a long history of condo corporation meeting minutes — request full records to assess any recurring maintenance issues.",
+      "A 2008-vintage building means you can verify a long history of condo corporation meeting minutes \u2014 request full records to assess any recurring maintenance issues.",
       "The building is slightly west of 65 East Liberty, which means a marginally quieter street presence and easier parking on evenings.",
-      "Upper floor south-facing units are the most sought-after for Liberty Village green views — typically priced $50–80/month higher in the rental market.",
-      "Mildred's Temple Kitchen opens for brunch at 10am on weekends and lines form by 10:30am — convenient for residents of 51 East Liberty who can walk over without a car."
+      "Upper floor south-facing units are the most sought-after for Liberty Village green views \u2014 typically priced $50\u201380/month higher in the rental market.",
+      "Mildred's Temple Kitchen opens for brunch at 10am on weekends and lines form by 10:30am \u2014 convenient for residents of 51 East Liberty who can walk over without a car."
     ],
     "pros": [
       "Proven 2008 condo corporation with mature governance and reserve fund",
@@ -696,7 +890,7 @@
       "Established building with predictable maintenance costs"
     ],
     "cons": [
-      "2008 finishes — kitchens and bathrooms in unrenovated units are dated",
+      "2008 finishes \u2014 kitchens and bathrooms in unrenovated units are dated",
       "Some building systems approaching maintenance lifecycle",
       "Elevator reliability can vary in older mid-rise condo towers"
     ],
@@ -726,12 +920,23 @@
         "answer": "51 East Liberty is a 4-minute walk to the 504 King streetcar at Dufferin. The building is on East Liberty Street between Dufferin and Pirandello, with straightforward walking access to the King/Dufferin transit hub."
       }
     ],
-    "tags": ["condo", "established", "east-liberty", "pet-friendly", "affordable", "2008-vintage"]
+    "tags": [
+      "condo",
+      "established",
+      "east-liberty",
+      "pet-friendly",
+      "affordable",
+      "2008-vintage"
+    ],
+    "image": "/images/buildings/fifty-one-east-liberty.jpg"
   },
   {
     "slug": "liberty-house",
     "name": "Liberty House",
-    "alternateNames": ["170 East Liberty", "Liberty House Rentals"],
+    "alternateNames": [
+      "170 East Liberty",
+      "Liberty House Rentals"
+    ],
     "address": "170 East Liberty St, Toronto, ON",
     "postalCode": "M6K 3R5",
     "latitude": 43.6364,
@@ -749,36 +954,49 @@
     "transitScore": 96,
     "bikeScore": 85,
     "nearestTTC": "504 King streetcar at Atlantic (4 min walk)",
-    "amenities": ["Concierge", "Gym", "Rooftop Terrace", "Party Room", "Co-working Space", "Dog Wash Station", "Bike Storage"],
+    "amenities": [
+      "Concierge",
+      "Gym",
+      "Rooftop Terrace",
+      "Party Room",
+      "Co-working Space",
+      "Dog Wash Station",
+      "Bike Storage"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["impact-kitchen", "craft-beer-market-liberty-village", "arvo-coffee", "liberty-village-physio"],
+    "nearestBusinessSlugs": [
+      "impact-kitchen",
+      "craft-beer-market-liberty-village",
+      "arvo-coffee",
+      "liberty-village-physio"
+    ],
     "description": "Liberty House at 170 East Liberty St is Liberty Village's most purpose-built purpose rental building, completed in 2019 by Main and Main Developments. The 18-storey tower is designed explicitly for renters with a co-working space, dog wash station, and professional management team who handle all maintenance through an online portal. As a purpose-built rental, Liberty House is governed by Ontario's Residential Tenancies Act rather than the Condominium Act.",
     "answerBlock": "Liberty House at 170 East Liberty St is a 340-unit, 18-storey purpose-built rental building completed in 2019. One-bedroom rentals start at $2,680/month with all-inclusive professional management. As a purpose-built rental governed by the Ontario Residential Tenancies Act, tenants have strong legal protections including rent increase restrictions, formal dispute resolution, and no surprise special assessments.",
     "keyTakeaways": [
-      "Purpose-built rental — governed by Ontario Residential Tenancies Act, not the Condominium Act",
+      "Purpose-built rental \u2014 governed by Ontario Residential Tenancies Act, not the Condominium Act",
       "Professional property management with online maintenance request portal",
-      "Co-working space on-site — rare in Liberty Village rental buildings",
+      "Co-working space on-site \u2014 rare in Liberty Village rental buildings",
       "Dog wash station and pet-friendly policies designed for modern renters",
       "No risk of owner-directed eviction for personal use that exists in investor-owned condos"
     ],
     "proTips": [
-      "As a purpose-built rental, rent increases are limited to provincial guidelines (currently 2.5% for 2026) — significantly more stable than investor-owned condos where landlords may seek above-guideline increases.",
+      "As a purpose-built rental, rent increases are limited to provincial guidelines (currently 2.5% for 2026) \u2014 significantly more stable than investor-owned condos where landlords may seek above-guideline increases.",
       "The co-working space is best used during mid-morning weekdays before it fills; the building's remote worker population is substantial.",
-      "Submit all maintenance requests through the online portal for documentation purposes — response times are typically 24-48 hours for routine items.",
+      "Submit all maintenance requests through the online portal for documentation purposes \u2014 response times are typically 24-48 hours for routine items.",
       "Liberty House is on the eastern edge of Liberty Village; the walk to King and Dufferin is about 8 minutes, but the 504 King at Atlantic Avenue is closer."
     ],
     "pros": [
-      "Ontario RTA protections — rent increase caps and formal dispute resolution",
+      "Ontario RTA protections \u2014 rent increase caps and formal dispute resolution",
       "Professional management with 24/7 maintenance portal",
-      "Co-working space on site — ideal for remote workers",
+      "Co-working space on site \u2014 ideal for remote workers",
       "Dog wash station and purpose-designed pet amenities",
       "No special assessment risk that exists in condo ownership"
     ],
     "cons": [
       "Higher rents than comparable investor-owned condo units",
-      "No path to unit ownership — purely a rental product",
+      "No path to unit ownership \u2014 purely a rental product",
       "Eastern Liberty Village location means longer walk to western neighbourhood amenities"
     ],
     "specificFaqs": [
@@ -792,7 +1010,7 @@
       },
       {
         "question": "Does Liberty House have a co-working space?",
-        "answer": "Yes, Liberty House has an on-site co-working space available exclusively to residents — one of the few rental buildings in Liberty Village with this amenity. The space is equipped with high-speed Wi-Fi, individual workstations, and meeting areas."
+        "answer": "Yes, Liberty House has an on-site co-working space available exclusively to residents \u2014 one of the few rental buildings in Liberty Village with this amenity. The space is equipped with high-speed Wi-Fi, individual workstations, and meeting areas."
       },
       {
         "question": "What are Ontario tenant rights at Liberty House?",
@@ -807,12 +1025,23 @@
         "answer": "Liberty House was completed in 2019 by Main and Main Developments. The 18-storey purpose-built rental tower was part of a wave of institutional rental development across Toronto as purpose-built rentals returned to the market after decades of decline."
       }
     ],
-    "tags": ["rental", "purpose-built", "pet-friendly", "co-working", "professional-management", "rta-protected"]
+    "tags": [
+      "rental",
+      "purpose-built",
+      "pet-friendly",
+      "co-working",
+      "professional-management",
+      "rta-protected"
+    ],
+    "image": "/images/buildings/liberty-house.jpg"
   },
   {
     "slug": "king-liberty-village",
     "name": "King Liberty Village",
-    "alternateNames": ["1 Brock", "King Liberty"],
+    "alternateNames": [
+      "1 Brock",
+      "King Liberty"
+    ],
     "address": "1 Brock Ave, Toronto, ON",
     "postalCode": "M6K 2K5",
     "latitude": 43.6395,
@@ -830,28 +1059,40 @@
     "transitScore": 96,
     "bikeScore": 84,
     "nearestTTC": "29 Dufferin bus and 504 King streetcar at King/Dufferin (3 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Concierge", "Party Room", "Guest Suites", "Outdoor Pool"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Concierge",
+      "Party Room",
+      "Guest Suites",
+      "Outdoor Pool"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["goodlife-fitness-liberty-village", "brazen-head-irish-pub", "louie-coffee-bar", "liberty-village-dental"],
-    "description": "King Liberty Village at 1 Brock Ave is a 22-storey Great Gulf condo tower completed in 2016, forming the anchor of the King and Dufferin corridor's residential cluster alongside Icon Condos. The building features an outdoor pool — one of only two in Liberty Village — alongside a comprehensive amenity floor and strong Great Gulf build quality. Its 22 floors deliver some of the neighbourhood's best elevated city views.",
+    "nearestBusinessSlugs": [
+      "goodlife-fitness-liberty-village",
+      "brazen-head-irish-pub",
+      "louie-coffee-bar",
+      "liberty-village-dental"
+    ],
+    "description": "King Liberty Village at 1 Brock Ave is a 22-storey Great Gulf condo tower completed in 2016, forming the anchor of the King and Dufferin corridor's residential cluster alongside Icon Condos. The building features an outdoor pool \u2014 one of only two in Liberty Village \u2014 alongside a comprehensive amenity floor and strong Great Gulf build quality. Its 22 floors deliver some of the neighbourhood's best elevated city views.",
     "answerBlock": "King Liberty Village at 1 Brock Ave is a 378-unit, 22-storey Great Gulf condo completed in 2016. One-bedroom condos rent from $2,490/month. The building features an outdoor pool, rooftop terrace, concierge, and guest suites, and is positioned at the King/Dufferin transit hub within 3 minutes of both the 504 King streetcar and 29 Dufferin bus.",
     "keyTakeaways": [
-      "Outdoor pool on-site — one of only two condo buildings in Liberty Village with this feature",
+      "Outdoor pool on-site \u2014 one of only two condo buildings in Liberty Village with this feature",
       "22-storey Great Gulf construction with known build quality and energy efficiency",
       "King/Dufferin location offers the best transit access in Liberty Village",
       "Guest suites reduce visiting family accommodation costs",
       "Strong resale history driven by Great Gulf brand recognition and location premium"
     ],
     "proTips": [
-      "The outdoor pool is located on the amenity floor and is significantly less crowded on weekday evenings compared to weekends — a genuine perk for remote workers.",
+      "The outdoor pool is located on the amenity floor and is significantly less crowded on weekday evenings compared to weekends \u2014 a genuine perk for remote workers.",
       "Great Gulf buildings are known for above-average build quality; request the pre-delivery inspection report when evaluating a resale unit.",
-      "Brock Ave is quieter than the King/Dufferin intersection itself — units on the Brock side of the building have better noise profiles.",
+      "Brock Ave is quieter than the King/Dufferin intersection itself \u2014 units on the Brock side of the building have better noise profiles.",
       "The 22-storey height makes Kings Liberty Village one of the best vantage points in the neighbourhood for CNE fireworks visible from the west-facing balconies."
     ],
     "pros": [
-      "Outdoor pool — rare in the Liberty Village condo market",
+      "Outdoor pool \u2014 rare in the Liberty Village condo market",
       "Great Gulf construction quality with energy-efficient systems",
       "22 floors with expansive city views",
       "King/Dufferin transit hub on the doorstep",
@@ -865,7 +1106,7 @@
     "specificFaqs": [
       {
         "question": "Does King Liberty Village have a pool?",
-        "answer": "Yes, King Liberty Village at 1 Brock Ave has an outdoor swimming pool — one of the rarest amenities in the Liberty Village condo market. The pool is seasonal, typically open from May through September, and is available exclusively to building residents."
+        "answer": "Yes, King Liberty Village at 1 Brock Ave has an outdoor swimming pool \u2014 one of the rarest amenities in the Liberty Village condo market. The pool is seasonal, typically open from May through September, and is available exclusively to building residents."
       },
       {
         "question": "What is the average rent at King Liberty Village?",
@@ -888,12 +1129,24 @@
         "answer": "Maintenance fees at King Liberty Village run approximately $0.66/sqft/month, which is reasonable for a Great Gulf build with an outdoor pool, rooftop terrace, gym, concierge, and guest suites."
       }
     ],
-    "tags": ["condo", "outdoor-pool", "great-gulf", "rooftop", "concierge", "king-dufferin", "luxury"]
+    "tags": [
+      "condo",
+      "outdoor-pool",
+      "great-gulf",
+      "rooftop",
+      "concierge",
+      "king-dufferin",
+      "luxury"
+    ],
+    "image": "/images/buildings/king-liberty-village.jpg"
   },
   {
     "slug": "fly-condos",
     "name": "Fly Condos",
-    "alternateNames": ["5 Hanna", "Fly LV"],
+    "alternateNames": [
+      "5 Hanna",
+      "Fly LV"
+    ],
     "address": "5 Hanna Ave, Toronto, ON",
     "postalCode": "M6K 1X6",
     "latitude": 43.6378,
@@ -911,25 +1164,36 @@
     "transitScore": 94,
     "bikeScore": 82,
     "nearestTTC": "504 King streetcar at Dufferin (4 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Party Room", "Concierge", "Bike Storage"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Party Room",
+      "Concierge",
+      "Bike Storage"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["balzacs-coffee-liberty-village", "goodlife-fitness-liberty-village", "sweet-flour-bake-shop", "liberty-village-physio"],
+    "nearestBusinessSlugs": [
+      "balzacs-coffee-liberty-village",
+      "goodlife-fitness-liberty-village",
+      "sweet-flour-bake-shop",
+      "liberty-village-physio"
+    ],
     "description": "Fly Condos at 5 Hanna Ave is a 16-storey Urbancorp tower completed in 2013, occupying one of Liberty Village's most established addresses on the historic Hanna Avenue strip. The building sits between Liberty Lofts and Toy Factory Lofts, giving it the character of a condo tower with the heritage streetscape of loft row. Low maintenance fees and consistent rental demand have made Fly Condos one of the neighbourhood's most reliable investment properties.",
-    "answerBlock": "Fly Condos at 5 Hanna Ave is a 315-unit, 16-storey condo completed in 2013 on Hanna Avenue — the heart of Liberty Village's heritage loft strip. One-bedroom condos rent from $2,360/month. The building has among the lowest maintenance fees for its size at $0.63/sqft/month, and its Hanna Ave location gives residents the feel of loft-row character in a modern condo building.",
+    "answerBlock": "Fly Condos at 5 Hanna Ave is a 315-unit, 16-storey condo completed in 2013 on Hanna Avenue \u2014 the heart of Liberty Village's heritage loft strip. One-bedroom condos rent from $2,360/month. The building has among the lowest maintenance fees for its size at $0.63/sqft/month, and its Hanna Ave location gives residents the feel of loft-row character in a modern condo building.",
     "keyTakeaways": [
-      "On Hanna Ave's heritage loft strip — surrounded by the character of Liberty Village's most iconic streetscape",
+      "On Hanna Ave's heritage loft strip \u2014 surrounded by the character of Liberty Village's most iconic streetscape",
       "Among the lowest maintenance fees in the neighbourhood at $0.63/sqft",
       "Consistent investment performance with high rental demand on Hanna Ave",
       "16-storey height provides good city views without the noise of taller King/Dufferin towers",
       "Balzac's Coffee and GoodLife Fitness are a short walk down Hanna Ave"
     ],
     "proTips": [
-      "Hanna Ave is one of Liberty Village's quietest streets relative to its central position — a genuinely peaceful residential corridor in an urban setting.",
+      "Hanna Ave is one of Liberty Village's quietest streets relative to its central position \u2014 a genuinely peaceful residential corridor in an urban setting.",
       "The low maintenance fees have allowed Fly's reserve fund to grow steadily; verify reserve fund balance in the most recent status certificate.",
-      "Units on the upper east side of the building overlook Toy Factory Lofts' rooftop terrace — not ideal for privacy but entertaining for social observation.",
-      "The building's concierge can facilitate moves and large deliveries more efficiently than buildings without concierge staff — useful when moving in."
+      "Units on the upper east side of the building overlook Toy Factory Lofts' rooftop terrace \u2014 not ideal for privacy but entertaining for social observation.",
+      "The building's concierge can facilitate moves and large deliveries more efficiently than buildings without concierge staff \u2014 useful when moving in."
     ],
     "pros": [
       "Lowest maintenance fees of its tier at $0.63/sqft/month",
@@ -950,7 +1214,7 @@
       },
       {
         "question": "What are the maintenance fees at Fly Condos?",
-        "answer": "Fly Condos maintenance fees are approximately $0.63/sqft/month — among the lowest in Liberty Village for a 2013 condo building with concierge, gym, rooftop terrace, and party room. This makes Fly Condos a particularly cost-effective ownership proposition."
+        "answer": "Fly Condos maintenance fees are approximately $0.63/sqft/month \u2014 among the lowest in Liberty Village for a 2013 condo building with concierge, gym, rooftop terrace, and party room. This makes Fly Condos a particularly cost-effective ownership proposition."
       },
       {
         "question": "Is Fly Condos on Hanna Ave pet-friendly?",
@@ -969,12 +1233,23 @@
         "answer": "Fly Condos (5 Hanna Ave, 2013, condo) is a modern soft-loft-style condo tower, while Toy Factory Lofts (43 Hanna Ave, 2004, hard loft) is an authentic factory conversion. Fly typically has lower maintenance fees and more predictable building systems; Toy Factory offers authentic heritage character. Both are on the same Hanna Ave strip."
       }
     ],
-    "tags": ["condo", "hanna-ave", "low-maintenance", "pet-friendly", "heritage-streetscape", "investment"]
+    "tags": [
+      "condo",
+      "hanna-ave",
+      "low-maintenance",
+      "pet-friendly",
+      "heritage-streetscape",
+      "investment"
+    ],
+    "image": "/images/buildings/fly-condos.jpg"
   },
   {
     "slug": "mowat-lofts",
     "name": "Mowat Lofts",
-    "alternateNames": ["20 Mowat", "Mowat Ave Lofts"],
+    "alternateNames": [
+      "20 Mowat",
+      "Mowat Ave Lofts"
+    ],
     "address": "20 Mowat Ave, Toronto, ON",
     "postalCode": "M6K 3E7",
     "latitude": 43.6395,
@@ -992,13 +1267,23 @@
     "transitScore": 93,
     "bikeScore": 79,
     "nearestTTC": "504 King streetcar at Dufferin (5 min walk)",
-    "amenities": ["Gym", "Rooftop Patio", "Bike Storage", "Party Room"],
+    "amenities": [
+      "Gym",
+      "Rooftop Patio",
+      "Bike Storage",
+      "Party Room"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["brazen-head-irish-pub", "studio-lagree-liberty-village", "arvo-coffee", "liberty-village-chiropractic"],
+    "nearestBusinessSlugs": [
+      "brazen-head-irish-pub",
+      "studio-lagree-liberty-village",
+      "arvo-coffee",
+      "liberty-village-chiropractic"
+    ],
     "description": "Mowat Lofts at 20 Mowat Ave is a 140-unit hard loft conversion completed in 2003, situated on a quiet residential street that feels distinctly removed from the busier East Liberty Street corridor. One of the earliest residential conversions in Liberty Village, the building retains exceptional industrial character with exposed brick, original heavy timber structural members, and sky-high ceiling heights in select units. Its Mowat Ave location near Brazen Head is beloved by residents who want a loft lifestyle without East Liberty Street's commercial bustle.",
-    "answerBlock": "Mowat Lofts at 20 Mowat Ave is a 140-unit, 5-storey hard loft conversion completed in 2003, on one of Liberty Village's quieter residential streets. One-bedroom lofts rent from $2,180/month — among the most affordable authentic hard loft units in the neighbourhood. The building has exposed brick, original heavy timber, and a community-scale feel that larger buildings cannot replicate.",
+    "answerBlock": "Mowat Lofts at 20 Mowat Ave is a 140-unit, 5-storey hard loft conversion completed in 2003, on one of Liberty Village's quieter residential streets. One-bedroom lofts rent from $2,180/month \u2014 among the most affordable authentic hard loft units in the neighbourhood. The building has exposed brick, original heavy timber, and a community-scale feel that larger buildings cannot replicate.",
     "keyTakeaways": [
       "Most affordable hard loft rents in Liberty Village at $2,180/month for 1BR",
       "Quiet Mowat Ave location away from the East Liberty Street commercial corridor",
@@ -1007,9 +1292,9 @@
       "Maintenance fees are higher due to age but reflect an established condo corporation"
     ],
     "proTips": [
-      "Mowat Ave is one of Liberty Village's most protected cycling routes — great for residents who bike commute via the Dufferin corridor.",
+      "Mowat Ave is one of Liberty Village's most protected cycling routes \u2014 great for residents who bike commute via the Dufferin corridor.",
       "The building's age means some units have been significantly renovated by long-term owners; always verify whether kitchen and bathroom updates are included in the unit.",
-      "Higher maintenance fees ($0.79/sqft) at this building's age warrant a careful reserve fund review — request the most recent engineer's reserve fund study.",
+      "Higher maintenance fees ($0.79/sqft) at this building's age warrant a careful reserve fund review \u2014 request the most recent engineer's reserve fund study.",
       "The intimate 140-unit scale means neighbour relationships are closer and building culture more communal than in 400-unit towers."
     ],
     "pros": [
@@ -1027,7 +1312,7 @@
     "specificFaqs": [
       {
         "question": "What is the average rent at Mowat Lofts?",
-        "answer": "One-bedroom lofts at Mowat Lofts (20 Mowat Ave) average $2,180/month — the most affordable authentic hard loft units in Liberty Village. Two-bedroom lofts average $2,900/month. Units with original heavy timber and full ceiling heights command a modest premium."
+        "answer": "One-bedroom lofts at Mowat Lofts (20 Mowat Ave) average $2,180/month \u2014 the most affordable authentic hard loft units in Liberty Village. Two-bedroom lofts average $2,900/month. Units with original heavy timber and full ceiling heights command a modest premium."
       },
       {
         "question": "Is Mowat Lofts a real hard loft?",
@@ -1039,7 +1324,7 @@
       },
       {
         "question": "What are maintenance fees at Mowat Lofts?",
-        "answer": "Maintenance fees at Mowat Lofts run approximately $0.79/sqft/month — the highest in Liberty Village's loft category, reflecting the building's 2003 vintage and ongoing infrastructure maintenance costs. A reserve fund review is strongly recommended before purchasing."
+        "answer": "Maintenance fees at Mowat Lofts run approximately $0.79/sqft/month \u2014 the highest in Liberty Village's loft category, reflecting the building's 2003 vintage and ongoing infrastructure maintenance costs. A reserve fund review is strongly recommended before purchasing."
       },
       {
         "question": "Is Mowat Lofts pet-friendly?",
@@ -1050,12 +1335,24 @@
         "answer": "Both Mowat Lofts (2003) and Liberty Lofts (2002) are authentic hard loft conversions by Freed Developments. Mowat Ave is quieter and more residential in character; Hanna Ave is more centrally located on the heritage loft strip. Mowat Lofts has slightly higher maintenance fees but a similar unit quality and feel."
       }
     ],
-    "tags": ["loft", "hard-loft", "affordable", "quiet", "pet-friendly", "heritage", "mowat-ave"]
+    "tags": [
+      "loft",
+      "hard-loft",
+      "affordable",
+      "quiet",
+      "pet-friendly",
+      "heritage",
+      "mowat-ave"
+    ],
+    "image": "/images/buildings/mowat-lofts.jpg"
   },
   {
     "slug": "evolution-condos",
     "name": "Evolution Condos",
-    "alternateNames": ["90 Niagara", "Evolution LV"],
+    "alternateNames": [
+      "90 Niagara",
+      "Evolution LV"
+    ],
     "address": "90 Niagara St, Toronto, ON",
     "postalCode": "M5V 1C5",
     "latitude": 43.6406,
@@ -1073,25 +1370,37 @@
     "transitScore": 97,
     "bikeScore": 87,
     "nearestTTC": "504 King streetcar at Niagara (2 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Concierge", "Party Room", "Co-working Lounge", "Bike Storage"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Concierge",
+      "Party Room",
+      "Co-working Lounge",
+      "Bike Storage"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["pai-northern-thai", "dark-horse-espresso-liberty-village", "yoga-tree-liberty-village", "cibo-liberty-village"],
-    "description": "Evolution Condos at 90 Niagara St is a 15-storey modern condo tower completed in 2018 on the corner of Niagara and King, giving it direct access to both the King Street restaurant corridor and Liberty Village's residential core. The building features a co-working lounge — reflecting the building's appeal to the tech and creative professional tenant base that defines Liberty Village. Its Niagara Street location mirrors Electra Lofts but with a modern condo aesthetic and newer building systems.",
+    "nearestBusinessSlugs": [
+      "pai-northern-thai",
+      "dark-horse-espresso-liberty-village",
+      "yoga-tree-liberty-village",
+      "cibo-liberty-village"
+    ],
+    "description": "Evolution Condos at 90 Niagara St is a 15-storey modern condo tower completed in 2018 on the corner of Niagara and King, giving it direct access to both the King Street restaurant corridor and Liberty Village's residential core. The building features a co-working lounge \u2014 reflecting the building's appeal to the tech and creative professional tenant base that defines Liberty Village. Its Niagara Street location mirrors Electra Lofts but with a modern condo aesthetic and newer building systems.",
     "answerBlock": "Evolution Condos at 90 Niagara St is a 256-unit, 15-storey condo completed in 2018, positioned at the King/Niagara corner with 2-minute access to the 504 King streetcar. One-bedroom condos rent from $2,460/month. The building features a co-working lounge, concierge, and rooftop terrace, catering to Liberty Village's professional and tech-sector tenant demographic.",
     "keyTakeaways": [
-      "Co-working lounge designed for remote workers — aligns with Liberty Village's tech tenant base",
-      "2-minute walk to 504 King streetcar at Niagara — second-best transit access in Liberty Village",
+      "Co-working lounge designed for remote workers \u2014 aligns with Liberty Village's tech tenant base",
+      "2-minute walk to 504 King streetcar at Niagara \u2014 second-best transit access in Liberty Village",
       "2018 construction with modern HVAC, suite finishes, and energy efficiency",
       "King Street restaurant and bar corridor is directly accessible from the front entrance",
       "Niagara Street position is quieter than King Street itself while remaining steps away"
     ],
     "proTips": [
-      "The co-working lounge is best in the morning before noon — after lunch it competes with Liberty Village's coworking café culture.",
-      "Niagara and King is a streetcar stop — residents on lower floors facing south can hear the 504 at peak hours; request higher floors for noise mitigation.",
-      "Evolution's 2018 construction means the reserve fund is still in its growth phase — lower short-term maintenance risk but verify that fees are adequate for future major projects.",
-      "The King West restaurant strip directly accessible from the front entrance includes Pai Northern Thai, Cibo, and Dark Horse — useful for frequent diners."
+      "The co-working lounge is best in the morning before noon \u2014 after lunch it competes with Liberty Village's coworking caf\u00e9 culture.",
+      "Niagara and King is a streetcar stop \u2014 residents on lower floors facing south can hear the 504 at peak hours; request higher floors for noise mitigation.",
+      "Evolution's 2018 construction means the reserve fund is still in its growth phase \u2014 lower short-term maintenance risk but verify that fees are adequate for future major projects.",
+      "The King West restaurant strip directly accessible from the front entrance includes Pai Northern Thai, Cibo, and Dark Horse \u2014 useful for frequent diners."
     ],
     "pros": [
       "Co-working lounge designed for the building's professional tenant mix",
@@ -1131,12 +1440,23 @@
         "answer": "Maintenance fees at Evolution Condos are approximately $0.64/sqft/month. As a 2018 building, the reserve fund is still in its accumulation phase, which typically means lower short-term special assessment risk."
       }
     ],
-    "tags": ["condo", "co-working", "transit-accessible", "modern", "pet-friendly", "king-niagara"]
+    "tags": [
+      "condo",
+      "co-working",
+      "transit-accessible",
+      "modern",
+      "pet-friendly",
+      "king-niagara"
+    ],
+    "image": "/images/buildings/evolution-condos.jpg"
   },
   {
     "slug": "atlantic-rentals",
     "name": "Atlantic Rentals",
-    "alternateNames": ["99 Atlantic", "Atlantic Ave Rentals"],
+    "alternateNames": [
+      "99 Atlantic",
+      "Atlantic Ave Rentals"
+    ],
     "address": "99 Atlantic Ave, Toronto, ON",
     "postalCode": "M6K 3J7",
     "latitude": 43.6374,
@@ -1154,11 +1474,22 @@
     "transitScore": 95,
     "bikeScore": 84,
     "nearestTTC": "504 King streetcar at Atlantic (3 min walk)",
-    "amenities": ["Gym", "Party Room", "Rooftop Terrace", "Bike Storage", "On-site Laundry"],
+    "amenities": [
+      "Gym",
+      "Party Room",
+      "Rooftop Terrace",
+      "Bike Storage",
+      "On-site Laundry"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["craft-beer-market-liberty-village", "impact-kitchen", "arvo-coffee", "f45-training-liberty-village"],
+    "nearestBusinessSlugs": [
+      "craft-beer-market-liberty-village",
+      "impact-kitchen",
+      "arvo-coffee",
+      "f45-training-liberty-village"
+    ],
     "description": "Atlantic Rentals at 99 Atlantic Ave is a 12-storey purpose-built rental building completed in 2015 by Greenwin, on Atlantic Avenue where Liberty Village meets the Atlantic Street creative and light-industrial zone. Managed professionally by Greenwin, the building offers Ontario RTA tenant protections and access to on-site maintenance staff. Its Atlantic Avenue address connects residents to Liberty Village's eastern dining and brewery scene.",
     "answerBlock": "Atlantic Rentals at 99 Atlantic Ave is a 198-unit, 12-storey purpose-built rental building completed in 2015, managed by Greenwin. One-bedroom rentals average $2,420/month. As a purpose-built rental under the Ontario Residential Tenancies Act, residents benefit from rent increase caps, professional management, and established Landlord and Tenant Board protections not available in investor-owned condos.",
     "keyTakeaways": [
@@ -1169,10 +1500,10 @@
       "Competitive rents for a purpose-built rental with rooftop terrace and gym"
     ],
     "proTips": [
-      "Request a high-floor unit on the west side for views toward the Liberty Village skyline — east-facing units look over Atlantic's light-industrial character.",
+      "Request a high-floor unit on the west side for views toward the Liberty Village skyline \u2014 east-facing units look over Atlantic's light-industrial character.",
       "Atlantic Rentals' Greenwin management has a dedicated maintenance team; submit requests through the online portal with photos for faster resolution.",
       "Ontario rent guideline increases (currently 2.5% for 2026) are the ceiling for annual rent increases at Atlantic Rentals, providing predictable housing cost growth.",
-      "Craft Beer Market and Impact Kitchen are within a 3-minute walk on Atlantic Ave — one of Liberty Village's most walkable restaurant corridors."
+      "Craft Beer Market and Impact Kitchen are within a 3-minute walk on Atlantic Ave \u2014 one of Liberty Village's most walkable restaurant corridors."
     ],
     "pros": [
       "Ontario RTA protections with Greenwin professional management",
@@ -1182,7 +1513,7 @@
       "Online maintenance portal for convenient repair requests"
     ],
     "cons": [
-      "No path to ownership — purely a rental product",
+      "No path to ownership \u2014 purely a rental product",
       "Eastern Atlantic Ave location is further from King/Dufferin transit hub",
       "Building is 2015 vintage; some finishes may need refreshing"
     ],
@@ -1212,15 +1543,26 @@
         "answer": "Atlantic Rentals has a gym, party room, rooftop terrace, bike storage, and on-site laundry. For a purpose-built rental, this is a competitive amenity package. The building also benefits from professional Greenwin management for maintenance requests."
       }
     ],
-    "tags": ["rental", "purpose-built", "greenwin", "pet-friendly", "atlantic-ave", "rta-protected"]
+    "tags": [
+      "rental",
+      "purpose-built",
+      "greenwin",
+      "pet-friendly",
+      "atlantic-ave",
+      "rta-protected"
+    ],
+    "image": "/images/buildings/atlantic-rentals.jpg"
   },
   {
     "slug": "carnaby-condos",
     "name": "Carnaby Condos",
-    "alternateNames": ["51 Brock", "Carnaby LV"],
+    "alternateNames": [
+      "51 Brock",
+      "Carnaby LV"
+    ],
     "address": "51 Brock Ave, Toronto, ON",
     "postalCode": "M6K 2L7",
-    "latitude": 43.6390,
+    "latitude": 43.639,
     "longitude": -79.4263,
     "yearBuilt": 2020,
     "units": 289,
@@ -1235,28 +1577,40 @@
     "transitScore": 96,
     "bikeScore": 84,
     "nearestTTC": "29 Dufferin bus and 504 King streetcar at King/Dufferin (2 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Concierge", "Party Room", "Co-working Space", "Outdoor Terrace Garden"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Concierge",
+      "Party Room",
+      "Co-working Space",
+      "Outdoor Terrace Garden"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["orangetheory-fitness-liberty-village", "louie-coffee-bar", "local-public-eatery", "liberty-village-dental"],
+    "nearestBusinessSlugs": [
+      "orangetheory-fitness-liberty-village",
+      "louie-coffee-bar",
+      "local-public-eatery",
+      "liberty-village-dental"
+    ],
     "description": "Carnaby Condos at 51 Brock Ave is one of Liberty Village's newest condo buildings, completed in 2020 by Lanterra Developments and named after London's iconic fashion street. The 18-storey building is adjacent to Icon at King & Dufferin and has the same exceptional transit access of the King/Dufferin hub. Carnaby stands out for its outdoor terrace garden and among the lowest maintenance fees in the neighbourhood at $0.61/sqft for a post-2020 build.",
-    "answerBlock": "Carnaby Condos at 51 Brock Ave is a 289-unit, 18-storey condo completed in 2020 — one of Liberty Village's newest buildings. One-bedroom condos rent from $2,580/month. The building features an outdoor terrace garden, co-working space, and concierge, with the lowest maintenance fees of any post-2020 condo in the neighbourhood at $0.61/sqft/month.",
+    "answerBlock": "Carnaby Condos at 51 Brock Ave is a 289-unit, 18-storey condo completed in 2020 \u2014 one of Liberty Village's newest buildings. One-bedroom condos rent from $2,580/month. The building features an outdoor terrace garden, co-working space, and concierge, with the lowest maintenance fees of any post-2020 condo in the neighbourhood at $0.61/sqft/month.",
     "keyTakeaways": [
-      "Newest major condo building in Liberty Village — 2020 completion with contemporary finishes",
+      "Newest major condo building in Liberty Village \u2014 2020 completion with contemporary finishes",
       "Outdoor terrace garden is a rare amenity that differentiates Carnaby from taller towers",
       "Lowest maintenance fees for a post-2020 build in the neighbourhood ($0.61/sqft)",
       "King/Dufferin transit hub within 2 minutes on foot",
       "Lanterra brand known for contemporary design and strong investment performance"
     ],
     "proTips": [
-      "As one of the newest buildings in Liberty Village, Carnaby's reserve fund is in its early accumulation phase — lower short-term special assessment risk.",
+      "As one of the newest buildings in Liberty Village, Carnaby's reserve fund is in its early accumulation phase \u2014 lower short-term special assessment risk.",
       "The outdoor terrace garden is a genuine differentiator; request an amenity floor or garden-adjacent unit for the most benefit.",
-      "Co-working space in Carnaby is newer and better equipped than those in older buildings — worth factoring in if you work from home.",
+      "Co-working space in Carnaby is newer and better equipped than those in older buildings \u2014 worth factoring in if you work from home.",
       "Brock Ave is marginally quieter than the King/Dufferin intersection itself; north-facing units on Brock have good noise profiles for the area."
     ],
     "pros": [
-      "Most recently completed major condo in Liberty Village — modern systems and finishes",
+      "Most recently completed major condo in Liberty Village \u2014 modern systems and finishes",
       "Outdoor terrace garden is a distinct amenity from competing buildings",
       "Lowest maintenance fees in the post-2020 segment at $0.61/sqft",
       "King/Dufferin transit hub on the doorstep",
@@ -1265,7 +1619,7 @@
     "cons": [
       "Premium rents reflect new-build status",
       "Reserve fund is still in accumulation phase",
-      "Building is adjacent to a busy transit intersection — street noise on lower floors"
+      "Building is adjacent to a busy transit intersection \u2014 street noise on lower floors"
     ],
     "specificFaqs": [
       {
@@ -1282,7 +1636,7 @@
       },
       {
         "question": "What are maintenance fees at Carnaby Condos?",
-        "answer": "Maintenance fees at Carnaby Condos are approximately $0.61/sqft/month — the lowest of any post-2020 condo in Liberty Village. The reserve fund is in its early phase, meaning low short-term special assessment risk."
+        "answer": "Maintenance fees at Carnaby Condos are approximately $0.61/sqft/month \u2014 the lowest of any post-2020 condo in Liberty Village. The reserve fund is in its early phase, meaning low short-term special assessment risk."
       },
       {
         "question": "Is Carnaby Condos pet-friendly?",
@@ -1293,12 +1647,24 @@
         "answer": "Carnaby Condos (2020) is newer, has lower maintenance fees, and an outdoor terrace garden. Icon at King & Dufferin (2017) has a theatre room and is slightly larger at 410 units. Both buildings share the King/Dufferin transit hub and similar King/Brock Ave positioning."
       }
     ],
-    "tags": ["condo", "new-build", "outdoor-garden", "co-working", "low-maintenance", "king-dufferin", "lanterra"]
+    "tags": [
+      "condo",
+      "new-build",
+      "outdoor-garden",
+      "co-working",
+      "low-maintenance",
+      "king-dufferin",
+      "lanterra"
+    ],
+    "image": "/images/buildings/carnaby-condos.jpg"
   },
   {
     "slug": "reina-at-liberty-village",
     "name": "Reina at Liberty Village",
-    "alternateNames": ["17 Hanna", "Reina LV"],
+    "alternateNames": [
+      "17 Hanna",
+      "Reina LV"
+    ],
     "address": "17 Hanna Ave, Toronto, ON",
     "postalCode": "M6K 1X6",
     "latitude": 43.6382,
@@ -1311,40 +1677,53 @@
     "avgRent1BR": 2650,
     "avgRent2BR": 3600,
     "avgPricePerSqft": 1120,
-    "maintenanceFeePerSqft": 0.60,
+    "maintenanceFeePerSqft": 0.6,
     "walkScore": 89,
     "transitScore": 94,
     "bikeScore": 82,
     "nearestTTC": "504 King streetcar at Dufferin (4 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Concierge", "Party Room", "Outdoor Kitchen", "Bike Storage", "Wellness Room"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Concierge",
+      "Party Room",
+      "Outdoor Kitchen",
+      "Bike Storage",
+      "Wellness Room"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["balzacs-coffee-liberty-village", "goodlife-fitness-liberty-village", "sweet-flour-bake-shop", "liberty-village-physio"],
+    "nearestBusinessSlugs": [
+      "balzacs-coffee-liberty-village",
+      "goodlife-fitness-liberty-village",
+      "sweet-flour-bake-shop",
+      "liberty-village-physio"
+    ],
     "description": "Reina at Liberty Village at 17 Hanna Ave is the newest condo building on the heritage Hanna Avenue loft strip, completed in 2022 by Graywood Developments. The 14-storey building introduces a wellness room and outdoor kitchen to the Hanna Ave corridor, bringing premium modern amenities to the neighbourhood's most iconic heritage street. As of 2026, it commands the highest per-square-foot prices on Hanna Ave while offering the lowest maintenance fees of any condo on the strip.",
-    "answerBlock": "Reina at Liberty Village at 17 Hanna Ave is a 245-unit, 14-storey condo completed in 2022 — the newest building on Hanna Avenue's heritage loft strip. One-bedroom condos rent from $2,650/month. Reina features a wellness room, outdoor kitchen, rooftop terrace, and the lowest maintenance fees on Hanna Ave at $0.60/sqft/month, making it the premium modern option alongside the neighbourhood's historic lofts.",
+    "answerBlock": "Reina at Liberty Village at 17 Hanna Ave is a 245-unit, 14-storey condo completed in 2022 \u2014 the newest building on Hanna Avenue's heritage loft strip. One-bedroom condos rent from $2,650/month. Reina features a wellness room, outdoor kitchen, rooftop terrace, and the lowest maintenance fees on Hanna Ave at $0.60/sqft/month, making it the premium modern option alongside the neighbourhood's historic lofts.",
     "keyTakeaways": [
-      "Newest building on Hanna Ave's heritage loft strip — 2022 completion",
+      "Newest building on Hanna Ave's heritage loft strip \u2014 2022 completion",
       "Wellness room is unique in the Liberty Village condo market",
       "Outdoor kitchen on the amenity floor is rare for a mid-size condo building",
       "Lowest maintenance fees on Hanna Ave at $0.60/sqft for the most contemporary build",
-      "Commands premium pricing at $1,120/sqft — highest on Hanna Ave"
+      "Commands premium pricing at $1,120/sqft \u2014 highest on Hanna Ave"
     ],
     "proTips": [
-      "Reina's wellness room has limited capacity — early morning slots are easiest to secure before the building's young professional population starts their workday.",
-      "The outdoor kitchen is a socialising catalyst in warm months — a strong way to meet neighbours in a newer building where community ties are still forming.",
-      "As a 2022 building, the reserve fund is in its earliest accumulation phase — low short-term special assessment risk, and the building systems are under manufacturer warranty.",
-      "Hanna Ave's heritage streetscape means no new towers blocking the loft-row character adjacent to the building — a strong long-term view protection."
+      "Reina's wellness room has limited capacity \u2014 early morning slots are easiest to secure before the building's young professional population starts their workday.",
+      "The outdoor kitchen is a socialising catalyst in warm months \u2014 a strong way to meet neighbours in a newer building where community ties are still forming.",
+      "As a 2022 building, the reserve fund is in its earliest accumulation phase \u2014 low short-term special assessment risk, and the building systems are under manufacturer warranty.",
+      "Hanna Ave's heritage streetscape means no new towers blocking the loft-row character adjacent to the building \u2014 a strong long-term view protection."
     ],
     "pros": [
-      "Newest condo on Hanna Ave — 2022 construction with the latest finishes and systems",
-      "Wellness room — unique in the neighbourhood's condo market",
+      "Newest condo on Hanna Ave \u2014 2022 construction with the latest finishes and systems",
+      "Wellness room \u2014 unique in the neighbourhood's condo market",
       "Outdoor kitchen for al fresco entertaining",
       "Lowest maintenance fees on Hanna Ave at $0.60/sqft",
       "Heritage Hanna Ave address with view protection from adjacent low-rise lofts"
     ],
     "cons": [
-      "Highest per-sqft pricing on Hanna Ave — premium for new build status",
+      "Highest per-sqft pricing on Hanna Ave \u2014 premium for new build status",
       "Reserve fund at earliest accumulation phase (2022 completion)",
       "Wellness room and outdoor kitchen capacity limited for 245 units"
     ],
@@ -1359,11 +1738,11 @@
       },
       {
         "question": "Does Reina at Liberty Village have a wellness room?",
-        "answer": "Yes, Reina at Liberty Village has an on-site wellness room — a rare amenity in Liberty Village condos. The wellness room includes fitness and recovery equipment designed to complement the building's rooftop terrace and gym."
+        "answer": "Yes, Reina at Liberty Village has an on-site wellness room \u2014 a rare amenity in Liberty Village condos. The wellness room includes fitness and recovery equipment designed to complement the building's rooftop terrace and gym."
       },
       {
         "question": "What are maintenance fees at Reina at Liberty Village?",
-        "answer": "Maintenance fees at Reina at Liberty Village are approximately $0.60/sqft/month — the lowest on Hanna Avenue's loft corridor and among the lowest in all of Liberty Village for a post-2020 build with this amenity package."
+        "answer": "Maintenance fees at Reina at Liberty Village are approximately $0.60/sqft/month \u2014 the lowest on Hanna Avenue's loft corridor and among the lowest in all of Liberty Village for a post-2020 build with this amenity package."
       },
       {
         "question": "Is Reina at Liberty Village pet-friendly?",
@@ -1374,12 +1753,24 @@
         "answer": "Reina at Liberty Village (2022, condo, 17 Hanna) is modern construction with wellness room, outdoor kitchen, and lowest maintenance fees on the strip. Toy Factory Lofts (2004, hard loft, 43 Hanna) is an authentic factory conversion with brick, timber beams, and concierge. Reina suits buyers wanting contemporary finishes; Toy Factory suits those wanting heritage character."
       }
     ],
-    "tags": ["condo", "new-build", "wellness-room", "outdoor-kitchen", "hanna-ave", "graywood", "2022"]
+    "tags": [
+      "condo",
+      "new-build",
+      "wellness-room",
+      "outdoor-kitchen",
+      "hanna-ave",
+      "graywood",
+      "2022"
+    ],
+    "image": "/images/buildings/reina-at-liberty-village.jpg"
   },
   {
     "slug": "liberty-village-townhomes",
     "name": "Liberty Village Townhomes",
-    "alternateNames": ["Mowat Townhouses", "LV Townhomes"],
+    "alternateNames": [
+      "Mowat Townhouses",
+      "LV Townhomes"
+    ],
     "address": "30 Mowat Ave, Toronto, ON",
     "postalCode": "M6K 3E7",
     "latitude": 43.6398,
@@ -1397,28 +1788,38 @@
     "transitScore": 93,
     "bikeScore": 80,
     "nearestTTC": "504 King streetcar at Dufferin (5 min walk)",
-    "amenities": ["Private Entrances", "Private Patios", "Parking Garage", "Bike Storage"],
+    "amenities": [
+      "Private Entrances",
+      "Private Patios",
+      "Parking Garage",
+      "Bike Storage"
+    ],
     "hasParking": true,
     "hasLockers": false,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["brazen-head-irish-pub", "studio-lagree-liberty-village", "liberty-village-chiropractic", "arvo-coffee"],
+    "nearestBusinessSlugs": [
+      "brazen-head-irish-pub",
+      "studio-lagree-liberty-village",
+      "liberty-village-chiropractic",
+      "arvo-coffee"
+    ],
     "description": "Liberty Village Townhomes at 30 Mowat Ave is a 72-unit townhouse complex completed in 2006, offering the rare combination of private street-level entrances, private patios, and parking in a neighbourhood otherwise dominated by high-rise towers. The three-storey brick townhomes are designed to feel like urban houses, with individual addresses and private entrances that give residents a sense of ownership distinct from condo tower living. Families and pet owners with large dogs particularly value the townhome format.",
-    "answerBlock": "Liberty Village Townhomes at 30 Mowat Ave is a 72-unit, 3-storey townhouse complex completed in 2006 — the only townhouse cluster in Liberty Village. Two-bedroom units rent from $3,750/month with private entrances, private patios, and dedicated parking. The townhome format offers a quiet, street-level residential lifestyle distinct from the neighbourhood's condo towers.",
+    "answerBlock": "Liberty Village Townhomes at 30 Mowat Ave is a 72-unit, 3-storey townhouse complex completed in 2006 \u2014 the only townhouse cluster in Liberty Village. Two-bedroom units rent from $3,750/month with private entrances, private patios, and dedicated parking. The townhome format offers a quiet, street-level residential lifestyle distinct from the neighbourhood's condo towers.",
     "keyTakeaways": [
-      "Only townhouse complex in Liberty Village — unique street-level living in a condo-dominated neighbourhood",
-      "Private entrances and private patios for each unit — urban house feel",
+      "Only townhouse complex in Liberty Village \u2014 unique street-level living in a condo-dominated neighbourhood",
+      "Private entrances and private patios for each unit \u2014 urban house feel",
       "Lower maintenance fees ($0.55/sqft) reflecting simpler shared infrastructure vs towers",
       "72-unit community scale with quiet, residential Mowat Ave character",
       "Ideal for families and large-breed dog owners who need private outdoor space"
     ],
     "proTips": [
-      "End-unit townhomes have more exterior wall exposure, meaning more natural light but potentially higher heating costs in winter — factor this into annual cost calculations.",
+      "End-unit townhomes have more exterior wall exposure, meaning more natural light but potentially higher heating costs in winter \u2014 factor this into annual cost calculations.",
       "Private patio space varies by unit; during a viewing, check orientation for morning vs afternoon sun before signing.",
-      "The townhome format means no elevator wait times and no shared lobby sound — a significant quality-of-life advantage over tower condos.",
+      "The townhome format means no elevator wait times and no shared lobby sound \u2014 a significant quality-of-life advantage over tower condos.",
       "Mowat Ave's quiet character and the townhome's private entrance make this an excellent choice for work-from-home professionals who value separation from building common areas."
     ],
     "pros": [
-      "Only townhouse complex in Liberty Village — unique product type",
+      "Only townhouse complex in Liberty Village \u2014 unique product type",
       "Private entrances and private patios per unit",
       "Lowest maintenance fees in Liberty Village at $0.55/sqft",
       "Quiet Mowat Ave residential character",
@@ -1432,7 +1833,7 @@
     "specificFaqs": [
       {
         "question": "Are there townhouses in Liberty Village?",
-        "answer": "Yes — Liberty Village Townhomes at 30 Mowat Ave is the only townhouse complex in Liberty Village. The 72-unit, 3-storey complex offers private entrances, private patios, and dedicated parking, making it unique in a neighbourhood otherwise dominated by condo towers and loft buildings."
+        "answer": "Yes \u2014 Liberty Village Townhomes at 30 Mowat Ave is the only townhouse complex in Liberty Village. The 72-unit, 3-storey complex offers private entrances, private patios, and dedicated parking, making it unique in a neighbourhood otherwise dominated by condo towers and loft buildings."
       },
       {
         "question": "What is the average rent for Liberty Village townhomes?",
@@ -1448,19 +1849,31 @@
       },
       {
         "question": "What are the maintenance fees at Liberty Village Townhomes?",
-        "answer": "Maintenance fees at Liberty Village Townhomes are approximately $0.55/sqft/month — the lowest in Liberty Village, reflecting the simpler shared infrastructure of a low-rise townhouse complex compared to a high-rise condo tower."
+        "answer": "Maintenance fees at Liberty Village Townhomes are approximately $0.55/sqft/month \u2014 the lowest in Liberty Village, reflecting the simpler shared infrastructure of a low-rise townhouse complex compared to a high-rise condo tower."
       },
       {
         "question": "Do Liberty Village Townhomes have parking?",
-        "answer": "Yes, Liberty Village Townhomes has a parking garage with dedicated spaces for each unit — a significant advantage in a neighbourhood where parking is scarce. Each townhome also has private patio space, making it one of the most self-contained residential formats in Liberty Village."
+        "answer": "Yes, Liberty Village Townhomes has a parking garage with dedicated spaces for each unit \u2014 a significant advantage in a neighbourhood where parking is scarce. Each townhome also has private patio space, making it one of the most self-contained residential formats in Liberty Village."
       }
     ],
-    "tags": ["townhouse", "private-entrance", "private-patio", "pet-friendly", "family-friendly", "low-maintenance", "mowat-ave"]
+    "tags": [
+      "townhouse",
+      "private-entrance",
+      "private-patio",
+      "pet-friendly",
+      "family-friendly",
+      "low-maintenance",
+      "mowat-ave"
+    ],
+    "image": "/images/buildings/liberty-village-townhomes.jpg"
   },
   {
     "slug": "west-condos",
     "name": "West Condos",
-    "alternateNames": ["369 Sorauren", "West LV"],
+    "alternateNames": [
+      "369 Sorauren",
+      "West LV"
+    ],
     "address": "369 Sorauren Ave, Toronto, ON",
     "postalCode": "M6R 2G3",
     "latitude": 43.6423,
@@ -1478,24 +1891,35 @@
     "transitScore": 91,
     "bikeScore": 81,
     "nearestTTC": "506 Carlton streetcar at Sorauren (4 min walk)",
-    "amenities": ["Gym", "Rooftop Terrace", "Party Room", "Bike Storage", "Pet Wash Station"],
+    "amenities": [
+      "Gym",
+      "Rooftop Terrace",
+      "Party Room",
+      "Bike Storage",
+      "Pet Wash Station"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["brazen-head-irish-pub", "liberty-village-chiropractic", "arvo-coffee", "yoga-tree-liberty-village"],
-    "description": "West Condos at 369 Sorauren Ave is a 12-storey condo completed in 2019 by Context Development on Sorauren Avenue — the westernmost residential development in the Liberty Village extended neighbourhood, bordering Roncesvalles. The building is positioned to appeal to residents who want Liberty Village proximity with Roncesvalles' village character, walkable parks, and calmer streets. A pet wash station is included — catering to the significant pet-owning demographic attracted to this quieter, greener corridor.",
+    "nearestBusinessSlugs": [
+      "brazen-head-irish-pub",
+      "liberty-village-chiropractic",
+      "arvo-coffee",
+      "yoga-tree-liberty-village"
+    ],
+    "description": "West Condos at 369 Sorauren Ave is a 12-storey condo completed in 2019 by Context Development on Sorauren Avenue \u2014 the westernmost residential development in the Liberty Village extended neighbourhood, bordering Roncesvalles. The building is positioned to appeal to residents who want Liberty Village proximity with Roncesvalles' village character, walkable parks, and calmer streets. A pet wash station is included \u2014 catering to the significant pet-owning demographic attracted to this quieter, greener corridor.",
     "answerBlock": "West Condos at 369 Sorauren Ave is a 196-unit, 12-storey condo completed in 2019, positioned at the western edge of Liberty Village bordering Roncesvalles. One-bedroom condos rent from $2,420/month. The building features a pet wash station, rooftop terrace, and quieter Sorauren Ave character, appealing to residents who want Liberty Village access with a calmer, village-adjacent lifestyle.",
     "keyTakeaways": [
-      "Westernmost Liberty Village condo — at the Roncesvalles border for village-adjacent living",
-      "Pet wash station on-site — designed for the area's pet-owning demographic",
+      "Westernmost Liberty Village condo \u2014 at the Roncesvalles border for village-adjacent living",
+      "Pet wash station on-site \u2014 designed for the area's pet-owning demographic",
       "Sorauren Ave character is quieter and greener than East Liberty Street",
       "Access to both Liberty Village's urban amenities and Roncesvalles' independent retail strip",
       "Competitive pricing for a 2019 Context Development build"
     ],
     "proTips": [
-      "Sorauren Park is a 5-minute walk — one of the best outdoor spaces in the area for dog owners and families at West Condos.",
-      "The 506 Carlton streetcar at Sorauren connects east to College Street and the Yonge-University line — a different transit corridor than most Liberty Village buildings.",
-      "West Condos residents can access Roncesvalles village's independent coffee shops, bakeries, and restaurants on foot — a genuine amenity premium over the more commercial East Liberty strip.",
+      "Sorauren Park is a 5-minute walk \u2014 one of the best outdoor spaces in the area for dog owners and families at West Condos.",
+      "The 506 Carlton streetcar at Sorauren connects east to College Street and the Yonge-University line \u2014 a different transit corridor than most Liberty Village buildings.",
+      "West Condos residents can access Roncesvalles village's independent coffee shops, bakeries, and restaurants on foot \u2014 a genuine amenity premium over the more commercial East Liberty strip.",
       "The pet wash station is a significant practical amenity for dog owners; request a unit near the amenity floor for the most convenient access."
     ],
     "pros": [
@@ -1521,7 +1945,7 @@
       },
       {
         "question": "Does West Condos have a pet wash station?",
-        "answer": "Yes, West Condos has a dedicated pet wash station — one of the few Liberty Village condo buildings with this amenity. The building caters explicitly to pet owners, reflected in its pet-friendly policies and the practical pet wash facility."
+        "answer": "Yes, West Condos has a dedicated pet wash station \u2014 one of the few Liberty Village condo buildings with this amenity. The building caters explicitly to pet owners, reflected in its pet-friendly policies and the practical pet wash facility."
       },
       {
         "question": "What year was West Condos built?",
@@ -1536,16 +1960,28 @@
         "answer": "Yes, West Condos is explicitly pet-friendly with a pet wash station on-site. The Sorauren Ave location near Sorauren Park and the quieter western corridor makes it one of the best Liberty Village addresses for pet owners."
       }
     ],
-    "tags": ["condo", "pet-wash", "sorauren", "roncesvalles-adjacent", "quiet", "park-adjacent", "pet-friendly"]
+    "tags": [
+      "condo",
+      "pet-wash",
+      "sorauren",
+      "roncesvalles-adjacent",
+      "quiet",
+      "park-adjacent",
+      "pet-friendly"
+    ],
+    "image": "/images/buildings/west-condos.jpg"
   },
   {
     "slug": "jefferson-lofts",
     "name": "Jefferson Lofts",
-    "alternateNames": ["65 Jefferson", "Jefferson Ave Lofts"],
+    "alternateNames": [
+      "65 Jefferson",
+      "Jefferson Ave Lofts"
+    ],
     "address": "65 Jefferson Ave, Toronto, ON",
     "postalCode": "M6K 3E4",
     "latitude": 43.6401,
-    "longitude": -79.4280,
+    "longitude": -79.428,
     "yearBuilt": 2005,
     "units": 110,
     "floors": 4,
@@ -1559,28 +1995,38 @@
     "transitScore": 91,
     "bikeScore": 78,
     "nearestTTC": "504 King streetcar at Dufferin (6 min walk)",
-    "amenities": ["Rooftop Patio", "Gym", "Bike Storage", "Party Room"],
+    "amenities": [
+      "Rooftop Patio",
+      "Gym",
+      "Bike Storage",
+      "Party Room"
+    ],
     "hasParking": true,
     "hasLockers": true,
     "petFriendly": true,
-    "nearestBusinessSlugs": ["brazen-head-irish-pub", "liberty-village-chiropractic", "left-field-brewery", "studio-lagree-liberty-village"],
-    "description": "Jefferson Lofts at 65 Jefferson Ave is a boutique 110-unit hard loft conversion completed in 2005, tucked on Jefferson Avenue — one of Liberty Village's least-known residential streets that sees minimal through-traffic despite its proximity to the neighbourhood's core. The 4-storey brick building retains original industrial skylights on upper units, giving penthouse-level spaces genuinely exceptional natural light. Jefferson Ave's quiet character makes this the most neighbourhood feel of any loft building in Liberty Village.",
+    "nearestBusinessSlugs": [
+      "brazen-head-irish-pub",
+      "liberty-village-chiropractic",
+      "left-field-brewery",
+      "studio-lagree-liberty-village"
+    ],
+    "description": "Jefferson Lofts at 65 Jefferson Ave is a boutique 110-unit hard loft conversion completed in 2005, tucked on Jefferson Avenue \u2014 one of Liberty Village's least-known residential streets that sees minimal through-traffic despite its proximity to the neighbourhood's core. The 4-storey brick building retains original industrial skylights on upper units, giving penthouse-level spaces genuinely exceptional natural light. Jefferson Ave's quiet character makes this the most neighbourhood feel of any loft building in Liberty Village.",
     "answerBlock": "Jefferson Lofts at 65 Jefferson Ave is a 110-unit, 4-storey hard loft conversion completed in 2005, on one of Liberty Village's quietest residential streets. One-bedroom lofts rent from $2,240/month. The building retains original industrial skylights on upper-floor units and offers the most secluded, neighbourhood-feel address of any loft building in Liberty Village.",
     "keyTakeaways": [
-      "Boutique 110-unit scale — Liberty Village's most intimate loft building",
-      "Original industrial skylights preserved on upper-floor units — exceptional natural light",
-      "Jefferson Ave is the quietest residential street in Liberty Village — minimal through-traffic",
+      "Boutique 110-unit scale \u2014 Liberty Village's most intimate loft building",
+      "Original industrial skylights preserved on upper-floor units \u2014 exceptional natural light",
+      "Jefferson Ave is the quietest residential street in Liberty Village \u2014 minimal through-traffic",
       "2005 hard loft conversion with genuine brick and exposed ductwork character",
-      "Close to Left Field Brewery and Brazen Head — Liberty Village's craft beer corner"
+      "Close to Left Field Brewery and Brazen Head \u2014 Liberty Village's craft beer corner"
     ],
     "proTips": [
-      "Upper-floor units with skylight preservation are extremely rare in Liberty Village — if a top-floor unit with original industrial skylights is available, the natural light premium is significant.",
+      "Upper-floor units with skylight preservation are extremely rare in Liberty Village \u2014 if a top-floor unit with original industrial skylights is available, the natural light premium is significant.",
       "Jefferson Ave sees almost no through-traffic, creating an unusually quiet residential environment by Toronto standards.",
       "The boutique 110-unit scale means the building's condo meetings are more manageable and neighbour relationships are significantly closer than in larger towers.",
-      "Maintenance fees at $0.75/sqft warrant a reserve fund review given the 2005 conversion age — request a copy of the most recent engineering report."
+      "Maintenance fees at $0.75/sqft warrant a reserve fund review given the 2005 conversion age \u2014 request a copy of the most recent engineering report."
     ],
     "pros": [
-      "Original industrial skylights on upper units — unique in Liberty Village",
+      "Original industrial skylights on upper units \u2014 unique in Liberty Village",
       "Jefferson Ave offers the quietest residential environment in the neighbourhood",
       "Boutique 110-unit community with strong neighbour relationships",
       "Pet-friendly building on a quiet, traffic-free street",
@@ -1598,7 +2044,7 @@
       },
       {
         "question": "Does Jefferson Lofts have skylights?",
-        "answer": "Yes — upper-floor units at Jefferson Lofts retain original industrial skylights from the building's prior manufacturing use. These skylights are a distinctive feature that makes top-floor units at Jefferson Lofts among the most naturally lit loft spaces in Liberty Village."
+        "answer": "Yes \u2014 upper-floor units at Jefferson Lofts retain original industrial skylights from the building's prior manufacturing use. These skylights are a distinctive feature that makes top-floor units at Jefferson Lofts among the most naturally lit loft spaces in Liberty Village."
       },
       {
         "question": "What year was Jefferson Lofts completed?",
@@ -1617,6 +2063,15 @@
         "answer": "Jefferson Lofts at 65 Jefferson Ave is approximately a 6-minute walk from the 504 King streetcar at Dufferin. Jefferson Ave runs north-south and connects to Dufferin Street, making the walking route straightforward."
       }
     ],
-    "tags": ["loft", "hard-loft", "boutique", "skylights", "quiet", "pet-friendly", "jefferson-ave"]
+    "tags": [
+      "loft",
+      "hard-loft",
+      "boutique",
+      "skylights",
+      "quiet",
+      "pet-friendly",
+      "jefferson-ave"
+    ],
+    "image": "/images/buildings/jefferson-lofts.jpg"
   }
 ]

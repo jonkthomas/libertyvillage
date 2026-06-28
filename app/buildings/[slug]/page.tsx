@@ -5,6 +5,7 @@ import { generateBuildingPageMeta } from "@/lib/meta";
 import { generateApartmentComplexSchema, generateSpeakableSchema } from "@/lib/schema";
 import { getRelatedBuildings } from "@/lib/links";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import HeroImage from "@/components/HeroImage";
 import AnswerBlock from "@/components/AnswerBlock";
 import KeyTakeaways from "@/components/KeyTakeaways";
 import ProTips from "@/components/ProTips";
@@ -66,6 +67,9 @@ export default async function BuildingDetailPage({ params }: Props) {
           — {building.address} Liberty Village Condos
         </span>
       </h1>
+
+      {/* b2. Hero image */}
+      {building.image && <HeroImage src={building.image} alt={building.name} />}
 
       {/* c. AnswerBlock */}
       <AnswerBlock>{building.answerBlock}</AnswerBlock>
