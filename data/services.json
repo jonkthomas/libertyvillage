@@ -501,7 +501,7 @@
     "slug": "bars",
     "name": "Bar",
     "pluralName": "Bars",
-    "description": "Best bars in Liberty Village Toronto for 2026 \u2014 Brazen Head, Craft Beer Market, Left Field Brewery, and more. Craft beer, trivia nights, sports bars, and late-night spots ranked.",
+    "description": "Best bars in Liberty Village 2026: Craft Beer Market (100+ taps), Brazen Head (Irish pub), Left Field Brewery, sports bars. Craft beer, trivia nights, patios, happy hour 3-6pm.",
     "icon": "\ud83c\udf7a",
     "relatedServices": [
       "restaurants",
@@ -2624,7 +2624,7 @@
     "slug": "spas",
     "name": "Spa",
     "pluralName": "Spas",
-    "description": "Relax without leaving the neighbourhood \u2014 Liberty Village spas offer facials, body treatments, and wellness packages in calming settings.",
+    "description": "Best spas in Liberty Village: Altea Active (2 Western Battery), facials $100-180, body treatments, wellness packages. Aestheticians on Atlantic Ave & Hanna Ave.",
     "icon": "\ud83e\uddd6",
     "relatedServices": [
       "massage-therapy",
