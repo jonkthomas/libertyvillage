@@ -601,6 +601,10 @@
         "answer": "Craft Beer Market is the top sports bar with over 20 screens, a massive projector, and a game-day atmosphere fuelled by 100+ craft taps. Brazen Head Irish Pub is the classic choice for Leafs and Raptors games with multiple TVs and a rowdy pub crowd. Both bars are within walking distance of BMO Field, making them popular pre-game and post-game spots for TFC matches and concerts."
       },
       {
+        "question": "What time is Brazen Head happy hour in Liberty Village?",
+        "answer": "Brazen Head Irish Pub's happy hour runs daily from 3pm to 6pm with $7 pints — the best drink deal in Liberty Village. The happy hour applies to all draft beers at the 171 East Liberty St location. Arrive before 5:30pm on weekdays to grab a table as the pub fills quickly with after-work crowds. The happy hour also runs weekends, making it one of the few Liberty Village bars with daily specials."
+      },
+      {
         "question": "Are there any breweries in Liberty Village?",
         "answer": "Liberty Commons at Big Rock Brewery is the neighbourhood's largest on-site brewery, producing their own lagers and seasonal ales served in a 200-seat beer hall. Left Field Brewery on Wagstaff Drive is an independent craft brewery with a taproom that releases limited-edition cans weekly. Both offer flights for tasting, making them ideal for visitors who want to sample multiple styles without committing to full pints."
       },
@@ -868,7 +872,7 @@
     "slug": "dentists",
     "name": "Dentist",
     "pluralName": "Dentists",
-    "description": "Best dentists in Liberty Village, Toronto for 2026, accepting new patients. Compare reviews, hours, insurance, and emergency care across local King West clinics.",
+    "description": "Edition Dental Liberty Village: 4.5★ across 198+ reviews, accepting new patients at 197 Atlantic Ave. Compare Edition Dental reviews, hours, insurance coverage, emergency care, and cosmetic dentistry with Liberty Village Dental (4.4★).",
     "icon": "\ud83e\uddb7",
     "relatedServices": [
       "doctors",
@@ -1938,7 +1942,7 @@
     "slug": "banks",
     "name": "Bank",
     "pluralName": "Banks",
-    "description": "Banking in Liberty Village on East Liberty St: RBC & Scotiabank branches with ATMs, Saturday hours, mortgages and investments. Compare hours, services and reviews.",
+    "description": "RBC Liberty Village & Scotiabank on East Liberty St: Full-service branches with ATMs, Saturday hours, mortgages, business banking, and investment services. RBC at 171 East Liberty St, Scotiabank at Liberty Market Building. Compare branch hours and reviews.",
     "icon": "\ud83c\udfe6",
     "relatedServices": [
       "accountants",
