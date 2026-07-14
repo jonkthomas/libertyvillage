@@ -601,6 +601,10 @@
         "answer": "Craft Beer Market is the top sports bar with over 20 screens, a massive projector, and a game-day atmosphere fuelled by 100+ craft taps. Brazen Head Irish Pub is the classic choice for Leafs and Raptors games with multiple TVs and a rowdy pub crowd. Both bars are within walking distance of BMO Field, making them popular pre-game and post-game spots for TFC matches and concerts."
       },
       {
+        "question": "What time is Brazen Head happy hour in Liberty Village?",
+        "answer": "Brazen Head Irish Pub's happy hour runs daily from 3pm to 6pm with $7 pints — the best drink deal in Liberty Village. The happy hour applies to all draft beers at the 165 East Liberty St location. Arrive before 5:30pm on weekdays to grab a table as the pub fills quickly with after-work crowds. The happy hour also runs weekends, making it one of the few Liberty Village bars with daily specials."
+      },
+      {
         "question": "Are there any breweries in Liberty Village?",
         "answer": "Liberty Commons at Big Rock Brewery is the neighbourhood's largest on-site brewery, producing their own lagers and seasonal ales served in a 200-seat beer hall. Left Field Brewery on Wagstaff Drive is an independent craft brewery with a taproom that releases limited-edition cans weekly. Both offer flights for tasting, making them ideal for visitors who want to sample multiple styles without committing to full pints."
       },
@@ -717,7 +721,7 @@
       ]
     },
     "keyTakeaways": [
-      "GoodLife Fitness is the most affordable at $30 to $50 per month with the longest hours (5 am to 11 pm weekdays) on Jefferson Avenue",
+      "GoodLife Fitness is the most affordable at $30 to $50 per month with the longest hours (5 am to 11 pm weekdays) at 85 Hanna Ave Suite 200",
       "F45 Training charges $200 per month but holds a 4.5/5 rating \u2014 the highest in the neighbourhood \u2014 for its structured 45-minute HIIT sessions",
       "Altea Active's $150 to $200 monthly fee includes saltwater pool, spa, hot yoga studio, and a rooftop pool deck",
       "Movati Athletic at $60 to $80 per month offers the best value for members who want pool access without the premium Altea price",
@@ -734,7 +738,7 @@
     "sections": [
       {
         "heading": "Best for Weightlifting",
-        "content": "GoodLife Fitness on Jefferson Avenue has the most complete free weight section in Liberty Village, with squat racks, deadlift platforms, and dumbbells up to 120 pounds. The floor is least crowded before 7 am and after 8:30 pm. Altea Active also has a solid weight area with newer equipment, though the space is smaller. For serious powerlifters, neither gym is ideal \u2014 the nearest dedicated strength gym is Fortis Fitness on Sterling Road, a 10-minute drive west."
+        "content": "GoodLife Fitness at 85 Hanna Ave Suite 200 has the most complete free weight section in Liberty Village, with squat racks, deadlift platforms, and dumbbells up to 120 pounds. The floor is least crowded before 7 am and after 8:30 pm. Altea Active also has a solid weight area with newer equipment, though the space is smaller. For serious powerlifters, neither gym is ideal — the nearest dedicated strength gym is Fortis Fitness on Sterling Road, a 10-minute drive west."
       },
       {
         "heading": "Best for Classes",
@@ -752,7 +756,7 @@
       },
       {
         "question": "Are there 24-hour gyms in Liberty Village?",
-        "answer": "No gym in Liberty Village is open 24 hours. GoodLife Fitness on Jefferson Avenue has the longest hours at 5 am to 11 pm on weekdays and 7 am to 9 pm on weekends. Movati Athletic matches those weekday hours. For true 24/7 access, the nearest option is Anytime Fitness on King Street West, about a 12-minute walk from the centre of Liberty Village."
+        "answer": "No gym in Liberty Village is open 24 hours. GoodLife Fitness at 85 Hanna Ave Suite 200 has the longest hours at 5 am to 11 pm on weekdays and 7 am to 9 pm on weekends. Movati Athletic matches those weekday hours. For true 24/7 access, the nearest option is Anytime Fitness on King Street West, about a 12-minute walk from the centre of Liberty Village."
       },
       {
         "question": "What fitness classes are available in Liberty Village?",
@@ -868,7 +872,7 @@
     "slug": "dentists",
     "name": "Dentist",
     "pluralName": "Dentists",
-    "description": "Best dentists in Liberty Village, Toronto for 2026, accepting new patients. Compare reviews, hours, insurance, and emergency care across local King West clinics.",
+    "description": "Edition Dental Liberty Village: 4.5★ across 198+ reviews, accepting new patients at 65 Jefferson Ave. Compare Edition Dental reviews, hours, insurance coverage, emergency care, and cosmetic dentistry with Liberty Village Dental (4.4★).",
     "icon": "\ud83e\uddb7",
     "relatedServices": [
       "doctors",
@@ -1306,7 +1310,7 @@
       },
       {
         "question": "Do Liberty Village gyms include personal training?",
-        "answer": "GoodLife Fitness on Jefferson Ave and Altea Active on Western Battery Rd both offer in-house personal training at additional cost beyond membership. F45 Training on East Liberty provides coach-led group sessions included in membership that feel semi-personal. Movati Athletic also has a personal training program."
+        "answer": "GoodLife Fitness on East Liberty St and Altea Active on Western Battery Rd both offer in-house personal training at additional cost beyond membership. F45 Training on East Liberty provides coach-led group sessions included in membership that feel semi-personal. Movati Athletic also has a personal training program."
       }
     ]
   },
@@ -1938,7 +1942,7 @@
     "slug": "banks",
     "name": "Bank",
     "pluralName": "Banks",
-    "description": "Banking in Liberty Village on East Liberty St: RBC & Scotiabank branches with ATMs, Saturday hours, mortgages and investments. Compare hours, services and reviews.",
+    "description": "RBC Liberty Village & Scotiabank on East Liberty St: Full-service branches with ATMs, Saturday hours, mortgages, business banking, and investment services. RBC at 171 East Liberty St, Scotiabank at Liberty Market Building. Compare branch hours and reviews.",
     "icon": "\ud83c\udfe6",
     "relatedServices": [
       "accountants",
