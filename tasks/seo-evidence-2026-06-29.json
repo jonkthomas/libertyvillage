@@ -1,0 +1,63 @@
+{
+  "collectedAt": "2026-06-28T00:00:00.000Z",
+  "description": "GSC query data snapshot supporting weekly SEO improvements PR (2026-06-29). Queries selected for optimization based on position 7-10 with 20+ impressions and low CTR.",
+  "note": "Data exported from Google Search Console property https://libertyvillage.co — 28-day window ending 2026-06-28. Figures are approximate (GSC rounds impressions for low-volume queries).",
+  "gsc": {
+    "searchAnalytics": [
+      {
+        "query": "liberty village road closures",
+        "page": "https://libertyvillage.co/guide/traffic-tips",
+        "clicks": 1,
+        "impressions": 110,
+        "ctr": 0.009,
+        "position": 9.0,
+        "action": "FIXED — Changed title to 'Road Closures & Traffic Guide 2026', prepended Current Road Closures section to match query intent"
+      },
+      {
+        "query": "liberty village spa",
+        "page": "https://libertyvillage.co/best/spas",
+        "clicks": 0,
+        "impressions": 23,
+        "ctr": 0.0,
+        "position": 9.5,
+        "action": "FIXED — Updated description to lead with 'Best spas in Liberty Village: Altea Active...' + brand names + pricing"
+      },
+      {
+        "query": "liberty village bar",
+        "page": "https://libertyvillage.co/best/bars",
+        "clicks": 1,
+        "impressions": 21,
+        "ctr": 0.048,
+        "position": 10.6,
+        "action": "FIXED — Reordered description to lead with top venues + happy hour utility signal"
+      },
+      {
+        "query": "goodlife liberty village",
+        "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village",
+        "clicks": 0,
+        "impressions": 467,
+        "ctr": 0.0,
+        "position": 7.0,
+        "action": "Optimized prior week — awaiting Google re-index"
+      },
+      {
+        "query": "edition dental reviews",
+        "page": "https://libertyvillage.co/best/dentists",
+        "clicks": 0,
+        "impressions": 385,
+        "ctr": 0.0,
+        "position": 8.2,
+        "action": "Optimized prior week — awaiting Google re-index"
+      },
+      {
+        "query": "rbc liberty village",
+        "page": "https://libertyvillage.co/best/banks",
+        "clicks": 0,
+        "impressions": 233,
+        "ctr": 0.0,
+        "position": 9.3,
+        "action": "Optimized prior week — awaiting Google re-index"
+      }
+    ]
+  }
+}
