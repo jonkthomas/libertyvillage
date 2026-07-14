@@ -32,8 +32,8 @@ function buildMeta(
 
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
-    "Liberty Village, Toronto — Neighbourhood Guide (2026)",
-    "Liberty Village is Toronto's 28-hectare neighbourhood between King West and the lake. Local guide to 200+ restaurants, bars, gyms, parking, transit, and BMO Field — by residents, for 2026.",
+    "Liberty Village, Toronto — Insider Guide by Residents (2026)",
+    "The insider's guide to Liberty Village, Toronto — 200+ restaurants, bars, gyms, parking tips & condo reviews. Written by residents, updated for 2026.",
     "/",
     "/images/og/og-home.jpg"
   );

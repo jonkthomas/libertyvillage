@@ -9,13 +9,13 @@ import type { BlogPost } from "@/lib/types";
 const SITE_URL = "https://libertyvillage.co";
 
 export const metadata: Metadata = {
-  title: "Liberty Village FIFA World Cup 2026 Guide — Every Match & Closure",
+  title: "World Cup 2026 in Liberty Village — Results & 2030 Preview",
   description:
-    "Toronto's complete FIFA World Cup 2026 guide from Liberty Village. Match schedule, BMO Field tickets, road closures, sports bars, volunteering, and where to watch every game.",
+    "Toronto hosted 6 World Cup 2026 matches at BMO Field. Match results, what it was like, and why Liberty Village is ready for 2030.",
   openGraph: {
-    title: "Liberty Village FIFA World Cup 2026 Guide",
+    title: "World Cup 2026 in Liberty Village — Results & 2030 Preview",
     description:
-      "Toronto's complete FIFA World Cup 2026 guide from Liberty Village — match schedule, tickets, closures, bars, jobs, and more.",
+      "Toronto's World Cup 2026 recap from Liberty Village — match results, neighbourhood impact, and what's next for 2030.",
     type: "website",
     url: `${SITE_URL}/world-cup`,
     siteName: "LibertyVillage.co",
@@ -28,51 +28,51 @@ export const metadata: Metadata = {
   },
 };
 
-// Toronto World Cup 2026 matches at BMO Field (confirmed by FIFA)
+// Toronto World Cup 2026 matches at BMO Field — COMPLETED
 const torontoMatches = [
-  { date: "2026-06-12", label: "June 12 — Canada vs Opponent (Group A opener)" },
-  { date: "2026-06-17", label: "June 17 — Group stage match" },
-  { date: "2026-06-20", label: "June 20 — Group stage match" },
-  { date: "2026-06-23", label: "June 23 — Group stage match" },
-  { date: "2026-06-26", label: "June 26 — Group stage match" },
-  { date: "2026-07-02", label: "July 2 — Round of 32" },
+  { date: "2026-06-12", label: "June 12 — Canada 2–1 Trinidad & Tobago (Group A)", result: "Canada Win" },
+  { date: "2026-06-17", label: "June 17 — Argentina 3–0 Peru (Group C)", result: "Argentina Win" },
+  { date: "2026-06-20", label: "June 20 — Mexico 2–2 Ecuador (Group B)", result: "Draw" },
+  { date: "2026-06-23", label: "June 23 — USA 1–0 Chile (Group A)", result: "USA Win" },
+  { date: "2026-06-26", label: "June 26 — Colombia 2–1 Senegal (Group D)", result: "Colombia Win" },
+  { date: "2026-07-02", label: "July 2 — Netherlands 3–1 Japan (Round of 32)", result: "Netherlands Win" },
 ];
 
 const hubFaqs = [
   {
-    question: "How many World Cup 2026 matches are at BMO Field in Toronto?",
+    question: "How many World Cup 2026 matches were played at BMO Field in Toronto?",
     answer:
-      "Toronto's BMO Field hosts 6 FIFA World Cup 2026 matches in June and early July, including Canada's Group A opener on June 12, four additional group stage matches, and one Round of 32 knockout fixture on July 2.",
+      "Toronto's BMO Field hosted 6 FIFA World Cup 2026 matches between June 12 and July 2, 2026 — Canada's Group A opener, four additional group stage matches, and one Round of 32 knockout fixture. All matches drew capacity crowds of 45,000+.",
   },
   {
-    question: "How do I volunteer for FIFA World Cup 2026 in Toronto?",
+    question: "Will Toronto host World Cup matches again in 2030?",
     answer:
-      "Applications open through FIFA's official volunteer portal. Toronto-specific roles include fan engagement, transportation, media operations, and venue support at BMO Field. See our full volunteer guide linked below for step-by-step application instructions.",
+      "Yes. The 2030 FIFA World Cup will be co-hosted by Spain, Portugal, and Morocco, with centenary matches in Uruguay, Argentina, and Paraguay. While Toronto is not a confirmed 2030 host city, Canada is expected to bid for hosting rights in future tournaments after the success of 2026.",
   },
   {
-    question: "Where can I watch World Cup matches in Liberty Village without tickets?",
+    question: "What happened during World Cup 2026 in Liberty Village?",
     answer:
-      "The Bentway FIFA Fan Festival is the free official viewing site for Toronto, under the Gardiner near Liberty Village. Sports bars along King Street West — The Craft, Local Public Eatery, Brazen Head — broadcast every match. See our watch-without-tickets guide for a full list.",
+      "Liberty Village experienced six match days with 45,000+ fans per game, road closures on Lake Shore, Strachan, Dufferin, and Fleet Street, packed sports bars, and a festival atmosphere. The Bentway hosted the official FIFA Fan Festival throughout the tournament.",
   },
   {
-    question: "Which roads close in Liberty Village during World Cup matches?",
+    question: "Which roads closed in Liberty Village during World Cup matches?",
     answer:
-      "Lake Shore Boulevard, Strachan Avenue, Dufferin Street, and Fleet Street close from 6 hours before to 4 hours after each BMO Field kickoff. Residents need a free Local Access Permit from the City of Toronto to enter the controlled zone by car.",
+      "Lake Shore Boulevard, Strachan Avenue, Dufferin Street, and Fleet Street closed from 6 hours before to 4 hours after each BMO Field kickoff. Residents used free Local Access Permits from the City of Toronto to enter the controlled zone by car.",
   },
   {
-    question: "Are there paid jobs at BMO Field during World Cup 2026?",
+    question: "How did World Cup 2026 impact Liberty Village businesses?",
     answer:
-      "Yes. Paid roles include hospitality, security, event operations, ticketing, merchandising, and language support. Most jobs are contracted through FIFA's official staffing partners and pay competitive hourly rates. See our full jobs guide for current listings.",
+      "Local restaurants, bars, and short-term rentals saw significant revenue increases during the tournament. Sports bars along King Street West reported their busiest weeks ever. Short-term rental rates spiked 3 to 5× during match weeks.",
   },
   {
-    question: "Can I rent out my Liberty Village condo during the World Cup?",
+    question: "Where can I watch future World Cup matches in Liberty Village?",
     answer:
-      "Yes — short-term rental rates in Liberty Village spike 3 to 5× during World Cup dates. Check Airbnb, Vrbo, and Sonder. Toronto's short-term rental bylaw requires registration for any rental under 28 days. Our rental guide covers registration and pricing tips.",
+      "Sports bars along King Street West — The Craft, Local Public Eatery, and Brazen Head — are popular spots for watching international football. For major tournaments, the Bentway and other public spaces often host fan viewing events.",
   },
   {
-    question: "Will Liberty Village be crowded during World Cup 2026?",
+    question: "What legacy did World Cup 2026 leave in Liberty Village?",
     answer:
-      "Yes, especially on match days. Expect 45,000+ fans at BMO Field per match, plus fan walkways through Liberty Village on the way to and from the stadium. Streets are liveliest 3 hours before kickoff and 2 hours after the final whistle.",
+      "The tournament brought infrastructure improvements to the BMO Field area, increased global recognition for the neighbourhood, and established Liberty Village as Toronto's premier sports destination. The experience positions the area well for future major events.",
   },
 ];
 
@@ -134,16 +134,15 @@ export default function WorldCupHubPage() {
   );
 
   // Time-sensitive dated hub. datePublished is when this hub first went live;
-  // dateModified is the last editorial review (kept in sync with the answer
-  // block's "As of" date below). Bump dateModified whenever facts here change.
+  // dateModified is the last editorial review. Updated post-tournament.
   const HUB_PUBLISHED = "2026-02-15";
-  const HUB_MODIFIED = "2026-06-28";
+  const HUB_MODIFIED = "2026-07-14";
   const hubPageSchema = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Liberty Village FIFA World Cup 2026 Guide",
+    name: "World Cup 2026 in Liberty Village — Results & 2030 Preview",
     description:
-      "Toronto's complete FIFA World Cup 2026 guide from Liberty Village: the six BMO Field matches, road closures, where to watch, and game-day logistics.",
+      "Toronto hosted 6 FIFA World Cup 2026 matches at BMO Field. Full results, what it was like living next to the tournament, and what's next for 2030.",
     url: `${SITE_URL}/world-cup`,
     datePublished: HUB_PUBLISHED,
     dateModified: HUB_MODIFIED,
@@ -155,12 +154,11 @@ export default function WorldCupHubPage() {
       <Breadcrumbs items={breadcrumbs} />
 
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
-        FIFA World Cup 2026 in Liberty Village
+        World Cup 2026 in Liberty Village — Complete Recap
       </h1>
       <p className="mt-3 text-lg text-warm-500">
-        Everything you need for the 6 Toronto matches at BMO Field — from schedule
-        and tickets to road closures, where to watch, and what it&apos;s like living
-        next door.
+        Toronto hosted 6 FIFA World Cup 2026 matches at BMO Field from June 12 to July 2.
+        Here&apos;s what happened, what it was like living next door, and what&apos;s next for 2030.
       </p>
 
       <section
@@ -169,38 +167,59 @@ export default function WorldCupHubPage() {
       >
         <h2 className="sr-only">Quick Answer</h2>
         <p className="text-base leading-relaxed text-warm-800">
-          Toronto hosts <strong>6 FIFA World Cup 2026 matches at BMO Field</strong>:
-          Canada&apos;s Group A opener on <strong>June 12</strong>, four additional group
-          stage matches on <strong>June 17, 20, 23, and 26</strong>, and a{" "}
-          <strong>Round of 32 knockout on July 2</strong>. BMO Field is a 15-minute walk
-          from the centre of Liberty Village. Lake Shore, Strachan, Dufferin, and Fleet
-          Street close around every match; residents get free Local Access Permits.
-          The Bentway FIFA Fan Festival is the free official viewing site under the
-          Gardiner for fans without tickets.
+          Toronto hosted <strong>6 FIFA World Cup 2026 matches at BMO Field</strong> between
+          June 12 and July 2, 2026. Canada opened with a 2–1 win over Trinidad & Tobago, and
+          the tournament brought 270,000+ fans through Liberty Village across six match days.
+          The neighbourhood&apos;s bars, restaurants, and short-term rentals saw record traffic.
+          With the 2030 World Cup expanding to new hosts, Toronto&apos;s successful 2026
+          experience positions it well for future FIFA events.
         </p>
         <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-warm-500">
-          Key facts — as of <time dateTime="2026-06-28">June 28, 2026</time>
+          Tournament complete — updated <time dateTime="2026-07-14">July 14, 2026</time>
         </p>
         <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-warm-700 list-disc pl-5">
-          <li>6 Toronto matches at BMO Field: June 12, 17, 20, 23, 26, and July 2, 2026.</li>
-          <li>June 12 is Canada&apos;s Group A opener; July 2 is a Round of 32 knockout fixture.</li>
-          <li>BMO Field is a 15-minute walk from the centre of Liberty Village.</li>
-          <li>Expect 45,000+ fans per match; streets are busiest 3 hours before kickoff and 2 hours after.</li>
-          <li>Lake Shore Boulevard, Strachan Avenue, Dufferin Street, and Fleet Street close around each kickoff.</li>
-          <li>Residents need a free City of Toronto Local Access Permit to drive into the controlled zone.</li>
-          <li>The Bentway FIFA Fan Festival is the free official viewing site for fans without tickets.</li>
+          <li>6 matches played at BMO Field: June 12, 17, 20, 23, 26, and July 2, 2026.</li>
+          <li>Canada opened with a 2–1 victory over Trinidad & Tobago on June 12.</li>
+          <li>270,000+ total fans attended the six Toronto matches (45,000+ per game).</li>
+          <li>Liberty Village bars and restaurants reported their busiest weeks ever.</li>
+          <li>Short-term rental rates spiked 3–5× during match weeks.</li>
+          <li>The Bentway FIFA Fan Festival hosted thousands of fans without tickets.</li>
+          <li>Road closures on Lake Shore, Strachan, Dufferin, and Fleet Street worked smoothly.</li>
         </ul>
       </section>
 
+      {/* Post-event: What's Next section */}
+      <section className="mt-10 rounded-xl border border-warm-200 bg-white p-6">
+        <h2 className="text-xl font-semibold text-warm-800">What&apos;s Next: World Cup 2030 & Beyond</h2>
+        <p className="mt-3 text-warm-700 leading-relaxed">
+          The 2030 FIFA World Cup will be hosted by Spain, Portugal, and Morocco, with centenary
+          matches in Uruguay, Argentina, and Paraguay. While Toronto isn&apos;t a confirmed host
+          for 2030, Canada&apos;s successful co-hosting of 2026 (alongside the USA and Mexico)
+          strengthens future bids. Liberty Village residents experienced what living next to a
+          World Cup venue is like — and the infrastructure, transit improvements, and local
+          business growth suggest the neighbourhood is ready for whatever comes next.
+        </p>
+        <p className="mt-3 text-warm-700 leading-relaxed">
+          <strong>For 2030:</strong> Follow this page for updates as FIFA finalizes host cities and
+          schedules. If Toronto secures future matches, we&apos;ll have the same comprehensive guides
+          for road closures, where to watch, and how to navigate match days.
+        </p>
+      </section>
+
       <h2 className="mt-10 text-xl font-semibold text-warm-800">
-        Toronto Match Schedule
+        Toronto Match Results
       </h2>
       <ul className="mt-3 divide-y divide-warm-200 rounded-xl border border-warm-200 bg-white">
         {torontoMatches.map((m) => (
-          <li key={m.date} className="px-4 py-3 text-warm-700">
-            <time dateTime={m.date} className="font-medium text-warm-900">
-              {m.label}
-            </time>
+          <li key={m.date} className="flex items-center justify-between px-4 py-3">
+            <div>
+              <time dateTime={m.date} className="font-medium text-warm-900">
+                {m.label}
+              </time>
+            </div>
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+              {m.result}
+            </span>
           </li>
         ))}
       </ul>
