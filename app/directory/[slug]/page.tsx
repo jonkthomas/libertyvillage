@@ -85,7 +85,7 @@ function getBusinessCategoryType(slug: string): BusinessCategoryType {
   return "home-services";
 }
 
-function getBusinessFAQs(business: { name: string; category: string; hours: string; priceRange: string }): FaqEntry[] {
+function getBusinessFAQs(business: { name: string; category: string; hours: string; priceRange?: string }): FaqEntry[] {
   const { name, hours, priceRange } = business;
   const type = getBusinessCategoryType(business.category);
 
@@ -95,7 +95,9 @@ function getBusinessFAQs(business: { name: string; category: string; hours: stri
   };
   const priceQ: FaqEntry = {
     question: `How much does ${name} cost?`,
-    answer: `${name} is rated ${priceRange} for pricing, in line with comparable options in the Liberty Village and Toronto west-end area. Ask for a current quote, as rates can vary by service and season.`,
+    answer: priceRange
+      ? `${name} is rated ${priceRange} for pricing, in line with comparable options in the Liberty Village and Toronto west-end area. Ask for current prices, as rates can vary.`
+      : `A verified price range is not listed for ${name}. Check the website or contact the business for current prices.`,
   };
 
   const sets: Record<BusinessCategoryType, FaqEntry[]> = {
@@ -131,7 +133,9 @@ function getBusinessFAQs(business: { name: string; category: string; hours: stri
       },
       {
         question: `How much does membership at ${name} cost?`,
-        answer: `${name} is rated ${priceRange} for pricing. Memberships are typically billed monthly with discounts for longer commitments; ask about joining fees and contract length when you sign up.`,
+        answer: priceRange
+          ? `${name} is rated ${priceRange} for pricing. Ask about current membership fees, joining fees, and contract length when you sign up.`
+          : `A verified membership price range is not listed for ${name}. Contact the business for current fees, joining fees, and contract terms.`,
       },
     ],
     medical: [
@@ -169,7 +173,9 @@ function getBusinessFAQs(business: { name: string; category: string; hours: stri
       },
       {
         question: `How much does ${name} charge?`,
-        answer: `${name} is rated ${priceRange} for pricing. Fees depend on the scope of your matter and whether billing is hourly, by retainer, or flat-rate; request a written estimate before engaging.`,
+        answer: priceRange
+          ? `${name} is rated ${priceRange} for pricing. Request a written estimate before engaging.`
+          : `A verified fee range is not listed for ${name}. Request a written estimate before engaging.`,
       },
     ],
     workspace: [
@@ -251,9 +257,11 @@ export default async function BusinessDetailPage({ params }: Props) {
         <span className="text-sm text-warm-500">
           {business.rating} ({business.reviewCount.toLocaleString()} reviews)
         </span>
-        <span className="rounded-full bg-amber-50 px-3 py-0.5 text-xs font-medium text-amber-700">
-          {business.priceRange}
-        </span>
+        {business.priceRange && (
+          <span className="rounded-full bg-amber-50 px-3 py-0.5 text-xs font-medium text-amber-700">
+            {business.priceRange}
+          </span>
+        )}
         {service && (
           <Link
             href={`/best/${service.slug}`}

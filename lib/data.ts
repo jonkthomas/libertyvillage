@@ -94,7 +94,7 @@ export function buildComparisonTable(serviceSlug: string): { columns: string[]; 
   const rows = businesses.map((b) => ({
     Name: b.name,
     Rating: `${b.rating}/5`,
-    "Price Range": b.priceRange,
+    "Price Range": b.priceRange ?? "Not listed",
     Hours: b.hours,
   }));
 

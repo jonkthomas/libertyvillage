@@ -96,7 +96,7 @@ export interface Business {
   description: string;
   rating: number;
   reviewCount: number;
-  priceRange: "$" | "$$" | "$$$" | "$$$$";
+  priceRange?: "$" | "$$" | "$$$" | "$$$$";
   hours: string;
   phone: string;
   website: string;

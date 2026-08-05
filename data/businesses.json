@@ -3976,12 +3976,11 @@
     "name": "LOCAL Public Eatery Liberty Village",
     "category": "restaurants",
     "subcategory": "Restaurant",
-    "address": "100, 171 E Liberty St Unit 100, Toronto, ON M6K 3P6, Canada",
-    "description": "LOCAL Public Eatery Liberty Village is a Restaurant in Liberty Village, located at 100, 171 E Liberty St Unit 100, Toronto, ON M6K 3P6, Canada. It holds a 4.5-star rating across 5144 Google reviews.",
+    "address": "Unit 100, 171 E Liberty St, Toronto, ON M6K 3P6",
+    "description": "LOCAL Public Eatery Liberty Village is a restaurant in Liberty Village, located at Unit 100, 171 E Liberty St, Toronto, ON M6K 3P6. It holds a 4.5-star rating across 5144 Google reviews.",
     "rating": 4.5,
     "reviewCount": 5144,
-    "priceRange": "$",
-    "hours": "Open · Closes 1 AM",
+    "hours": "Mon-Wed 11 AM-1 AM; Thu-Fri 11 AM-2 AM; Sat 10 AM-2 AM; Sun 10 AM-1 AM",
     "phone": "+1 416-901-8351",
     "website": "https://localpubliceatery.com/neighbourhoods/liberty-village/",
     "tags": [
@@ -3990,21 +3989,12 @@
       "toronto"
     ],
     "featured": false,
-    "proTip": "",
+    "proTip": "Reservations are accepted seven days a week. Email the restaurant for large-party bookings.",
     "image": "/images/businesses/local-public-eatery-liberty-village.jpg",
-    "answerBlock": "LOCAL Public Eatery Liberty Village is a 4.5-star restaurant in Liberty Village at 100, 171 E Liberty St Unit 100, Toronto, ON M6K 3P6, Canada, with 5144 Google reviews.",
-    "bestFor": [],
+    "answerBlock": "LOCAL Public Eatery Liberty Village is a 4.5-star restaurant at Unit 100, 171 E Liberty St in Liberty Village, with 5144 Google reviews.",
     "categories": [
       "restaurants"
     ],
-    "reviewExcerpt": "Reviewers rate LOCAL Public Eatery Liberty Village 4.5/5 across 5144 Google reviews.",
-    "reviewFaqs": [
-      {
-        "question": "What do reviews say about LOCAL Public Eatery Liberty Village?",
-        "answer": "LOCAL Public Eatery Liberty Village has a 4.5-star average from 5144 Google reviews from Liberty Village locals and visitors."
-      }
-    ],
-    "_discoveredAt": "2026-08-05",
-    "_needsEnrichment": true
+    "_discoveredAt": "2026-08-05"
   }
 ]
