@@ -3,29 +3,31 @@ import { test, expect } from "@playwright/test";
 test.describe("Homepage and navigation flow", () => {
   test("homepage loads with correct heading and content", async ({ page }) => {
     await page.goto("/");
-    const h1 = page.locator("h1");
-    await expect(h1).toContainText("Liberty Village");
+    const h1 = page.getByRole("heading", { level: 1, name: /Discover Liberty Village/ });
+    await expect(h1).toBeVisible();
 
     // Stat bar shows key numbers
     await expect(page.getByText("9,000+")).toBeVisible();
-    await expect(page.getByText("Residents")).toBeVisible();
+    await expect(page.getByText("Residents", { exact: true })).toBeVisible();
 
-    // Quick links grid has 8 service cards
-    const serviceCards = page.locator("h2:has-text('Explore Liberty Village') + p + div a");
-    await expect(serviceCards.first()).toBeVisible();
-    const count = await serviceCards.count();
-    expect(count).toBeGreaterThanOrEqual(6);
+    // Current category grid exposes its service links.
+    const interestsHeading = page.getByRole("heading", { level: 2, name: "Explore by Interest", exact: true });
+    await expect(interestsHeading).toBeVisible();
+    const categoryLinks = interestsHeading.locator("xpath=ancestor::section").locator('a[href^="/best/"]');
+    await expect(categoryLinks.first()).toBeVisible();
+    expect(await categoryLinks.count()).toBeGreaterThanOrEqual(6);
   });
 
   test("navigate from homepage to service page", async ({ page }) => {
     await page.goto("/");
 
-    // Click a service card (first one in the grid)
-    const serviceLink = page.locator("h2:has-text('Explore Liberty Village') + p + div a").first();
-    await serviceLink.click();
+    const interestsHeading = page.getByRole("heading", { level: 2, name: "Explore by Interest", exact: true });
+    const categoryLink = interestsHeading.locator("xpath=ancestor::section").locator('a[href^="/best/"]').first();
+    const href = await categoryLink.getAttribute("href");
+    expect(href).toMatch(/^\/best\/[a-z0-9-]+$/);
+    await categoryLink.click();
 
-    // Should be on a /best/ page
-    await expect(page).toHaveURL(/\/best\//);
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
 
     // Service page should have an h1
     const h1 = page.locator("h1");
@@ -42,18 +44,17 @@ test.describe("Homepage and navigation flow", () => {
   test("navigate from service page to business detail", async ({ page }) => {
     await page.goto("/best/restaurants");
 
-    // Click a business card
-    const businessCard = page.locator("a[href^='/directory/']").first();
-    const businessName = await businessCard.locator("h3").textContent();
+    // Follow a known business link rendered in the service content.
+    const businessCard = page.getByRole("link", {
+      name: "Mildred's Temple Kitchen",
+      exact: true,
+    }).first();
+    await expect(businessCard).toBeVisible();
     await businessCard.click();
 
-    // Should be on a /directory/ detail page
-    await expect(page).toHaveURL(/\/directory\/[a-z-]+$/);
-
-    // Business name should appear in h1
-    if (businessName) {
-      await expect(page.locator("h1")).toContainText(businessName.trim());
-    }
+    // Should be on the matching directory detail page with the business heading.
+    await expect(page).toHaveURL(/\/directory\/mildreds-temple-kitchen$/);
+    await expect(page.locator("h1")).toContainText("Mildred's Temple Kitchen");
 
     // Should have rating, description, and details
     await expect(page.getByText("reviews)").first()).toBeVisible();
@@ -89,11 +90,9 @@ test.describe("Homepage and navigation flow", () => {
     const h1 = page.locator("h1");
     await expect(h1).toContainText("Parking");
 
-    // Quick tips box should be present
-    await expect(page.getByText("Quick Tips")).toBeVisible();
-
-    // Content should be rendered
-    await expect(page.locator("h2").first()).toBeVisible();
+    // Quick tips and guide content headings should be present without ambiguous text matches.
+    await expect(page.getByRole("heading", { level: 2, name: "Quick Tips", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2 }).filter({ hasNotText: "Quick Tips" }).first()).toBeVisible();
 
     // FAQ section
     await expect(page.locator("details").first()).toBeVisible();

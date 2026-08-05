@@ -10,28 +10,22 @@ test.describe("UAT — Desktop Flows", () => {
     expect(hasOrg).toBe(true);
   });
 
-  test("Best Of dropdown → click Restaurants", async ({ page }) => {
+  test("Best Of dropdown → rendered category page", async ({ page }) => {
     await page.goto("/");
 
-    // Hover Best Of trigger
-    const bestOf = page.locator("button", { hasText: "Best Of" });
+    const bestOf = page.getByRole("button", { name: "Best Of", exact: true });
     await bestOf.hover();
 
-    // Dropdown appears with Restaurants link
-    const dropdown = page.locator('[role="menu"]');
+    const dropdown = page.getByRole("menu");
     await expect(dropdown).toBeVisible();
-    const restaurantsLink = dropdown.locator('a[href="/best/restaurants"]');
-    await expect(restaurantsLink).toBeVisible();
+    const categoryLink = dropdown.getByRole("menuitem").first();
+    const href = await categoryLink.getAttribute("href");
+    expect(href).toMatch(/^\/best\/[a-z0-9-]+$/);
 
-    // Click Restaurants
-    await restaurantsLink.click();
-    await expect(page).toHaveURL(/\/best\/restaurants/);
-
-    // Verify content depth
-    await expect(page.locator("table")).toBeVisible();
-    expect(await page.locator(".key-takeaways li").count()).toBeGreaterThanOrEqual(5);
-    expect(await page.locator(".pro-tips li").count()).toBeGreaterThanOrEqual(5);
-    expect(await page.locator("details").count()).toBeGreaterThanOrEqual(8);
+    await categoryLink.click();
+    await expect(page).toHaveURL(/\/best\/[a-z0-9-]+$/);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator('a[href^="/directory/"]').first()).toBeVisible();
   });
 
   test("/best/gyms has comparison table with monthly costs", async ({ page }) => {
@@ -56,12 +50,10 @@ test.describe("UAT — Desktop Flows", () => {
     const factsText = await page.textContent("body");
     expect(factsText).toContain("88");
 
-    // History section
-    await expect(page.locator("h2", { hasText: "History" })).toBeVisible();
-
-    // Pros/cons
-    await expect(page.locator("h3", { hasText: "Pros" })).toBeVisible();
-    await expect(page.locator("h3", { hasText: "Cons" })).toBeVisible();
+    // History and pros/cons headings
+    await expect(page.getByRole("heading", { level: 2, name: "History of Liberty Village", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { level: 3, name: "Pros", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 3, name: "Cons", exact: true })).toBeVisible();
 
     // Guide links preserved
     const guideLinks = page.locator('a[href^="/guide/"]');

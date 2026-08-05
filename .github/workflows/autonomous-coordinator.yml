@@ -1,0 +1,586 @@
+name: Autonomous staging and promotion coordinator
+
+on:
+  repository_dispatch:
+    types: [autonomous-coordinate]
+
+concurrency:
+  group: autonomous-${{ github.event.client_payload.kind == 'promotion' && 'promotion-main' || 'generator-staging' }}
+  cancel-in-progress: false
+
+env:
+  AUTOMATION_KIND: ${{ github.event.client_payload.kind }}
+  AUTOMATION_PR: ${{ github.event.client_payload.pr_number }}
+  AUTOMATION_SHA: ${{ github.event.client_payload.head_sha }}
+
+jobs:
+  validate-generator:
+    if: ${{ github.event.client_payload.kind != 'promotion' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      trusted: ${{ steps.validate.outputs.trusted }}
+      pr_number: ${{ steps.validate.outputs.pr_number }}
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      head_ref: ${{ steps.validate.outputs.head_ref }}
+      attempt: ${{ steps.validate.outputs.attempt }}
+      can_repair: ${{ steps.validate.outputs.can_repair }}
+    steps:
+      - name: Checkout trusted coordinator tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Validate live same-repository trusted PR, exact SHA, branch, base, and paths
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs validate-pr --repo "$GITHUB_REPOSITORY" --pr "$AUTOMATION_PR" --kind "$AUTOMATION_KIND" --sha "$AUTOMATION_SHA"
+
+  generator-ci:
+    needs: validate-generator
+    if: ${{ needs.validate-generator.outputs.trusted == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout synthetic merge ref
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ needs.validate-generator.outputs.pr_number }}/merge
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Verify merge ref contains the validated exact head
+        env:
+          EXPECTED_SHA: ${{ needs.validate-generator.outputs.head_sha }}
+        run: test "$(git rev-parse HEAD^2)" = "$EXPECTED_SHA"
+      - run: npm ci
+      - run: npm run lint:automation
+      - run: npm run lint:changed
+      - run: npm run build
+      - run: npm run test:automation
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  generator-ci-status:
+    needs: [validate-generator, generator-ci]
+    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Publish exact-head CI status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RESULT: ${{ needs.generator-ci.result }}
+        run: |
+          STATE=failure; [ "$CI_RESULT" = success ] && STATE=success
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/ci --state "$STATE" --description "Synthetic merge CI: $CI_RESULT"
+
+  generator-review:
+    needs: [validate-generator, generator-ci, generator-ci-status]
+    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-ci.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      review_ok: ${{ steps.review.outputs.review_ok }}
+      passed: ${{ steps.review.outputs.passed }}
+      overall: ${{ steps.review.outputs.overall }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Review untrusted PR diff as data with Opus gate
+        id: review
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/review-agent.mjs review --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --out gate-verdict.json
+      - name: Persist review verdict
+        if: ${{ steps.review.outputs.review_ok == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-verdict-${{ needs.validate-generator.outputs.head_sha }}
+          path: gate-verdict.json
+          if-no-files-found: error
+
+  generator-gate-status:
+    needs: [validate-generator, generator-ci, generator-review]
+    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.generator-ci.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Publish exact-head Opus status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_OK: ${{ needs.generator-review.outputs.review_ok }}
+          PASSED: ${{ needs.generator-review.outputs.passed }}
+        run: |
+          STATE=failure; DESCRIPTION="Opus gate errored"
+          if [ "$REVIEW_OK" = true ]; then DESCRIPTION="Opus gate score ${{ needs.generator-review.outputs.overall }}/10"; fi
+          if [ "$REVIEW_OK" = true ] && [ "$PASSED" = true ]; then STATE=success; fi
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state "$STATE" --description "$DESCRIPTION"
+
+  generator-fixer:
+    needs: [validate-generator, generator-ci, generator-review, generator-gate-status]
+    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed != 'true' && needs.validate-generator.outputs.can_repair == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      fix_ok: ${{ steps.fix.outputs.fix_ok }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: gate-verdict-${{ needs.validate-generator.outputs.head_sha }}
+      - name: Generate bounded repair plan from untrusted file data
+        id: fix
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/review-agent.mjs fix --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --verdict gate-verdict.json --out repair-plan.json
+      - name: Persist repair plan
+        if: ${{ steps.fix.outputs.fix_ok == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-plan-${{ needs.validate-generator.outputs.head_sha }}
+          path: repair-plan.json
+          if-no-files-found: error
+
+  apply-generator-repair:
+    needs: [validate-generator, generator-review, generator-fixer]
+    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-fixer.outputs.fix_ok == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout trusted coordinator tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - name: Checkout validated PR head without executing it
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-generator.outputs.head_sha }}
+          path: work
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: repair-plan-${{ needs.validate-generator.outputs.head_sha }}
+          path: trusted
+      - uses: actions/download-artifact@v4
+        with:
+          name: gate-verdict-${{ needs.validate-generator.outputs.head_sha }}
+          path: trusted
+      - name: Validate and apply content-only repair plan
+        working-directory: work
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ../trusted/scripts/automation/coordinator.mjs apply-fix --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --plan ../trusted/repair-plan.json
+      - name: Recheck exact remote head and persist next repair attempt
+        id: repair_attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ needs.validate-generator.outputs.head_ref }}
+          EXPECTED_SHA: ${{ needs.validate-generator.outputs.head_sha }}
+          CURRENT_ATTEMPT: ${{ needs.validate-generator.outputs.attempt }}
+        run: |
+          REMOTE_SHA=$(git -C work ls-remote origin "refs/heads/$HEAD_REF" | cut -f1)
+          [ "$REMOTE_SHA" = "$EXPECTED_SHA" ] || { echo "::error::PR head raced; refusing repair"; exit 1; }
+          NEXT_ATTEMPT=$((CURRENT_ATTEMPT + 1))
+          node trusted/scripts/automation/coordinator.mjs set-attempt --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --attempt "$NEXT_ATTEMPT"
+          echo "next_attempt=$NEXT_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - name: Recheck exact remote head, commit, and push without force
+        working-directory: work
+        env:
+          HEAD_REF: ${{ needs.validate-generator.outputs.head_ref }}
+          EXPECTED_SHA: ${{ needs.validate-generator.outputs.head_sha }}
+          NEXT_ATTEMPT: ${{ steps.repair_attempt.outputs.next_attempt }}
+        run: |
+          REMOTE_SHA=$(git ls-remote origin "refs/heads/$HEAD_REF" | cut -f1)
+          [ "$REMOTE_SHA" = "$EXPECTED_SHA" ] || { echo "::error::PR head raced; refusing push"; exit 1; }
+          git diff --quiet && { echo "::error::Fixer produced no diff"; exit 1; }
+          git config user.name "LV Automation Fixer"
+          git config user.email "noreply@libertyvillage.co"
+          git add --all
+          git commit -m "automation: repair gate findings (attempt $NEXT_ATTEMPT)"
+          git push origin "HEAD:$HEAD_REF"
+      - name: Audit repair and explicitly redispatch exact new SHA
+        id: audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_ATTEMPT: ${{ steps.repair_attempt.outputs.next_attempt }}
+        run: |
+          NEW_SHA=$(git -C work rev-parse HEAD)
+          node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "$NEW_SHA"
+          node trusted/scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision repairing --attempt "$NEXT_ATTEMPT" --verdict trusted/gate-verdict.json --out trusted/repair-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: repair-audit-${{ needs.validate-generator.outputs.head_sha }}
+          path: trusted/repair-audit.json
+          if-no-files-found: error
+
+  pass-generator:
+    needs: [validate-generator, generator-ci, generator-review, generator-gate-status]
+    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-ci.result == 'success' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: gate-verdict-${{ needs.validate-generator.outputs.head_sha }}
+      - name: Record pass and enable native merge-commit auto-merge into staging
+        id: audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/automation/coordinator.mjs validate-pr --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
+          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision passed --attempt "${{ needs.validate-generator.outputs.attempt }}" --verdict gate-verdict.json --out gate-audit.json
+          gh pr merge "${{ needs.validate-generator.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-audit-${{ needs.validate-generator.outputs.head_sha }}
+          path: gate-audit.json
+          if-no-files-found: error
+      - name: Observe staging merge and explicitly dispatch cumulative promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs observe-and-promote --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
+
+  block-generator:
+    needs: [validate-generator, generator-ci, generator-ci-status, generator-review, generator-gate-status, generator-fixer, apply-generator-repair, pass-generator]
+    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.pass-generator.result != 'success' && needs.apply-generator-repair.result != 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Download verdict when available
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: gate-verdict-${{ needs.validate-generator.outputs.head_sha }}
+      - name: Fail closed, label, audit, and deduplicate notification
+        id: block
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RESULT: ${{ needs.generator-ci.result }}
+          REVIEW_OK: ${{ needs.generator-review.outputs.review_ok }}
+          CAN_REPAIR: ${{ needs.validate-generator.outputs.can_repair }}
+        run: |
+          DECISION=error
+          if [ "$CI_RESULT" = success ] && [ "$REVIEW_OK" = true ] && [ "$CAN_REPAIR" != true ]; then DECISION=exhausted; fi
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state failure --description "Automation blocked: $DECISION"
+          VERDICT_ARGS=(); [ -f gate-verdict.json ] && VERDICT_ARGS=(--verdict gate-verdict.json)
+          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision "$DECISION" --attempt "${{ needs.validate-generator.outputs.attempt }}" "${VERDICT_ARGS[@]}" --out blocked-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blocked-audit-${{ needs.validate-generator.outputs.head_sha }}
+          path: blocked-audit.json
+          if-no-files-found: error
+      - name: Notify Slack once when configured
+        if: ${{ steps.block.outputs.comment_created == 'true' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
+          jq -n --arg text "Automation blocked PR #${{ needs.validate-generator.outputs.pr_number }} at ${{ needs.validate-generator.outputs.head_sha }}" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
+          echo "Slack notified."
+
+  validate-promotion:
+    if: ${{ github.event.client_payload.kind == 'promotion' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      trusted: ${{ steps.validate.outputs.trusted }}
+      no_changes: ${{ steps.validate.outputs.no_changes }}
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+      range: ${{ steps.validate.outputs.range }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs validate-promotion --repo "$GITHUB_REPOSITORY" --sha "$AUTOMATION_SHA"
+
+  prepare-promotion:
+    needs: validate-promotion
+    if: ${{ needs.validate-promotion.outputs.trusted == 'true' && needs.validate-promotion.outputs.no_changes != 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      pr_number: ${{ steps.prepare.outputs.pr_number }}
+      head_sha: ${{ steps.prepare.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs prepare-promotion --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion.outputs.head_sha }}"
+
+  validate-promotion-pr:
+    needs: [validate-promotion, prepare-promotion]
+    if: ${{ needs.validate-promotion.outputs.trusted == 'true' && needs.prepare-promotion.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      trusted: ${{ steps.validate.outputs.trusted }}
+      pr_number: ${{ steps.validate.outputs.pr_number }}
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      attempt: ${{ steps.validate.outputs.attempt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs validate-pr --repo "$GITHUB_REPOSITORY" --pr "${{ needs.prepare-promotion.outputs.pr_number }}" --kind promotion --sha "${{ needs.prepare-promotion.outputs.head_sha }}"
+
+  promotion-ci:
+    needs: [validate-promotion, validate-promotion-pr]
+    if: ${{ needs.validate-promotion-pr.outputs.trusted == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ needs.validate-promotion-pr.outputs.pr_number }}/merge
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Verify merge ref contains exact validated base and head
+        env:
+          EXPECTED_BASE: ${{ needs.validate-promotion.outputs.main_sha }}
+          EXPECTED_HEAD: ${{ needs.validate-promotion-pr.outputs.head_sha }}
+        run: |
+          test "$(git rev-parse HEAD^1)" = "$EXPECTED_BASE"
+          test "$(git rev-parse HEAD^2)" = "$EXPECTED_HEAD"
+      - run: npm ci
+      - run: npm run lint:automation
+      - run: npm run lint:changed
+      - run: npm run build
+      - run: npm run test:automation
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  promotion-ci-status:
+    needs: [validate-promotion-pr, promotion-ci]
+    if: ${{ always() && needs.validate-promotion-pr.outputs.trusted == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RESULT: ${{ needs.promotion-ci.result }}
+        run: |
+          STATE=failure; [ "$CI_RESULT" = success ] && STATE=success
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --context automation/ci --state "$STATE" --description "Promotion merge-ref CI: $CI_RESULT"
+
+  promotion-review:
+    needs: [validate-promotion, validate-promotion-pr, promotion-ci, promotion-ci-status]
+    if: ${{ needs.validate-promotion-pr.outputs.trusted == 'true' && needs.promotion-ci.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      review_ok: ${{ steps.review.outputs.review_ok }}
+      passed: ${{ steps.review.outputs.passed }}
+      overall: ${{ steps.review.outputs.overall }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - id: review
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/review-agent.mjs review --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --base-sha "${{ needs.validate-promotion.outputs.main_sha }}" --out promotion-verdict.json
+      - if: ${{ steps.review.outputs.review_ok == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-verdict-${{ needs.validate-promotion-pr.outputs.head_sha }}
+          path: promotion-verdict.json
+          if-no-files-found: error
+
+  promotion-gate-status:
+    needs: [validate-promotion-pr, promotion-ci, promotion-review]
+    if: ${{ always() && needs.validate-promotion-pr.outputs.trusted == 'true' && needs.promotion-ci.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_OK: ${{ needs.promotion-review.outputs.review_ok }}
+          PASSED: ${{ needs.promotion-review.outputs.passed }}
+        run: |
+          STATE=failure; DESCRIPTION="Cumulative Opus gate errored"
+          if [ "$REVIEW_OK" = true ]; then DESCRIPTION="Cumulative Opus score ${{ needs.promotion-review.outputs.overall }}/10"; fi
+          if [ "$REVIEW_OK" = true ] && [ "$PASSED" = true ]; then STATE=success; fi
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --context automation/opus-gate --state "$STATE" --description "$DESCRIPTION"
+
+  pass-promotion:
+    needs: [validate-promotion, validate-promotion-pr, promotion-ci, promotion-review, promotion-gate-status]
+    if: ${{ needs.validate-promotion-pr.outputs.trusted == 'true' && needs.promotion-ci.result == 'success' && needs.promotion-review.outputs.review_ok == 'true' && needs.promotion-review.outputs.passed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: promotion-verdict-${{ needs.validate-promotion-pr.outputs.head_sha }}
+      - id: audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/automation/coordinator.mjs validate-promotion --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --main-sha "${{ needs.validate-promotion.outputs.main_sha }}"
+          node scripts/automation/coordinator.mjs validate-pr --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}"
+          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --decision promoted --attempt 0 --range "${{ needs.validate-promotion.outputs.range }}" --verdict promotion-verdict.json --out promotion-audit.json
+          gh pr merge "${{ needs.validate-promotion-pr.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
+      - uses: actions/upload-artifact@v4
+        with:
+          name: promotion-audit-${{ needs.validate-promotion-pr.outputs.head_sha }}
+          path: promotion-audit.json
+          if-no-files-found: error
+
+  block-promotion:
+    needs: [validate-promotion, prepare-promotion, validate-promotion-pr, promotion-ci, promotion-ci-status, promotion-review, promotion-gate-status, pass-promotion]
+    if: ${{ always() && needs.validate-promotion-pr.outputs.trusted == 'true' && needs.pass-promotion.result != 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: promotion-verdict-${{ needs.validate-promotion-pr.outputs.head_sha }}
+      - id: block
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --context automation/opus-gate --state failure --description "Cumulative promotion blocked"
+          VERDICT_ARGS=(); [ -f promotion-verdict.json ] && VERDICT_ARGS=(--verdict promotion-verdict.json)
+          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --decision blocked --attempt 0 --range "${{ needs.validate-promotion.outputs.range }}" "${VERDICT_ARGS[@]}" --out promotion-blocked-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: promotion-blocked-audit-${{ needs.validate-promotion-pr.outputs.head_sha }}
+          path: promotion-blocked-audit.json
+          if-no-files-found: error
+      - name: Notify Slack once when configured
+        if: ${{ steps.block.outputs.comment_created == 'true' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
+          jq -n --arg text "Cumulative promotion blocked at ${{ needs.validate-promotion-pr.outputs.head_sha }}" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
+          echo "Slack notified."

@@ -1,7 +1,7 @@
 # Weekly SEO/AEO Improvement Pipeline
 # Analyzes Google Search Console performance and opens a PR with data-backed
 # on-site improvements (meta, FAQ, internal links, schema, content, new pages).
-# It NEVER pushes to main — a human reviews and merges the PR.
+# It never pushes to main; it opens a non-draft staging PR for autonomous gates.
 #
 # Requires repo secrets: GOOGLE_SERVICE_ACCOUNT_JSON, ANTHROPIC_API_KEY, GA_PROPERTY_ID,
 #   SLACK_WEBHOOK_URL (for alerts). Optional: DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD, SERPER_API_KEY.
@@ -40,6 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: staging
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -89,12 +90,10 @@ jobs:
           CONTENT=$(echo "$ALL" | grep -E '^(app|components|data|lib|public)/' || true)
           echo "Real content changes:"; echo "$CONTENT"
           N=$(echo "$CONTENT" | grep -c . || true)
-          OVERSIZED=false
           if [ "$N" -gt 15 ]; then
-            OVERSIZED=true
-            echo "::warning::Change budget exceeded ($N files > 15) — PR will open as DRAFT for extra scrutiny."
+            echo "::error::Change budget exceeded ($N files > 15) — refusing to open an automation PR."
+            exit 1
           fi
-          echo "oversized=$OVERSIZED" >> "$GITHUB_OUTPUT"
           echo "nfiles=$N" >> "$GITHUB_OUTPUT"
 
       # Build is run inside the agent orchestrator (it must build before the
@@ -110,14 +109,10 @@ jobs:
             OVERALL=$(jq -r '.overall // "n/a"' tasks/seo-scores.json)
             PASSED=$(jq -r '.passed // false' tasks/seo-scores.json)
           fi
-          DRAFT=false; LABELS="seo-automation"
-          [ "$PASSED" != "true" ] && { DRAFT=true; LABELS="seo-automation,needs-work"; }
-          if [ "${{ steps.guard.outputs.oversized }}" = "true" ]; then
-            DRAFT=true; LABELS="$LABELS,oversized"
-          fi
+          LABELS="seo-automation"
+          [ "$PASSED" != "true" ] && LABELS="$LABELS,needs-work"
           {
             echo "overall=$OVERALL"
-            echo "draft=$DRAFT"
             echo "labels=$LABELS"
             echo "title=seo: weekly automated improvements (score ${OVERALL}/10, ${{ steps.guard.outputs.nfiles }} files)"
           } >> "$GITHUB_OUTPUT"
@@ -145,14 +140,23 @@ jobs:
             gh label create "$l" --force >/dev/null 2>&1 || true
             LABEL_ARGS="$LABEL_ARGS --label $l"
           done
-          DRAFT_FLAG=""; [ "${{ steps.scores.outputs.draft }}" = "true" ] && DRAFT_FLAG="--draft"
-          URL=$(gh pr create --base main --head "$BR" \
+          URL=$(gh pr create --base staging --head "$BR" \
             --title "${{ steps.scores.outputs.title }}" \
             --body-file tasks/seo-improve-summary.md \
-            $LABEL_ARGS $DRAFT_FLAG)
+            $LABEL_ARGS)
+          PR=$(gh pr view "$URL" --json number --jq .number)
+          SHA=$(git rev-parse HEAD)
           echo "Opened PR: $URL"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Explicitly dispatch shared coordinator
+        if: ${{ steps.cpr.outputs.created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.cpr.outputs.pr_number }}" --kind seo --sha "${{ steps.cpr.outputs.head_sha }}"
 
       - name: Notify Slack
         if: ${{ steps.cpr.outputs.created == 'true' }}
@@ -160,12 +164,10 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           PR_URL: ${{ steps.cpr.outputs.url }}
           OVERALL: ${{ steps.scores.outputs.overall }}
-          DRAFT: ${{ steps.scores.outputs.draft }}
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
           TLDR=$(sed -n '/## TL;DR/,/^## /p' tasks/seo-improve-summary.md | sed '1d;/^## /d' | head -6)
-          STATUS=":mag: Weekly SEO PR opened — score ${OVERALL}/10"
-          [ "$DRAFT" = "true" ] && STATUS=":warning: Weekly SEO PR (DRAFT — below threshold or oversized) — score ${OVERALL}/10"
+          STATUS=":mag: Weekly SEO staging PR opened — score ${OVERALL}/10"
           payload=$(jq -n --arg t "$STATUS: $PR_URL" --arg b "$TLDR" '{text: ($t + "\n" + $b)}')
           curl -s -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null && echo "Slack notified."
 
