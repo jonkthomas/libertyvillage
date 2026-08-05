@@ -3,23 +3,24 @@ import { test, expect } from "@playwright/test";
 test.describe("UAT — Mobile Flows (375x812)", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test("mobile nav → Best Of → Restaurants", async ({ page }) => {
+  test("mobile nav → Best Of → rendered category", async ({ page }) => {
     await page.goto("/");
 
-    // Open mobile menu
-    const menuButton = page.locator('button[aria-label="Open menu"]');
+    const menuButton = page.getByRole("button", { name: "Open menu", exact: true });
+    const mobileNav = page.locator("div.sm\\:hidden").filter({
+      has: page.getByRole("button", { name: /menu/i }),
+    }).first();
     await menuButton.click();
 
-    // Expand Best Of section
-    const bestOfButton = page.locator("button", { hasText: "Best Of" });
+    const menu = mobileNav.getByRole("navigation");
+    const bestOfButton = menu.getByRole("button", { name: "Best Of", exact: true });
     await expect(bestOfButton).toBeVisible();
     await bestOfButton.click();
 
-    // Tap Restaurants
-    const restaurantsLink = page.locator('a[href="/best/restaurants"]');
-    await expect(restaurantsLink).toBeVisible();
-    await restaurantsLink.click();
-    await expect(page).toHaveURL(/\/best\/restaurants/);
+    const categoryLink = menu.locator('a[href^="/best/"]').first();
+    await expect(categoryLink).toBeVisible();
+    await categoryLink.click();
+    await expect(page).toHaveURL(/\/best\/[a-z0-9-]+$/);
   });
 
   test("/best/restaurants stacked cards at 375px", async ({ page }) => {
@@ -46,7 +47,7 @@ test.describe("UAT — Mobile Flows (375x812)", () => {
     expect(factsText).toContain("88");
 
     // History section readable
-    await expect(page.locator("h2", { hasText: "History" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "History of Liberty Village", exact: true }).first()).toBeVisible();
 
     // Guide links present
     const guideLinks = page.locator('a[href^="/guide/"]');

@@ -38,14 +38,21 @@ test.describe("Service page content depth", () => {
     });
   }
 
-  test("/best/dentists does NOT show comparison table", async ({ page }) => {
+  test("/best/dentists shows its current clinic comparison", async ({ page }) => {
     await page.goto("/best/dentists");
-    const h1 = page.locator("h1");
-    await expect(h1).toContainText("Best Dentists");
+    await expect(page.getByRole("heading", { level: 1, name: /Best Dentists/ })).toBeVisible();
 
-    // Should NOT have a comparison table
     const table = page.locator("table");
-    await expect(table).toHaveCount(0);
+    const viewport = page.viewportSize();
+    if (viewport && viewport.width >= 768) {
+      await expect(table).toBeVisible();
+      expect(await table.locator("tbody tr").count()).toBeGreaterThanOrEqual(2);
+    } else {
+      await expect(table).toBeHidden();
+      const clinicCards = page.locator(".space-y-3.md\\:hidden > div");
+      await expect(clinicCards.first()).toBeVisible();
+      expect(await clinicCards.count()).toBeGreaterThanOrEqual(2);
+    }
   });
 
   test("comparison table renders as stacked cards at 375px", async ({

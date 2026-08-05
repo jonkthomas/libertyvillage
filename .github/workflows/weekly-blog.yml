@@ -27,6 +27,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   generate-blog:
@@ -34,6 +35,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -62,18 +66,33 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: node scripts/weekly-blog-agent.js
 
-      - name: Commit and push
+      - name: Open non-draft pull request into staging
+        id: pr
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "LV Content Bot"
           git config user.email "noreply@libertyvillage.co"
-          git stash --all
-          git pull --rebase origin main
-          git stash pop || true
+          BR="blog/auto-$(date +%s)"
+          git checkout -b "$BR"
           git add data/posts.json "public/images/blog/" "tasks/seo-data-latest.json" "tasks/auto-blog-runs/"
-          git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "blog: auto-publish weekly post $(date +%Y-%m-%d)"
-          git push origin main
+          if git diff --cached --quiet; then echo "No changes to commit"; echo "created=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          git commit -m "blog: weekly automated post $(date +%Y-%m-%d)"
+          git push -u origin "$BR"
+          URL=$(gh pr create --base staging --head "$BR" --title "blog: weekly automated post $(date +%Y-%m-%d)" --body "Automated weekly blog generation. CI and the autonomous Opus gate control staging merge eligibility.")
+          PR=$(gh pr view "$URL" --json number --jq .number)
+          SHA=$(git rev-parse HEAD)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Explicitly dispatch shared coordinator
+        if: ${{ steps.pr.outputs.created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind blog --sha "${{ steps.pr.outputs.head_sha }}"
 
       - name: Cleanup credentials
         if: always()

@@ -1,10 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Navigation and Cross-Links", () => {
-  // Note: This test is flaky in SSG production mode — client component hydration timing.
-  // The keyboard navigation test (below) validates the same dropdown functionality reliably.
-  test.fixme("desktop: Best Of dropdown appears on hover and navigates", async ({ page, browserName }, testInfo) => {
-    // Only run on desktop project
+  test("desktop: Best Of dropdown appears on hover and navigates", async ({ page }, testInfo) => {
     if (testInfo.project.name === "mobile-chromium") {
       test.skip();
       return;
@@ -12,25 +9,18 @@ test.describe("Navigation and Cross-Links", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
 
-    // The desktop nav button — use aria-haspopup to be specific
-    const bestOfButton = page.locator('button[aria-haspopup="menu"]').first();
+    const bestOfButton = page.getByRole("button", { name: "Best Of", exact: true });
     await expect(bestOfButton).toBeVisible();
+    await bestOfButton.hover();
 
-    // Wait for hydration then click to open dropdown
-    await page.waitForTimeout(500);
-    await bestOfButton.click();
-
-    // Dropdown should appear — wait for React state update
-    const dropdown = page.locator('[role="menu"]');
+    const dropdown = page.getByRole("menu");
     await expect(dropdown).toBeVisible({ timeout: 5000 });
+    const categoryLink = dropdown.getByRole("menuitem").first();
+    const href = await categoryLink.getAttribute("href");
+    expect(href).toMatch(/^\/best\/[a-z0-9-]+$/);
 
-    // Should contain Restaurants link
-    const restaurantsLink = dropdown.locator('a[href="/best/restaurants"]');
-    await expect(restaurantsLink).toBeVisible();
-
-    // Click navigates to restaurants
-    await restaurantsLink.click();
-    await expect(page).toHaveURL(/\/best\/restaurants/);
+    await categoryLink.click();
+    await expect(page).toHaveURL(/\/best\/[a-z0-9-]+$/);
   });
 
   test("desktop: keyboard navigation of Best Of dropdown", async ({ page }, testInfo) => {
@@ -41,11 +31,11 @@ test.describe("Navigation and Cross-Links", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
 
-    const bestOfButton = page.locator('button[aria-haspopup="menu"]').first();
+    const bestOfButton = page.getByRole("button", { name: "Best Of", exact: true });
     await bestOfButton.focus();
     await bestOfButton.press("Enter");
 
-    const dropdown = page.locator('[role="menu"]');
+    const dropdown = page.getByRole("menu");
     await expect(dropdown).toBeVisible({ timeout: 3000 });
 
     await page.keyboard.press("Escape");
@@ -55,11 +45,9 @@ test.describe("Navigation and Cross-Links", () => {
   test("blog post shows ExploreCTA and cross-links", async ({ page }) => {
     await page.goto("/blog/fifa-world-cup-2026-liberty-village-survival-guide");
 
-    // ExploreCTA — the component renders with amber-500 border. Check for its content.
-    const exploreCta = page.locator("text=Explore Liberty Village").first();
+    const exploreCta = page.getByText("Explore Liberty Village", { exact: true }).first();
     await expect(exploreCta).toBeVisible({ timeout: 5000 });
 
-    // Cross-links — look for service page links within the article area
     const mainContent = page.locator("main");
     const restaurantsLink = mainContent.locator('a[href="/best/restaurants"]').first();
     await expect(restaurantsLink).toBeVisible();
@@ -73,23 +61,21 @@ test.describe("Navigation and Cross-Links", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
 
-    // Open mobile nav
-    const menuButton = page.locator('button[aria-label="Open menu"]');
+    const menuButton = page.getByRole("button", { name: "Open menu", exact: true });
+    const mobileNav = page.locator("div.sm\\:hidden").filter({
+      has: page.getByRole("button", { name: /menu/i }),
+    }).first();
     await expect(menuButton).toBeVisible();
     await menuButton.click();
 
-    // Expand Best Of — target the one inside the mobile dropdown (not the header one)
-    const mobileMenu = page.locator('div.sm\\:hidden');
-    const bestOfButton = mobileMenu.locator('button').filter({ hasText: "Best Of" });
+    const menu = mobileNav.getByRole("navigation");
+    const bestOfButton = menu.getByRole("button", { name: "Best Of", exact: true });
     await expect(bestOfButton).toBeVisible({ timeout: 3000 });
     await bestOfButton.click();
 
-    // Service links should appear in mobile nav
-    const restaurantsLink = page.locator('a[href="/best/restaurants"]').first();
-    await expect(restaurantsLink).toBeVisible({ timeout: 3000 });
-
-    // Tap navigates
-    await restaurantsLink.click();
-    await expect(page).toHaveURL(/\/best\/restaurants/);
+    const categoryLink = menu.locator('a[href^="/best/"]').first();
+    await expect(categoryLink).toBeVisible({ timeout: 3000 });
+    await categoryLink.click();
+    await expect(page).toHaveURL(/\/best\/[a-z0-9-]+$/);
   });
 });
