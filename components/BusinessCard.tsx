@@ -45,7 +45,9 @@ export default function BusinessCard({ business }: { business: Business }) {
             <span className="inline-block rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
               {business.category.replace(/-/g, " ")}
             </span>
-            <span className="text-sm text-warm-500">{business.priceRange}</span>
+            {business.priceRange && (
+              <span className="text-sm text-warm-500">{business.priceRange}</span>
+            )}
           </div>
         </div>
       </div>

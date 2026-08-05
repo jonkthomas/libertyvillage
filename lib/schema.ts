@@ -20,7 +20,7 @@ export function generateLocalBusinessSchema(business: Business) {
     },
     telephone: business.phone || undefined,
     url: business.website || undefined,
-    priceRange: business.priceRange,
+    ...(business.priceRange ? { priceRange: business.priceRange } : {}),
     ...(business.image ? { image: `${SITE_URL}${business.image}` } : {}),
     // Only emit aggregateRating when we actually have real aggregate review
     // data (a rating value AND a non-zero review count). The dataset holds no
