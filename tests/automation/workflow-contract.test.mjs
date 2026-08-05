@@ -20,3 +20,15 @@ test('repair attempt is consumed before fixer push and redispatch', () => {
   assert.match(workflow.slice(persist, push), /NEXT_ATTEMPT/);
   assert.match(workflow.slice(persist, push), /ls-remote/);
 });
+
+test('generator pass refreshes after audit and skips auto-merge and observation when redispatched', () => {
+  const passJob = workflow.slice(workflow.indexOf('  pass-generator:'), workflow.indexOf('  block-generator:'));
+  const audit = passJob.indexOf('coordinator.mjs audit');
+  const refresh = passJob.indexOf('coordinator.mjs refresh-generator-base');
+  const autoMerge = passJob.indexOf('gh pr merge');
+  const observe = passJob.indexOf('coordinator.mjs observe-and-promote');
+  assert.ok(audit >= 0 && audit < refresh, 'base refresh must follow exact-SHA audit');
+  assert.ok(refresh < autoMerge && autoMerge < observe, 'refresh must precede merge and observation');
+  assert.equal((passJob.match(/if: \$\{\{ steps\.refresh\.outputs\.refreshed != 'true' \}\}/g) || []).length, 2);
+  assert.doesNotMatch(passJob.slice(0, refresh), /gh pr merge|observe-and-promote/);
+});

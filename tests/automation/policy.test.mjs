@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GATE_MODEL, MAX_REPAIRS, SCORE_THRESHOLD } from '../../scripts/automation/constants.mjs';
 import {
-  canRepair, evaluateObservedMerge, evaluateVerdict, filterRepairablePaths, readRepairAttempt,
-  validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
+  canRepair, evaluateGeneratorBase, evaluateObservedMerge, evaluateVerdict, filterRepairablePaths,
+  readRepairAttempt, validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
 } from '../../scripts/automation/policy.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -91,6 +91,24 @@ test('allows ordinary cumulative promotion paths while sensitive infrastructure 
   }
   assert.equal(validatePaths('promotion', Array.from({ length: 100 }, (_, index) => `app/page-${index}.tsx`)).ok, true);
   assert.equal(validatePaths('promotion', Array.from({ length: 101 }, (_, index) => `app/page-${index}.tsx`)).ok, false);
+});
+
+test('refreshes a generator whose staging base advanced and fails closed on invalid comparisons', () => {
+  assert.equal(evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: MAIN, stagingAheadBy: 1,
+  }), 'refresh');
+  assert.equal(evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: MAIN, stagingAheadBy: 0,
+  }), 'continue');
+  assert.throws(() => evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: 'c'.repeat(40), stagingSha: MAIN, stagingAheadBy: 1,
+  }));
+  assert.throws(() => evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: 'invalid', stagingAheadBy: 1,
+  }));
+  assert.throws(() => evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: MAIN, stagingAheadBy: -1,
+  }));
 });
 
 test('treats a merged PR behind staging as superseded and fails closed for other mismatches', () => {
