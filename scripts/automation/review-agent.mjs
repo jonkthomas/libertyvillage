@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { FIXER_MODEL, GATE_MODEL } from './constants.mjs';
 import { github, paged, writeOutput } from './github.mjs';
-import { evaluateVerdict, validateRepairPlan } from './policy.mjs';
+import { evaluateVerdict, filterRepairablePaths, validateRepairPlan } from './policy.mjs';
 
 const VERDICT_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -132,8 +132,10 @@ async function fix(options) {
   const livePr = await github(`/repos/${repo}/pulls/${pr}`);
   if (livePr.state !== 'open' || livePr.head.sha !== sha) throw new Error('PR became stale before fixer');
   const files = (await paged(`/repos/${repo}/pulls/${pr}/files`)).map((file) => file.filename);
+  const repairableFiles = filterRepairablePaths(kind, files);
+  if (repairableFiles.length === 0) throw new Error(`no repairable ${kind} files in PR diff`);
   const candidates = [];
-  for (const file of files) {
+  for (const file of repairableFiles) {
     try { candidates.push({ path: file, content: await fileAtSha(repo, file, sha) }); }
     catch (error) { console.log(`Skipping fixer data ${file}: ${error.message}`); }
   }

@@ -49,6 +49,11 @@ export function validatePaths(kind, files, { repair = false } = {}) {
   return { ok: errors.length === 0, errors };
 }
 
+export function filterRepairablePaths(kind, files) {
+  if (!Array.isArray(files)) return [];
+  return files.filter((file) => validatePaths(kind, [file], { repair: true }).ok);
+}
+
 export function readRepairAttempt(labels) {
   if (!Array.isArray(labels)) throw new Error('labels must be an array');
   const values = labels

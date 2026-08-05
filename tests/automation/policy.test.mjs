@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GATE_MODEL, MAX_REPAIRS, SCORE_THRESHOLD } from '../../scripts/automation/constants.mjs';
 import {
-  canRepair, evaluateObservedMerge, evaluateVerdict, readRepairAttempt, validatePaths,
-  validatePromotionRange, validatePullRequest, validateRepairPlan,
+  canRepair, evaluateObservedMerge, evaluateVerdict, filterRepairablePaths, readRepairAttempt,
+  validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
 } from '../../scripts/automation/policy.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -101,6 +101,19 @@ test('treats a merged PR behind staging as superseded and fails closed for other
   assert.equal(evaluateObservedMerge({ pr: { ...pr, merged: false }, expectedSha: SHA }), 'wait');
   assert.throws(() => evaluateObservedMerge({ pr: { ...pr, head: { sha: MAIN } }, expectedSha: SHA, stagingSha: mergeSha }));
   assert.throws(() => evaluateObservedMerge({ pr: { ...pr, base: { ref: 'main' } }, expectedSha: SHA, stagingSha: mergeSha }));
+});
+
+test('fixer sees only kind-specific repairable text paths', () => {
+  assert.deepEqual(filterRepairablePaths('business', [
+    'data/businesses.json',
+    'public/images/businesses/photo.jpg',
+    'tasks/discovery-runs/2026-08-05.json',
+  ]), ['data/businesses.json']);
+  assert.deepEqual(filterRepairablePaths('blog', [
+    'data/posts.json',
+    'public/images/blog/post.jpg',
+    'tasks/auto-blog-runs/2026-08-05.json',
+  ]), ['data/posts.json']);
 });
 
 test('repair plans can only replace existing kind-specific text content within budget', () => {
