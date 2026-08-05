@@ -7,7 +7,8 @@ import {
 } from './constants.mjs';
 import { github, paged, writeOutput } from './github.mjs';
 import {
-  evaluateObservedMerge, isExactSha, validatePromotionRange, validatePullRequest, validateRepairPlan,
+  evaluateGeneratorBase, evaluateObservedMerge, isExactSha, validatePromotionRange, validatePullRequest,
+  validateRepairPlan,
 } from './policy.mjs';
 
 function parseArgs() {
@@ -186,6 +187,68 @@ async function dispatch(options) {
   console.log(`Dispatched ${options.kind} coordinator for ${options.sha}.`);
 }
 
+function assertSamePrIdentity(before, after, expectedSha, repository) {
+  if (
+    after?.number !== before.number || after?.state !== 'open' || after?.draft !== false
+    || after?.head?.sha !== expectedSha || after?.head?.ref !== before.head.ref
+    || after?.head?.repo?.full_name !== repository || after?.base?.ref !== before.base.ref
+    || after?.base?.repo?.full_name !== repository || after?.user?.login !== before.user.login
+  ) throw new Error('pull request identity changed during base refresh');
+}
+
+async function refreshGeneratorBase(options) {
+  requireOptions(options, ['repo', 'pr', 'kind', 'sha']);
+  const { pr, files } = await prData(options.repo, options.pr);
+  const trusted = validatePullRequest({
+    repository: options.repo, kind: options.kind, expectedSha: options.sha, pr, files,
+  });
+  if (!trusted.ok) throw new Error(`pull request rejected before base refresh: ${trusted.errors.join('; ')}`);
+
+  const staging = await github(`/repos/${options.repo}/branches/staging`);
+  const comparison = await github(`/repos/${options.repo}/compare/${options.sha}...${staging.commit.sha}`);
+  const decision = evaluateGeneratorBase({
+    expectedSha: options.sha, prHeadSha: pr.head.sha, stagingSha: staging.commit.sha,
+    stagingAheadBy: comparison.ahead_by,
+  });
+  if (decision === 'continue') {
+    const current = await github(`/repos/${options.repo}/pulls/${options.pr}`);
+    assertSamePrIdentity(pr, current, options.sha, options.repo);
+    writeOutput({ refreshed: 'false', head_sha: options.sha });
+    console.log(`PR #${pr.number} already contains current staging base ${staging.commit.sha}.`);
+    return;
+  }
+
+  await github(`/repos/${options.repo}/pulls/${options.pr}/update-branch`, {
+    method: 'PUT', body: { expected_head_sha: options.sha },
+  });
+  for (let poll = 0; poll < 12; poll += 1) {
+    const current = await github(`/repos/${options.repo}/pulls/${options.pr}`);
+    if (current.head.sha === options.sha) {
+      assertSamePrIdentity(pr, current, options.sha, options.repo);
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      continue;
+    }
+
+    assertSamePrIdentity(pr, current, current.head.sha, options.repo);
+    const currentFiles = (await paged(`/repos/${options.repo}/pulls/${options.pr}/files`)).map((file) => file.filename);
+    const updated = validatePullRequest({
+      repository: options.repo, kind: options.kind, expectedSha: current.head.sha, pr: current, files: currentFiles,
+    });
+    if (!updated.ok) throw new Error(`updated pull request rejected: ${updated.errors.join('; ')}`);
+    const commit = await github(`/repos/${options.repo}/git/commits/${current.head.sha}`);
+    if (
+      commit.sha !== current.head.sha || commit.parents?.length !== 2
+      || commit.parents[0]?.sha !== options.sha || commit.parents[1]?.sha !== staging.commit.sha
+    ) throw new Error('PR head changed unexpectedly during base refresh');
+
+    await dispatch({ repo: options.repo, pr: options.pr, kind: options.kind, sha: current.head.sha });
+    writeOutput({ refreshed: 'true', head_sha: current.head.sha });
+    console.log(`Refreshed PR #${pr.number} from ${options.sha} to ${current.head.sha} and redispatched exact SHA.`);
+    return;
+  }
+  throw new Error('timed out waiting for updated PR head');
+}
+
 async function observeAndPromote(options) {
   requireOptions(options, ['repo', 'pr', 'sha']);
   for (let poll = 0; poll < 72; poll += 1) {
@@ -208,7 +271,7 @@ async function observeAndPromote(options) {
 const commands = {
   'validate-pr': validatePr, 'validate-promotion': validatePromotion, 'prepare-promotion': preparePromotion,
   status: publishStatus, audit, 'apply-fix': applyFix, 'set-attempt': setAttempt, dispatch,
-  'observe-and-promote': observeAndPromote,
+  'refresh-generator-base': refreshGeneratorBase, 'observe-and-promote': observeAndPromote,
 };
 try {
   const command = process.argv[2];

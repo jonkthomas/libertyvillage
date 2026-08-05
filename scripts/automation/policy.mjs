@@ -127,6 +127,13 @@ export function validatePromotionRange({ expectedSha, stagingSha, mainSha, ahead
   return { ok: errors.length === 0, errors, noChanges: errors.length === 0 && aheadBy === 0, range: `${mainSha}...${stagingSha}` };
 }
 
+export function evaluateGeneratorBase({ expectedSha, prHeadSha, stagingSha, stagingAheadBy }) {
+  if (!isExactSha(expectedSha) || prHeadSha !== expectedSha) throw new Error('PR head changed before base refresh');
+  if (!isExactSha(stagingSha)) throw new Error('staging head is not an exact SHA');
+  if (!Number.isInteger(stagingAheadBy) || stagingAheadBy < 0) throw new Error('invalid staging comparison');
+  return stagingAheadBy > 0 ? 'refresh' : 'continue';
+}
+
 export function evaluateObservedMerge({ pr, expectedSha, stagingSha }) {
   if (pr?.head?.sha !== expectedSha) throw new Error('PR head changed while awaiting staging merge');
   if (!pr.merged) return 'wait';

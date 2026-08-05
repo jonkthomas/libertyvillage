@@ -281,20 +281,30 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: gate-verdict-${{ needs.validate-generator.outputs.head_sha }}
-      - name: Record pass and enable native merge-commit auto-merge into staging
+      - name: Validate exact SHA and record pass
         id: audit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           node scripts/automation/coordinator.mjs validate-pr --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
           node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision passed --attempt "${{ needs.validate-generator.outputs.attempt }}" --verdict gate-verdict.json --out gate-audit.json
-          gh pr merge "${{ needs.validate-generator.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
+      - name: Refresh stale staging base and explicitly redispatch exact new SHA
+        id: refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs refresh-generator-base --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
       - uses: actions/upload-artifact@v4
         with:
           name: gate-audit-${{ needs.validate-generator.outputs.head_sha }}
           path: gate-audit.json
           if-no-files-found: error
+      - name: Enable native merge-commit auto-merge into staging
+        if: ${{ steps.refresh.outputs.refreshed != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge "${{ needs.validate-generator.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
       - name: Observe staging merge and explicitly dispatch cumulative promotion
+        if: ${{ steps.refresh.outputs.refreshed != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/automation/coordinator.mjs observe-and-promote --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
