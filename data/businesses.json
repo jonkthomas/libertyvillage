@@ -3970,5 +3970,41 @@
     "categories": [
       "restaurants"
     ]
+  },
+  {
+    "slug": "local-public-eatery-liberty-village",
+    "name": "LOCAL Public Eatery Liberty Village",
+    "category": "restaurants",
+    "subcategory": "Restaurant",
+    "address": "100, 171 E Liberty St Unit 100, Toronto, ON M6K 3P6, Canada",
+    "description": "LOCAL Public Eatery Liberty Village is a Restaurant in Liberty Village, located at 100, 171 E Liberty St Unit 100, Toronto, ON M6K 3P6, Canada. It holds a 4.5-star rating across 5144 Google reviews.",
+    "rating": 4.5,
+    "reviewCount": 5144,
+    "priceRange": "$",
+    "hours": "Open · Closes 1 AM",
+    "phone": "+1 416-901-8351",
+    "website": "https://localpubliceatery.com/neighbourhoods/liberty-village/",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/local-public-eatery-liberty-village.jpg",
+    "answerBlock": "LOCAL Public Eatery Liberty Village is a 4.5-star restaurant in Liberty Village at 100, 171 E Liberty St Unit 100, Toronto, ON M6K 3P6, Canada, with 5144 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "Reviewers rate LOCAL Public Eatery Liberty Village 4.5/5 across 5144 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about LOCAL Public Eatery Liberty Village?",
+        "answer": "LOCAL Public Eatery Liberty Village has a 4.5-star average from 5144 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-05",
+    "_needsEnrichment": true
   }
 ]
