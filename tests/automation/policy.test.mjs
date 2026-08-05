@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GATE_MODEL, MAX_REPAIRS, SCORE_THRESHOLD } from '../../scripts/automation/constants.mjs';
 import {
-  canRepair, evaluateObservedMerge, evaluateVerdict, readRepairAttempt, validatePaths,
-  validatePromotionRange, validatePullRequest, validateRepairPlan,
+  canRepair, evaluateGeneratorBase, evaluateObservedMerge, evaluateVerdict, filterRepairablePaths,
+  readRepairAttempt, validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
 } from '../../scripts/automation/policy.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -93,6 +93,24 @@ test('allows ordinary cumulative promotion paths while sensitive infrastructure 
   assert.equal(validatePaths('promotion', Array.from({ length: 101 }, (_, index) => `app/page-${index}.tsx`)).ok, false);
 });
 
+test('refreshes a generator whose staging base advanced and fails closed on invalid comparisons', () => {
+  assert.equal(evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: MAIN, stagingAheadBy: 1,
+  }), 'refresh');
+  assert.equal(evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: MAIN, stagingAheadBy: 0,
+  }), 'continue');
+  assert.throws(() => evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: 'c'.repeat(40), stagingSha: MAIN, stagingAheadBy: 1,
+  }));
+  assert.throws(() => evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: 'invalid', stagingAheadBy: 1,
+  }));
+  assert.throws(() => evaluateGeneratorBase({
+    expectedSha: SHA, prHeadSha: SHA, stagingSha: MAIN, stagingAheadBy: -1,
+  }));
+});
+
 test('treats a merged PR behind staging as superseded and fails closed for other mismatches', () => {
   const mergeSha = 'c'.repeat(40);
   const pr = { merged: true, head: { sha: SHA }, base: { ref: 'staging' }, merge_commit_sha: mergeSha };
@@ -101,6 +119,19 @@ test('treats a merged PR behind staging as superseded and fails closed for other
   assert.equal(evaluateObservedMerge({ pr: { ...pr, merged: false }, expectedSha: SHA }), 'wait');
   assert.throws(() => evaluateObservedMerge({ pr: { ...pr, head: { sha: MAIN } }, expectedSha: SHA, stagingSha: mergeSha }));
   assert.throws(() => evaluateObservedMerge({ pr: { ...pr, base: { ref: 'main' } }, expectedSha: SHA, stagingSha: mergeSha }));
+});
+
+test('fixer sees only kind-specific repairable text paths', () => {
+  assert.deepEqual(filterRepairablePaths('business', [
+    'data/businesses.json',
+    'public/images/businesses/photo.jpg',
+    'tasks/discovery-runs/2026-08-05.json',
+  ]), ['data/businesses.json']);
+  assert.deepEqual(filterRepairablePaths('blog', [
+    'data/posts.json',
+    'public/images/blog/post.jpg',
+    'tasks/auto-blog-runs/2026-08-05.json',
+  ]), ['data/posts.json']);
 });
 
 test('repair plans can only replace existing kind-specific text content within budget', () => {

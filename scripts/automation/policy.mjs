@@ -49,6 +49,11 @@ export function validatePaths(kind, files, { repair = false } = {}) {
   return { ok: errors.length === 0, errors };
 }
 
+export function filterRepairablePaths(kind, files) {
+  if (!Array.isArray(files)) return [];
+  return files.filter((file) => validatePaths(kind, [file], { repair: true }).ok);
+}
+
 export function readRepairAttempt(labels) {
   if (!Array.isArray(labels)) throw new Error('labels must be an array');
   const values = labels
@@ -120,6 +125,13 @@ export function validatePromotionRange({ expectedSha, stagingSha, mainSha, ahead
   if (!isExactSha(mainSha)) errors.push('main head is not an exact SHA');
   if (!Number.isInteger(aheadBy) || aheadBy < 0) errors.push('invalid cumulative ahead count');
   return { ok: errors.length === 0, errors, noChanges: errors.length === 0 && aheadBy === 0, range: `${mainSha}...${stagingSha}` };
+}
+
+export function evaluateGeneratorBase({ expectedSha, prHeadSha, stagingSha, stagingAheadBy }) {
+  if (!isExactSha(expectedSha) || prHeadSha !== expectedSha) throw new Error('PR head changed before base refresh');
+  if (!isExactSha(stagingSha)) throw new Error('staging head is not an exact SHA');
+  if (!Number.isInteger(stagingAheadBy) || stagingAheadBy < 0) throw new Error('invalid staging comparison');
+  return stagingAheadBy > 0 ? 'refresh' : 'continue';
 }
 
 export function evaluateObservedMerge({ pr, expectedSha, stagingSha }) {
