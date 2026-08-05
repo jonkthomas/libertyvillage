@@ -14,6 +14,10 @@ on:
         required: false
         default: "15"
 
+concurrency:
+  group: weekly-business-discovery
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -23,6 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -35,12 +42,13 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: node scripts/discover-businesses.mjs --max=${{ github.event.inputs.max || '15' }}
 
-      - name: Open pull request
+      - name: Open non-draft pull request into staging
+        id: pr
         if: steps.discover.outputs.added != '' && steps.discover.outputs.added != '0'
         uses: peter-evans/create-pull-request@v6
         with:
-          branch: auto/business-discovery
-          base: main
+          branch: auto/business-discovery-${{ github.run_id }}
+          base: staging
           commit-message: "directory: add ${{ steps.discover.outputs.added }} new LV businesses (weekly Maps discovery)"
           title: "directory: ${{ steps.discover.outputs.added }} new Liberty Village businesses (weekly)"
           body: |
@@ -51,6 +59,12 @@ jobs:
             - Records are basic (facts from Maps, templated copy) and flagged `_needsEnrichment: true`
 
             Review, enrich the copy, then merge. New `/directory/[slug]` pages render automatically.
-          draft: true
+          draft: false
           delete-branch: true
           labels: automated, directory
+
+      - name: Explicitly dispatch shared coordinator
+        if: ${{ steps.pr.outputs.pull-request-number != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pull-request-number }}" --kind business --sha "${{ steps.pr.outputs.pull-request-head-sha }}"

@@ -1,27 +1,35 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
+
+async function expectLoadedImage(image: Locator, pageUrl: string) {
+  await image.scrollIntoViewIfNeeded();
+  const src = await image.getAttribute("src");
+  await expect
+    .poll(
+      () => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0),
+      { message: `Broken image on ${pageUrl}: ${src ?? "missing src"}`, timeout: 10_000 },
+    )
+    .toBe(true);
+}
 
 test.describe("Images load correctly across all page types", () => {
   test("homepage has hero background image", async ({ page }) => {
     await page.goto("/");
 
-    // Hero section should have an img or background image
     const heroImg = page.locator("section").first().locator("img").first();
     if (await heroImg.count() > 0) {
       await expect(heroImg).toBeVisible();
-      // Check image loaded (naturalWidth > 0)
-      const naturalWidth = await heroImg.evaluate((el: HTMLImageElement) => el.naturalWidth);
-      expect(naturalWidth).toBeGreaterThan(0);
+      await expectLoadedImage(heroImg, "/");
     }
   });
 
   test("service page has hero image if available", async ({ page }) => {
     await page.goto("/best/restaurants");
 
-    // Check for HeroImage component
     const heroImages = page.locator("img[alt*='Restaurants'], img[alt*='restaurants']");
     if (await heroImages.count() > 0) {
       const firstImg = heroImages.first();
       await expect(firstImg).toBeVisible();
+      await expectLoadedImage(firstImg, "/best/restaurants");
     }
   });
 
@@ -31,6 +39,7 @@ test.describe("Images load correctly across all page types", () => {
     const businessImg = page.locator("img[alt*='Mildred'], img[alt*='mildred']");
     if (await businessImg.count() > 0) {
       await expect(businessImg.first()).toBeVisible();
+      await expectLoadedImage(businessImg.first(), "/directory/mildreds-temple-kitchen");
     }
   });
 
@@ -40,6 +49,7 @@ test.describe("Images load correctly across all page types", () => {
     const heroImg = page.locator("img[alt*='King West'], img[alt*='king-west']");
     if (await heroImg.count() > 0) {
       await expect(heroImg.first()).toBeVisible();
+      await expectLoadedImage(heroImg.first(), "/vs/king-west");
     }
   });
 
@@ -49,6 +59,7 @@ test.describe("Images load correctly across all page types", () => {
     const heroImg = page.locator("img[alt*='Parking'], img[alt*='parking']");
     if (await heroImg.count() > 0) {
       await expect(heroImg.first()).toBeVisible();
+      await expectLoadedImage(heroImg.first(), "/guide/parking-guide");
     }
   });
 
@@ -63,18 +74,13 @@ test.describe("Images load correctly across all page types", () => {
 
     for (const url of pages) {
       await page.goto(url);
-
-      // Get all visible img elements
       const images = page.locator("img:visible");
       const count = await images.count();
 
       for (let i = 0; i < count; i++) {
-        const img = images.nth(i);
-        const src = await img.getAttribute("src");
-        if (src && !src.startsWith("data:")) {
-          const naturalWidth = await img.evaluate((el: HTMLImageElement) => el.naturalWidth);
-          expect(naturalWidth, `Broken image on ${url}: ${src}`).toBeGreaterThan(0);
-        }
+        const image = images.nth(i);
+        const src = await image.getAttribute("src");
+        if (src && !src.startsWith("data:")) await expectLoadedImage(image, url);
       }
     }
   });

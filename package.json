@@ -7,10 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:automation": "eslint scripts/automation tests/automation",
+    "lint:changed": "node scripts/automation/lint-changed.mjs",
+    "test:automation": "node --test tests/automation/*.test.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.37",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.222",
     "framer-motion": "^12.38.0",
     "google-auth-library": "^10.6.1",
     "googleapis": "^171.4.0",
