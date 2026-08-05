@@ -79,8 +79,8 @@ test.describe("UAT — Desktop Flows", () => {
 
     const pages = ["/", "/best/restaurants", "/guide", "/blog/fifa-world-cup-2026-liberty-village-survival-guide"];
     for (const url of pages) {
-      await page.goto(url);
-      await page.waitForLoadState("networkidle");
+      await page.goto(url, { waitUntil: "load" });
+      await expect(page.locator("main")).toBeVisible();
     }
 
     // Filter out known non-critical errors (e.g., favicon 404)
