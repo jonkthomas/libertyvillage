@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import Analytics from "@/components/Analytics";
 import { generateWebsiteSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
@@ -61,6 +62,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <Analytics />
         <Header />
         <main className="min-h-screen">{children}</main>
         <Footer />

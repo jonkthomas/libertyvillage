@@ -1,0 +1,73 @@
+name: Weekly Growth Report
+
+on:
+  schedule:
+    # Thursday, after the previous Monday-Sunday GSC window has finalized.
+    - cron: '37 10 * * 4'
+  workflow_dispatch:
+    inputs:
+      end_date:
+        description: 'Optional finalized Sunday (YYYY-MM-DD) for deterministic backfill'
+        required: false
+        type: string
+
+concurrency:
+  group: weekly-growth-report
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Write service-account credentials
+        env:
+          GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          install -m 600 /dev/null /tmp/gsa-credentials.json
+          printf '%s' "$GSA_JSON" > /tmp/gsa-credentials.json
+          jq -e . /tmp/gsa-credentials.json > /dev/null
+          test "$(stat -c '%a' /tmp/gsa-credentials.json)" = 600
+
+      - name: Generate read-only weekly growth report
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
+          POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE: ${{ secrets.POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE }}
+          REPORT_END_DATE: ${{ inputs.end_date }}
+        run: |
+          args=()
+          if [ -n "$REPORT_END_DATE" ]; then
+            args+=(--end-date "$REPORT_END_DATE")
+          fi
+          node scripts/generate-weekly-growth-report.mjs "${args[@]}"
+
+      - name: Append report to job summary
+        run: cat artifacts/growth/weekly-growth.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload weekly growth artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-growth-${{ github.run_id }}
+          path: |
+            artifacts/growth/weekly-growth.json
+            artifacts/growth/weekly-growth.md
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f /tmp/gsa-credentials.json
