@@ -36,11 +36,22 @@ async function collectPostHogEvents(page: Page) {
 test.describe("privacy-safe analytics", () => {
   test("captures deterministic page, landing, and business CTA events without contact data", async ({ page }) => {
     test.skip(!process.env.NEXT_PUBLIC_POSTHOG_KEY, "requires the browser-safe test project key");
+    test.skip(
+      process.env.NEXT_PUBLIC_SITE_ENV !== "preview",
+      "requires NEXT_PUBLIC_SITE_ENV=preview",
+    );
 
     const events = await collectPostHogEvents(page);
     await page.goto("/?utm_source=Google&utm_medium=organic&utm_campaign=parking&email=private@example.com", {
       referer: "https://www.google.ca/search?q=private+search",
     });
+
+    const googleAnalyticsConfig = await page.evaluate(() => {
+      const dataLayer = (window as Window & { dataLayer?: IArguments[] }).dataLayer || [];
+      const config = dataLayer.map((entry) => Array.from(entry)).find((entry) => entry[0] === "config");
+      return config?.[2];
+    });
+    expect(googleAnalyticsConfig).toMatchObject({ page_location: "http://localhost:3000/" });
 
     await expect.poll(() => events.filter((event) => event.event === "$pageview").length).toBe(1);
     await expect.poll(() => events.filter((event) => event.event === "site_landing").length).toBe(1);
@@ -109,6 +120,7 @@ test.describe("privacy-safe analytics", () => {
         site_hostname: "localhost",
         distinct_id: "anonymous",
         $process_person_profile: false,
+        $geoip_disable: true,
       });
     }
 
@@ -124,6 +136,8 @@ test.describe("privacy-safe analytics", () => {
     expect(serialized).not.toContain("$device_id");
     expect(serialized).not.toContain("$session_id");
     expect(serialized).not.toContain("$window_id");
+    expect(serialized).not.toContain("$set");
+    expect(serialized).not.toContain("$unset");
     expect(serialized).not.toContain("utm_campaign");
     expect(serialized).not.toContain("utm_source");
   });
@@ -156,8 +170,10 @@ test.describe("privacy-safe analytics", () => {
     test.skip(!endpoint, "requires the safe intercepted subscription endpoint");
 
     const events = await collectPostHogEvents(page);
+    let requestCount = 0;
     let responseCase: "false-json" | "wrong-content-type" | "http-error" | "success" = "false-json";
     await page.route(endpoint!, async (route) => {
+      requestCount += 1;
       if (responseCase === "wrong-content-type") {
         await route.fulfill({ status: 200, contentType: "text/plain", body: '{"success":true}' });
         return;
@@ -173,8 +189,12 @@ test.describe("privacy-safe analytics", () => {
     const input = page.getByLabel("Email address");
     const submit = page.getByRole("button", { name: "Subscribe" });
     await input.fill("reader@example.com");
-    await submit.click();
+    await page.locator("form").evaluate((form: HTMLFormElement) => {
+      form.requestSubmit();
+      form.requestSubmit();
+    });
     await expect(page.locator('p[role="alert"]')).toContainText("couldn't subscribe");
+    expect(requestCount).toBe(1);
 
     responseCase = "wrong-content-type";
     await submit.click();

@@ -42,7 +42,9 @@ export default function RootLayout({
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', 'G-PJMNKPTNN5');
+              gtag('config', 'G-PJMNKPTNN5', {
+                page_location: window.location.origin + window.location.pathname
+              });
             `,
           }}
         />

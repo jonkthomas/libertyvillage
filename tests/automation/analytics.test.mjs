@@ -53,13 +53,30 @@ test('paths and landing attribution omit queries and raw referrers', () => {
   );
 });
 
-test('paid markers win over organic referrers and direct traffic remains distinct', () => {
+test('explicit landing media take precedence over conflicting inferred referrers', () => {
   assert.equal(
-    analytics.classifyLandingChannel({
-      referrerHost: 'google.ca',
-      utmMedium: 'cpc',
-    }),
+    analytics.classifyLandingChannel({ referrerHost: 'google.ca', utmMedium: 'cpc' }),
     'paid_search',
+  );
+  assert.equal(
+    analytics.classifyLandingChannel({ referrerHost: 'google.ca', utmMedium: 'email' }),
+    'email',
+  );
+  assert.equal(
+    analytics.classifyLandingChannel({ referrerHost: 'google.ca', utmMedium: 'social' }),
+    'social',
+  );
+  assert.equal(
+    analytics.classifyLandingChannel({ referrerHost: 'facebook.com', utmMedium: 'organic' }),
+    'organic_search',
+  );
+  assert.equal(
+    analytics.classifyLandingChannel({ referrerHost: 'google.ca', utmMedium: 'referral' }),
+    'referral',
+  );
+  assert.equal(
+    analytics.classifyLandingChannel({ referrerHost: 'example.com' }),
+    'referral',
   );
   assert.equal(analytics.classifyLandingChannel({}), 'direct');
 });
@@ -76,6 +93,7 @@ test('PostHog payload sanitization removes persistent identity and raw URL data'
     $current_url: 'https://libertyvillage.co/guide/parking?email=person@example.com',
     $referrer: 'https://google.ca/search?q=private',
     $referring_domain: 'google.ca',
+    $geoip_disable: true,
     path: '/guide/parking?email=person@example.com',
     deployment_environment: 'production',
     site_hostname: 'libertyvillage.co',
@@ -88,6 +106,7 @@ test('PostHog payload sanitization removes persistent identity and raw URL data'
   assert.equal(properties.$current_url, 'https://libertyvillage.co/guide/parking');
   assert.equal(properties.$referrer, 'google.ca');
   assert.equal(properties.$referring_domain, 'google.ca');
+  assert.equal(properties.$geoip_disable, true);
   for (const forbidden of [
     '$device_id',
     '$session_id',

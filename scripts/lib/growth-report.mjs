@@ -142,9 +142,13 @@ export function containsContactData(value) {
   });
 }
 
+function containsUrlLike(value) {
+  return /(?:\bhttps?:\/\/|\bwww\.)/i.test(String(value ?? ''));
+}
+
 export function sanitizeQuery(value) {
   const text = cleanText(value, 200);
-  return text && !containsContactData(text) ? text : null;
+  return text && !containsContactData(text) && !containsUrlLike(text) ? text : null;
 }
 
 export function sanitizeSitePath(value) {
@@ -346,7 +350,9 @@ export function assertSafeReport(report) {
   ]);
   const visit = (value) => {
     if (typeof value === 'string') {
-      if (containsContactData(value)) throw new Error('unsafe_report_value');
+      if (containsContactData(value) || containsUrlLike(value)) {
+        throw new Error('unsafe_report_value');
+      }
       return;
     }
     if (Array.isArray(value)) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { captureNewsletterResult } from "@/lib/analytics";
 
 interface Props {
@@ -17,11 +17,14 @@ export default function EmailCapture({
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const submissionInFlight = useRef(false);
 
   const endpoint = process.env.NEXT_PUBLIC_EMAIL_CAPTURE_URL;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (submissionInFlight.current) return;
+
     const normalizedEmail = email.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
       captureNewsletterResult({
@@ -44,6 +47,7 @@ export default function EmailCapture({
       return;
     }
 
+    submissionInFlight.current = true;
     setStatus("submitting");
     setErrorMessage("");
     try {
@@ -51,6 +55,7 @@ export default function EmailCapture({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalizedEmail, source }),
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
@@ -105,6 +110,8 @@ export default function EmailCapture({
       });
       setErrorMessage("We couldn't subscribe you right now. Please try again.");
       setStatus("error");
+    } finally {
+      submissionInFlight.current = false;
     }
   }
 

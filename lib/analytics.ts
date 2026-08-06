@@ -140,13 +140,12 @@ export function classifyLandingChannel(input: {
   const medium = sanitizeLabel(input.utmMedium, 40).toLowerCase();
 
   if (input.hasPaidClickId || PAID_MEDIUMS.has(medium)) return "paid_search";
-  if (medium === "organic" || matchesAnyHost(referrerHost, SEARCH_HOST_PATTERNS)) {
-    return "organic_search";
-  }
   if (medium === "email") return "email";
-  if (SOCIAL_MEDIUMS.has(medium) || matchesAnyHost(referrerHost, SOCIAL_HOST_PATTERNS)) {
-    return "social";
-  }
+  if (SOCIAL_MEDIUMS.has(medium)) return "social";
+  if (medium === "organic") return "organic_search";
+  if (medium === "referral") return "referral";
+  if (matchesAnyHost(referrerHost, SEARCH_HOST_PATTERNS)) return "organic_search";
+  if (matchesAnyHost(referrerHost, SOCIAL_HOST_PATTERNS)) return "social";
   return referrerHost ? "referral" : "direct";
 }
 
@@ -192,6 +191,7 @@ function runtimeBase(pathname?: string): EventProperties | null {
     $current_url: `${window.location.origin}${path}`,
     $referrer: referrerHost,
     $referring_domain: referrerHost,
+    $geoip_disable: true,
   };
 }
 
@@ -263,6 +263,7 @@ const ALLOWED_POSTHOG_PROPERTIES = new Set([
   "$current_url",
   "$referrer",
   "$referring_domain",
+  "$geoip_disable",
   "landing_path",
   "referrer_host",
   "channel",

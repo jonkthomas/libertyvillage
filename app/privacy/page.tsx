@@ -75,9 +75,11 @@ export default function PrivacyPolicyPage() {
           or website clicks and subscription outcomes. Our PostHog setup disables
           automatic element capture, session recording, and person profiles. It
           does not send submitted email addresses, phone numbers, full outbound
-          URLs, query strings, or element text. Events are tagged with the Site
-          hostname and deployment environment so preview traffic can be excluded
-          from production reporting.
+          URLs, query strings, or element text. PostHog receives the network IP
+          address needed to accept each request, but every event disables GeoIP
+          enrichment so our implementation does not add IP-derived city or region
+          fields. Events are tagged with the Site hostname and deployment
+          environment so preview traffic can be excluded from production reporting.
         </p>
         <p className="text-warm-700 leading-relaxed mb-4">
           For more information, review{" "}

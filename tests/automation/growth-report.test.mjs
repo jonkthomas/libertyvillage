@@ -68,8 +68,17 @@ test('GSC totals use the authoritative no-dimension row and reject malformed agg
   assert.throws(() => normalizePosthogTotals([1, 2]), /invalid_posthog_totals/);
 });
 
-test('bounded detail rows strip query strings and drop contact-bearing search queries', () => {
-  const queries = normalizeGscDetails(fixture.top.current.gscQueries, 'query');
+test('bounded detail rows strip page queries and drop contact- or URL-bearing search queries', () => {
+  const queries = normalizeGscDetails([
+    ...fixture.top.current.gscQueries,
+    {
+      keys: ['https://external.example/path?value=secret'],
+      clicks: 1,
+      impressions: 2,
+      ctr: 0.5,
+      position: 3,
+    },
+  ], 'query');
   assert.equal(queries.length, 1);
   assert.equal(queries[0].query, 'liberty village parking');
   const pages = normalizeGscDetails(fixture.top.current.gscPages, 'page');
@@ -116,6 +125,10 @@ test('safe report guard rejects raw event/person/token keys without rejecting ag
   );
   assert.throws(
     () => assertSafeReport({ ...report, leaked: 'phx_not_allowed' }),
+    /unsafe_report_value/,
+  );
+  assert.throws(
+    () => assertSafeReport({ ...report, top: { current: { gscQueries: [{ query: 'https://external.example/path?value=secret' }] } } }),
     /unsafe_report_value/,
   );
 });

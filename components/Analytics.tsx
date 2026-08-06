@@ -46,11 +46,18 @@ function isContactType(value: string | undefined): value is BusinessContactType 
 export default function Analytics() {
   const pathname = usePathname();
   const lastCapturedPath = useRef<string | null>(null);
+  const entry = useRef<{ pathname: string; search: string; referrer: string } | null>(null);
   const [ready, setReady] = useState(false);
   const config = useMemo(() => getPublicAnalyticsConfig(), []);
 
   useEffect(() => {
     if (!config) return;
+
+    entry.current ??= {
+      pathname: window.location.pathname,
+      search: window.location.search,
+      referrer: document.referrer,
+    };
 
     const activate = (client: PostHogInterface) => {
       analyticsClient = client;
@@ -86,6 +93,9 @@ export default function Analytics() {
           return {
             ...event,
             properties,
+            $set: undefined,
+            $set_once: undefined,
+            $unset: undefined,
           };
         },
         loaded: activate,
@@ -130,13 +140,12 @@ export default function Analytics() {
     capturePageview(path);
 
     if (!hasCapturedLanding()) {
-      const captured = captureLanding(
-        buildLandingProperties({
-          pathname: path,
-          search: window.location.search,
-          referrer: document.referrer,
-        }),
-      );
+      const landingEntry = entry.current ?? {
+        pathname: window.location.pathname,
+        search: window.location.search,
+        referrer: document.referrer,
+      };
+      const captured = captureLanding(buildLandingProperties(landingEntry));
       if (captured) rememberLanding();
     }
   }, [config, pathname, ready]);
