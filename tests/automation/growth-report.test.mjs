@@ -153,6 +153,23 @@ test('CLI writes strict fixture artifacts and fails closed before network access
     assert.equal(JSON.parse(json).trend.length, 4);
     assert.doesNotMatch(`${json}${markdown}`, /private@example|distinct_id|\$session_id|ph[ctx]_/i);
 
+    const invalidFixture = JSON.parse(fs.readFileSync('tests/fixtures/weekly-growth-input.json', 'utf8'));
+    invalidFixture.weekly[0].start = '2026-07-07';
+    const invalidFixturePath = path.join(root, 'invalid-fixture.json');
+    fs.writeFileSync(invalidFixturePath, JSON.stringify(invalidFixture));
+    const validationRun = spawnSync(
+      process.execPath,
+      [
+        'scripts/generate-weekly-growth-report.mjs',
+        '--fixture', invalidFixturePath,
+        '--end-date', '2026-08-02',
+        '--out-dir', path.join(root, 'invalid-output'),
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.notEqual(validationRun.status, 0);
+    assert.equal(validationRun.stderr, 'weekly growth report failed: weekly_window_mismatch\n');
+
     const environment = { ...process.env };
     delete environment.GOOGLE_APPLICATION_CREDENTIALS;
     delete environment.POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE;

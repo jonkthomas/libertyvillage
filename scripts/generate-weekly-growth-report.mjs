@@ -36,6 +36,13 @@ function parseArguments(argv) {
   return options;
 }
 
+function safeValidationErrorCode(error) {
+  const code = error instanceof Error ? error.message : '';
+  return /^(?:invalid_[a-z0-9_]+|unsafe_report_(?:field|value)|weekly_window_mismatch)$/.test(code)
+    ? code
+    : null;
+}
+
 function safeErrorCode(error) {
   const code = error instanceof Error ? error.message : '';
   const allowed = new Set([
@@ -43,7 +50,7 @@ function safeErrorCode(error) {
     'end_date_not_finalized', 'configuration_error', 'fixture_error', 'gsc_request_failed', 'gsc_schema_error',
     'posthog_request_failed', 'posthog_schema_error', 'report_generation_failed',
   ]);
-  return allowed.has(code) ? code : 'report_generation_failed';
+  return allowed.has(code) ? code : safeValidationErrorCode(error) ?? 'report_generation_failed';
 }
 
 function requireEnvironment(name) {
@@ -270,6 +277,8 @@ export async function run(argv = process.argv.slice(2)) {
     await writeReport(report, options.outDir);
   } catch (error) {
     if (error instanceof Error && error.message === 'fixture_error') throw error;
+    const safeValidationCode = safeValidationErrorCode(error);
+    if (safeValidationCode) throw new Error(safeValidationCode);
     throw new Error('report_generation_failed');
   }
   return report;
