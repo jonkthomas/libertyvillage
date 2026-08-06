@@ -315,7 +315,14 @@ export default async function BusinessDetailPage({ params }: Props) {
           {business.phone && (
             <div>
               <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Phone</span>
-              <a href={`tel:${business.phone}`} className="text-sm text-amber-600 hover:underline">
+              <a
+                href={`tel:${business.phone}`}
+                data-analytics-event="business_contact_clicked"
+                data-contact-type="phone"
+                data-business-slug={business.slug}
+                data-business-category={business.category}
+                className="text-sm text-amber-600 hover:underline"
+              >
                 {business.phone}
               </a>
             </div>
@@ -327,6 +334,10 @@ export default async function BusinessDetailPage({ params }: Props) {
                 href={business.website}
                 target="_blank"
                 rel="noopener noreferrer"
+                data-analytics-event="business_contact_clicked"
+                data-contact-type="website"
+                data-business-slug={business.slug}
+                data-business-category={business.category}
                 className="text-sm text-amber-600 hover:underline truncate block"
               >
                 Visit Website

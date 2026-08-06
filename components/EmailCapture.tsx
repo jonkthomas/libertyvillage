@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { captureNewsletterResult } from "@/lib/analytics";
 
 interface Props {
   heading?: string;
@@ -16,34 +17,101 @@ export default function EmailCapture({
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const submissionInFlight = useRef(false);
 
   const endpoint = process.env.NEXT_PUBLIC_EMAIL_CAPTURE_URL;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!email.includes("@")) {
+    if (submissionInFlight.current) return;
+
+    const normalizedEmail = email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
+      captureNewsletterResult({
+        succeeded: false,
+        source,
+        reason: "client_validation",
+      });
       setErrorMessage("Please enter a valid email.");
       setStatus("error");
       return;
     }
     if (!endpoint) {
-      // No endpoint configured — soft success for dev environments
-      setStatus("success");
+      captureNewsletterResult({
+        succeeded: false,
+        source,
+        reason: "not_configured",
+      });
+      setErrorMessage("Subscriptions are temporarily unavailable. Please try again later.");
+      setStatus("error");
       return;
     }
+
+    submissionInFlight.current = true;
     setStatus("submitting");
     setErrorMessage("");
     try {
-      const res = await fetch(endpoint, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, source }),
+        body: JSON.stringify({ email: normalizedEmail, source }),
+        signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+
+      if (!response.ok) {
+        const httpStatusClass =
+          response.status >= 400 && response.status < 500
+            ? "4xx"
+            : response.status >= 500
+              ? "5xx"
+              : "other";
+        captureNewsletterResult({
+          succeeded: false,
+          source,
+          reason: "http_error",
+          httpStatusClass,
+        });
+        setErrorMessage("We couldn't subscribe you right now. Please try again.");
+        setStatus("error");
+        return;
+      }
+
+      let result: unknown;
+      const contentType = response.headers.get("content-type")?.toLowerCase() || "";
+      try {
+        result = contentType.includes("application/json") ? await response.json() : null;
+      } catch {
+        result = null;
+      }
+      if (
+        !result ||
+        typeof result !== "object" ||
+        !("success" in result) ||
+        result.success !== true
+      ) {
+        captureNewsletterResult({
+          succeeded: false,
+          source,
+          reason: "invalid_response",
+        });
+        setErrorMessage("We couldn't subscribe you right now. Please try again.");
+        setStatus("error");
+        return;
+      }
+
+      captureNewsletterResult({ succeeded: true, source });
+      setEmail("");
       setStatus("success");
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Something went wrong.");
+    } catch {
+      captureNewsletterResult({
+        succeeded: false,
+        source,
+        reason: "network_error",
+      });
+      setErrorMessage("We couldn't subscribe you right now. Please try again.");
       setStatus("error");
+    } finally {
+      submissionInFlight.current = false;
     }
   }
 
@@ -82,7 +150,7 @@ export default function EmailCapture({
         </button>
       </form>
       {status === "error" && errorMessage && (
-        <p className="mt-2 text-sm text-red-600">{errorMessage}</p>
+        <p className="mt-2 text-sm text-red-600" role="alert">{errorMessage}</p>
       )}
       <p className="mt-3 text-xs text-warm-500">
         No spam. Unsubscribe any time.

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import Analytics from "@/components/Analytics";
 import { generateWebsiteSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
@@ -41,7 +42,9 @@ export default function RootLayout({
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', 'G-PJMNKPTNN5');
+              gtag('config', 'G-PJMNKPTNN5', {
+                page_location: window.location.origin + window.location.pathname
+              });
             `,
           }}
         />
@@ -61,6 +64,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <Analytics />
         <Header />
         <main className="min-h-screen">{children}</main>
         <Footer />
