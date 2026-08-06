@@ -106,7 +106,7 @@ test('strict report and Markdown contain adjacent deltas, four-week trends, and 
 
 test('PostHog queries are aggregate-only, time-bounded, production-scoped, and person-free', () => {
   for (const query of [buildPosthogTotalsQuery(windows[3]), buildPosthogLandingQuery(windows[3])]) {
-    assert.match(query, /toDate\(timestamp, 'America\/Los_Angeles'\)/);
+    assert.match(query, /toDate\(toTimeZone\(timestamp, 'America\/Los_Angeles'\)\)/);
     assert.match(query, /2026-07-27/);
     assert.match(query, /2026-08-02/);
     assert.match(query, /deployment_environment = 'production'/);

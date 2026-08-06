@@ -130,8 +130,8 @@ SELECT
   countIf(event = 'newsletter_signup_succeeded') AS newsletter_succeeded,
   countIf(event = 'newsletter_signup_failed') AS newsletter_failed
 FROM events
-WHERE toDate(timestamp, '${REPORT_TIMEZONE}') >= toDate('${window.start}')
-  AND toDate(timestamp, '${REPORT_TIMEZONE}') <= toDate('${window.end}')
+WHERE toDate(toTimeZone(timestamp, '${REPORT_TIMEZONE}')) >= toDate('${window.start}')
+  AND toDate(toTimeZone(timestamp, '${REPORT_TIMEZONE}')) <= toDate('${window.end}')
   AND properties.deployment_environment = 'production'
   AND properties.site_hostname = '${PRODUCTION_HOSTNAME}'`.trim();
 }
@@ -142,8 +142,8 @@ SELECT properties.landing_path AS path, count() AS organic_landings
 FROM events
 WHERE event = 'site_landing'
   AND properties.channel = 'organic_search'
-  AND toDate(timestamp, '${REPORT_TIMEZONE}') >= toDate('${window.start}')
-  AND toDate(timestamp, '${REPORT_TIMEZONE}') <= toDate('${window.end}')
+  AND toDate(toTimeZone(timestamp, '${REPORT_TIMEZONE}')) >= toDate('${window.start}')
+  AND toDate(toTimeZone(timestamp, '${REPORT_TIMEZONE}')) <= toDate('${window.end}')
   AND properties.deployment_environment = 'production'
   AND properties.site_hostname = '${PRODUCTION_HOSTNAME}'
 GROUP BY path
