@@ -74,9 +74,10 @@ test('live GSC collection validates but preserves raw rows for one report-normal
     searchanalytics: {
       query: async ({ requestBody }) => {
         const dimension = requestBody.dimensions?.[0];
-        const rows = dimension === 'query'
-          ? fixture.top.current.gscQueries
-          : fixture.top.current.gscPages;
+        let rows;
+        if (dimension === 'query') rows = fixture.top.current.gscQueries;
+        else if (dimension === 'page') rows = fixture.top.current.gscPages;
+        else throw new Error(`unexpected_gsc_dimension:${dimension}`);
         return { data: { rows } };
       },
     },
