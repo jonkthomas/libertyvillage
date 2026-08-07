@@ -110,16 +110,15 @@ async function collectGscWeek(client, window) {
   }
 }
 
-async function collectGscTop(client, window) {
+export async function collectGscTop(client, window) {
   const [queryRows, pageRows] = await Promise.all([
     queryGsc(client, window, ['query']),
     queryGsc(client, window, ['page']),
   ]);
   try {
-    return {
-      gscQueries: normalizeGscDetails(queryRows, 'query'),
-      gscPages: normalizeGscDetails(pageRows, 'page'),
-    };
+    normalizeGscDetails(queryRows, 'query');
+    normalizeGscDetails(pageRows, 'page');
+    return { gscQueries: queryRows, gscPages: pageRows };
   } catch {
     throw new Error('gsc_schema_error');
   }
