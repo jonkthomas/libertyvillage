@@ -18,6 +18,7 @@ import {
 import {
   buildPosthogLandingQuery,
   buildPosthogTotalsQuery,
+  collectGscTop,
 } from '../../scripts/generate-weekly-growth-report.mjs';
 
 const fixture = JSON.parse(fs.readFileSync('tests/fixtures/weekly-growth-input.json', 'utf8'));
@@ -66,6 +67,36 @@ test('GSC totals use the authoritative no-dimension row and reject malformed agg
     /invalid_gsc_ctr/,
   );
   assert.throws(() => normalizePosthogTotals([1, 2]), /invalid_posthog_totals/);
+});
+
+test('live GSC collection validates but preserves raw rows for one report-normalization pass', async () => {
+  const client = {
+    searchanalytics: {
+      query: async ({ requestBody }) => {
+        const dimension = requestBody.dimensions?.[0];
+        let rows;
+        if (dimension === 'query') rows = fixture.top.current.gscQueries;
+        else if (dimension === 'page') rows = fixture.top.current.gscPages;
+        else throw new Error(`unexpected_gsc_dimension:${dimension}`);
+        return { data: { rows } };
+      },
+    },
+  };
+  const collected = await collectGscTop(client, windows[3]);
+  assert.deepEqual(collected.gscQueries, fixture.top.current.gscQueries);
+  assert.deepEqual(collected.gscPages, fixture.top.current.gscPages);
+
+  const report = buildGrowthReport({
+    generatedAt: fixture.generatedAt,
+    windows,
+    weekly: fixture.weekly,
+    top: {
+      current: { ...fixture.top.current, ...collected },
+      prior: fixture.top.prior,
+    },
+  });
+  assert.equal(report.top.current.gscQueries[0].query, 'liberty village parking');
+  assert.equal(report.top.current.gscPages[0].page, '/guide/parking-guide');
 });
 
 test('bounded detail rows strip page queries and drop contact- or URL-bearing search queries', () => {
