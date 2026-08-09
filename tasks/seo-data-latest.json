@@ -1,63 +1,107 @@
 {
-  "collectedAt": "2026-08-05T00:00:00.000Z",
+  "collectedAt": "2026-08-09T00:00:00.000Z",
   "gsc": {
-    "searchAnalytics": [
-      {
-        "query": "liberty village happy hour",
-        "page": "https://libertyvillage.co/guide/happy-hour-guide",
-        "clicks": 2,
-        "impressions": 13,
-        "ctr": 0.154,
-        "position": 6.2
-      },
-      {
-        "query": "goodlife liberty village",
-        "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
-        "clicks": 1,
-        "impressions": 221,
-        "ctr": 0.005,
-        "position": 6.6
-      },
-      {
-        "query": "altea liberty village reviews",
-        "clicks": 0,
-        "impressions": 8,
-        "ctr": 0,
-        "position": 8.75
-      }
-    ],
+    "searchAnalytics": {
+      "topQueries": [
+        {
+          "query": "liberty village happy hour",
+          "clicks": 3,
+          "impressions": 14,
+          "ctr": 21.43,
+          "position": 5.21,
+          "page": "https://libertyvillage.co/guide/happy-hour-guide"
+        },
+        {
+          "query": "goodlife liberty village",
+          "clicks": 2,
+          "impressions": 224,
+          "ctr": 0.89,
+          "position": 6.47,
+          "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide"
+        },
+        {
+          "query": "gyms in liberty village",
+          "clicks": 2,
+          "impressions": 5,
+          "ctr": 40.0,
+          "position": 7.4,
+          "page": "https://libertyvillage.co/best/gyms"
+        },
+        {
+          "query": "jukebox printing",
+          "clicks": 2,
+          "impressions": 35,
+          "ctr": 5.71,
+          "position": 7.43,
+          "page": "https://libertyvillage.co/directory/jukebox-print"
+        }
+      ],
+      "totalRows": 100
+    },
     "quickWins": [
       {
         "query": "goodlife liberty village",
-        "impressions": 221,
-        "position": 6.6,
+        "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
+        "currentPosition": 6.5,
+        "impressions": 224,
+        "currentClicks": 2,
+        "opportunity": "High"
+      },
+      {
+        "query": "jukebox print",
+        "page": "https://libertyvillage.co/directory/jukebox-print",
+        "currentPosition": 6.3,
+        "impressions": 144,
+        "currentClicks": 0,
+        "opportunity": "High"
+      },
+      {
+        "query": "kat nail studio",
+        "page": "https://libertyvillage.co/blog/nail-salons-liberty-village-complete-guide-2026",
+        "currentPosition": 9.4,
+        "impressions": 89,
+        "currentClicks": 0,
         "opportunity": "High"
       }
     ],
     "sitemapStatus": {
       "submitted": 307,
-      "indexed": 0
+      "indexed": 0,
+      "lastSubmitted": "2026-05-30T16:27:40.360Z",
+      "note": "Site appears to be in early indexing phase"
     }
   },
   "ga4": {
     "trafficByPage": [
       {
+        "pagePath": "/",
+        "sessions": 474,
+        "bounceRate": 0.58,
+        "screenPageViews": 484
+      },
+      {
+        "pagePath": "/best/restaurants",
+        "sessions": 343,
+        "bounceRate": 0.43,
+        "screenPageViews": 468
+      },
+      {
+        "pagePath": "/directory/mildreds-temple-kitchen",
+        "sessions": 199,
+        "bounceRate": 0.41,
+        "screenPageViews": 271
+      },
+      {
+        "pagePath": "/vs/king-west",
+        "sessions": 170,
+        "bounceRate": 0.37,
+        "screenPageViews": 237
+      },
+      {
         "pagePath": "/guide/parking-guide",
-        "sessions": 15,
-        "bounceRate": 0.6,
-        "screenPageViews": 16
-      },
-      {
-        "pagePath": "/best/gyms",
-        "sessions": 7,
-        "bounceRate": 0.57,
-        "screenPageViews": 8
-      },
-      {
-        "pagePath": "/blog/dog-owners-guide-liberty-village",
-        "sessions": 7,
-        "bounceRate": 0.57,
-        "screenPageViews": 8
+        "sessions": 108,
+        "bounceRate": 0.64,
+        "screenPageViews": 107
       }
     ]
   }
