@@ -10,6 +10,8 @@ export const FETCH_DEFAULTS = Object.freeze({
   maxRetries: 2,
   backoffMs: 500,
   maxRequestsPerRun: 80,
+  /** Hard cap on CKAN datastore fanout so search sources retain capacity. */
+  ckanMaxRequestsPerRun: 32,
   userAgent: 'LibertyVillageNewsPilot/0.1 (+local-shadow-eval; no-publish)',
 });
 
@@ -29,6 +31,12 @@ export const FETCH_DEFAULTS = Object.freeze({
 
 export function createRequestBudget(maxRequests = FETCH_DEFAULTS.maxRequestsPerRun) {
   let used = 0;
+  /** @type {Map<string, number>} remaining reserved units per source id */
+  const reservedRemaining = new Map();
+  let totalReserved = 0;
+
+  const unreservedRemaining = () => Math.max(0, maxRequests - used - totalReserved);
+
   return {
     get used() {
       return used;
@@ -36,13 +44,65 @@ export function createRequestBudget(maxRequests = FETCH_DEFAULTS.maxRequestsPerR
     get remaining() {
       return Math.max(0, maxRequests - used);
     },
-    take(n = 1) {
-      if (used + n > maxRequests) {
-        const err = new Error(`request_budget_exceeded:${used}+${n}>${maxRequests}`);
+    get unreservedRemaining() {
+      return unreservedRemaining();
+    },
+    /**
+     * Reserve up to n requests for a source from the unreserved pool.
+     * @param {string} sourceId
+     * @param {number} n
+     * @returns {number} granted
+     */
+    reserve(sourceId, n = 1) {
+      const id = String(sourceId || '');
+      if (!id) return 0;
+      const want = Math.max(0, Number(n) || 0);
+      if (want <= 0) return 0;
+      const grant = Math.min(want, unreservedRemaining());
+      if (grant <= 0) return 0;
+      reservedRemaining.set(id, (reservedRemaining.get(id) || 0) + grant);
+      totalReserved += grant;
+      return grant;
+    },
+    /**
+     * Remaining reserved units for a source (0 if none reserved).
+     * @param {string} sourceId
+     */
+    remainingReserved(sourceId) {
+      return reservedRemaining.get(String(sourceId || '')) || 0;
+    },
+    /**
+     * Consume n units. When sourceId has a reservation, take from it only.
+     * Unscoped takes may only use the unreserved pool (cannot steal reservations).
+     * @param {number} [n]
+     * @param {string|null} [sourceId]
+     */
+    take(n = 1, sourceId = null) {
+      const need = Math.max(0, Number(n) || 0);
+      if (need <= 0) return used;
+      const id = sourceId != null && String(sourceId) !== '' ? String(sourceId) : null;
+
+      if (id && reservedRemaining.has(id)) {
+        const left = reservedRemaining.get(id) || 0;
+        if (need > left) {
+          const err = new Error(
+            `request_budget_exceeded:source=${id}:${left}<${need}`,
+          );
+          err.code = 'request_budget_exceeded';
+          throw err;
+        }
+        reservedRemaining.set(id, left - need);
+        totalReserved -= need;
+        used += need;
+        return used;
+      }
+
+      if (used + need > maxRequests || need > unreservedRemaining()) {
+        const err = new Error(`request_budget_exceeded:${used}+${need}>${maxRequests}`);
         err.code = 'request_budget_exceeded';
         throw err;
       }
-      used += n;
+      used += need;
       return used;
     },
   };
@@ -97,6 +157,21 @@ function sleep(ms) {
  * @param {string} url
  * @param {object} opts
  */
+/**
+ * Optional public-HTTP host guard used by evidence fetches.
+ * Discovery sources use known endpoints and leave this off.
+ * @param {string} candidateUrl
+ * @param {(url: string) => boolean} [isBlocked]
+ */
+export function assertPublicHttpUrl(candidateUrl, isBlocked) {
+  if (typeof isBlocked === 'function' && isBlocked(candidateUrl)) {
+    const err = new Error('unusable_url');
+    err.code = 'unusable_url';
+    throw err;
+  }
+  return true;
+}
+
 export async function fetchWithRetry(url, opts = {}) {
   const {
     method = 'GET',
@@ -107,16 +182,63 @@ export async function fetchWithRetry(url, opts = {}) {
     backoffMs = FETCH_DEFAULTS.backoffMs,
     userAgent = FETCH_DEFAULTS.userAgent,
     budget,
+    sourceId = null,
+    guardPublicHttp = false,
+    isBlockedUrl = null,
+    maxRedirects = 5,
   } = opts;
 
   let lastError = null;
   let attempts = 0;
+  let currentUrl = String(url || '');
+
+  const blocked =
+    typeof isBlockedUrl === 'function'
+      ? isBlockedUrl
+      : guardPublicHttp
+        ? (u) => {
+            // Lazy import avoided — inline lightweight private-host check for redirects.
+            // Evidence path also pre-filters via draft-evidence isUnusableUrl.
+            try {
+              const parsed = new URL(String(u || ''));
+              if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return true;
+              const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
+              if (!host || host === 'localhost' || host.endsWith('.localhost')) return true;
+              if (host === '127.0.0.1' || host === '0.0.0.0' || host === '::1') return true;
+              if (host.endsWith('.local') || host.endsWith('.internal')) return true;
+              if (host === 'metadata.google.internal') return true;
+              if (/^10\.\d+\.\d+\.\d+$/.test(host)) return true;
+              if (/^192\.168\.\d+\.\d+$/.test(host)) return true;
+              if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(host)) return true;
+              if (/^169\.254\.\d+\.\d+$/.test(host)) return true;
+              return false;
+            } catch {
+              return true;
+            }
+          }
+        : null;
+
+  if (blocked) {
+    try {
+      assertPublicHttpUrl(currentUrl, blocked);
+    } catch (e) {
+      return {
+        ok: false,
+        error: e.message,
+        errorCode: e.code || 'unusable_url',
+        attempts: 0,
+        status: null,
+        rawText: '',
+        contentType: '',
+      };
+    }
+  }
 
   for (let i = 0; i <= maxRetries; i++) {
     attempts = i + 1;
     if (budget) {
       try {
-        budget.take(1);
+        budget.take(1, sourceId);
       } catch (e) {
         return {
           ok: false,
@@ -133,7 +255,7 @@ export async function fetchWithRetry(url, opts = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, {
+      let res = await fetch(currentUrl, {
         method,
         headers: {
           'User-Agent': userAgent,
@@ -142,7 +264,72 @@ export async function fetchWithRetry(url, opts = {}) {
         },
         body,
         signal: controller.signal,
+        redirect: blocked ? 'manual' : 'follow',
       });
+
+      // Manually walk redirects when guarding public HTTP hosts.
+      let redirects = 0;
+      while (
+        blocked &&
+        res.status >= 300 &&
+        res.status < 400 &&
+        res.headers.get('location')
+      ) {
+        redirects += 1;
+        if (redirects > maxRedirects) {
+          return {
+            ok: false,
+            status: res.status,
+            error: 'too_many_redirects',
+            errorCode: 'too_many_redirects',
+            rawText: '',
+            contentType: res.headers.get('content-type') || '',
+            attempts,
+          };
+        }
+        const next = new URL(res.headers.get('location'), currentUrl).toString();
+        try {
+          assertPublicHttpUrl(next, blocked);
+        } catch (e) {
+          return {
+            ok: false,
+            status: res.status,
+            error: e.message,
+            errorCode: e.code || 'unsafe_redirect',
+            rawText: '',
+            contentType: res.headers.get('content-type') || '',
+            attempts,
+          };
+        }
+        currentUrl = next;
+        // Redirect hops after the first response still consume budget when budgeted.
+        if (budget) {
+          try {
+            budget.take(1, sourceId);
+          } catch (e) {
+            return {
+              ok: false,
+              error: e.message,
+              errorCode: e.code || 'request_budget_exceeded',
+              attempts,
+              status: null,
+              rawText: '',
+              contentType: '',
+            };
+          }
+        }
+        res = await fetch(currentUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': userAgent,
+            Accept: '*/*',
+            ...headers,
+          },
+          signal: controller.signal,
+          redirect: 'manual',
+        });
+      }
+
       const contentType = res.headers.get('content-type') || '';
       const rawText = await res.text();
       if (!res.ok) {
@@ -213,7 +400,12 @@ export async function fetchSource(source, ctx = {}) {
 
   try {
     if (source.type === 'rss') {
-      const res = await fetchWithRetry(source.url, { budget, timeoutMs, maxRetries });
+      const res = await fetchWithRetry(source.url, {
+        budget,
+        timeoutMs,
+        maxRetries,
+        sourceId: source.id,
+      });
       base.requestCount = budget.used;
       if (!res.ok) {
         return {
@@ -242,7 +434,12 @@ export async function fetchSource(source, ctx = {}) {
     }
 
     if (source.type === 'json') {
-      const res = await fetchWithRetry(source.url, { budget, timeoutMs, maxRetries });
+      const res = await fetchWithRetry(source.url, {
+        budget,
+        timeoutMs,
+        maxRetries,
+        sourceId: source.id,
+      });
       base.requestCount = budget.used;
       if (!res.ok) {
         return {
@@ -305,6 +502,7 @@ export async function fetchSource(source, ctx = {}) {
         budget,
         timeoutMs,
         maxRetries,
+        sourceId: source.id,
       });
       if (!res.ok) {
         return {
@@ -364,6 +562,7 @@ export async function fetchSource(source, ctx = {}) {
         budget,
         timeoutMs,
         maxRetries,
+        sourceId: source.id,
       });
       if (!res.ok) {
         return {
@@ -479,6 +678,12 @@ async function fetchCkanDevApps(source, { budget, timeoutMs, maxRetries, base })
   const errors = [];
   let attempts = 0;
   let lastStatus = 200;
+  const sourceId = source.id || 'ckan-dev-apps-lv';
+  const perJobBudget = (maxRetries ?? FETCH_DEFAULTS.maxRetries) + 1;
+  const ckanCap =
+    Number(FETCH_DEFAULTS.ckanMaxRequestsPerRun) ||
+    Math.floor(FETCH_DEFAULTS.maxRequestsPerRun * 0.4);
+  let ckanUsed = 0;
 
   // Core streets + single M6K postal query. No unbound corridor fanout.
   const filterJobs = [
@@ -487,10 +692,29 @@ async function fetchCkanDevApps(source, { budget, timeoutMs, maxRetries, base })
   ];
 
   for (const job of filterJobs) {
-    if (budget.remaining <= 0) {
+    const reservedLeft =
+      typeof budget.remainingReserved === 'function'
+        ? budget.remainingReserved(sourceId)
+        : budget.remaining;
+    const poolLeft = budget.remaining;
+    // Require worst-case room for this job (maxRetries + 1) from this source's pool.
+    if (poolLeft <= 0 || reservedLeft < 1) {
       errors.push({ error: 'request_budget_exceeded', filters: job.filters });
       break;
     }
+    if (ckanUsed + 1 > ckanCap) {
+      errors.push({ error: 'ckan_budget_cap_reached', filters: job.filters });
+      break;
+    }
+    // Stop before starting a job that cannot cover its retry budget from reservation.
+    if (reservedLeft < perJobBudget && reservedLeft < poolLeft) {
+      // still allow a final partial job if at least 1 remains
+    }
+    if (reservedLeft <= 0) {
+      errors.push({ error: 'request_budget_exceeded', filters: job.filters });
+      break;
+    }
+    const before = budget.used;
     const res = await fetchWithRetry(cfg.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -503,7 +727,9 @@ async function fetchCkanDevApps(source, { budget, timeoutMs, maxRetries, base })
       budget,
       timeoutMs,
       maxRetries,
+      sourceId,
     });
+    ckanUsed += Math.max(0, budget.used - before);
     attempts += res.attempts || 1;
     lastStatus = res.status;
     if (!res.ok) {

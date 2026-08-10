@@ -9,9 +9,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseVaultEnvText } from './fetch.mjs';
 
-export const DEFAULT_VAULT =
-  process.env.PI_TOOL_VAULT_PATH ||
-  '/Users/johnthomas/Desktop/important-coding-projects/claude-config/secrets/pi-tool-vault.env';
+/**
+ * Vault path comes only from env or an explicit --vault flag.
+ * No hardcoded personal filesystem path fallback.
+ */
+export const DEFAULT_VAULT = process.env.PI_TOOL_VAULT_PATH || null;
 
 const KIMI_CODE_CLIENT_ID = '17e5f671-d194-4dfb-9706-5516cb48c098';
 const KIMI_OAUTH_HOST = 'https://auth.kimi.com';
@@ -210,34 +212,64 @@ function persistKimiToken(token) {
  * @param {string} refreshToken
  * @param {typeof fetch} [fetchFn]
  */
-export async function refreshKimiAccessToken(refreshToken, fetchFn = globalThis.fetch) {
-  const res = await fetchFn(`${KIMI_OAUTH_HOST}/api/oauth/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-    body: new URLSearchParams({
-      client_id: KIMI_CODE_CLIENT_ID,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.access_token) {
-    const err = new Error(
-      data.error_description || data.error || `kimi_refresh_failed_${res.status}`,
-    );
-    err.code = 'kimi_refresh_failed';
-    throw err;
+export async function refreshKimiAccessToken(
+  refreshToken,
+  fetchFn = globalThis.fetch,
+  opts = {},
+) {
+  const timeoutMs = Number.isFinite(Number(opts.timeoutMs))
+    ? Number(opts.timeoutMs)
+    : 20_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchFn(`${KIMI_OAUTH_HOST}/api/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: new URLSearchParams({
+        client_id: KIMI_CODE_CLIENT_ID,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+      signal: controller.signal,
+    });
+    const rawText = await res.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = {};
+    }
+    if (!res.ok || !data.access_token) {
+      const err = new Error(
+        data.error_description || data.error || `kimi_refresh_failed_${res.status}`,
+      );
+      err.code = 'kimi_refresh_failed';
+      throw err;
+    }
+    const expiresIn = Number(data.expires_in || 900);
+    const token = {
+      access_token: String(data.access_token),
+      refresh_token: data.refresh_token ? String(data.refresh_token) : refreshToken,
+      expires_at: Date.now() / 1000 + expiresIn,
+      scope: String(data.scope || 'kimi-code'),
+      token_type: String(data.token_type || 'Bearer'),
+    };
+    persistKimiToken(token);
+    return token;
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      const err = new Error(`kimi_refresh_timeout_after_${timeoutMs}ms`);
+      err.code = 'kimi_refresh_timeout';
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  const expiresIn = Number(data.expires_in || 900);
-  const token = {
-    access_token: String(data.access_token),
-    refresh_token: data.refresh_token ? String(data.refresh_token) : refreshToken,
-    expires_at: Date.now() / 1000 + expiresIn,
-    scope: String(data.scope || 'kimi-code'),
-    token_type: String(data.token_type || 'Bearer'),
-  };
-  persistKimiToken(token);
-  return token;
 }
 
 /**
@@ -245,7 +277,7 @@ export async function refreshKimiAccessToken(refreshToken, fetchFn = globalThis.
  * @param {NodeJS.ProcessEnv} [env]
  * @param {typeof fetch} [fetchFn]
  */
-export async function ensureKimiAccessToken(env = process.env, fetchFn = globalThis.fetch) {
+export async function ensureKimiAccessToken(env = process.env, fetchFn = globalThis.fetch, opts = {}) {
   const current = env.KIMI_CODER_API_KEY || env.KIMI_API_KEY || '';
   const exp = jwtExpSeconds(current);
   const stillValid = current && exp != null && exp > Date.now() / 1000 + 60;
@@ -281,11 +313,15 @@ export async function ensureKimiAccessToken(env = process.env, fetchFn = globalT
   }
 
   try {
-    const token = await refreshKimiAccessToken(refresh, fetchFn);
+    const token = await refreshKimiAccessToken(refresh, fetchFn, opts);
     env.KIMI_CODER_API_KEY = token.access_token;
     return { ok: true, refreshed: true, envVar: 'KIMI_CODER_API_KEY' };
   } catch (e) {
-    return { ok: false, error: e?.code || 'kimi_refresh_failed', message: String(e?.message || e) };
+    return {
+      ok: false,
+      error: e?.code || 'kimi_refresh_failed',
+      message: safeErrorSnippet(String(e?.message || e)),
+    };
   }
 }
 
@@ -295,14 +331,26 @@ export async function ensureKimiAccessToken(env = process.env, fetchFn = globalT
  * @param {{ prefer?: string|null, fetchFn?: typeof fetch }} [opts]
  */
 export async function resolveModelProvider(env = process.env, opts = {}) {
-  hydrateModelEnvFromVault(DEFAULT_VAULT, env);
-  // Best-effort Kimi OAuth refresh so short-lived JWTs do not hard-fail drafting.
-  await ensureKimiAccessToken(env, opts.fetchFn || globalThis.fetch);
+  hydrateModelEnvFromVault(opts.vaultPath ?? DEFAULT_VAULT, env);
 
-  const available = listAvailableModelCredentials(env);
-  if (opts.prefer) {
-    const pref = MODEL_PROVIDERS.find((p) => p.id === opts.prefer);
-    const cred = available.find((a) => a.id === opts.prefer);
+  const prefer = opts.prefer || null;
+  // Skip Kimi OAuth refresh only when another preferred provider is actually present.
+  // If the preferred provider is missing, fallback may still select Kimi — refresh then.
+  let available = listAvailableModelCredentials(env);
+  const preferredReady = Boolean(
+    prefer && available.find((a) => a.id === prefer)?.present,
+  );
+  const skipKimiRefresh = preferredReady && prefer !== 'kimi-coder';
+  if (!skipKimiRefresh) {
+    await ensureKimiAccessToken(env, opts.fetchFn || globalThis.fetch, {
+      timeoutMs: opts.kimiRefreshTimeoutMs,
+    });
+    available = listAvailableModelCredentials(env);
+  }
+
+  if (prefer) {
+    const pref = MODEL_PROVIDERS.find((p) => p.id === prefer);
+    const cred = available.find((a) => a.id === prefer);
     if (pref && cred?.present) {
       const key = env[cred.envVar];
       return { ok: true, provider: pref, envVar: cred.envVar, apiKey: key, available };
@@ -599,7 +647,9 @@ async function callAnthropicMessages({
     const aborted = e?.name === 'AbortError';
     return {
       ok: false,
-      error: aborted ? `timeout_after_${timeoutMs}ms` : String(e?.message || e),
+      error: aborted
+        ? `timeout_after_${timeoutMs}ms`
+        : safeErrorSnippet(String(e?.message || e)),
       providerId,
       model,
     };
@@ -651,7 +701,12 @@ async function callOpenAiCompletions({
         detail: safeErrorSnippet(rawText),
       };
     }
-    const parsed = JSON.parse(rawText);
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      return { ok: false, error: 'invalid_json_response', providerId, model };
+    }
     const text = parsed.choices?.[0]?.message?.content || '';
     return {
       ok: true,
@@ -664,7 +719,9 @@ async function callOpenAiCompletions({
     const aborted = e?.name === 'AbortError';
     return {
       ok: false,
-      error: aborted ? `timeout_after_${timeoutMs}ms` : String(e?.message || e),
+      error: aborted
+        ? `timeout_after_${timeoutMs}ms`
+        : safeErrorSnippet(String(e?.message || e)),
       providerId,
       model,
     };
@@ -712,14 +769,21 @@ async function callGoogleGenerateContent({
         detail: safeErrorSnippet(rawText),
       };
     }
-    const parsed = JSON.parse(rawText);
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      return { ok: false, error: 'invalid_json_response', providerId, model };
+    }
     const text = parsed.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
     return { ok: true, providerId, model, text, usage: parsed.usageMetadata || null };
   } catch (e) {
     const aborted = e?.name === 'AbortError';
     return {
       ok: false,
-      error: aborted ? `timeout_after_${timeoutMs}ms` : String(e?.message || e),
+      error: aborted
+        ? `timeout_after_${timeoutMs}ms`
+        : safeErrorSnippet(String(e?.message || e)),
       providerId,
       model,
     };

@@ -61,9 +61,8 @@ export const RUN_CONFIG = Object.freeze({
   keepUnknownDates: true,
 });
 
-const DEFAULT_VAULT =
-  process.env.PI_TOOL_VAULT_PATH ||
-  '/Users/johnthomas/Desktop/important-coding-projects/claude-config/secrets/pi-tool-vault.env';
+/** Vault path from env or explicit --vault only — no personal-path fallback. */
+const DEFAULT_VAULT = process.env.PI_TOOL_VAULT_PATH || null;
 
 function parseArgs(argv) {
   const out = {
@@ -362,6 +361,62 @@ function buildReport({
   return lines.join('\n');
 }
 
+/**
+ * Resolve and validate the run output directory BEFORE any mkdir.
+ * Refuses paths under data/ so --out=data/x cannot create site content dirs.
+ * @param {string} root
+ * @param {string|null|undefined} explicit
+ * @param {string} stamp
+ */
+export function ensureRunOutDir(root, explicit, stamp) {
+  const dir =
+    explicit ||
+    path.join(root, '.news-pilot', 'runs', stamp);
+  const resolved = path.resolve(dir);
+  const dataDir = path.resolve(root, 'data');
+  if (resolved === dataDir || resolved.startsWith(dataDir + path.sep)) {
+    throw new Error('refusing_to_write_under_data/');
+  }
+  const postsPath = path.resolve(root, 'data', 'posts.json');
+  if (resolved === postsPath) {
+    throw new Error('refusing_to_write_posts_json');
+  }
+  fs.mkdirSync(resolved, { recursive: true });
+  return resolved;
+}
+
+/**
+ * Reserve request budget per source before the fetch loop.
+ * CKAN is capped so Serper/SerpApi retain capacity.
+ * @param {ReturnType<typeof createRequestBudget>} budget
+ * @param {object[]} sources
+ */
+export function reserveSourceBudgets(budget, sources) {
+  if (!budget || typeof budget.reserve !== 'function') return;
+  const list = (Array.isArray(sources) ? sources : []).filter((s) => s?.id);
+  const maxRetries = FETCH_DEFAULTS.maxRetries;
+  const perAttempt = maxRetries + 1;
+  const ckanCap = Math.max(
+    1,
+    Number(FETCH_DEFAULTS.ckanMaxRequestsPerRun) ||
+      Math.floor(FETCH_DEFAULTS.maxRequestsPerRun * 0.4),
+  );
+
+  // Reserve non-CKAN sources first so search APIs cannot be starved by fanout.
+  for (const source of list) {
+    if (source.ckan) continue;
+    budget.reserve(source.id, perAttempt);
+  }
+  for (const source of list) {
+    if (!source.ckan) continue;
+    const cfg = source.ckan;
+    const jobs =
+      (cfg.streetNames?.length || 0) + (cfg.postalPrefixes?.length || 0);
+    const worst = Math.max(perAttempt, jobs * perAttempt);
+    budget.reserve(source.id, Math.min(worst, ckanCap));
+  }
+}
+
 export async function runPilot(options = {}) {
   const sinceHoursResolved =
     options.sinceHours !== undefined && options.sinceHours !== null
@@ -381,6 +436,8 @@ export async function runPilot(options = {}) {
   const secrets = loadSecrets(args.vault);
   const sources = listEnabledSources({ maxSources: args.maxSources });
   const budget = createRequestBudget(FETCH_DEFAULTS.maxRequestsPerRun);
+  // Per-source reservations so CKAN fanout cannot starve later search sources.
+  reserveSourceBudgets(budget, sources);
 
   const published = readPostsIndex(args.root);
 
@@ -506,10 +563,11 @@ export async function runPilot(options = {}) {
     mode: 'shadow-local-pilot',
   };
 
-  const outDir =
-    args.out ||
-    path.join(args.root, '.news-pilot', 'runs', startedAt.replace(/[:.]/g, '-'));
-  fs.mkdirSync(outDir, { recursive: true });
+  const outDir = ensureRunOutDir(
+    args.root,
+    args.out,
+    startedAt.replace(/[:.]/g, '-'),
+  );
 
   const candidatesPath = path.join(outDir, 'candidates.json');
   const reportPath = path.join(outDir, 'report.md');
@@ -600,7 +658,7 @@ async function main() {
                      (${RUN_CONFIG.defaultSinceHours / 24}d slow-civic lane).
                      Use e.g. 720 for a short comparability window.
   --out=PATH         artifact directory
-  --vault=PATH       pi vault env file (default: claude-config secrets path)`);
+  --vault=PATH       optional pi vault env file (or set PI_TOOL_VAULT_PATH)`);
     process.exit(0);
   }
 

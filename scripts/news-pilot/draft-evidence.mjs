@@ -315,12 +315,94 @@ export function buildSourceEvidence(member, fetchResult, config = EVIDENCE_CONFI
   return base;
 }
 
-function isUnusableUrl(url) {
-  const u = String(url || '');
-  if (!u || u === '#' || u.startsWith('javascript:')) return true;
+/**
+ * Reject URLs that must never be fetched for evidence.
+ * Blocks non-http(s), tracker redirects, and private/loopback/link-local hosts.
+ * @param {string} url
+ */
+export function isUnusableUrl(url) {
+  const u = String(url || '').trim();
+  if (!u || u === '#' || /^javascript:/i.test(u) || /^data:/i.test(u) || /^file:/i.test(u)) {
+    return true;
+  }
   if (/google\.com\/goto/i.test(u)) return true;
   if (!/^https?:\/\//i.test(u)) return true;
+
+  let parsed;
+  try {
+    parsed = new URL(u);
+  } catch {
+    return true;
+  }
+
+  const protocol = String(parsed.protocol || '').toLowerCase();
+  if (protocol !== 'http:' && protocol !== 'https:') return true;
+
+  const host = String(parsed.hostname || '')
+    .toLowerCase()
+    .replace(/\.$/, '');
+  if (!host) return true;
+
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host === '0.0.0.0' || host === '::' || host === '::1') return true;
+  if (host.endsWith('.local') || host.endsWith('.internal')) return true;
+  if (host === 'metadata.google.internal' || host === 'metadata') return true;
+
+  // Strip IPv6 brackets if present.
+  const bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+
+  if (isPrivateOrLocalIp(bare)) return true;
+
   return false;
+}
+
+/**
+ * @param {string} host
+ */
+function isPrivateOrLocalIp(host) {
+  const h = String(host || '').toLowerCase();
+  if (!h) return true;
+
+  // IPv4 dotted quad (with optional IPv4-mapped IPv6 prefix).
+  const v4 = h.includes('.')
+    ? h.replace(/^::ffff:/, '').replace(/^\[|\]$/g, '')
+    : null;
+  if (v4 && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(v4)) {
+    const parts = v4.split('.').map((p) => Number(p));
+    if (parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+    const [a, b] = parts;
+    if (a === 10) return true; // 10.0.0.0/8
+    if (a === 127) return true; // loopback
+    if (a === 0) return true; // "this" network
+    if (a === 169 && b === 254) return true; // link-local / cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
+    if (a >= 224) return true; // multicast / reserved
+    return false;
+  }
+
+  // IPv6: loopback, link-local, unique-local.
+  if (h.includes(':')) {
+    if (h === '::1') return true;
+    if (h.startsWith('fe80:')) return true;
+    if (h.startsWith('fc') || h.startsWith('fd')) return true;
+    if (h.startsWith('::ffff:')) {
+      return isPrivateOrLocalIp(h.slice('::ffff:'.length));
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Prefer stored risk flags only when non-empty; empty arrays must not skip detection.
+ * @param {object|null|undefined} member
+ */
+export function resolveMemberRiskFlags(member) {
+  const stored = member?.score?.riskFlags;
+  if (Array.isArray(stored) && stored.length > 0) return stored;
+  return detectRiskFlags(member || {});
 }
 
 /**
@@ -368,6 +450,7 @@ export async function buildEvidencePack({
 
   for (const member of uniqueMembers) {
     const url = member.canonicalUrl || member.url || '';
+    // isUnusableUrl blocks private/loopback/link-local hosts before any fetchFn call.
     if (!url || isUnusableUrl(url) || member.urlUsable === false) {
       sources.push(
         buildSourceEvidence(member, {
@@ -384,18 +467,27 @@ export async function buildEvidencePack({
       timeoutMs: config.fetchTimeoutMs,
       maxRetries: config.fetchMaxRetries,
       userAgent: config.userAgent,
+      // Evidence fetches must not follow redirects onto private/loopback hosts.
+      guardPublicHttp: true,
+      isBlockedUrl: isUnusableUrl,
     });
     sources.push(buildSourceEvidence(member, fetchResult, config));
   }
 
   const riskFlags = uniqueSorted([
-    ...(representative?.score?.riskFlags || []),
-    ...detectRiskFlags(representative || {}),
-    ...uniqueMembers.flatMap((m) => m.score?.riskFlags || detectRiskFlags(m)),
+    ...resolveMemberRiskFlags(representative),
+    ...uniqueMembers.flatMap((m) => resolveMemberRiskFlags(m)),
   ]);
 
   const substantiveSources = sources.filter((s) => s.extractionSubstantive);
   const usableUrlSources = sources.filter((s) => s.urlUsable && s.fetchOk);
+
+  // Corroboration counts ONLY publishers that yielded substantive extracted evidence.
+  // Failed fetches / empty extractions must not inflate independentPublisherCount
+  // and defeat the single_lead_consequential gate.
+  const substantivePublisherCount = new Set(
+    substantiveSources.map((s) => s.publisherDomain).filter(Boolean),
+  ).size;
 
   // Flatten claim→passage index for the generator (still evidence-only).
   const claimSupport = [];
@@ -421,11 +513,9 @@ export async function buildEvidencePack({
     coverageRelation: representative?.coverageRelation || 'new',
     relatedPostSlug: representative?.relatedPostSlug || null,
     matchingSlug: representative?.matchingSlug || null,
-    independentPublisherCount:
-      representative?.independentPublisherCount ||
-      new Set(sources.map((s) => s.publisherDomain).filter(Boolean)).size,
-    independentSourceCount: representative?.independentSourceCount || sources.length,
-    sourceTiers: uniqueSorted(sources.map((s) => s.sourceTier).filter(Boolean)),
+    independentPublisherCount: substantivePublisherCount,
+    independentSourceCount: substantiveSources.length,
+    sourceTiers: uniqueSorted(substantiveSources.map((s) => s.sourceTier).filter(Boolean)),
     riskFlags,
     score: representative?.score
       ? {
