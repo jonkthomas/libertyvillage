@@ -159,6 +159,11 @@ test('explicit selection is required — does not auto-pick top cluster', () => 
   assert.equal(byRank.clusterId, 'c1');
 });
 
+test('runDateIso uses the Liberty Village Toronto calendar day', () => {
+  assert.equal(runDateIso(Date.parse('2026-08-11T02:30:00.000Z')), '2026-08-10');
+  assert.equal(runDateIso(Date.parse('2026-01-01T04:30:00.000Z')), '2025-12-31');
+});
+
 test('evidence gate refuses a risk-flagged candidate', () => {
   const member = baseMember({
     title: 'Shooting investigated near Liberty Village',
@@ -860,6 +865,29 @@ test('finding2b: buildEvidencePack riskFlags includes member risks when stored a
     pack.riskFlags.includes('crime'),
     `expected crime on pack.riskFlags, got ${pack.riskFlags.join(',')}`,
   );
+});
+
+test('evidence-body safety terms route a neutrally headlined story to humans', async () => {
+  const rep = baseMember({
+    title: 'Emergency response closes lane near Liberty Village',
+    snippet: 'Officials attended an incident near East Liberty Street.',
+    score: { total: 0.5, tier: 'review', riskFlags: [], breakdown: {} },
+  });
+  const html = `<html><body><article>${'Officials said one person died after a fire inside a Liberty Village building. Emergency crews remained at the site while the investigation continued. '.repeat(5)}</article></body></html>`;
+  const pack = await buildEvidencePack({
+    representative: rep,
+    members: [rep],
+    clusterId: 'c-body-safety',
+    nowMs: NOW,
+    fetchFn: async () => ({ ok: true, status: 200, rawText: html }),
+  });
+  assert.ok(
+    pack.riskFlags.includes('safety'),
+    `expected evidence-body safety flag, got ${pack.riskFlags.join(',')}`,
+  );
+  const gate = evaluateEvidenceGate(pack);
+  assert.equal(gate.ok, false);
+  assert.equal(gate.code, 'risk_flags');
 });
 
 test('finding3: independentPublisherCount counts only substantive extractions', async () => {

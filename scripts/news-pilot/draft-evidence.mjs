@@ -397,9 +397,18 @@ export async function buildEvidencePack({
     sources.push(buildSourceEvidence(member, fetchResult, config));
   }
 
+  // Re-run risk detection across extracted article evidence, not only discovery
+  // titles/snippets. A neutral headline can conceal a fatality, injury, fire,
+  // allegation or other human-only subject in the article body.
+  const evidenceRiskFlags = sources.flatMap((source) =>
+    detectRiskFlags({
+      rawTextSample: [source.bodyExcerpt, ...(source.passages || [])].join(' '),
+    }),
+  );
   const riskFlags = uniqueSorted([
     ...resolveMemberRiskFlags(representative),
     ...uniqueMembers.flatMap((m) => resolveMemberRiskFlags(m)),
+    ...evidenceRiskFlags,
   ]);
 
   const substantiveSources = sources.filter((s) => s.extractionSubstantive);

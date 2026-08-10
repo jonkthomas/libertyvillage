@@ -41,12 +41,19 @@ export const DRAFT_VALIDATION_CONFIG = Object.freeze({
   slugRe: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
 });
 
-/** ISO calendar date (UTC) for the drafting run clock. */
+/** ISO calendar date in Liberty Village's Toronto timezone. */
 export function runDateIso(nowMs) {
   if (!Number.isFinite(Number(nowMs))) {
     throw new Error('runDateIso requires a finite nowMs');
   }
-  return new Date(Number(nowMs)).toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(Number(nowMs)));
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
 }
 
 /**

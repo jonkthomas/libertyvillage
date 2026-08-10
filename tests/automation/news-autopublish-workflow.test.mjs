@@ -16,6 +16,7 @@ test('news autopublish opens staging PRs and dispatches coordinator kind news', 
   assert.match(workflow, /ref: staging/);
   assert.match(workflow, /scripts\/news-pilot\/publish\.mjs/);
   assert.match(workflow, /--vault=\/dev\/null/);
+  assert.match(workflow, /default: "anthropic"/);
   assert.match(workflow, /git push -u origin/);
   assert.match(workflow, /gh pr create --base staging/);
   assert.match(workflow, /news\/auto-/);
@@ -37,9 +38,19 @@ test('news autopublish does not weaken discovery read-only posture', () => {
 });
 
 test('news autopublish secrets are referenced by name only and no absolute user paths', () => {
+  assert.match(workflow, /ANTHROPIC_API_KEY: \$\{\{ secrets\.ANTHROPIC_API_KEY \}\}/);
   assert.match(workflow, /BYTEPLUS_API_KEY: \$\{\{ secrets\.BYTEPLUS_API_KEY \}\}/);
   assert.match(workflow, /SERPER_API_KEY: \$\{\{ secrets\.SERPER_API_KEY \}\}/);
   assert.doesNotMatch(workflow, /\/Users\//);
   assert.doesNotMatch(workflow, /sk-live-|sk-proj-|sk-ant-/);
   assert.doesNotMatch(workflow, /api[_-]?key\s*[:=]\s*['"][A-Za-z0-9_\-]{8,}['"]/i);
+});
+
+test('workflow parses relative result.json as data and serializes pending news PRs', () => {
+  assert.match(workflow, /JSON\.parse\(fs\.readFileSync\(process\.argv\[1\],"utf8"\)\)/);
+  assert.doesNotMatch(workflow, /require\(process\.argv\[1\]\)/);
+  assert.match(workflow, /headRefName \| startswith\("news\/auto-"\)/);
+  assert.match(workflow, /status: 'pending_autopublish_pr'/);
+  assert.match(workflow, /group: news-autopublish/);
+  assert.match(workflow, /cancel-in-progress: false/);
 });
