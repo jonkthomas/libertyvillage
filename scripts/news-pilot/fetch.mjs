@@ -397,6 +397,7 @@ export async function fetchSource(source, ctx = {}) {
     budget = createRequestBudget(),
     timeoutMs = FETCH_DEFAULTS.timeoutMs,
     maxRetries = FETCH_DEFAULTS.maxRetries,
+    dnsLookup = null,
   } = ctx;
 
   const base = {
@@ -509,6 +510,11 @@ export async function fetchSource(source, ctx = {}) {
         timeoutMs,
         maxRetries,
         sourceId: source.id,
+        // API credentials may only reach the fixed Serper origin. Do not follow
+        // even a public redirect with secret headers/body.
+        guardPublicHttp: true,
+        maxRedirects: 0,
+        dnsLookup,
       });
       if (!res.ok) {
         return {
@@ -569,6 +575,10 @@ export async function fetchSource(source, ctx = {}) {
         timeoutMs,
         maxRetries,
         sourceId: source.id,
+        // Keep the query-string credential on the fixed SerpApi origin.
+        guardPublicHttp: true,
+        maxRedirects: 0,
+        dnsLookup,
       });
       if (!res.ok) {
         return {

@@ -39,6 +39,7 @@ import {
   createRequestBudget,
   FETCH_DEFAULTS,
   fetchWithRetry,
+  fetchSource,
 } from '../../scripts/news-pilot/fetch.mjs';
 import {
   isBlockedPublicHttpUrl,
@@ -47,6 +48,8 @@ import {
 } from '../../scripts/news-pilot/url-guard.mjs';
 import { ensureRunOutDir, reserveSourceBudgets } from '../../scripts/news-pilot/run.mjs';
 import { CKAN_DEV_APPS } from '../../scripts/news-pilot/sources.mjs';
+import { renderMarkdownContent } from '../../lib/markdown.ts';
+import { serializeJsonLd } from '../../lib/schema.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -157,6 +160,11 @@ test('explicit selection is required — does not auto-pick top cluster', () => 
   const byRank = resolveSelectedCluster(candidates, { rank: 1 });
   assert.equal(byRank.ok, true);
   assert.equal(byRank.clusterId, 'c1');
+});
+
+test('runDateIso uses the Liberty Village Toronto calendar day', () => {
+  assert.equal(runDateIso(Date.parse('2026-08-11T02:30:00.000Z')), '2026-08-10');
+  assert.equal(runDateIso(Date.parse('2026-01-01T04:30:00.000Z')), '2025-12-31');
 });
 
 test('evidence gate refuses a risk-flagged candidate', () => {
@@ -302,6 +310,69 @@ function groundedPost(siteIndex, overrides = {}) {
     ...overrides,
   };
 }
+
+test('markdown renderer escapes HTML and drops unsafe link destinations', () => {
+  const rendered = renderMarkdownContent(
+    'Hello <script>alert(1)</script> [bad](javascript:alert(1)) [good](https://example.com/safe).',
+  );
+  assert.doesNotMatch(rendered, /<script|javascript:/i);
+  assert.match(rendered, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(rendered, /href="https:\/\/example\.com\/safe"/);
+});
+
+test('JSON-LD serializer cannot be closed by model-authored text', () => {
+  const serialized = serializeJsonLd({ headline: '</script><script>alert(1)</script>' });
+  assert.doesNotMatch(serialized, /<\/script|<script/i);
+  assert.match(serialized, /\\u003c\/script\\u003e/);
+});
+
+test('draft validation rejects raw HTML, unsafe links, canonical overrides and unsafe CTAs', () => {
+  const evidencePack = packFromSources([substantiveSource()], {
+    independentPublisherCount: 1,
+  });
+  const siteIndex = loadSiteLinkIndex(ROOT);
+  const base = groundedPost(siteIndex);
+  const cases = [
+    {
+      expected: 'raw_html_forbidden',
+      post: { ...base, content: `${base.content}\n<img src=x onerror=alert(1)>` },
+    },
+    {
+      expected: 'unsafe_markdown_link',
+      post: { ...base, content: `${base.content}\n[click](javascript:alert(1))` },
+    },
+    {
+      expected: 'canonical_url_forbidden',
+      post: { ...base, canonicalUrl: 'https://evil.example/steal-equity' },
+    },
+    {
+      expected: 'explore_cta_invalid',
+      post: {
+        ...base,
+        exploreCta: { label: 'Click', href: 'javascript:alert(1)', description: 'Bad' },
+      },
+    },
+  ];
+  for (const attack of cases) {
+    const report = validateDraft({
+      post: attack.post,
+      newsArticleStructuredData: {
+        '@context': 'https://schema.org',
+        '@type': 'NewsArticle',
+        headline: attack.post.title,
+        datePublished: attack.post.publishedAt,
+        dateModified: attack.post.updatedAt,
+      },
+      evidencePack,
+      siteIndex,
+      nowMs: NOW,
+    });
+    assert.ok(
+      report.failures.some((failure) => failure.code === attack.expected),
+      `expected ${attack.expected}, got ${report.failures.map((failure) => failure.code).join(',')}`,
+    );
+  }
+});
 
 test('post-generation validation rejects a draft containing a URL absent from the evidence pack', () => {
   const evidencePack = packFromSources(
@@ -860,6 +931,31 @@ test('finding2b: buildEvidencePack riskFlags includes member risks when stored a
     pack.riskFlags.includes('crime'),
     `expected crime on pack.riskFlags, got ${pack.riskFlags.join(',')}`,
   );
+});
+
+test('evidence-body safety terms route a neutrally headlined story to humans', async () => {
+  const rep = baseMember({
+    title: 'Emergency response closes lane near Liberty Village',
+    snippet: 'Officials attended an incident near East Liberty Street.',
+    score: { total: 0.5, tier: 'review', riskFlags: [], breakdown: {} },
+  });
+  const benignLead = 'Officials attended an incident near East Liberty Street while traffic was redirected and nearby services continued operating. '.repeat(15);
+  assert.ok(benignLead.length > 1_200, 'fixture must place risk terms beyond scorer window');
+  const html = `<html><body><article>${benignLead}Officials then confirmed one person died after a fire inside the Liberty Village building. Emergency crews remained at the site.</article></body></html>`;
+  const pack = await buildEvidencePack({
+    representative: rep,
+    members: [rep],
+    clusterId: 'c-body-safety',
+    nowMs: NOW,
+    fetchFn: async () => ({ ok: true, status: 200, rawText: html }),
+  });
+  assert.ok(
+    pack.riskFlags.includes('safety'),
+    `expected evidence-body safety flag, got ${pack.riskFlags.join(',')}`,
+  );
+  const gate = evaluateEvidenceGate(pack);
+  assert.equal(gate.ok, false);
+  assert.equal(gate.code, 'risk_flags');
 });
 
 test('finding3: independentPublisherCount counts only substantive extractions', async () => {
@@ -1435,4 +1531,100 @@ test('finding10b: DNS-resolved private hosts and failures are blocked (offline r
   } finally {
     globalThis.fetch = prev;
   }
+});
+
+test('credentialed search APIs never follow redirects with secrets', async () => {
+  const previousFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), headers: init.headers || {} });
+    return {
+      ok: false,
+      status: 302,
+      headers: { get: (name) => String(name).toLowerCase() === 'location' ? 'https://attacker.example/steal' : null },
+      text: async () => '',
+    };
+  };
+  const publicLookup = async () => [{ address: '93.184.216.34', family: 4 }];
+  try {
+    for (const source of [
+      { id: 'serper-secret-test', type: 'serper', query: 'Liberty Village' },
+      { id: 'serpapi-secret-test', type: 'serpapi', query: 'Liberty Village' },
+    ]) {
+      calls.length = 0;
+      const secrets = source.type === 'serper'
+        ? { SERPER_API_KEY: 'test-serper-secret' }
+        : { SERPAPI_API_KEY: 'test-serpapi-secret' };
+      const result = await fetchSource(source, {
+        secrets,
+        maxRetries: 0,
+        dnsLookup: publicLookup,
+      });
+      assert.equal(result.ok, false);
+      assert.equal(result.errorCode, 'too_many_redirects');
+      assert.equal(calls.length, 1, `${source.type} must contact only its fixed API origin`);
+      assert.ok(!calls[0].url.startsWith('https://attacker.example/'));
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('anthropic is preferred and authenticates with x-api-key, not bearer', async () => {
+  const mod = await import('../../scripts/news-pilot/draft-model.mjs');
+  const first = mod.MODEL_PROVIDERS[0];
+  assert.equal(first.id, 'anthropic');
+  assert.deepEqual(first.envVars, ['ANTHROPIC_API_KEY']);
+  assert.equal(first.api, 'anthropic-messages');
+  assert.ok(Object.prototype.hasOwnProperty.call(first.headers, 'x-api-key'));
+
+  const kimi = mod.MODEL_PROVIDERS.find((p) => p.id === 'kimi-coder');
+  assert.ok(
+    !Object.prototype.hasOwnProperty.call(kimi.headers, 'x-api-key'),
+    'kimi must keep bearer auth',
+  );
+
+  const seen = [];
+  const fakeFetch = async (url, init) => {
+    seen.push({ url, headers: init.headers });
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ content: [{ type: 'text', text: '{"ok":true}' }] }),
+    };
+  };
+
+  await mod.generateDraftWithModel({
+    resolved: { provider: first, apiKey: 'test-key-anthropic' },
+    system: 's',
+    userText: 'u',
+    maxTokens: 16,
+    timeoutMs: 5000,
+    fetchFn: fakeFetch,
+  });
+
+  assert.equal(seen.length, 1, 'adapter must issue exactly one request');
+  const anthropicHeaders = seen[0].headers;
+  assert.equal(seen[0].url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(anthropicHeaders['x-api-key'], 'test-key-anthropic');
+  assert.equal(
+    anthropicHeaders.Authorization,
+    undefined,
+    'must not send bearer alongside x-api-key',
+  );
+
+  seen.length = 0;
+  await mod.generateDraftWithModel({
+    resolved: { provider: kimi, apiKey: 'test-key-kimi' },
+    system: 's',
+    userText: 'u',
+    maxTokens: 16,
+    timeoutMs: 5000,
+    fetchFn: fakeFetch,
+  });
+
+  const kimiHeaders = seen[0].headers;
+  assert.equal(kimiHeaders.Authorization, 'Bearer test-key-kimi');
+  assert.equal(kimiHeaders['x-api-key'], undefined);
 });

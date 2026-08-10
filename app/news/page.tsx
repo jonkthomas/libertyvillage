@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { getRecentPosts } from "@/lib/data";
+import { getNewsPosts } from "@/lib/data";
 import {
   generateCollectionPageSchema,
   generateBreadcrumbSchema,
@@ -10,31 +10,31 @@ import {
 import Breadcrumbs from "@/components/Breadcrumbs";
 
 export const metadata: Metadata = {
-  title: "Liberty Village Blog — Local News & Updates | libertyvillage.co",
+  title: "Liberty Village News — Local Updates | libertyvillage.co",
   description:
-    "Stay updated on Liberty Village with local news, development updates, restaurant openings, transit changes, and community stories.",
+    "Latest local news from Liberty Village: development, transit, civic updates, and neighbourhood stories.",
   openGraph: {
-    title: "Liberty Village Blog",
-    description: "Local news and updates from Liberty Village, Toronto.",
+    title: "Liberty Village News",
+    description:
+      "Local news and neighbourhood updates from Liberty Village, Toronto.",
     type: "website",
-    url: "https://libertyvillage.co/blog",
+    url: "https://libertyvillage.co/news",
     siteName: "LibertyVillage.co",
     locale: "en_CA",
   },
   alternates: {
-    canonical: "https://libertyvillage.co/blog",
-    languages: { "en-CA": "https://libertyvillage.co/blog" },
+    canonical: "https://libertyvillage.co/news",
+    languages: { "en-CA": "https://libertyvillage.co/news" },
   },
 };
 
-export default function BlogIndexPage() {
-  const posts = getRecentPosts(50);
-  const categories = [...new Set(posts.map((p) => p.category))];
+export default function NewsIndexPage() {
+  const posts = getNewsPosts(50);
 
   const collectionSchema = generateCollectionPageSchema(
-    "Liberty Village Blog",
-    "Local news, updates, and stories from Liberty Village, Toronto.",
-    "/blog",
+    "Liberty Village News",
+    "Local news and neighbourhood updates from Liberty Village, Toronto.",
+    "/news",
     posts.map((p) => ({ name: p.title, url: `/blog/${p.slug}` })),
   );
 
@@ -43,30 +43,16 @@ export default function BlogIndexPage() {
       <Breadcrumbs
         items={[
           { label: "Home", href: "/" },
-          { label: "Blog", href: "/blog" },
+          { label: "News", href: "/news" },
         ]}
       />
 
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
-        Liberty Village Blog
+        Liberty Village News
       </h1>
       <p className="mt-2 text-warm-500">
-        Local news, development updates, and community stories from the
-        neighbourhood.
+        Local development, transit, and civic updates from the neighbourhood.
       </p>
-
-      {categories.length > 0 && (
-        <div className="mt-6 flex flex-wrap gap-2">
-          {categories.map((cat) => (
-            <span
-              key={cat}
-              className="rounded-full border border-warm-200 bg-white px-4 py-2 text-sm text-warm-700"
-            >
-              {cat.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-            </span>
-          ))}
-        </div>
-      )}
 
       {posts.length > 0 ? (
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -89,13 +75,9 @@ export default function BlogIndexPage() {
               )}
               <div className="p-5">
                 <div className="flex items-center gap-2 text-xs text-warm-400">
-                  <span>
-                    {post.category
-                      .replace(/-/g, " ")
-                      .replace(/\b\w/g, (c) => c.toUpperCase())}
-                  </span>
+                  <span>News</span>
                   <span>&middot;</span>
-                  <time>
+                  <time dateTime={post.publishedAt}>
                     {new Date(post.publishedAt).toLocaleDateString("en-CA", {
                       month: "short",
                       day: "numeric",
@@ -103,10 +85,10 @@ export default function BlogIndexPage() {
                     })}
                   </time>
                 </div>
-                <h2 className="mt-2 font-semibold text-warm-900 group-hover:text-amber-600 transition-colors">
+                <h2 className="mt-2 font-semibold text-warm-900 transition-colors group-hover:text-amber-600">
                   {post.title}
                 </h2>
-                <p className="mt-1 text-sm text-warm-500 line-clamp-2">
+                <p className="mt-1 line-clamp-2 text-sm text-warm-500">
                   {post.description}
                 </p>
               </div>
@@ -115,7 +97,14 @@ export default function BlogIndexPage() {
         </div>
       ) : (
         <p className="mt-12 text-center text-warm-400">
-          No posts yet. Check back soon.
+          No news posts yet. Check back soon, or browse the{" "}
+          <Link
+            href="/blog"
+            className="font-medium text-amber-700 hover:text-amber-600"
+          >
+            full blog
+          </Link>
+          .
         </p>
       )}
 
@@ -129,7 +118,7 @@ export default function BlogIndexPage() {
           __html: serializeJsonLd(
             generateBreadcrumbSchema([
               { label: "Home", href: "/" },
-              { label: "Blog", href: "/blog" },
+              { label: "News", href: "/news" },
             ]),
           ),
         }}

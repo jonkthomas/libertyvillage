@@ -28,10 +28,10 @@ on:
         type: string
         default: ""
       prefer_model:
-        description: "Optional model provider id (byteplus-ark, deepseek, openai, google-gemini, venice, kimi-coder)"
+        description: "Optional model provider id (anthropic, byteplus-ark, deepseek, openai, google-gemini, venice, kimi-coder)"
         required: false
         type: string
-        default: "byteplus-ark"
+        default: "anthropic"
       skip_generate:
         description: "Build evidence pack + gate only (no model call)"
         required: false
@@ -117,6 +117,7 @@ jobs:
         env:
           # Model credentials by name only — at least one must be configured
           # in repo Actions secrets for generation (skip_generate does not need them).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BYTEPLUS_API_KEY: ${{ secrets.BYTEPLUS_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

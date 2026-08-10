@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseVaultEnvText } from './fetch.mjs';
+import { runDateIso } from './draft-validate.mjs';
 
 /**
  * Vault path comes only from env or an explicit --vault flag.
@@ -25,8 +26,27 @@ const KIMI_CLI_CRED_PATH = path.join(
   'kimi-code.json',
 );
 
-/** Ordered preference for local drafting credentials. */
+/**
+ * Ordered preference for drafting credentials.
+ *
+ * Anthropic is first because the failure mode that matters here is fabricating a
+ * quote, number or closure about a real local business, and faithfulness to the
+ * evidence pack outweighs cost at roughly 1-3 published stories per week. The
+ * remaining providers are fallbacks so a single provider outage or quota
+ * exhaustion degrades the run rather than failing it.
+ */
 export const MODEL_PROVIDERS = Object.freeze([
+  {
+    id: 'anthropic',
+    envVars: ['ANTHROPIC_API_KEY'],
+    api: 'anthropic-messages',
+    baseUrl: 'https://api.anthropic.com/v1/messages',
+    model: 'claude-sonnet-4-6',
+    headers: {
+      'x-api-key': null, // filled from the resolved credential at call time
+      'anthropic-version': '2023-06-01',
+    },
+  },
   {
     id: 'kimi-coder',
     envVars: ['KIMI_CODER_API_KEY', 'KIMI_API_KEY'],
@@ -371,7 +391,7 @@ export async function resolveModelProvider(env = process.env, opts = {}) {
     ok: false,
     error: 'no_model_credential',
     message:
-      'No usable model API credential in process.env (checked KIMI_CODER_API_KEY, BYTEPLUS_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, VENICE_API_KEY).',
+      'No usable model API credential in process.env (checked ANTHROPIC_API_KEY, KIMI_CODER_API_KEY, BYTEPLUS_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, VENICE_API_KEY).',
     available,
   };
 }
@@ -391,7 +411,7 @@ export function buildDraftPrompt({
   nowMs,
   siteOrigin = 'https://libertyvillage.co',
 }) {
-  const today = new Date(nowMs).toISOString().slice(0, 10);
+  const today = runDateIso(nowMs);
   const evidenceForModel = {
     clusterId: evidencePack.clusterId,
     title: evidencePack.title,
@@ -450,8 +470,7 @@ export function buildDraftPrompt({
         author: 'LibertyVillage.co',
         image: 'MUST be null (human supplies image later). Never invent an image path or URL.',
         crossLinks: 'optional {type:"service"|"guide", slug, label?}[]',
-        exploreCta: 'optional {label, href, description}',
-        canonicalUrl: 'optional; omit for local drafts',
+        exploreCta: 'optional {label, href, description}; href must be an existing internal /blog|/guide|/best|/directory|/buildings path',
       },
       contentMustInclude: [
         'Answer-first framing near the top (may mirror answerBlock in prose)',
@@ -477,6 +496,8 @@ export function buildDraftPrompt({
       `Frontmatter publishedAt/updatedAt and NewsArticle datePublished/dateModified MUST be ${today} (run date). Never backdate to the source article date.`,
       'Source reporting dates belong only in the body as originally-reported context.',
       'Set image to null. Never invent /images/... paths.',
+      'Omit canonicalUrl. The site generates its own canonical URL.',
+      'Do not emit raw HTML or angle brackets. Use only supported Markdown headings, lists, bold, tables, and safe links.',
       'Facts present in bodyExcerpt count as grounded evidence, not only passages[].',
     ],
     allowedInternalLinks: internalLinkSuggestions,
@@ -602,12 +623,19 @@ async function callAnthropicMessages({
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // Anthropic authenticates with x-api-key; Kimi's Anthropic-shaped endpoint
+    // uses bearer auth. Send whichever the provider declares, never both.
+    const usesApiKeyHeader =
+      headers && Object.prototype.hasOwnProperty.call(headers, 'x-api-key');
+    const resolvedHeaders = { ...headers };
+    if (usesApiKeyHeader) resolvedHeaders['x-api-key'] = apiKey;
+
     const res = await fetchFn(baseUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...(usesApiKeyHeader ? {} : { Authorization: `Bearer ${apiKey}` }),
         'Content-Type': 'application/json',
-        ...headers,
+        ...resolvedHeaders,
       },
       body: JSON.stringify({
         model,

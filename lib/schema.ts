@@ -5,6 +5,16 @@ const SITE_URL = "https://libertyvillage.co";
 // content has no explicit author of its own.
 const SITE_AUTHOR = "LibertyVillage.co Editorial";
 
+/** Serialize JSON-LD without allowing user/model text to close the script tag. */
+export function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 export function generateLocalBusinessSchema(business: Business) {
   return {
     "@context": "https://schema.org",
@@ -59,7 +69,7 @@ export function generateFAQSchema(faqs: FAQ[]) {
 
 export function generateItemListSchema(
   items: { name: string; url?: string }[],
-  listName: string
+  listName: string,
 ) {
   return {
     "@context": "https://schema.org",
@@ -78,7 +88,7 @@ export function generateArticleSchema(
   title: string,
   description: string,
   datePublished: string,
-  author: string = SITE_AUTHOR
+  author: string = SITE_AUTHOR,
 ) {
   return {
     "@context": "https://schema.org",
@@ -100,7 +110,7 @@ export function generateArticleSchema(
 }
 
 export function generateBreadcrumbSchema(
-  breadcrumbs: { label: string; href?: string }[]
+  breadcrumbs: { label: string; href?: string }[],
 ) {
   return {
     "@context": "https://schema.org",
@@ -127,7 +137,7 @@ export function generateCollectionPageSchema(
   name: string,
   description: string,
   url: string,
-  items: { name: string; url?: string }[]
+  items: { name: string; url?: string }[],
 ) {
   return {
     "@context": "https://schema.org",
@@ -149,7 +159,7 @@ export function generateCollectionPageSchema(
 }
 
 export function generateDefinedTermSetSchema(
-  definitions: { term: string; definition: string }[]
+  definitions: { term: string; definition: string }[],
 ) {
   return {
     "@context": "https://schema.org",
@@ -174,12 +184,20 @@ export function generateSpeakableSchema(url: string) {
   };
 }
 
-export function generateBlogPostSchema(
-  post: { title: string; description: string; publishedAt: string; updatedAt: string; slug: string; image?: string; author?: string }
-) {
+export function generateBlogPostSchema(post: {
+  title: string;
+  description: string;
+  publishedAt: string;
+  updatedAt: string;
+  slug: string;
+  image?: string;
+  author?: string;
+  category?: string;
+}) {
+  const isNews = post.category === "news";
   return {
     "@context": "https://schema.org",
-    "@type": "BlogPosting",
+    "@type": isNews ? "NewsArticle" : "BlogPosting",
     headline: post.title,
     description: post.description,
     datePublished: post.publishedAt,
@@ -219,7 +237,7 @@ export function generateOrganizationSchema() {
       geo: {
         "@type": "GeoCoordinates",
         latitude: 43.6384,
-        longitude: -79.4200,
+        longitude: -79.42,
       },
     },
     knowsAbout: [
