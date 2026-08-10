@@ -1,0 +1,294 @@
+name: News Draft (human-gated)
+
+# Manual drafting only. A human must pick a discovery run + cluster.
+# Produces a draft artifact for human review. Does NOT:
+#   - schedule itself
+#   - write data/posts.json
+#   - open a PR (not even as opt-in — proposals stay in artifacts)
+#   - merge, push, or publish
+#
+# Review-queue precision is roughly 6–7/10 publish-worthy. That is acceptable
+# only because a human discards the rest. Do not automate past this gate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      discovery_run_id:
+        description: "GitHub Actions run id of a News Discovery workflow run (artifact source)"
+        required: true
+        type: string
+      cluster_id:
+        description: "Cluster id from the discovery review queue (e.g. c0071). Leave empty if using rank."
+        required: false
+        type: string
+        default: ""
+      rank:
+        description: "1-based rank among scored representatives (alternative to cluster_id)"
+        required: false
+        type: string
+        default: ""
+      prefer_model:
+        description: "Optional model provider id (byteplus-ark, deepseek, openai, google-gemini, venice, kimi-coder)"
+        required: false
+        type: string
+        default: "byteplus-ark"
+      skip_generate:
+        description: "Build evidence pack + gate only (no model call)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: news-draft-${{ inputs.discovery_run_id }}-${{ inputs.cluster_id || inputs.rank }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate human selection inputs
+        env:
+          CLUSTER_ID: ${{ inputs.cluster_id }}
+          RANK: ${{ inputs.rank }}
+          DISCOVERY_RUN_ID: ${{ inputs.discovery_run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISCOVERY_RUN_ID// }" ]; then
+            echo "discovery_run_id is required" >&2
+            exit 2
+          fi
+          if [ -z "${CLUSTER_ID// }" ] && [ -z "${RANK// }" ]; then
+            echo "Human gate: pass cluster_id or rank (refusing to auto-pick)." >&2
+            exit 2
+          fi
+
+      - name: Download discovery artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: news-discovery-${{ inputs.discovery_run_id }}
+          run-id: ${{ inputs.discovery_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .news-pilot/runs/from-ci-${{ inputs.discovery_run_id }}
+
+      - name: Locate run directory
+        id: run
+        env:
+          DISCOVERY_RUN_ID: ${{ inputs.discovery_run_id }}
+        run: |
+          set -euo pipefail
+          BASE=".news-pilot/runs/from-ci-${DISCOVERY_RUN_ID}"
+          if [ -f "$BASE/candidates.json" ]; then
+            RUN_DIR="$BASE"
+          else
+            # download-artifact may nest one level
+            CAND=$(find "$BASE" -name candidates.json -type f | head -n 1)
+            if [ -z "$CAND" ]; then
+              echo "candidates.json not found under $BASE" >&2
+              find "$BASE" -maxdepth 3 -type f >&2 || true
+              exit 1
+            fi
+            RUN_DIR=$(dirname "$CAND")
+          fi
+          test -f "$RUN_DIR/candidates.json"
+          echo "run_dir=$RUN_DIR" >> "$GITHUB_OUTPUT"
+          echo "Using run dir: $RUN_DIR"
+
+      - name: Draft selected candidate (local artifact only)
+        id: draft
+        env:
+          # Model credentials by name only — at least one must be configured
+          # in repo Actions secrets for generation (skip_generate does not need them).
+          BYTEPLUS_API_KEY: ${{ secrets.BYTEPLUS_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          VENICE_API_KEY: ${{ secrets.VENICE_API_KEY }}
+          KIMI_CODER_API_KEY: ${{ secrets.KIMI_CODER_API_KEY }}
+          # Discovery keys unused by drafting today; reserved if evidence fetch needs search fallbacks.
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          RUN_DIR: ${{ steps.run.outputs.run_dir }}
+          CLUSTER_ID: ${{ inputs.cluster_id }}
+          RANK: ${{ inputs.rank }}
+          PREFER_MODEL: ${{ inputs.prefer_model }}
+          SKIP_GENERATE: ${{ inputs.skip_generate }}
+        run: |
+          set -euo pipefail
+          OUT_DIR=".news-pilot/drafts/ci-${GITHUB_RUN_ID}"
+          mkdir -p "$OUT_DIR"
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+
+          args=(
+            --run="$RUN_DIR"
+            --out="$OUT_DIR"
+            --vault=/dev/null
+          )
+
+          if [ -n "${CLUSTER_ID// }" ]; then
+            args+=(--cluster="$CLUSTER_ID")
+          elif [ -n "${RANK// }" ]; then
+            args+=(--rank="$RANK")
+          fi
+
+          if [ -n "${PREFER_MODEL// }" ]; then
+            args+=(--prefer-model="$PREFER_MODEL")
+          fi
+
+          if [ "${SKIP_GENERATE}" = "true" ]; then
+            args+=(--skip-generate)
+          fi
+
+          echo "Running: node scripts/news-pilot/draft.mjs --run=... (cluster/rank set; secrets not printed)"
+          # Capture exit code: 0 = drafted or controlled human-gate refusal;
+          # non-zero = hard failure (selection miss, model error, validation fail).
+          set +e
+          node scripts/news-pilot/draft.mjs "${args[@]}"
+          code=$?
+          set -e
+          echo "draft_exit=$code" >> "$GITHUB_OUTPUT"
+          if [ ! -f "$OUT_DIR/result.json" ] && [ ! -f "$OUT_DIR/selection.json" ] && [ ! -f "$OUT_DIR/gate.json" ]; then
+            echo "Draft produced no recognizable output files" >&2
+            exit 1
+          fi
+          exit "$code"
+
+      - name: Write job summary
+        if: always() && (steps.draft.outcome == 'success' || steps.draft.outcome == 'failure')
+        env:
+          OUT_DIR: ${{ steps.draft.outputs.out_dir }}
+          DISCOVERY_RUN_ID: ${{ inputs.discovery_run_id }}
+          CLUSTER_ID: ${{ inputs.cluster_id }}
+          RANK: ${{ inputs.rank }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const outDir = process.env.OUT_DIR;
+          if (!outDir || !fs.existsSync(outDir)) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '# News draft\n\n_No output directory._\n');
+            process.exit(0);
+          }
+
+          function readJson(name) {
+            const p = `${outDir}/${name}`;
+            if (!fs.existsSync(p)) return null;
+            try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return { _parseError: true, path: p }; }
+          }
+
+          const result = readJson('result.json') || readJson('selection.json') || {};
+          const gate = readJson('gate.json');
+          const validation = readJson('validation-report.json');
+          const draftMeta = readJson('draft.json');
+
+          const lines = [];
+          lines.push('# News draft — human review artifact');
+          lines.push('');
+          lines.push('> Draft-only. Nothing was published. No PR opened. `data/posts.json` was not modified.');
+          lines.push('');
+          lines.push('## Inputs');
+          lines.push('');
+          lines.push(`- discovery run id: \`${process.env.DISCOVERY_RUN_ID || ''}\``);
+          lines.push(`- cluster_id: \`${process.env.CLUSTER_ID || '(none)'}\``);
+          lines.push(`- rank: \`${process.env.RANK || '(none)'}\``);
+          lines.push(`- this draft run id: \`${process.env.GITHUB_RUN_ID || ''}\``);
+          lines.push('');
+          lines.push('## Result');
+          lines.push('');
+          lines.push(`- status: **${result.status || 'unknown'}**`);
+          lines.push(`- ok: ${result.ok}`);
+          lines.push(`- publishReady: ${result.publishReady === true ? 'true' : 'false'}`);
+          if (result.message) lines.push(`- message: ${result.message}`);
+          if (result.error) lines.push(`- error: \`${result.error}\``);
+          if (result.clusterId) lines.push(`- cluster: \`${result.clusterId}\``);
+          if (result.title) lines.push(`- title: ${result.title}`);
+          if (result.model) {
+            lines.push(`- model: ${result.model.providerId || ''} / ${result.model.model || ''} (env: $${result.model.envVar || 'n/a'})`);
+          }
+          lines.push('');
+
+          if (gate) {
+            lines.push('## Evidence gate');
+            lines.push('');
+            lines.push(`- ok: **${gate.ok}**`);
+            if (gate.code) lines.push(`- code: \`${gate.code}\``);
+            if (Array.isArray(gate.reasons) && gate.reasons.length) {
+              for (const r of gate.reasons) lines.push(`- ${r}`);
+            }
+            lines.push('');
+          }
+
+          if (validation) {
+            lines.push('## Validation report');
+            lines.push('');
+            lines.push(`- ok: **${validation.ok}**`);
+            lines.push(`- publishReady: **${validation.publishReady === true}**`);
+            const failures = validation.failures || [];
+            const humanGates = validation.humanGates || [];
+            const warnings = validation.warnings || [];
+            if (failures.length) {
+              lines.push('');
+              lines.push('### Failures (block draft acceptance)');
+              for (const f of failures) {
+                lines.push(`- \`${f.code}\`: ${f.message || ''}`);
+              }
+            }
+            if (humanGates.length) {
+              lines.push('');
+              lines.push('### Human gates (must clear before any publish)');
+              for (const g of humanGates) {
+                lines.push(`- \`${g.code}\`: ${g.message || ''}`);
+              }
+            } else if (draftMeta?.humanMustSupplyImage) {
+              lines.push('');
+              lines.push('### Human gates');
+              lines.push('- `missing_image`: HUMAN MUST SUPPLY IMAGE BEFORE PUBLISH');
+            }
+            if (warnings.length) {
+              lines.push('');
+              lines.push('### Warnings');
+              for (const w of warnings) {
+                lines.push(`- \`${w.code}\`: ${w.message || ''}`);
+              }
+            }
+            lines.push('');
+          }
+
+          lines.push('## Safety reminders');
+          lines.push('');
+          lines.push('- This workflow never writes `data/posts.json`.');
+          lines.push('- This workflow never opens a PR, pushes, merges, or publishes.');
+          lines.push('- Download the draft artifact, edit as a human, supply a real image, then publish through the normal human content path if warranted.');
+          lines.push('- Do not relax the human gate until review-queue precision and image/source policy criteria in `docs/news-pipeline.md` are met.');
+          lines.push('');
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
+
+      - name: Upload draft artifacts
+        if: always() && steps.draft.outputs.out_dir != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-draft-${{ github.run_id }}
+          path: |
+            ${{ steps.draft.outputs.out_dir }}/
+          if-no-files-found: error
+          retention-days: 30

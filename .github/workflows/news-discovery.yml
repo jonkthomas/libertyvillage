@@ -1,0 +1,260 @@
+name: News Discovery (human review queue)
+
+# Shadow-mode discovery only. Builds a human review queue; never publishes,
+# never writes data/posts.json, never opens a PR, never merges.
+#
+# Cadence: daily. Most days the expected outcome is zero publish-worthy
+# candidates ("most days publish nothing"). Daily is enough to catch civic/
+# development stories without over-polling paid search APIs. Manual runs
+# remain available via workflow_dispatch.
+
+on:
+  schedule:
+    # 12:17 UTC daily — off the hour to reduce shared-runner contention.
+    - cron: "17 12 * * *"
+  workflow_dispatch:
+    inputs:
+      since_hours:
+        description: "Only keep candidates newer than N hours (undated kept). Empty = script default (8760h slow-civic lane)."
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Mark run as dry-run in metadata (network still allowed; still no publish)."
+        required: false
+        type: boolean
+        default: true
+      max_sources:
+        description: "Optional cap on enabled sources (debug). Empty = all enabled."
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: news-discovery
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run news discovery (shadow mode)
+        id: discover
+        env:
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          SINCE_HOURS: ${{ inputs.since_hours }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          MAX_SOURCES: ${{ inputs.max_sources }}
+        run: |
+          set -euo pipefail
+          OUT_DIR=".news-pilot/runs/ci-${GITHUB_RUN_ID}"
+          mkdir -p "$OUT_DIR"
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+
+          args=(--out="$OUT_DIR")
+
+          # Scheduled runs are real discovery (still draft/review only — never publish).
+          # workflow_dispatch defaults dry_run=true; uncheck to clear the dry-run flag.
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [ "${DRY_RUN}" = "true" ]; then
+              args+=(--dry-run)
+            else
+              args+=(--no-dry-run)
+            fi
+          else
+            args+=(--no-dry-run)
+          fi
+
+          if [ -n "${SINCE_HOURS:-}" ]; then
+            args+=(--since-hours="$SINCE_HOURS")
+          fi
+          if [ -n "${MAX_SOURCES:-}" ]; then
+            args+=(--max-sources="$MAX_SOURCES")
+          fi
+
+          # Do not point at a local vault path in CI — secrets come from env only.
+          args+=(--vault=/dev/null)
+
+          echo "Running: node scripts/news-pilot/run.mjs ${args[*]}"
+          node scripts/news-pilot/run.mjs "${args[@]}"
+
+          test -f "$OUT_DIR/report.md"
+          test -f "$OUT_DIR/candidates.json"
+          test -f "$OUT_DIR/errors.json"
+
+      - name: Evaluate run outcome
+        env:
+          OUT_DIR: ${{ steps.discover.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const outDir = process.env.OUT_DIR;
+          const errorsDoc = JSON.parse(fs.readFileSync(`${outDir}/errors.json`, 'utf8'));
+          const candidatesDoc = JSON.parse(fs.readFileSync(`${outDir}/candidates.json`, 'utf8'));
+          const meta = candidatesDoc.meta || errorsDoc.meta || {};
+          const sourceStats = errorsDoc.sourceStats || [];
+          const attempted = Number(meta.sourcesAttempted ?? sourceStats.length ?? 0);
+          const failed = Number(meta.sourcesFailed ?? sourceStats.filter((s) => !s.ok).length ?? 0);
+          const ok = Number(meta.sourcesOk ?? sourceStats.filter((s) => s.ok).length ?? 0);
+          const reps = Array.isArray(candidatesDoc.representatives)
+            ? candidatesDoc.representatives.length
+            : 0;
+          const all = Array.isArray(candidatesDoc.candidates)
+            ? candidatesDoc.candidates.length
+            : 0;
+
+          console.log(JSON.stringify({ attempted, ok, failed, candidates: all, clusters: reps }, null, 2));
+
+          // Genuine failure: every source failed (or nothing was attempted).
+          // Zero candidates with at least one healthy source is SUCCESS.
+          if (attempted === 0) {
+            console.error('Discovery attempted zero sources — treating as failure.');
+            process.exit(1);
+          }
+          if (ok === 0 || failed === attempted) {
+            console.error('All discovery sources failed — treating as failure.');
+            process.exit(1);
+          }
+          console.log(`OK: ${ok}/${attempted} sources succeeded; ${reps} cluster(s); zero candidates is a valid success.`);
+          NODE
+
+      - name: Write job summary
+        if: always() && steps.discover.outcome == 'success'
+        env:
+          OUT_DIR: ${{ steps.discover.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const outDir = process.env.OUT_DIR;
+          const candidatesDoc = JSON.parse(fs.readFileSync(`${outDir}/candidates.json`, 'utf8'));
+          const errorsDoc = JSON.parse(fs.readFileSync(`${outDir}/errors.json`, 'utf8'));
+          const meta = candidatesDoc.meta || {};
+          const all = candidatesDoc.candidates || [];
+          const repIds = new Set(candidatesDoc.representatives || []);
+          const reps = all.filter((c) => repIds.has(c.id) || repIds.has(c.clusterId));
+          // representatives may be stored as ids of candidate records
+          let ranked = reps.length ? reps : all;
+          // Prefer cluster representatives when ids match candidate.id
+          if (Array.isArray(candidatesDoc.representatives) && candidatesDoc.representatives.length) {
+            const byId = new Map(all.map((c) => [c.id, c]));
+            const byCluster = new Map();
+            for (const c of all) {
+              if (!byCluster.has(c.clusterId)) byCluster.set(c.clusterId, c);
+              else {
+                const prev = byCluster.get(c.clusterId);
+                if ((c.score?.total || 0) > (prev.score?.total || 0)) byCluster.set(c.clusterId, c);
+              }
+            }
+            ranked = candidatesDoc.representatives
+              .map((id) => byId.get(id) || byCluster.get(id) || all.find((c) => c.clusterId === id))
+              .filter(Boolean);
+            if (!ranked.length) ranked = [...byCluster.values()];
+          }
+
+          const order = { 'auto-eligible': 0, review: 1, reject: 2 };
+          ranked = [...ranked].sort((a, b) => {
+            const d = (order[a.decision] ?? 9) - (order[b.decision] ?? 9);
+            if (d !== 0) return d;
+            return (b.score?.total || 0) - (a.score?.total || 0);
+          });
+
+          const counts = { 'auto-eligible': 0, review: 0, reject: 0 };
+          for (const c of ranked) counts[c.decision] = (counts[c.decision] || 0) + 1;
+
+          const reviewQueue = ranked.filter((c) => c.decision === 'auto-eligible' || c.decision === 'review');
+          const top = reviewQueue.slice(0, 15);
+
+          const lines = [];
+          lines.push('# News discovery — human review queue');
+          lines.push('');
+          lines.push('> Shadow mode only. Nothing was published. `data/posts.json` was not modified.');
+          lines.push('');
+          lines.push('## Run');
+          lines.push('');
+          lines.push(`- run id: \`${process.env.GITHUB_RUN_ID || ''}\``);
+          lines.push(`- started: ${meta.startedAt || 'n/a'}`);
+          lines.push(`- finished: ${meta.finishedAt || 'n/a'}`);
+          lines.push(`- dryRun: ${meta.dryRun}`);
+          lines.push(`- sinceHours: ${meta.sinceHours ?? 'default'}`);
+          lines.push(`- sources: ${meta.sourcesOk || 0} ok / ${meta.sourcesFailed || 0} failed (of ${meta.sourcesAttempted || 0})`);
+          lines.push(`- requestCount: ${meta.requestCount ?? 'n/a'}`);
+          lines.push('');
+          lines.push('## Decision counts (cluster representatives)');
+          lines.push('');
+          lines.push(`| tier | count |`);
+          lines.push(`| --- | ---: |`);
+          lines.push(`| auto-eligible | ${counts['auto-eligible'] || 0} |`);
+          lines.push(`| review | ${counts.review || 0} |`);
+          lines.push(`| reject | ${counts.reject || 0} |`);
+          lines.push(`| **review queue (auto-eligible + review)** | **${reviewQueue.length}** |`);
+          lines.push('');
+          lines.push('_Zero candidates in the review queue is a successful, expected outcome most days._');
+          lines.push('');
+          lines.push('## Top review candidates');
+          lines.push('');
+          if (!top.length) {
+            lines.push('_No auto-eligible or review candidates._');
+          } else {
+            lines.push('| # | decision | score | cluster | title | link |');
+            lines.push('| ---: | --- | ---: | --- | --- | --- |');
+            top.forEach((c, i) => {
+              const title = String(c.title || '').replace(/\|/g, '\\|').slice(0, 120);
+              const url = c.url || c.canonicalUrl || '';
+              const link = url ? `[source](${url})` : '';
+              const score = c.score?.total != null ? Number(c.score.total).toFixed(3) : '';
+              lines.push(`| ${i + 1} | ${c.decision} | ${score} | \`${c.clusterId || ''}\` | ${title} | ${link} |`);
+            });
+          }
+          lines.push('');
+          lines.push('## Next step for a human');
+          lines.push('');
+          lines.push('1. Skim the review queue above (discard weak items in seconds).');
+          lines.push('2. Download the `news-discovery-<run_id>` artifact for full `report.md` / `candidates.json`.');
+          lines.push('3. If a candidate is worth drafting, run **News Draft (human-gated)** with this run id + cluster id.');
+          lines.push('4. Drafts are proposals only — image + human edit required before any publish.');
+          lines.push('');
+
+          const errs = errorsDoc.errors || [];
+          if (errs.length) {
+            lines.push('## Source errors (non-fatal if other sources succeeded)');
+            lines.push('');
+            for (const e of errs.slice(0, 20)) {
+              lines.push(`- \`${e.sourceId}\`: ${e.error || e.errorCode || 'error'}`);
+            }
+            lines.push('');
+          }
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
+
+      - name: Upload discovery artifacts
+        if: always() && steps.discover.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-discovery-${{ github.run_id }}
+          path: |
+            ${{ steps.discover.outputs.out_dir }}/report.md
+            ${{ steps.discover.outputs.out_dir }}/candidates.json
+            ${{ steps.discover.outputs.out_dir }}/errors.json
+          if-no-files-found: error
+          retention-days: 30

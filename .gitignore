@@ -66,3 +66,6 @@ data/topics-part*.json
 /tasks/seo-improve-summary.md
 /tasks/seo-improve-runs/
 /tasks/seo-scores.json
+
+# local news discovery pilot artifacts (shadow-mode only)
+.news-pilot/
