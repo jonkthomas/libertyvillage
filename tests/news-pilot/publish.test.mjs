@@ -342,6 +342,8 @@ test('zero qualifying stories exits successfully (0 published is success)', asyn
   const root = makeTempRoot(true);
   const runDir = path.join(root, '.news-pilot', 'runs', 't');
   const weak = baseCandidate({
+    independentPublisherCount: 1,
+    sourceTier: 'lead',
     score: { ...baseCandidate().score, total: 0.5, tier: 'review', autoPublishEligible: false },
   });
   fs.writeFileSync(
@@ -361,10 +363,22 @@ test('zero qualifying stories exits successfully (0 published is success)', asyn
       vault: '/dev/null',
     },
     {
-      // Should never be called when prefilter rejects everyone
-      buildEvidencePack: async () => {
-        throw new Error('buildEvidencePack should not run for weak scores');
-      },
+      // Source quality is judged from the evidence pack, so building it is
+      // expected. This lone lead-tier publisher must still fail that check.
+      buildEvidencePack: async () => ({
+        sources: [
+          {
+            url: 'https://example.com/a',
+            publisherDomain: 'example.com',
+            sourceTier: 'lead',
+            substantive: true,
+            passages: ['A single lead-tier report with no corroboration.'],
+          },
+        ],
+        substantiveSources: 1,
+        independentPublisherCount: 1,
+        fetchFailures: 0,
+      }),
     },
   );
   assert.equal(result.ok, true);
@@ -374,11 +388,11 @@ test('zero qualifying stories exits successfully (0 published is success)', asyn
   assert.ok(fs.existsSync(path.join(outDir, 'result.json')));
 });
 
-test('score below auto-publish bar is rejected even if discovery auto-eligible', () => {
+test('score below the sanity floor is rejected even if discovery auto-eligible', () => {
   const candidate = baseCandidate({
     score: {
       ...baseCandidate().score,
-      total: 0.72, // discovery autoEligibleMin, below autopublish 0.78
+      total: 0.3, // below the coarse sanity floor an editor would never see
       tier: 'auto-eligible',
       autoPublishEligible: true,
     },
@@ -386,6 +400,59 @@ test('score below auto-publish bar is rejected even if discovery auto-eligible',
   const pre = prefilterAutoPublishCandidate(candidate, { nowMs: NOW, posts: [] });
   assert.equal(pre.ok, false);
   assert.equal(pre.code, 'score_below_bar');
+});
+
+test('a high-scoring permit record is blocked despite outscoring every real story', () => {
+  const permit = baseCandidate({
+    title: 'Development application 19 263260 STE 10 CD — 30 ORDNANCE ST',
+    score: { ...baseCandidate().score, total: 0.836, tier: 'review' },
+  });
+  const pre = prefilterAutoPublishCandidate(permit, { nowMs: NOW, posts: [] });
+  assert.equal(pre.ok, false);
+  assert.equal(pre.code, 'development_application');
+});
+
+test('a municipal landing page is blocked as a standing reference, not an event', () => {
+  const municipal = baseCandidate({
+    title: 'New Park at 34 Hanna Avenue',
+    score: {
+      ...baseCandidate().score,
+      total: 0.49,
+      municipalProjectLabels: ['municipal-facility-url', 'municipal-facility-title'],
+    },
+  });
+  const pre = prefilterAutoPublishCandidate(municipal, { nowMs: NOW, posts: [] });
+  assert.equal(pre.ok, false);
+  assert.equal(pre.code, 'municipal_page');
+});
+
+test('a video segment is blocked as a non-event', () => {
+  const segment = baseCandidate({
+    title: 'Around the 6ix - Liberty Village',
+    score: { ...baseCandidate().score, total: 0.54, nonEventLabels: ['video-segment'] },
+  });
+  const pre = prefilterAutoPublishCandidate(segment, { nowMs: NOW, posts: [] });
+  assert.equal(pre.ok, false);
+  assert.equal(pre.code, 'non_event');
+});
+
+test('a modest-scoring but well-corroborated real story clears the prefilter', () => {
+  const parkCompetition = baseCandidate({
+    title: 'Five Design Teams Shortlisted for Park Competition in Liberty Village',
+    independentPublisherCount: 3,
+    score: { ...baseCandidate().score, total: 0.544, tier: 'review', riskFlags: [] },
+  });
+  const pre = prefilterAutoPublishCandidate(parkCompetition, { nowMs: NOW, posts: [] });
+  assert.equal(pre.ok, true, `expected pass, got ${pre.code}: ${(pre.reasons || []).join(' ')}`);
+});
+
+test('a follow-up carrying a new development stays publishable', () => {
+  const followUp = baseCandidate({
+    coverageRelation: 'follow-up',
+    relatedPostSlug: 'ontario-line-construction-liberty-village-2026',
+  });
+  const pre = prefilterAutoPublishCandidate(followUp, { nowMs: NOW, posts: [] });
+  assert.equal(pre.ok, true, `expected pass, got ${pre.code}`);
 });
 
 test('duplicate coverage is never auto-publish eligible', () => {
@@ -517,8 +584,12 @@ test('autopublish workflow is staging-PR only and discovery stays read-only', ()
   assert.match(draft, /No PR opened/);
 });
 
-test('auto-publish bar is above discovery autoEligibleMin', async () => {
+test('score floor is a coarse sanity filter, not the gate', async () => {
   const scoreMod = await import('../../scripts/news-pilot/score.mjs');
-  assert.ok(AUTO_PUBLISH_CONFIG.minScore > scoreMod.SCORE_CONFIG.autoEligibleMin);
-  assert.ok(AUTO_PUBLISH_CONFIG.minScore > scoreMod.SCORE_CONFIG.reviewMin);
+  // The floor exists only so nothing an editor would never see can publish.
+  // Eligibility is decided by the categorical conditions, because score.total
+  // ranks a review queue and cannot express publish confidence: real stories
+  // peak near 0.50 while raw permit rows reach 0.836.
+  assert.equal(AUTO_PUBLISH_CONFIG.minScore, scoreMod.SCORE_CONFIG.reviewMin);
+  assert.ok(AUTO_PUBLISH_CONFIG.minScore < scoreMod.SCORE_CONFIG.autoEligibleMin);
 });

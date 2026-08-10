@@ -27,12 +27,27 @@ import {
  * - calibration runs that hit ≥0.72 are almost entirely raw AIC development
  *   applications — excluded below
  *
- * Bar at 0.78 sits comfortably above autoEligibleMin so only exceptional,
- * multi-signal stories can pass, and real historical queues yield ~0 autopublish.
+ * A THRESHOLD ON score.total CANNOT EXPRESS PUBLISH CONFIDENCE. score.total is a
+ * ranking score built to order a review queue for a human: it blends local
+ * relevance, notability, evidence and freshness. Measured against every run in
+ * .news-pilot/runs/, real stories peak near 0.50 (brewery closure 0.496, LV
+ * traffic additions 0.466, Carpet Factory 0.458) while raw AIC permit rows reach
+ * 0.836. A bar high enough to exclude the permits excludes every real story, and
+ * a bar low enough to admit real stories admits the permits. The ordering is
+ * simply not a confidence measure.
+ *
+ * So eligibility is CATEGORICAL: a conjunction of facts about the story (no risk
+ * flags, corroborated or official sourcing, a real event rather than a record or
+ * landing page, current, has a real image, not already covered, draft validates).
+ * score.total survives only as a coarse sanity floor at the review threshold.
  */
 export const AUTO_PUBLISH_CONFIG = Object.freeze({
-  /** Minimum score.total — see file header justification. */
-  minScore: 0.78,
+  /**
+   * Coarse sanity floor only, NOT the gate. Matches SCORE_CONFIG.reviewMin so
+   * anything an editor would not even see cannot publish. Real eligibility is
+   * decided by the categorical conditions below.
+   */
+  minScore: 0.42,
   /** Hard cap: at most one autonomous publish per calendar run-date. */
   maxPerDay: 1,
   /** Risk flags that always force human review (never auto). */
@@ -48,8 +63,11 @@ export const AUTO_PUBLISH_CONFIG = Object.freeze({
   neutralFallbackImage: '/images/og/og-home.jpg',
   /** Tag written onto auto-published posts for the one-per-day ledger. */
   autoPublishTag: 'auto-published',
-  /** Coverage relations that must never auto-publish. */
-  blockedCoverageRelations: Object.freeze(['duplicate', 'follow-up']),
+  /**
+   * Only an outright rehash blocks. A follow-up carries a genuinely new
+   * development and links the prior post, so it remains publishable.
+   */
+  blockedCoverageRelations: Object.freeze(['duplicate']),
 });
 
 /**
@@ -283,9 +301,34 @@ export function prefilterAutoPublishCandidate(candidate, opts) {
       ok: false,
       code: 'score_below_bar',
       reasons: [
-        `Score ${Number.isFinite(total) ? total.toFixed(4) : 'n/a'} < auto-publish bar ${config.minScore}.`,
+        `Score ${Number.isFinite(total) ? total.toFixed(4) : 'n/a'} < sanity floor ${config.minScore}.`,
       ],
       detail: { total, minScore: config.minScore },
+    };
+  }
+
+  // A municipal facility/strategy landing page is a standing reference page, not
+  // a dated news event, however well it scores.
+  const municipalLabels = candidate?.score?.municipalProjectLabels || [];
+  if (Array.isArray(municipalLabels) && municipalLabels.length > 0) {
+    return {
+      ok: false,
+      code: 'municipal_page',
+      reasons: [
+        `Municipal project/landing page is not a news event: ${municipalLabels.join(', ')}.`,
+      ],
+      detail: { municipalLabels },
+    };
+  }
+
+  // Video segments, listicles and opinion pieces are not reportable events.
+  const nonEventLabels = candidate?.score?.nonEventLabels || [];
+  if (Array.isArray(nonEventLabels) && nonEventLabels.length > 0) {
+    return {
+      ok: false,
+      code: 'non_event',
+      reasons: [`Not a reportable news event: ${nonEventLabels.join(', ')}.`],
+      detail: { nonEventLabels },
     };
   }
 
