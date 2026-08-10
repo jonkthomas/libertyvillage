@@ -840,3 +840,42 @@ test('hasSportingMatchup rejects civic adversarial phrasing', () => {
   assert.equal(hasSportingMatchup('residents vs developer over Liberty Village tower'), false);
   assert.equal(hasSportingMatchup('Ghana vs Panama at BMO Field'), true);
 });
+
+test('fatalities, injuries and fires always carry a safety risk flag', () => {
+  const sensitive = [
+    '1 dead after encampment fire at cell tower in Liberty Village',
+    'Man injured in collision on East Liberty Street',
+    'Firefighters battle blaze at Liberty Village condo',
+    'Body found near Lamport Stadium, police say',
+    'Worker in critical condition after Hanna Avenue site collapse',
+  ];
+  for (const title of sensitive) {
+    const result = scoreCandidate(
+      cand({ title, sourceTier: 'reputable', publishedAt: '2026-08-07T12:00:00.000Z' }),
+      { nowMs: NOW, clusterInfo: { independentPublisherCount: 5 } },
+    );
+    assert.ok(
+      result.riskFlags.includes('safety'),
+      `"${title}" must carry a safety flag, got [${result.riskFlags.join(', ')}]`,
+    );
+    assert.equal(result.autoPublishEligible, false);
+  }
+});
+
+test('ordinary local stories do not trip the safety flag', () => {
+  const benign = [
+    'Five Design Teams Shortlisted for Park Competition in Liberty Village',
+    '37-storey residential building and hotel proposed in Liberty Village',
+    'Something in the Water brewery closes Liberty Village location',
+  ];
+  for (const title of benign) {
+    const result = scoreCandidate(
+      cand({ title, sourceTier: 'reputable', publishedAt: '2026-08-07T12:00:00.000Z' }),
+      { nowMs: NOW, clusterInfo: { independentPublisherCount: 3 } },
+    );
+    assert.ok(
+      !result.riskFlags.includes('safety'),
+      `"${title}" should not carry a safety flag, got [${result.riskFlags.join(', ')}]`,
+    );
+  }
+});

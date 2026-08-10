@@ -25,8 +25,27 @@ const KIMI_CLI_CRED_PATH = path.join(
   'kimi-code.json',
 );
 
-/** Ordered preference for local drafting credentials. */
+/**
+ * Ordered preference for drafting credentials.
+ *
+ * Anthropic is first because the failure mode that matters here is fabricating a
+ * quote, number or closure about a real local business, and faithfulness to the
+ * evidence pack outweighs cost at roughly 1-3 published stories per week. The
+ * remaining providers are fallbacks so a single provider outage or quota
+ * exhaustion degrades the run rather than failing it.
+ */
 export const MODEL_PROVIDERS = Object.freeze([
+  {
+    id: 'anthropic',
+    envVars: ['ANTHROPIC_API_KEY'],
+    api: 'anthropic-messages',
+    baseUrl: 'https://api.anthropic.com/v1/messages',
+    model: 'claude-sonnet-4-6',
+    headers: {
+      'x-api-key': null, // filled from the resolved credential at call time
+      'anthropic-version': '2023-06-01',
+    },
+  },
   {
     id: 'kimi-coder',
     envVars: ['KIMI_CODER_API_KEY', 'KIMI_API_KEY'],
@@ -602,12 +621,19 @@ async function callAnthropicMessages({
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // Anthropic authenticates with x-api-key; Kimi's Anthropic-shaped endpoint
+    // uses bearer auth. Send whichever the provider declares, never both.
+    const usesApiKeyHeader =
+      headers && Object.prototype.hasOwnProperty.call(headers, 'x-api-key');
+    const resolvedHeaders = { ...headers };
+    if (usesApiKeyHeader) resolvedHeaders['x-api-key'] = apiKey;
+
     const res = await fetchFn(baseUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...(usesApiKeyHeader ? {} : { Authorization: `Bearer ${apiKey}` }),
         'Content-Type': 'application/json',
-        ...headers,
+        ...resolvedHeaders,
       },
       body: JSON.stringify({
         model,

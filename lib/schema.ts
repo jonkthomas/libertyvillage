@@ -175,11 +175,12 @@ export function generateSpeakableSchema(url: string) {
 }
 
 export function generateBlogPostSchema(
-  post: { title: string; description: string; publishedAt: string; updatedAt: string; slug: string; image?: string; author?: string }
+  post: { title: string; description: string; publishedAt: string; updatedAt: string; slug: string; image?: string; author?: string; category?: string }
 ) {
+  const isNews = post.category === "news";
   return {
     "@context": "https://schema.org",
-    "@type": "BlogPosting",
+    "@type": isNews ? "NewsArticle" : "BlogPosting",
     headline: post.title,
     description: post.description,
     datePublished: post.publishedAt,

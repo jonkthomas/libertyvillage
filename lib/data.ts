@@ -82,6 +82,19 @@ export function getRecentPosts(limit: number = 10): BlogPost[] {
     .slice(0, limit);
 }
 
+/** Pure selector — newest news-category posts first. */
+export function selectNewsPosts(posts: BlogPost[], limit: number = 10): BlogPost[] {
+  const n = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 10;
+  return posts
+    .filter((p) => p.category === "news")
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, n);
+}
+
+export function getNewsPosts(limit: number = 10): BlogPost[] {
+  return selectNewsPosts(getAllPosts(), limit);
+}
+
 // Comparison Table
 export function buildComparisonTable(serviceSlug: string): { columns: string[]; rows: Array<Record<string, string>> } {
   const service = getServiceBySlug(serviceSlug);

@@ -245,8 +245,11 @@ export const RISK_PATTERNS = Object.freeze([
     re: /\b(lawsuit|sued|indicted|court ruling|injunction|criminal charge|pleads? guilty|according to a judge|judge (?:found|ruled|tosses|finds))\b/i,
   },
   {
+    // Fatalities, injuries and fires are the highest-consequence local stories to
+    // get wrong, so they always route to a human. "1 dead after encampment fire"
+    // previously carried no flag and reached auto-publish eligibility.
     flag: 'safety',
-    re: /\b(explosion|evacuate|evacuation|hazardous|gas leak|carbon monoxide|active attacker)\b/i,
+    re: /\b(explosion|evacuate|evacuation|hazardous|gas leak|carbon monoxide|active attacker|dead|died|death|deaths|fatal|fatally|fatality|fatalities|killed|body found|injured|injury|injuries|critical condition|life-threatening|fire|blaze|rescued|drowned|drowning|collapse[sd]?)\b/i,
   },
   {
     flag: 'named-person',

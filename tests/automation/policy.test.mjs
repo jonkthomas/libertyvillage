@@ -39,6 +39,23 @@ test('fails closed for fork, stale SHA, draft, actor, branch, and forbidden path
   assert.equal(validatePaths('blog', ['../package.json']).ok, false);
   assert.equal(validatePaths('business', ['data/posts.json']).ok, false);
   assert.equal(validatePaths('seo', ['app/page.tsx\n.github/workflows/backdoor.yml']).ok, false);
+  assert.equal(validatePaths('news', ['data/posts.json']).ok, true);
+  assert.equal(validatePaths('news', ['public/images/blog/x.jpg']).ok, false);
+  assert.equal(validatePaths('news', ['.github/workflows/news-autopublish.yml']).ok, false);
+});
+
+test('accepts a trusted news autopublish PR touching only posts.json', () => {
+  const pr = trustedPr({
+    head: { sha: SHA, ref: 'news/auto-123', repo: { full_name: 'owner/repo' } },
+  });
+  const result = validatePullRequest({
+    repository: 'owner/repo',
+    kind: 'news',
+    expectedSha: SHA,
+    pr,
+    files: ['data/posts.json'],
+  });
+  assert.equal(result.ok, true);
 });
 
 test('enforces strict verdict schema, score threshold, severity, model, and SHA', () => {
