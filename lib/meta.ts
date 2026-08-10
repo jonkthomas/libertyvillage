@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import type { Building, Service, Neighborhood, Business, Topic, BlogPost } from "./types";
+import type {
+  Building,
+  Service,
+  Neighborhood,
+  Business,
+  Topic,
+  BlogPost,
+} from "./types";
 
 const SITE_URL = "https://libertyvillage.co";
 const SITE_NAME = "LibertyVillage.co";
@@ -8,7 +15,7 @@ function buildMeta(
   title: string,
   description: string,
   path: string,
-  ogImage?: string
+  ogImage?: string,
 ): Metadata {
   const url = `${SITE_URL}${path}`;
   return {
@@ -21,7 +28,13 @@ function buildMeta(
       url,
       siteName: SITE_NAME,
       locale: "en_CA",
-      ...(ogImage ? { images: [{ url: `${SITE_URL}${ogImage}`, width: 1200, height: 630 }] } : {}),
+      ...(ogImage
+        ? {
+            images: [
+              { url: `${SITE_URL}${ogImage}`, width: 1200, height: 630 },
+            ],
+          }
+        : {}),
     },
     alternates: {
       canonical: url,
@@ -35,7 +48,7 @@ export function generateHomePageMeta(): Metadata {
     "Liberty Village, Toronto — Neighbourhood Guide (2026)",
     "Liberty Village is Toronto's 28-hectare neighbourhood between King West and the lake. Local guide to 200+ restaurants, bars, gyms, parking, transit, and BMO Field — by residents, for 2026.",
     "/",
-    "/images/og/og-home.jpg"
+    "/images/og/og-home.jpg",
   );
 }
 
@@ -47,22 +60,25 @@ export function generateServicePageMeta(service: Service): Metadata {
     title,
     service.description.slice(0, 155),
     `/best/${service.slug}`,
-    "/images/og/og-service.jpg"
+    "/images/og/og-service.jpg",
   );
 }
 
-export function generateComparisonPageMeta(neighborhood: Neighborhood): Metadata {
+export function generateComparisonPageMeta(
+  neighborhood: Neighborhood,
+): Metadata {
   return buildMeta(
     `Liberty Village vs ${neighborhood.name}: Where to Live? | libertyvillage.co`,
     `Comparing Liberty Village and ${neighborhood.name} — rent, transit, nightlife, and community. Find out which Toronto neighbourhood is right for you.`,
     `/vs/${neighborhood.slug}`,
-    "/images/og/og-comparison.jpg"
+    "/images/og/og-comparison.jpg",
   );
 }
 
 export function generateBusinessPageMeta(business: Business): Metadata {
   const descParts = [business.name];
-  if (business.rating) descParts.push(`${business.rating}★ (${business.reviewCount} reviews)`);
+  if (business.rating)
+    descParts.push(`${business.rating}★ (${business.reviewCount} reviews)`);
   if (business.hours) descParts.push(business.hours);
   if (business.address) descParts.push(business.address);
   const richDesc = descParts.join(" · ").slice(0, 155);
@@ -86,7 +102,7 @@ export function generateBusinessPageMeta(business: Business): Metadata {
     title,
     richDesc,
     `/directory/${business.slug}`,
-    business.image || "/images/og/og-directory.jpg"
+    business.image || "/images/og/og-directory.jpg",
   );
 }
 
@@ -99,22 +115,29 @@ export function generateGuidePageMeta(topic: Topic): Metadata {
     title,
     topic.description.slice(0, 155),
     `/guide/${topic.slug}`,
-    "/images/og/og-guide.jpg"
+    "/images/og/og-guide.jpg",
   );
 }
 
 export function generateBlogPostPageMeta(post: BlogPost): Metadata {
   const suffix = " | libertyvillage.co";
-  const title = post.title.length + suffix.length <= 60
-    ? `${post.title}${suffix}`
-    : post.title;
+  const title =
+    post.title.length + suffix.length <= 60
+      ? `${post.title}${suffix}`
+      : post.title;
   const meta = buildMeta(
     title,
     post.description.slice(0, 155),
     `/blog/${post.slug}`,
-    post.image
+    post.image,
   );
-  if (post.canonicalUrl) {
+  // Content data must never transfer canonical authority off-site. Autonomous
+  // drafts forbid canonicalUrl entirely; this same-origin check protects legacy
+  // and manually-authored records too.
+  if (
+    post.canonicalUrl &&
+    /^https:\/\/(?:www\.)?libertyvillage\.co\//i.test(post.canonicalUrl)
+  ) {
     meta.alternates = {
       ...meta.alternates,
       canonical: post.canonicalUrl,
@@ -127,7 +150,7 @@ export function generateBlogIndexPageMeta(): Metadata {
   return buildMeta(
     "Liberty Village Blog — Local News & Updates | libertyvillage.co",
     "Stay updated on Liberty Village with local news, development updates, restaurant openings, transit changes, and community stories.",
-    "/blog"
+    "/blog",
   );
 }
 
@@ -135,7 +158,7 @@ export function generateTermsPageMeta(): Metadata {
   return buildMeta(
     "Terms of Service | libertyvillage.co",
     "Terms of Service for libertyvillage.co, a local directory and neighbourhood guide for Liberty Village, Toronto, Canada.",
-    "/terms"
+    "/terms",
   );
 }
 
@@ -143,7 +166,7 @@ export function generatePrivacyPageMeta(): Metadata {
   return buildMeta(
     "Privacy Policy | libertyvillage.co",
     "Privacy Policy for libertyvillage.co. Learn how we handle your data, our use of Google Analytics, and your privacy rights under Canadian law.",
-    "/privacy"
+    "/privacy",
   );
 }
 
@@ -152,15 +175,20 @@ export function generateBuildingPageMeta(building: Building): Metadata {
   const title = building.metaTitle
     ? building.metaTitle.slice(0, 60)
     : autoTitle.length <= 60
-    ? autoTitle
-    : autoTitle.slice(0, 60);
+      ? autoTitle
+      : autoTitle.slice(0, 60);
 
   const autoDesc = building.metaDescription
     ? building.metaDescription
     : `${building.name} at ${building.address}. ${building.buildingType} building, ${building.units} units, built ${building.yearBuilt}. 1BR from $${building.avgRent1BR.toLocaleString()}/mo. Reviews, amenities & rent guide.`;
   const description = autoDesc.slice(0, 155);
 
-  return buildMeta(title, description, `/buildings/${building.slug}`, "/images/og/og-buildings.jpg");
+  return buildMeta(
+    title,
+    description,
+    `/buildings/${building.slug}`,
+    "/images/og/og-buildings.jpg",
+  );
 }
 
 export function generateBuildingsHubMeta(): Metadata {
@@ -168,6 +196,6 @@ export function generateBuildingsHubMeta(): Metadata {
     "Liberty Village Condo Buildings & Lofts — Complete Guide 2026",
     "Every Liberty Village condo and loft building profiled: rents, amenities, reviews, and walk scores. 20+ buildings from Toy Factory Lofts to Reina.",
     "/buildings",
-    "/images/og/og-buildings.jpg"
+    "/images/og/og-buildings.jpg",
   );
 }

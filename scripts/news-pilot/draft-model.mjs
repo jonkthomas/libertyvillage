@@ -470,8 +470,7 @@ export function buildDraftPrompt({
         author: 'LibertyVillage.co',
         image: 'MUST be null (human supplies image later). Never invent an image path or URL.',
         crossLinks: 'optional {type:"service"|"guide", slug, label?}[]',
-        exploreCta: 'optional {label, href, description}',
-        canonicalUrl: 'optional; omit for local drafts',
+        exploreCta: 'optional {label, href, description}; href must be an existing internal /blog|/guide|/best|/directory|/buildings path',
       },
       contentMustInclude: [
         'Answer-first framing near the top (may mirror answerBlock in prose)',
@@ -497,6 +496,8 @@ export function buildDraftPrompt({
       `Frontmatter publishedAt/updatedAt and NewsArticle datePublished/dateModified MUST be ${today} (run date). Never backdate to the source article date.`,
       'Source reporting dates belong only in the body as originally-reported context.',
       'Set image to null. Never invent /images/... paths.',
+      'Omit canonicalUrl. The site generates its own canonical URL.',
+      'Do not emit raw HTML or angle brackets. Use only supported Markdown headings, lists, bold, tables, and safe links.',
       'Facts present in bodyExcerpt count as grounded evidence, not only passages[].',
     ],
     allowedInternalLinks: internalLinkSuggestions,

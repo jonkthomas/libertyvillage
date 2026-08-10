@@ -579,6 +579,8 @@ test('autopublish workflow is staging-PR only and discovery stays read-only', ()
   // Human draft path unchanged: still no PR / no posts.json write
   assert.doesNotMatch(draft, /contents:\s*write/);
   assert.doesNotMatch(draft, /gh pr create/);
+  assert.match(draft, /default: "anthropic"/);
+  assert.match(draft, /ANTHROPIC_API_KEY: \$\{\{ secrets\.ANTHROPIC_API_KEY \}\}/);
   assert.match(draft, /data\/posts\.json/);
   assert.match(draft, /was not modified/);
   assert.match(draft, /No PR opened/);

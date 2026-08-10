@@ -9,7 +9,10 @@ export default function ExploreCTA({
   href: string;
   description: string;
 }) {
-  if (!label || !href || !description) return null;
+  // Model-authored posts may populate this field. Only same-site paths are
+  // allowed; never hand an arbitrary scheme or protocol-relative URL to Link.
+  if (!label || !description || !/^\/(?!\/)[A-Za-z0-9/_-]*$/.test(href))
+    return null;
 
   return (
     <div className="min-h-[80px] rounded-lg border-l-4 border-amber-500 bg-amber-50 p-6">

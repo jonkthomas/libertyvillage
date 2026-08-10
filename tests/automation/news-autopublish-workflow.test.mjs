@@ -13,7 +13,9 @@ test('news autopublish opens staging PRs and dispatches coordinator kind news', 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /group: news-autopublish/);
   assert.match(workflow, /cancel-in-progress: false/);
-  assert.match(workflow, /ref: staging/);
+  assert.match(workflow, /Checkout trusted publisher tooling from main/);
+  assert.match(workflow, /ref: main/);
+  assert.match(workflow, /git checkout refs\/remotes\/origin\/staging -- data\/posts\.json/);
   assert.match(workflow, /scripts\/news-pilot\/publish\.mjs/);
   assert.match(workflow, /--vault=\/dev\/null/);
   assert.match(workflow, /default: "anthropic"/);

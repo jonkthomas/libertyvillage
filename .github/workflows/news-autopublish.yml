@@ -53,10 +53,17 @@ jobs:
       pull-requests: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout trusted publisher tooling from main
+        uses: actions/checkout@v4
         with:
-          ref: staging
+          ref: main
           fetch-depth: 0
+
+      - name: Hydrate the latest staging posts ledger only
+        run: |
+          set -euo pipefail
+          git fetch origin staging:refs/remotes/origin/staging
+          git checkout refs/remotes/origin/staging -- data/posts.json
 
       - uses: actions/setup-node@v4
         with:

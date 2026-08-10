@@ -1,5 +1,5 @@
 import type { FAQ } from "@/lib/types";
-import { generateFAQSchema } from "@/lib/schema";
+import { generateFAQSchema, serializeJsonLd } from "@/lib/schema";
 import { linkifyText, type LinkEntry } from "@/lib/linkify";
 
 export default function FAQSection({
@@ -33,14 +33,16 @@ export default function FAQSection({
               </span>
             </summary>
             <div className="px-5 pb-4 text-sm text-warm-600 leading-relaxed">
-              {linkLookups.length > 0 ? linkifyText(faq.answer, linkLookups) : faq.answer}
+              {linkLookups.length > 0
+                ? linkifyText(faq.answer, linkLookups)
+                : faq.answer}
             </div>
           </details>
         ))}
       </div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(schema) }}
       />
     </section>
   );

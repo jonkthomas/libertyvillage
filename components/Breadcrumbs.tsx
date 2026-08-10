@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { generateBreadcrumbSchema } from "@/lib/schema";
+import { generateBreadcrumbSchema, serializeJsonLd } from "@/lib/schema";
 
 export default function Breadcrumbs({
   items,
@@ -32,7 +32,7 @@ export default function Breadcrumbs({
       </ol>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(schema) }}
       />
     </nav>
   );

@@ -281,6 +281,22 @@ export function extractHttpUrls(text) {
   return out;
 }
 
+/** Extract destinations from Markdown links, including non-http schemes. */
+export function extractMarkdownLinkDestinations(text) {
+  const s = String(text || '');
+  const out = [];
+  const re = /\[[^\]]*\]\(\(?([^)]+?)\)?\)/g;
+  let match;
+  while ((match = re.exec(s)) !== null) out.push(String(match[1] || '').trim());
+  return out;
+}
+
+/** Safe rendering schemes for model-authored Markdown. */
+export function isSafeDraftHref(value) {
+  const href = String(value || '').trim();
+  return /^(?:https?:\/\/[^\s]+|\/(?!\/)[A-Za-z0-9/_-]+|#[A-Za-z0-9_-]+)$/i.test(href);
+}
+
 /**
  * Internal site paths that look like content links.
  * @param {string} text
@@ -576,6 +592,92 @@ export function validateDraft({
     detail: { expectedRunDate, issues: fmDateIssues },
   });
   failures.push(...fmDateIssues);
+
+  // Treat generated text as untrusted data. The site renderer escapes HTML too,
+  // but autonomous publication additionally refuses angle-bracket markup so a
+  // future sink cannot turn model output into executable HTML.
+  const renderedTextFields = [
+    ['title', post?.title],
+    ['description', post?.description],
+    ['answerBlock', post?.answerBlock],
+    ['content', post?.content],
+    ...((post?.faqs || []).flatMap((faq, i) => [
+      [`faqs[${i}].question`, faq?.question],
+      [`faqs[${i}].answer`, faq?.answer],
+    ])),
+    ...((post?.keyTakeaways || []).map((value, i) => [`keyTakeaways[${i}]`, value])),
+    ['exploreCta.label', post?.exploreCta?.label],
+    ['exploreCta.description', post?.exploreCta?.description],
+  ];
+  const markupFields = renderedTextFields
+    .filter(([, value]) => /[<>]/.test(String(value || '')))
+    .map(([field]) => field);
+  const markupOk = markupFields.length === 0;
+  checks.push({
+    code: 'no_raw_html',
+    message: markupOk ? 'Rendered text contains no raw HTML.' : 'Raw angle-bracket markup is forbidden.',
+    ok: markupOk,
+    detail: { fields: markupFields },
+  });
+  if (!markupOk) {
+    failures.push({
+      code: 'raw_html_forbidden',
+      message: 'Draft contains raw angle-bracket markup',
+      detail: { fields: markupFields },
+    });
+  }
+
+  const markdownDestinations = extractMarkdownLinkDestinations(post?.content || '');
+  const unsafeMarkdownDestinations = markdownDestinations.filter((href) => !isSafeDraftHref(href));
+  const markdownLinksOk = unsafeMarkdownDestinations.length === 0;
+  checks.push({
+    code: 'markdown_link_schemes',
+    message: markdownLinksOk ? 'Markdown link schemes are safe.' : 'Unsafe Markdown link destination.',
+    ok: markdownLinksOk,
+    detail: { unsafeMarkdownDestinations },
+  });
+  if (!markdownLinksOk) {
+    failures.push({
+      code: 'unsafe_markdown_link',
+      message: 'Draft contains an unsafe Markdown link destination',
+      detail: unsafeMarkdownDestinations,
+    });
+  }
+
+  const canonicalOk = !String(post?.canonicalUrl || '').trim();
+  checks.push({
+    code: 'canonical_url_omitted',
+    message: canonicalOk ? 'Autonomous draft does not override canonical URL.' : 'canonicalUrl is forbidden for autonomous drafts.',
+    ok: canonicalOk,
+  });
+  if (!canonicalOk) {
+    failures.push({
+      code: 'canonical_url_forbidden',
+      message: 'Autonomous drafts must use the site-generated canonical URL',
+      field: 'canonicalUrl',
+    });
+  }
+
+  const cta = post?.exploreCta;
+  const ctaOk = !cta || (
+    typeof cta === 'object' &&
+    typeof cta.label === 'string' &&
+    typeof cta.description === 'string' &&
+    internalPathExists(cta.href, siteIndex)
+  );
+  checks.push({
+    code: 'explore_cta_internal',
+    message: ctaOk ? 'Explore CTA is absent or resolves to existing site content.' : 'Explore CTA href is unsafe or missing.',
+    ok: ctaOk,
+    detail: ctaOk ? null : { href: cta?.href || null },
+  });
+  if (!ctaOk) {
+    failures.push({
+      code: 'explore_cta_invalid',
+      message: 'Explore CTA must link to an existing internal content path',
+      field: 'exploreCta.href',
+    });
+  }
 
   // Image: omit/null is correct (never fabricate), but blocks publish readiness.
   // Fabricated or non-existent paths are treated as absent and never clear the gate.

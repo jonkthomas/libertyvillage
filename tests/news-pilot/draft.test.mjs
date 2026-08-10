@@ -39,6 +39,7 @@ import {
   createRequestBudget,
   FETCH_DEFAULTS,
   fetchWithRetry,
+  fetchSource,
 } from '../../scripts/news-pilot/fetch.mjs';
 import {
   isBlockedPublicHttpUrl,
@@ -47,6 +48,8 @@ import {
 } from '../../scripts/news-pilot/url-guard.mjs';
 import { ensureRunOutDir, reserveSourceBudgets } from '../../scripts/news-pilot/run.mjs';
 import { CKAN_DEV_APPS } from '../../scripts/news-pilot/sources.mjs';
+import { renderMarkdownContent } from '../../lib/markdown.ts';
+import { serializeJsonLd } from '../../lib/schema.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -307,6 +310,69 @@ function groundedPost(siteIndex, overrides = {}) {
     ...overrides,
   };
 }
+
+test('markdown renderer escapes HTML and drops unsafe link destinations', () => {
+  const rendered = renderMarkdownContent(
+    'Hello <script>alert(1)</script> [bad](javascript:alert(1)) [good](https://example.com/safe).',
+  );
+  assert.doesNotMatch(rendered, /<script|javascript:/i);
+  assert.match(rendered, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(rendered, /href="https:\/\/example\.com\/safe"/);
+});
+
+test('JSON-LD serializer cannot be closed by model-authored text', () => {
+  const serialized = serializeJsonLd({ headline: '</script><script>alert(1)</script>' });
+  assert.doesNotMatch(serialized, /<\/script|<script/i);
+  assert.match(serialized, /\\u003c\/script\\u003e/);
+});
+
+test('draft validation rejects raw HTML, unsafe links, canonical overrides and unsafe CTAs', () => {
+  const evidencePack = packFromSources([substantiveSource()], {
+    independentPublisherCount: 1,
+  });
+  const siteIndex = loadSiteLinkIndex(ROOT);
+  const base = groundedPost(siteIndex);
+  const cases = [
+    {
+      expected: 'raw_html_forbidden',
+      post: { ...base, content: `${base.content}\n<img src=x onerror=alert(1)>` },
+    },
+    {
+      expected: 'unsafe_markdown_link',
+      post: { ...base, content: `${base.content}\n[click](javascript:alert(1))` },
+    },
+    {
+      expected: 'canonical_url_forbidden',
+      post: { ...base, canonicalUrl: 'https://evil.example/steal-equity' },
+    },
+    {
+      expected: 'explore_cta_invalid',
+      post: {
+        ...base,
+        exploreCta: { label: 'Click', href: 'javascript:alert(1)', description: 'Bad' },
+      },
+    },
+  ];
+  for (const attack of cases) {
+    const report = validateDraft({
+      post: attack.post,
+      newsArticleStructuredData: {
+        '@context': 'https://schema.org',
+        '@type': 'NewsArticle',
+        headline: attack.post.title,
+        datePublished: attack.post.publishedAt,
+        dateModified: attack.post.updatedAt,
+      },
+      evidencePack,
+      siteIndex,
+      nowMs: NOW,
+    });
+    assert.ok(
+      report.failures.some((failure) => failure.code === attack.expected),
+      `expected ${attack.expected}, got ${report.failures.map((failure) => failure.code).join(',')}`,
+    );
+  }
+});
 
 test('post-generation validation rejects a draft containing a URL absent from the evidence pack', () => {
   const evidencePack = packFromSources(
@@ -1464,6 +1530,43 @@ test('finding10b: DNS-resolved private hosts and failures are blocked (offline r
     assert.deepEqual(seen, ['http://public.example.test/start']);
   } finally {
     globalThis.fetch = prev;
+  }
+});
+
+test('credentialed search APIs never follow redirects with secrets', async () => {
+  const previousFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), headers: init.headers || {} });
+    return {
+      ok: false,
+      status: 302,
+      headers: { get: (name) => String(name).toLowerCase() === 'location' ? 'https://attacker.example/steal' : null },
+      text: async () => '',
+    };
+  };
+  const publicLookup = async () => [{ address: '93.184.216.34', family: 4 }];
+  try {
+    for (const source of [
+      { id: 'serper-secret-test', type: 'serper', query: 'Liberty Village' },
+      { id: 'serpapi-secret-test', type: 'serpapi', query: 'Liberty Village' },
+    ]) {
+      calls.length = 0;
+      const secrets = source.type === 'serper'
+        ? { SERPER_API_KEY: 'test-serper-secret' }
+        : { SERPAPI_API_KEY: 'test-serpapi-secret' };
+      const result = await fetchSource(source, {
+        secrets,
+        maxRetries: 0,
+        dnsLookup: publicLookup,
+      });
+      assert.equal(result.ok, false);
+      assert.equal(result.errorCode, 'too_many_redirects');
+      assert.equal(calls.length, 1, `${source.type} must contact only its fixed API origin`);
+      assert.ok(!calls[0].url.startsWith('https://attacker.example/'));
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
   }
 });
 
