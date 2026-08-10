@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const workflow = fs.readFileSync(new URL('../../.github/workflows/autonomous-coordinator.yml', import.meta.url), 'utf8');
 const reviewAgent = fs.readFileSync(new URL('../../scripts/automation/review-agent.mjs', import.meta.url), 'utf8');
+const preflight = fs.readFileSync(new URL('../../scripts/automation/news-preflight.mjs', import.meta.url), 'utf8');
 
 test('coordinator is dispatch-only and synthetic merge checkouts fetch parent history', () => {
   assert.doesNotMatch(workflow, /workflow_call|inputs\./);
@@ -30,6 +31,15 @@ test('every autonomous generator kind has an independent review lens', () => {
   for (const kind of ['seo', 'blog', 'news', 'business', 'promotion']) {
     assert.match(reviewAgent, new RegExp(`\\n  ${kind}: \\[`), `missing ${kind} review lens`);
   }
+});
+
+test('preflight reuses canonical models and content commands avoid GitHub APIs', () => {
+  assert.match(preflight, /from '\.\/constants\.mjs'/);
+  assert.match(preflight, /GATE_MODEL/); assert.match(preflight, /FIXER_MODEL/);
+  assert.match(preflight, /MAX_REPAIRS/); assert.match(preflight, /SCORE_THRESHOLD/);
+  assert.equal((reviewAgent.match(/\n  news: \[/g) || []).length, 1);
+  const contentCommands = reviewAgent.slice(reviewAgent.indexOf('async function reviewContent'), reviewAgent.indexOf('async function fileAtSha'));
+  assert.doesNotMatch(contentCommands, /github\(/);
 });
 
 test('repair attempt is consumed before fixer push and redispatch', () => {

@@ -47,10 +47,11 @@ jobs:
   autopublish:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
+      issues: write
       actions: read
     steps:
       - name: Checkout trusted publisher tooling from main
@@ -60,10 +61,14 @@ jobs:
           fetch-depth: 0
 
       - name: Hydrate the latest staging posts ledger only
+        id: baseline
         run: |
           set -euo pipefail
           git fetch origin staging:refs/remotes/origin/staging
           git checkout refs/remotes/origin/staging -- data/posts.json
+          cp data/posts.json "$RUNNER_TEMP/posts-baseline.json"
+          echo "staging_sha=$(git rev-parse refs/remotes/origin/staging)" >> "$GITHUB_OUTPUT"
+          echo "baseline_blob=$(git hash-object -- data/posts.json)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -210,6 +215,25 @@ jobs:
           # Hard failures only (missing run, model crash). Controlled zero-publish is exit 0.
           exit "$code"
 
+      - name: Independent Opus preflight editorial gate
+        id: preflight
+        if: ${{ steps.publish.outputs.published == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLUG: ${{ steps.publish.outputs.slug }}
+        run: |
+          set -euo pipefail
+          PREFLIGHT_DIR="${{ steps.publish.outputs.out_dir }}/preflight"
+          node scripts/automation/news-preflight.mjs \
+            --root="$GITHUB_WORKSPACE" \
+            --posts=data/posts.json \
+            --baseline="$RUNNER_TEMP/posts-baseline.json" \
+            --publish-out="${{ steps.publish.outputs.out_dir }}" \
+            --out="$PREFLIGHT_DIR" \
+            --slug="$SLUG" \
+            --baseline-blob="${{ steps.baseline.outputs.baseline_blob }}" \
+            --staging-sha="${{ steps.baseline.outputs.staging_sha }}"
+
       - name: Write job summary
         if: always() && steps.publish.outputs.out_dir != ''
         env:
@@ -258,10 +282,15 @@ jobs:
 
       - name: Open non-draft pull request into staging
         id: pr
-        if: ${{ steps.publish.outputs.published == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.publish.outputs.published == 'true' && steps.preflight.outputs.gate_go == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           SLUG: ${{ steps.publish.outputs.slug }}
+          STAGING_SHA: ${{ steps.baseline.outputs.staging_sha }}
+          BLOB_SHA: ${{ steps.preflight.outputs.blob_sha }}
+          CONTENT_SHA256: ${{ steps.preflight.outputs.content_sha256 }}
+          PREFLIGHT_SCORE: ${{ steps.preflight.outputs.overall }}
+          PREFLIGHT_REPAIRS: ${{ steps.preflight.outputs.repairs_used }}
         run: |
           set -euo pipefail
           git config user.name "LV Content Bot"
@@ -279,17 +308,30 @@ jobs:
           echo "$CHANGED" | grep -qx 'data/posts.json'
           test "$(echo "$CHANGED" | wc -l | tr -d ' ')" = "1"
           TITLE_SLUG="${SLUG:-post}"
-          git commit -m "news: autopublish ${TITLE_SLUG} $(date -u +%Y-%m-%d)"
+          REMOTE_STAGING=$(git ls-remote origin refs/heads/staging | awk '{print $1}')
+          test "$REMOTE_STAGING" = "$STAGING_SHA"
+          git commit -m "news: autopublish ${TITLE_SLUG} $(date -u +%Y-%m-%d)" \
+            -m "Preflight-Blob-Sha: ${BLOB_SHA}
+          Preflight-Score: ${PREFLIGHT_SCORE}
+          Preflight-Repairs: ${PREFLIGHT_REPAIRS}"
+          test "$(git rev-parse HEAD:data/posts.json)" = "$BLOB_SHA"
+          test "$(git show HEAD:data/posts.json | sha256sum | awk '{print $1}')" = "$CONTENT_SHA256"
           git push -u origin "$BR"
           URL=$(gh pr create --base staging --head "$BR" \
             --title "news: autopublish ${TITLE_SLUG}" \
-            --body "Autonomous local-news publish (rare + certain gate). Only \`data/posts.json\` changed. CI and the autonomous Opus gate control staging merge eligibility. Zero-or-one publish per day; human review path unchanged.")
+            --body "Autonomous local-news publish (rare + certain gate). Only \`data/posts.json\` changed. CI and the autonomous Opus gate control staging merge eligibility. Preflight: Opus GO ${PREFLIGHT_SCORE}/10 · blob ${BLOB_SHA} · repairs ${PREFLIGHT_REPAIRS}/3.")
           PR=$(gh pr view "$URL" --json number --jq .number)
           SHA=$(git rev-parse HEAD)
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
           echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Seed shared repair-attempt budget
+        if: ${{ steps.pr.outputs.created == 'true' && steps.preflight.outputs.repairs_used != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs set-attempt --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --attempt "${{ steps.preflight.outputs.repairs_used }}"
 
       - name: Explicitly dispatch shared coordinator
         if: ${{ steps.pr.outputs.created == 'true' }}
