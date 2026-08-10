@@ -1436,3 +1436,62 @@ test('finding10b: DNS-resolved private hosts and failures are blocked (offline r
     globalThis.fetch = prev;
   }
 });
+
+test('anthropic is preferred and authenticates with x-api-key, not bearer', async () => {
+  const mod = await import('../../scripts/news-pilot/draft-model.mjs');
+  const first = mod.MODEL_PROVIDERS[0];
+  assert.equal(first.id, 'anthropic');
+  assert.deepEqual(first.envVars, ['ANTHROPIC_API_KEY']);
+  assert.equal(first.api, 'anthropic-messages');
+  assert.ok(Object.prototype.hasOwnProperty.call(first.headers, 'x-api-key'));
+
+  const kimi = mod.MODEL_PROVIDERS.find((p) => p.id === 'kimi-coder');
+  assert.ok(
+    !Object.prototype.hasOwnProperty.call(kimi.headers, 'x-api-key'),
+    'kimi must keep bearer auth',
+  );
+
+  const seen = [];
+  const fakeFetch = async (url, init) => {
+    seen.push({ url, headers: init.headers });
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ content: [{ type: 'text', text: '{"ok":true}' }] }),
+    };
+  };
+
+  await mod.generateDraftWithModel({
+    resolved: { provider: first, apiKey: 'test-key-anthropic' },
+    system: 's',
+    userText: 'u',
+    maxTokens: 16,
+    timeoutMs: 5000,
+    fetchFn: fakeFetch,
+  });
+
+  assert.equal(seen.length, 1, 'adapter must issue exactly one request');
+  const anthropicHeaders = seen[0].headers;
+  assert.equal(seen[0].url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(anthropicHeaders['x-api-key'], 'test-key-anthropic');
+  assert.equal(
+    anthropicHeaders.Authorization,
+    undefined,
+    'must not send bearer alongside x-api-key',
+  );
+
+  seen.length = 0;
+  await mod.generateDraftWithModel({
+    resolved: { provider: kimi, apiKey: 'test-key-kimi' },
+    system: 's',
+    userText: 'u',
+    maxTokens: 16,
+    timeoutMs: 5000,
+    fetchFn: fakeFetch,
+  });
+
+  const kimiHeaders = seen[0].headers;
+  assert.equal(kimiHeaders.Authorization, 'Bearer test-key-kimi');
+  assert.equal(kimiHeaders['x-api-key'], undefined);
+});
