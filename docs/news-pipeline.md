@@ -11,13 +11,14 @@ Human-gated hyperlocal news pipeline for Liberty Village. Discovery builds a **r
 | --------------- | ------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
 | **Discovery**   | Daily schedule + manual `workflow_dispatch` | `report.md`, `candidates.json`, `errors.json` (artifact + job summary) | **No** (reads `data/posts.json` read-only for dedupe) |
 | **Drafting**    | Manual `workflow_dispatch` only             | Draft bundle under `.news-pilot/drafts/` (artifact + job summary)      | **No**                                                |
-| **Autopublish** | After discovery (`workflow_run`) + manual   | Optional single append to `data/posts.json` via PR into `staging`      | **Only if strict gate passes** (else zero = success)  |
+| **Autopublish** | After discovery (`workflow_run`) + manual   | Pre-PR Opus review/repair artifact, then optional content-only PR      | **Only after preflight GO** (else no branch or PR)    |
 
 Scripts (local or CI):
 
 - `node scripts/news-pilot/run.mjs` — discovery pilot
 - `node scripts/news-pilot/draft.mjs` — evidence-bound draft stage
-- `node scripts/news-pilot/publish.mjs` — rare autonomous publish path (strict gate)
+- `node scripts/news-pilot/publish.mjs` — deterministic candidate generation and validation
+- `node scripts/automation/news-preflight.mjs` — independent Opus review + bounded Sonnet repair before any PR
 
 Workflows:
 
@@ -30,7 +31,8 @@ Workflows:
 1. **The review queue is not the publish gate.** Roughly 6–7/10 review items are clearly publish-worthy, so that broad band remains human-only.
 2. **Autonomous eligibility is categorical.** It requires zero risk flags across discovery metadata **and fetched evidence bodies**; official/primary evidence or at least two substantive independent publisher domains; a real current event rather than a permit row, municipal landing page, video, listicle, or opinion; a verified existing image; non-duplicate coverage; full `validateDraft` success; and at most one publish per day. `score.total >= 0.42` is only a low review-queue sanity floor, not confidence.
 3. **Images stay non-fabricated.** Autopublish never invents an event-photo path. It verifies a real local asset and may use the existing neutral site OG asset when the story has no event-specific image.
-4. **The full path is autonomous but double-gated.** Autopublish itself only opens a content-only PR into `staging`. The trusted coordinator requires exact-SHA CI plus an independent Opus review before staging merge, then creates a cumulative `staging` → `main` promotion that receives a second exact-range CI/Opus review before native auto-merge. No workflow directly commits to either protected branch.
+4. **No PR exists until the article is publishable.** After deterministic validation, Opus reviews the exact candidate together with its evidence pack. A different Sonnet may repair only the appended post object, at most three times; every repair reruns deterministic validation and Opus. A score below 8, any high/critical finding, an invalid repair, or exhaustion restores the staging baseline and creates no branch or PR.
+5. **PRs are release vehicles, not editorial queues.** A preflight-GO article is bound to the exact `posts.json` bytes by git blob SHA plus SHA-256 before push. The trusted coordinator still runs exact-SHA CI/Opus on the resulting content-only PR, followed by a separately reviewed cumulative `staging` → `main` promotion. No workflow directly commits to either protected branch.
 
 Hard prohibitions that remain:
 
@@ -130,11 +132,11 @@ node scripts/news-pilot/publish.mjs \
   --dry-run \
   --now=2026-08-10T18:00:00.000Z
 
-# Real append (still local only — you open the PR)
+# Real append (local candidate generation only; this does NOT perform Opus preflight)
 node scripts/news-pilot/publish.mjs --run=.news-pilot/runs/<runDir>
 ```
 
-Zero published is exit 0. Output under `.news-pilot/publish/<stamp>/`.
+Zero published is exit 0. Output under `.news-pilot/publish/<stamp>/`. The trusted CI workflow owns preflight review, repair, byte attestation, branch creation, and PR creation.
 
 ### Tests
 
@@ -168,6 +170,15 @@ npm run test:news-pilot
 4. Download artifact `news-draft-<run_id>`.
 
 No PR is opened. Promote content only through a deliberate human edit path.
+
+### Autonomous publication
+
+1. Actions → **News Autopublish (rare + certain)** → Run workflow, or wait for the daily discovery completion.
+2. Deterministic gates generate at most one publish-ready candidate.
+3. Opus reviews the candidate with its evidence. Fixable findings go to the separate Sonnet fixer, with a global maximum of three attempts.
+4. A blocked or exhausted preflight writes `status: preflight_blocked`, restores the exact staging posts ledger, and exits successfully with `published: 0`. **No branch or PR is created.**
+5. Only preflight GO creates a `news/auto-*` content-only PR into `staging`; exact-byte CI/Opus and cumulative promotion gates remain mandatory.
+6. Download `news-autopublish-<run_id>` for verdicts, repairs, evidence, and the byte-bound `preflight-attestation.json`.
 
 ## How to read the review queue
 
