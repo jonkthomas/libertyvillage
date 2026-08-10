@@ -5,8 +5,9 @@ name: News Autopublish (rare + certain)
 # staging. Zero publishes is the expected success path most days.
 #
 # Does NOT:
-#   - commit directly to main
-#   - auto-merge to main
+#   - commit directly to staging or main
+#   - bypass the coordinator's exact-SHA staging gate or the separate cumulative
+#     staging-to-main promotion gate (both may native-auto-merge only after GO)
 #   - weaken discovery's read-only posture (discovery stays contents:read)
 #   - publish risk-flagged, single-source, imageless, or low-score stories
 #

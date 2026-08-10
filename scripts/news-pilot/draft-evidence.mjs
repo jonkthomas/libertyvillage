@@ -401,9 +401,15 @@ export async function buildEvidencePack({
   // titles/snippets. A neutral headline can conceal a fatality, injury, fire,
   // allegation or other human-only subject in the article body.
   const evidenceRiskFlags = sources.flatMap((source) =>
-    detectRiskFlags({
-      rawTextSample: [source.bodyExcerpt, ...(source.passages || [])].join(' '),
-    }),
+    detectRiskFlags(
+      {
+        rawTextSample: [source.bodyExcerpt, ...(source.passages || [])].join(' '),
+      },
+      // Evidence retention is already bounded (~5 KB/source). Scan all retained
+      // text so a fatality disclosed after the discovery scorer's 1,200-char
+      // ranking window cannot evade the autonomous safety gate.
+      { limit: Number.MAX_SAFE_INTEGER },
+    ),
   );
   const riskFlags = uniqueSorted([
     ...resolveMemberRiskFlags(representative),

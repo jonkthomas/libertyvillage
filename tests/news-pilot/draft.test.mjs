@@ -873,7 +873,9 @@ test('evidence-body safety terms route a neutrally headlined story to humans', a
     snippet: 'Officials attended an incident near East Liberty Street.',
     score: { total: 0.5, tier: 'review', riskFlags: [], breakdown: {} },
   });
-  const html = `<html><body><article>${'Officials said one person died after a fire inside a Liberty Village building. Emergency crews remained at the site while the investigation continued. '.repeat(5)}</article></body></html>`;
+  const benignLead = 'Officials attended an incident near East Liberty Street while traffic was redirected and nearby services continued operating. '.repeat(15);
+  assert.ok(benignLead.length > 1_200, 'fixture must place risk terms beyond scorer window');
+  const html = `<html><body><article>${benignLead}Officials then confirmed one person died after a fire inside the Liberty Village building. Emergency crews remained at the site.</article></body></html>`;
   const pack = await buildEvidencePack({
     representative: rep,
     members: [rep],
