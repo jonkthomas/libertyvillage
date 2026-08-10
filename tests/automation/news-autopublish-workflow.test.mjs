@@ -56,3 +56,24 @@ test('workflow parses relative result.json as data and serializes pending news P
   assert.match(workflow, /group: news-autopublish/);
   assert.match(workflow, /cancel-in-progress: false/);
 });
+
+test('preflight GO and exact content binding are mandatory before PR creation', () => {
+  const preflight = workflow.indexOf('scripts/automation/news-preflight.mjs');
+  const create = workflow.indexOf('gh pr create');
+  assert.ok(preflight >= 0 && preflight < create);
+  assert.doesNotMatch(workflow.slice(preflight, create), /continue-on-error/);
+  assert.match(workflow, /steps\.preflight\.outputs\.gate_go == 'true'/);
+  assert.match(workflow, /SLUG: \$\{\{ steps\.publish\.outputs\.slug \}\}/);
+  assert.match(workflow, /--slug="\$SLUG"/);
+  assert.doesNotMatch(workflow, /--slug="\$\{\{ steps\.publish\.outputs\.slug \}\}"/);
+  assert.match(workflow, /git rev-parse HEAD:data\/posts\.json/);
+  assert.match(workflow, /CONTENT_SHA256/);
+  assert.match(workflow, /issues: write/);
+  assert.ok(workflow.indexOf('coordinator.mjs set-attempt') < workflow.indexOf('coordinator.mjs dispatch'));
+});
+
+test('preflight receives only the Anthropic provider secret', () => {
+  const step = workflow.slice(workflow.indexOf('Independent Opus preflight'), workflow.indexOf('- name: Write job summary'));
+  assert.match(step, /ANTHROPIC_API_KEY/);
+  assert.doesNotMatch(step, /BYTEPLUS_API_KEY|DEEPSEEK_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY|VENICE_API_KEY|KIMI_CODER_API_KEY|SERPER_API_KEY|SERPAPI_API_KEY/);
+});
