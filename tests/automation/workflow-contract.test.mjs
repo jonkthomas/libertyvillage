@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const workflow = fs.readFileSync(new URL('../../.github/workflows/autonomous-coordinator.yml', import.meta.url), 'utf8');
+const reviewAgent = fs.readFileSync(new URL('../../scripts/automation/review-agent.mjs', import.meta.url), 'utf8');
 
 test('coordinator is dispatch-only and synthetic merge checkouts fetch parent history', () => {
   assert.doesNotMatch(workflow, /workflow_call|inputs\./);
@@ -23,6 +24,12 @@ test('news-pilot safety regressions gate generator and promotion CI', () => {
   );
   assert.match(generator, /npm run test:news-pilot/);
   assert.match(promotion, /npm run test:news-pilot/);
+});
+
+test('every autonomous generator kind has an independent review lens', () => {
+  for (const kind of ['seo', 'blog', 'news', 'business', 'promotion']) {
+    assert.match(reviewAgent, new RegExp(`\\n  ${kind}: \\[`), `missing ${kind} review lens`);
+  }
 });
 
 test('repair attempt is consumed before fixer push and redispatch', () => {
