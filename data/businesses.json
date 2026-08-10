@@ -3996,5 +3996,545 @@
       "restaurants"
     ],
     "_discoveredAt": "2026-08-05"
+  },
+  {
+    "slug": "gioia-beauty-bar-spa",
+    "name": "GIOIA Beauty Bar & Spa",
+    "category": "nail-salons",
+    "subcategory": "Nail salon",
+    "address": "20 Joe Shuster Way #4, Toronto, ON M6K 0A3, Canada",
+    "description": "GIOIA Beauty Bar & Spa is a Nail salon in Liberty Village, located at 20 Joe Shuster Way #4, Toronto, ON M6K 0A3, Canada. It holds a 4.8-star rating across 2800 Google reviews.",
+    "rating": 4.8,
+    "reviewCount": 2800,
+    "priceRange": "$$",
+    "hours": "Open · Closes 8 PM",
+    "phone": "+1 416-516-5888",
+    "website": "https://gioianailsbarspa.com/",
+    "tags": [
+      "nail salons",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/gioia-beauty-bar-spa.jpg",
+    "answerBlock": "GIOIA Beauty Bar & Spa is a 4.8-star nail salon in Liberty Village at 20 Joe Shuster Way #4, Toronto, ON M6K 0A3, Canada, with 2800 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "nail-salons"
+    ],
+    "reviewExcerpt": "Reviewers rate GIOIA Beauty Bar & Spa 4.8/5 across 2800 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about GIOIA Beauty Bar & Spa?",
+        "answer": "GIOIA Beauty Bar & Spa has a 4.8-star average from 2800 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "chiang-mai-liberty",
+    "name": "Chiang Mai Liberty",
+    "category": "restaurants",
+    "subcategory": "Thai restaurant",
+    "address": "171 E Liberty St Unit 144, Toronto, ON M6K 3K4, Canada",
+    "description": "Chiang Mai Liberty is a Thai restaurant in Liberty Village, located at 171 E Liberty St Unit 144, Toronto, ON M6K 3K4, Canada. It holds a 4.6-star rating across 2264 Google reviews.",
+    "rating": 4.6,
+    "reviewCount": 2264,
+    "priceRange": "$",
+    "hours": "Closed · Opens 11 AM",
+    "phone": "+1 647-342-8424",
+    "website": "http://chiangmai.ca/",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/chiang-mai-liberty.jpg",
+    "answerBlock": "Chiang Mai Liberty is a 4.6-star restaurant in Liberty Village at 171 E Liberty St Unit 144, Toronto, ON M6K 3K4, Canada, with 2264 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "Reviewers rate Chiang Mai Liberty 4.6/5 across 2264 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Chiang Mai Liberty?",
+        "answer": "Chiang Mai Liberty has a 4.6-star average from 2264 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "kim-nails-and-spa",
+    "name": "Kim Nails and Spa",
+    "category": "nail-salons",
+    "subcategory": "Beauty salon",
+    "address": "1205 Queen St W #6, Toronto, ON M6K 0B9, Canada",
+    "description": "Kim Nails and Spa is a Beauty salon in Liberty Village, located at 1205 Queen St W #6, Toronto, ON M6K 0B9, Canada. It holds a 4.8-star rating across 1865 Google reviews.",
+    "rating": 4.8,
+    "reviewCount": 1865,
+    "priceRange": "$$",
+    "hours": "Open · Closes 8 PM",
+    "phone": "+1 416-588-3386",
+    "website": "http://www.kimnailsspa.ca/",
+    "tags": [
+      "nail salons",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/kim-nails-and-spa.jpg",
+    "answerBlock": "Kim Nails and Spa is a 4.8-star nail salon in Liberty Village at 1205 Queen St W #6, Toronto, ON M6K 0B9, Canada, with 1865 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "nail-salons"
+    ],
+    "reviewExcerpt": "Reviewers rate Kim Nails and Spa 4.8/5 across 1865 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Kim Nails and Spa?",
+        "answer": "Kim Nails and Spa has a 4.8-star average from 1865 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "kibo-sushi-house-liberty",
+    "name": "Kibo Sushi House - Liberty",
+    "category": "sushi",
+    "subcategory": "Sushi restaurant",
+    "address": "171 E Liberty St #146, Toronto, ON M6K 3K4, Canada",
+    "description": "Kibo Sushi House - Liberty is a Sushi restaurant in Liberty Village, located at 171 E Liberty St #146, Toronto, ON M6K 3K4, Canada. It holds a 4.5-star rating across 1426 Google reviews.",
+    "rating": 4.5,
+    "reviewCount": 1426,
+    "priceRange": "$",
+    "hours": "Closed · Opens 11:30 AM",
+    "phone": "+1 647-347-8082",
+    "website": "http://www.kibosushi.com/",
+    "tags": [
+      "sushi",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/kibo-sushi-house-liberty.jpg",
+    "answerBlock": "Kibo Sushi House - Liberty is a 4.5-star sushi in Liberty Village at 171 E Liberty St #146, Toronto, ON M6K 3K4, Canada, with 1426 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "sushi"
+    ],
+    "reviewExcerpt": "Reviewers rate Kibo Sushi House - Liberty 4.5/5 across 1426 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Kibo Sushi House - Liberty?",
+        "answer": "Kibo Sushi House - Liberty has a 4.5-star average from 1426 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "kinton-ramen-liberty-village-2",
+    "name": "KINTON RAMEN LIBERTY VILLAGE",
+    "category": "sushi",
+    "subcategory": "Ramen restaurant",
+    "address": "153 Liberty St, Toronto, ON M6K 3G3, Canada",
+    "description": "KINTON RAMEN LIBERTY VILLAGE is a Ramen restaurant in Liberty Village, located at 153 Liberty St, Toronto, ON M6K 3G3, Canada. It holds a 4.7-star rating across 1031 Google reviews.",
+    "rating": 4.7,
+    "reviewCount": 1031,
+    "priceRange": "$",
+    "hours": "Closed · Opens 11:30 AM",
+    "phone": "+1 647-368-8551",
+    "website": "https://www.kintonramen.com/location/kinton-ramen-liberty-village/?utm_source=google&utm_medium=organic&utm_campaign=gbp-listing&utm_content=kinton-ramen-liberty-village",
+    "tags": [
+      "sushi",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/kinton-ramen-liberty-village-2.jpg",
+    "answerBlock": "KINTON RAMEN LIBERTY VILLAGE is a 4.7-star sushi in Liberty Village at 153 Liberty St, Toronto, ON M6K 3G3, Canada, with 1031 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "sushi"
+    ],
+    "reviewExcerpt": "Reviewers rate KINTON RAMEN LIBERTY VILLAGE 4.7/5 across 1031 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about KINTON RAMEN LIBERTY VILLAGE?",
+        "answer": "KINTON RAMEN LIBERTY VILLAGE has a 4.7-star average from 1031 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "liberty-soho",
+    "name": "Liberty Soho",
+    "category": "restaurants",
+    "subcategory": "Restaurant",
+    "address": "139 E Liberty St, Toronto, ON M6K 3K4, Canada",
+    "description": "Liberty Soho is a Restaurant in Liberty Village, located at 139 E Liberty St, Toronto, ON M6K 3K4, Canada. It holds a 4.7-star rating across 1010 Google reviews.",
+    "rating": 4.7,
+    "reviewCount": 1010,
+    "priceRange": "$",
+    "hours": "Closed · Opens 12 PM",
+    "phone": "+1 416-477-7972",
+    "website": "http://liberty-soho.com/",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/liberty-soho.jpg",
+    "answerBlock": "Liberty Soho is a 4.7-star restaurant in Liberty Village at 139 E Liberty St, Toronto, ON M6K 3K4, Canada, with 1010 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "Reviewers rate Liberty Soho 4.7/5 across 1010 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Liberty Soho?",
+        "answer": "Liberty Soho has a 4.7-star average from 1010 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "balzac-s-liberty-village",
+    "name": "Balzac's Liberty Village",
+    "category": "coffee-shops",
+    "subcategory": "Cafe",
+    "address": "43 Hanna Ave #123, Toronto, ON M6K 1X1, Canada",
+    "description": "Balzac's Liberty Village is a Cafe in Liberty Village, located at 43 Hanna Ave #123, Toronto, ON M6K 1X1, Canada. It holds a 4.4-star rating across 1005 Google reviews.",
+    "rating": 4.4,
+    "reviewCount": 1005,
+    "priceRange": "$",
+    "hours": "Open · Closes 6 PM",
+    "phone": "+1 416-534-7372",
+    "website": "https://shop.balzacs.com/pages/liberty-village",
+    "tags": [
+      "coffee shops",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/balzac-s-liberty-village.jpg",
+    "answerBlock": "Balzac's Liberty Village is a 4.4-star coffee shop in Liberty Village at 43 Hanna Ave #123, Toronto, ON M6K 1X1, Canada, with 1005 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "coffee-shops"
+    ],
+    "reviewExcerpt": "Reviewers rate Balzac's Liberty Village 4.4/5 across 1005 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Balzac's Liberty Village?",
+        "answer": "Balzac's Liberty Village has a 4.4-star average from 1005 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "see-be-seen-eyecare-liberty-village-optometrists",
+    "name": "See & Be Seen Eyecare - Liberty Village Optometrists",
+    "category": "optometrists",
+    "subcategory": "Optometrist",
+    "address": "171 E Liberty St 136 Ste 136, Toronto, ON M6K 3P6, Canada",
+    "description": "See & Be Seen Eyecare - Liberty Village Optometrists is a Optometrist in Liberty Village, located at 171 E Liberty St 136 Ste 136, Toronto, ON M6K 3P6, Canada. It holds a 4.9-star rating across 877 Google reviews.",
+    "rating": 4.9,
+    "reviewCount": 877,
+    "priceRange": "$$",
+    "hours": "Open · Closes 5 PM",
+    "phone": "+1 416-516-2020",
+    "website": "http://www.seeandbeseeneyecare.com/",
+    "tags": [
+      "optometrists",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/see-be-seen-eyecare-liberty-village-optometrists.jpg",
+    "answerBlock": "See & Be Seen Eyecare - Liberty Village Optometrists is a 4.9-star optometrist in Liberty Village at 171 E Liberty St 136 Ste 136, Toronto, ON M6K 3P6, Canada, with 877 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "optometrists"
+    ],
+    "reviewExcerpt": "Reviewers rate See & Be Seen Eyecare - Liberty Village Optometrists 4.9/5 across 877 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about See & Be Seen Eyecare - Liberty Village Optometrists?",
+        "answer": "See & Be Seen Eyecare - Liberty Village Optometrists has a 4.9-star average from 877 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "village-rehab-team-liberty-village-location",
+    "name": "Village Rehab Team - Liberty Village Location",
+    "category": "physiotherapy",
+    "subcategory": "Physical therapist",
+    "address": "171 E Liberty St Unit 102, Toronto, ON M6K 3P6, Canada",
+    "description": "Village Rehab Team - Liberty Village Location is a Physical therapist in Liberty Village, located at 171 E Liberty St Unit 102, Toronto, ON M6K 3P6, Canada. It holds a 5-star rating across 875 Google reviews.",
+    "rating": 5,
+    "reviewCount": 875,
+    "priceRange": "$$",
+    "hours": "Open · Closes 8 PM",
+    "phone": "+1 416-530-1234",
+    "website": "https://villagerehabteam.com/",
+    "tags": [
+      "physiotherapy",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/village-rehab-team-liberty-village-location.jpg",
+    "answerBlock": "Village Rehab Team - Liberty Village Location is a 5-star physiotherapy in Liberty Village at 171 E Liberty St Unit 102, Toronto, ON M6K 3P6, Canada, with 875 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "physiotherapy"
+    ],
+    "reviewExcerpt": "Reviewers rate Village Rehab Team - Liberty Village Location 5/5 across 875 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Village Rehab Team - Liberty Village Location?",
+        "answer": "Village Rehab Team - Liberty Village Location has a 5-star average from 875 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "caffino",
+    "name": "Caffino",
+    "category": "restaurants",
+    "subcategory": "Southern Italian restaurant",
+    "address": "1185 King St W, Toronto, ON M6K 3C5, Canada",
+    "description": "Caffino is a Southern Italian restaurant in Liberty Village, located at 1185 King St W, Toronto, ON M6K 3C5, Canada. It holds a 4.5-star rating across 817 Google reviews.",
+    "rating": 4.5,
+    "reviewCount": 817,
+    "priceRange": "$",
+    "hours": "Closed · Opens 11:30 AM Tue",
+    "phone": "+1 416-588-9010",
+    "website": "http://caffino.ca/",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/caffino.jpg",
+    "answerBlock": "Caffino is a 4.5-star restaurant in Liberty Village at 1185 King St W, Toronto, ON M6K 3C5, Canada, with 817 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "Reviewers rate Caffino 4.5/5 across 817 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Caffino?",
+        "answer": "Caffino has a 4.5-star average from 817 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "nodo-liberty",
+    "name": "NODO Liberty",
+    "category": "restaurants",
+    "subcategory": "Restaurant",
+    "address": "120 Lynn Williams St, Toronto, ON M6K 3N6, Canada",
+    "description": "NODO Liberty is a Restaurant in Liberty Village, located at 120 Lynn Williams St, Toronto, ON M6K 3N6, Canada. It holds a 4.4-star rating across 796 Google reviews.",
+    "rating": 4.4,
+    "reviewCount": 796,
+    "priceRange": "$",
+    "hours": "Closed · Opens 11:30 AM",
+    "phone": "+1 647-368-8110",
+    "website": "http://www.nodorestaurant.ca/",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/nodo-liberty.jpg",
+    "answerBlock": "NODO Liberty is a 4.4-star restaurant in Liberty Village at 120 Lynn Williams St, Toronto, ON M6K 3N6, Canada, with 796 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "Reviewers rate NODO Liberty 4.4/5 across 796 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about NODO Liberty?",
+        "answer": "NODO Liberty has a 4.4-star average from 796 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "liberty-eats",
+    "name": "Liberty Eats",
+    "category": "restaurants",
+    "subcategory": "Restaurant",
+    "address": "129 Jefferson Ave, Toronto, ON M6K 3E4, Canada",
+    "description": "Liberty Eats is a Restaurant in Liberty Village, located at 129 Jefferson Ave, Toronto, ON M6K 3E4, Canada. It holds a 4.6-star rating across 763 Google reviews.",
+    "rating": 4.6,
+    "reviewCount": 763,
+    "priceRange": "$",
+    "hours": "Closed · Opens 11 AM",
+    "phone": "+1 416-551-6642",
+    "website": "http://libertyeats.ca/",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/liberty-eats.jpg",
+    "answerBlock": "Liberty Eats is a 4.6-star restaurant in Liberty Village at 129 Jefferson Ave, Toronto, ON M6K 3E4, Canada, with 763 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "Reviewers rate Liberty Eats 4.6/5 across 763 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Liberty Eats?",
+        "answer": "Liberty Eats has a 4.6-star average from 763 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "brodflour",
+    "name": "Brodflour",
+    "category": "coffee-shops",
+    "subcategory": "Cafe",
+    "address": "8 Pardee Ave, Toronto, ON M6K 3H1, Canada",
+    "description": "Brodflour is a Cafe in Liberty Village, located at 8 Pardee Ave, Toronto, ON M6K 3H1, Canada. It holds a 4.6-star rating across 672 Google reviews.",
+    "rating": 4.6,
+    "reviewCount": 672,
+    "priceRange": "$",
+    "hours": "Open · Closes 4 PM",
+    "phone": "+1 416-536-4848",
+    "website": "https://brodflour.com/",
+    "tags": [
+      "coffee shops",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/brodflour.jpg",
+    "answerBlock": "Brodflour is a 4.6-star coffee shop in Liberty Village at 8 Pardee Ave, Toronto, ON M6K 3H1, Canada, with 672 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "coffee-shops"
+    ],
+    "reviewExcerpt": "Reviewers rate Brodflour 4.6/5 across 672 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Brodflour?",
+        "answer": "Brodflour has a 4.6-star average from 672 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "bom-dia-cafe-bakery",
+    "name": "Bom Dia Cafe & Bakery",
+    "category": "bakeries",
+    "subcategory": "Bakery",
+    "address": "1205 Queen St W #3, Toronto, ON M6K 0B9, Canada",
+    "description": "Bom Dia Cafe & Bakery is a Bakery in Liberty Village, located at 1205 Queen St W #3, Toronto, ON M6K 0B9, Canada. It holds a 4.5-star rating across 662 Google reviews.",
+    "rating": 4.5,
+    "reviewCount": 662,
+    "priceRange": "$",
+    "hours": "Open · Closes 7 PM",
+    "phone": "+1 416-551-6342",
+    "website": "http://www.bomdia.ca/",
+    "tags": [
+      "bakeries",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/bom-dia-cafe-bakery.jpg",
+    "answerBlock": "Bom Dia Cafe & Bakery is a 4.5-star bakerie in Liberty Village at 1205 Queen St W #3, Toronto, ON M6K 0B9, Canada, with 662 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "bakeries"
+    ],
+    "reviewExcerpt": "Reviewers rate Bom Dia Cafe & Bakery 4.5/5 across 662 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about Bom Dia Cafe & Bakery?",
+        "answer": "Bom Dia Cafe & Bakery has a 4.5-star average from 662 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "injapan-japanese-restaurant",
+    "name": "INJapan Japanese Restaurant",
+    "category": "sushi",
+    "subcategory": "Sushi restaurant",
+    "address": "124 Atlantic Ave, Toronto, ON M6K 1X9, Canada",
+    "description": "INJapan Japanese Restaurant is a Sushi restaurant in Liberty Village, located at 124 Atlantic Ave, Toronto, ON M6K 1X9, Canada. It holds a 4.6-star rating across 641 Google reviews.",
+    "rating": 4.6,
+    "reviewCount": 641,
+    "priceRange": "$",
+    "hours": "Closed · Opens 11:30 AM",
+    "phone": "+1 416-516-4648",
+    "website": "https://www.injapan.ca/",
+    "tags": [
+      "sushi",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/injapan-japanese-restaurant.jpg",
+    "answerBlock": "INJapan Japanese Restaurant is a 4.6-star sushi in Liberty Village at 124 Atlantic Ave, Toronto, ON M6K 1X9, Canada, with 641 Google reviews.",
+    "bestFor": [],
+    "categories": [
+      "sushi"
+    ],
+    "reviewExcerpt": "Reviewers rate INJapan Japanese Restaurant 4.6/5 across 641 Google reviews.",
+    "reviewFaqs": [
+      {
+        "question": "What do reviews say about INJapan Japanese Restaurant?",
+        "answer": "INJapan Japanese Restaurant has a 4.6-star average from 641 Google reviews from Liberty Village locals and visitors."
+      }
+    ],
+    "_discoveredAt": "2026-08-10",
+    "_needsEnrichment": true
   }
 ]
