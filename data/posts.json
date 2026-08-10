@@ -1458,6 +1458,10 @@
       {
         "question": "How much do groceries cost in Liberty Village?",
         "answer": "Budget shopping at FreshCo costs $250-350 CAD monthly for one person. Quality-focused shopping (FreshCo + Loblaws) costs $350-450 CAD monthly. Delivery adds $30-50/month. Compared to other Toronto neighbourhoods, Liberty Village offers good value through FreshCo's discount pricing but lacks premium grocery competition that would further lower prices."
+      },
+      {
+        "question": "Is there a Shoppers Drug Mart in Liberty Village?",
+        "answer": "Yes, there are multiple Shoppers Drug Mart locations throughout and near Liberty Village on King Street and Queen Street. While Shoppers is primarily a pharmacy, they stock emergency grocery essentials like milk, eggs, bread, basic produce, and frozen items. However, prices are 30-50% higher than dedicated grocery stores like FreshCo. Shoppers is best for late-night runs (open until 11 PM) when FreshCo is closed."
       }
     ],
     "image": "/images/blog/grocery-stores-liberty-village-complete-guide.jpg",
@@ -3586,8 +3590,12 @@
     "answerBlock": "GoodLife Fitness Liberty Village at 85 Hanna Ave Suite 200 is the neighbourhood's largest full-service gym, rated 3.8★ across 456 Google reviews, open Mon-Fri 5am-11pm and Sat-Sun 7am-9pm. Memberships run $69-159/month. You get a full free-weight and machine floor, 30+ cardio machines, included group classes (spin, yoga, HIIT, strength) and locker rooms with showers. It's a solid no-frills gym if you can dodge the 5-7:30pm after-work rush.",
     "faqs": [
       {
+        "question": "Where is GoodLife Fitness Liberty Village located?",
+        "answer": "GoodLife Fitness Liberty Village is located at 85 Hanna Ave Suite 200 (2nd floor of Shops at King Liberty), just off King Street West. It is within a 5-minute walk from most Liberty Village condos and directly accessible via the 504 King streetcar. The entrance is on Hanna Avenue with bike parking available outside."
+      },
+      {
         "question": "How much does GoodLife Fitness Liberty Village cost per month?",
-        "answer": "Membership prices range from $69-89/month for gym-only single-club access, $99-119/month for multi-club access across all GoodLife locations in Canada, and $139-159/month for Premium Plus which includes group fitness classes. There's typically a $59 enrollment fee, though this is often waived during promotions. Corporate discount rates are available through many Toronto employers."
+        "answer": "Membership prices range from $69-89/month for gym-only single-club access, $99-119/month for multi-club access across all GoodLife locations in Canada, and $139-159/month for Premium Plus which includes group fitness classes. There is typically a $59 enrollment fee, though this is often waived during promotions. Corporate discount rates are available through many Toronto employers."
       },
       {
         "question": "Is GoodLife Fitness Liberty Village open 24 hours?",
@@ -3668,6 +3676,10 @@
       {
         "question": "Do Liberty Village dry cleaners offer tailoring and alterations?",
         "answer": "Yes, both King West Dry Cleaners and King West Village Cleaners offer tailoring and alterations. Common services include hemming pants ($12-20), adjusting waistbands ($15-25), shortening sleeves ($20-30), and zipper replacements ($15-35). Turnaround time is typically 5-7 business days for alterations."
+      },
+      {
+        "question": "Where is King West Cleaners in Liberty Village?",
+        "answer": "King West Village Cleaners is one of the primary dry cleaning options serving Liberty Village, located in the King West area within walking distance of most Liberty Village condos. They offer standard dry cleaning, alterations, and pressing services with typical turnaround times of 2-3 days. For same-day service, expect to pay a premium."
       }
     ],
     "image": "/images/blog/dry-cleaning-laundry-liberty-village-guide.jpg",
@@ -4455,6 +4467,10 @@
       {
         "question": "How much does a pedicure cost in Liberty Village?",
         "answer": "Basic pedicures start around $40, but most clients opt for deluxe pedicures with gel polish and extended massage for $65 to $85. Tips & Toes Nail Spa and GIOIA Beauty Bar & Spa offer high-end pedicure experiences with massage chairs and longer treatment times."
+      },
+      {
+        "question": "Where is Kat Nail Studio in Liberty Village?",
+        "answer": "Kat Nail Studio is located near the King and Dufferin area within walking distance of Liberty Village core. The studio specializes in gel manicures ($45) and gel pedicures ($65) with clean, precise work and no high-pressure upselling. The space is small, so booking ahead is essential, especially on weekends when walk-ins are often turned away."
       }
     ],
     "image": "/images/blog/nail-salons-liberty-village-complete-guide-2026.jpg",

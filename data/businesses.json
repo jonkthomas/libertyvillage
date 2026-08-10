@@ -3547,7 +3547,21 @@
       "24/7 pickup when you can't make business hours",
       "High-volume orders from Canada's top-rated printer"
     ],
-    "image": "/images/businesses/jukebox-print.jpg"
+    "image": "/images/businesses/jukebox-print.jpg",
+    "reviewFaqs": [
+      {
+        "question": "What makes Jukebox Print different from other Toronto printers?",
+        "answer": "Jukebox Print stands out with over 5,700 five-star Trustpilot reviews, making it Canada's highest-rated printing company. The Liberty Village location offers same-day sticker printing when ordered by 10 AM, plus a 24/7 pickup locker for after-hours convenience. Most Toronto printers can't match this combination of speed, quality, and accessibility."
+      },
+      {
+        "question": "Does Jukebox Print offer same-day printing in Toronto?",
+        "answer": "Yes, Jukebox Print offers same-day sticker printing when orders are placed by 10 AM. The 24/7 pickup locker at their Dufferin Street location means you can collect your order anytime, even outside regular business hours (Mon-Fri 9am-8pm). This makes them the go-to for Liberty Village businesses needing quick turnaround."
+      },
+      {
+        "question": "Can I pick up from Jukebox Print outside business hours?",
+        "answer": "Yes, Jukebox Print has a 24/7 pickup locker at their 219 Dufferin St location in Liberty Village. You can collect your order anytime day or night without waiting for business hours. This is especially convenient for entrepreneurs and businesses that work non-traditional hours."
+      }
+    ]
   },
   {
     "slug": "moveable-inc",
