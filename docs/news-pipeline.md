@@ -2,8 +2,8 @@
 
 Human-gated hyperlocal news pipeline for Liberty Village. Discovery builds a **review queue**. Drafting turns one human-selected cluster into a **local draft proposal**. Neither stage publishes.
 
-> **Operating model: human-gated only.**  
-> An independent review signed off on drafting-as-proposal, not autonomous publishing. Queue precision is roughly **6–7 of 10** clearly publish-worthy — fine when a human discards the rest in seconds, **not** acceptable unattended.
+> **Operating model: human-gated by default + rare autonomous publish.**  
+> Review-queue precision is roughly **6–7 of 10** clearly publish-worthy — fine when a human discards the rest. Unattended publishing of that band is **not** acceptable. A separate **strict** auto-publish gate may append at most one post/day when every safety check passes; zero publishes is the expected success path most days.
 
 ## What it does
 
@@ -11,33 +11,45 @@ Human-gated hyperlocal news pipeline for Liberty Village. Discovery builds a **r
 | ------------- | ------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
 | **Discovery** | Daily schedule + manual `workflow_dispatch` | `report.md`, `candidates.json`, `errors.json` (artifact + job summary) | **No** (reads `data/posts.json` read-only for dedupe) |
 | **Drafting**  | Manual `workflow_dispatch` only             | Draft bundle under `.news-pilot/drafts/` (artifact + job summary)      | **No**                                                |
+| **Autopublish** | After discovery (`workflow_run`) + manual | Optional single append to `data/posts.json` via PR into `staging`     | **Only if strict gate passes** (else zero = success) |
 
 Scripts (local or CI):
 
 - `node scripts/news-pilot/run.mjs` — discovery pilot
 - `node scripts/news-pilot/draft.mjs` — evidence-bound draft stage
+- `node scripts/news-pilot/publish.mjs` — rare autonomous publish path (strict gate)
 
 Workflows:
 
 - `.github/workflows/news-discovery.yml`
 - `.github/workflows/news-draft.yml`
+- `.github/workflows/news-autopublish.yml`
 
-## Why it is not autonomous
+## Why most days still publish nothing
 
-1. **Precision is not high enough.** ~6–7/10 review items are clearly publish-worthy. Automation that published the rest would ship weak or wrong local news.
-2. **Images are a hard human gate.** Drafts may validate as textually grounded while still requiring a real image path a human supplies. The pipeline must not fabricate images or publish without one.
-3. **Evidence and tone still need judgment.** Follow-ups, civic process stories, and multi-source clusters benefit from a quick human read before anything hits the site.
-4. **Blast radius.** Auto-merge into `staging`/`main` or writing `data/posts.json` from Actions would couple a noisy classifier to production content.
+1. **Precision is not high enough for the review queue.** ~6–7/10 review items are clearly publish-worthy. Publishing that band unattended would ship weak or wrong local news about real businesses and neighbours.
+2. **Autonomous publish is a separate, stricter gate.** It requires zero risk flags, official/primary **or** ≥2 independent substantive publishers, score ≥ **0.78** (above discovery `autoEligibleMin` 0.72), a verified image (draft path or neutral OG fallback `/images/og/og-home.jpg` — never fabricated), full `validateDraft` pass, non-duplicate coverage, not a concluded event, and **at most one** publish per day.
+3. **Images stay non-fabricated.** Autopublish never invents an event photo path. It either verifies a real local image from the draft or uses the neutral site OG asset.
+4. **Blast radius stays bounded.** Autopublish never commits to `main`, never auto-merges to main, and only opens a content PR into `staging` for the existing coordinator `news` kind + Opus gate.
 
-Hard prohibitions (do not “just add” these):
+Hard prohibitions that remain:
 
-- No auto-merge
-- No auto-publish
-- No scheduled drafting
-- No default pull-request creation from the draft workflow
-- No automation writing `data/posts.json`
-- No dispatch of the autonomous coordinator for this pipeline
+- No auto-merge to **main**
+- No scheduled **drafting** of the human-gated workflow (discovery may trigger autopublish evaluation)
+- No default pull-request creation from the **human draft** workflow
+- No weakening of evidence, SSRF, quote-cap, image-existence, or run-date gates
 - No branch-protection changes for this pipeline
+- Human draft path stays artifact-only
+
+### Auto-publish bar justification
+
+Against real candidates in `.news-pilot/runs/`:
+
+- `quality-9-v5-default` review reps top out ~0.61 (none clear 0.72 except development applications forced to review)
+- live `review-fix-live-20260810T143929Z`: 0 auto-eligible / 0 review
+- calibration rows ≥0.72 are almost entirely raw AIC development applications (excluded)
+
+So a bar of **0.78** plus source/risk/image/cap gates is expected to auto-publish **0** of a typical top-10 queue — rare and certain by design.
 
 ## Required GitHub Actions secrets (names only)
 
@@ -111,6 +123,21 @@ node scripts/news-pilot/draft.mjs \
 ```
 
 Output: `.news-pilot/drafts/<timestamp>/` (gitignored), including `draft.md`, `draft.json`, `validation-report.json`, `gate.json`, `result.json`, evidence pack, etc.
+
+### Autopublish (local)
+
+```bash
+# Dry-run against a discovery artifact (no posts.json write)
+node scripts/news-pilot/publish.mjs \
+  --run=.news-pilot/runs/<runDir> \
+  --dry-run \
+  --now=2026-08-10T18:00:00.000Z
+
+# Real append (still local only — you open the PR)
+node scripts/news-pilot/publish.mjs --run=.news-pilot/runs/<runDir>
+```
+
+Zero published is exit 0. Output under `.news-pilot/publish/<stamp>/`.
 
 ### Tests
 
@@ -202,7 +229,8 @@ Until then: **discovery proposes, humans dispose, drafts remain proposals.**
 
 | Workflow             | Job permissions                   |
 | -------------------- | --------------------------------- |
-| `news-discovery.yml` | `contents: read`                  |
-| `news-draft.yml`     | `contents: read`, `actions: read` |
+| `news-discovery.yml`   | `contents: read`                                             |
+| `news-draft.yml`       | `contents: read`, `actions: read`                            |
+| `news-autopublish.yml` | job: `contents: write`, `pull-requests: write`, `actions: read` |
 
-Neither workflow requests `contents: write`, `pull-requests: write`, or `packages` scopes.
+Discovery and human draft stay read-only. Only autopublish may open a staging PR (posts.json only) and dispatch coordinator kind `news`.

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { getAllServices, getAllTopics, getBusinessesByCategory, getRecentPosts } from "@/lib/data";
+import { getAllServices, getAllTopics, getBusinessesByCategory, getNewsPosts, getRecentPosts } from "@/lib/data";
 import { generateHomePageMeta } from "@/lib/meta";
 import { generateBreadcrumbSchema, generateOrganizationSchema } from "@/lib/schema";
 import HeroAnimation from "@/components/HeroAnimation";
@@ -98,6 +98,13 @@ export default function Home() {
   let recentPosts: { slug: string; title: string; description: string; category: string; image?: string }[] = [];
   try {
     recentPosts = getRecentPosts(3);
+  } catch {
+    // posts.json may not exist yet during build
+  }
+
+  let newsPosts: { slug: string; title: string; description: string; category: string; publishedAt: string; image?: string }[] = [];
+  try {
+    newsPosts = getNewsPosts(3);
   } catch {
     // posts.json may not exist yet during build
   }
@@ -245,6 +252,74 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+
+      {/* ═══════════════════════════════════════════
+          3b. LATEST NEWS — hide entirely when empty
+          ═══════════════════════════════════════════ */}
+      {newsPosts.length > 0 && (
+        <section className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-16" aria-label="Latest news">
+          <SectionReveal>
+            <p className="text-sm font-semibold uppercase tracking-widest text-lv-brick">
+              Neighbourhood Updates
+            </p>
+            <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+              <h2 className="font-display text-[clamp(24px,3vw,36px)] font-bold text-lv-warm-black">
+                Latest News
+              </h2>
+              <Link
+                href="/news"
+                className="text-sm font-semibold text-lv-brick transition-colors hover:text-lv-brick-dark"
+              >
+                All news
+                <span aria-hidden="true"> →</span>
+              </Link>
+            </div>
+          </SectionReveal>
+
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {newsPosts.map((post, idx) => (
+              <SectionReveal key={post.slug} delay={idx * 0.08}>
+                <Link
+                  href={`/blog/${post.slug}`}
+                  className="group block overflow-hidden rounded-2xl border border-lv-sand bg-lv-white shadow-sm transition-all hover:shadow-lg"
+                >
+                  {post.image && (
+                    <div className="relative aspect-[16/10] overflow-hidden">
+                      <Image
+                        src={post.image}
+                        alt={post.title}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-lv-sage">
+                      <span>News</span>
+                      <span aria-hidden="true">·</span>
+                      <time dateTime={post.publishedAt}>
+                        {new Date(post.publishedAt).toLocaleDateString("en-CA", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </time>
+                    </div>
+                    <h3 className="mt-2 text-lg font-semibold text-lv-warm-black transition-colors group-hover:text-lv-brick line-clamp-2">
+                      {post.title}
+                    </h3>
+                    <p className="mt-1 text-sm leading-relaxed text-lv-warm-grey line-clamp-2">
+                      {post.description}
+                    </p>
+                  </div>
+                </Link>
+              </SectionReveal>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ═══════════════════════════════════════════
           4. FEATURED EDITORIAL — Asymmetric layout

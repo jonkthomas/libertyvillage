@@ -1,0 +1,278 @@
+name: News Autopublish (rare + certain)
+
+# Runs after discovery (or manually). Applies the strict auto-publish gate and,
+# only when a story qualifies, drafts one post and opens a content PR into
+# staging. Zero publishes is the expected success path most days.
+#
+# Does NOT:
+#   - commit directly to main
+#   - auto-merge to main
+#   - weaken discovery's read-only posture (discovery stays contents:read)
+#   - publish risk-flagged, single-source, imageless, or low-score stories
+#
+# Pattern mirrors weekly-blog.yml: branch → PR into staging → coordinator kind.
+
+on:
+  workflow_run:
+    workflows: ["News Discovery (human review queue)"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      discovery_run_id:
+        description: "GitHub Actions run id of a News Discovery workflow run (artifact source). Empty = latest successful discovery run."
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Evaluate/draft path without writing data/posts.json or opening a PR"
+        required: false
+        type: boolean
+        default: false
+      prefer_model:
+        description: "Optional model provider id"
+        required: false
+        type: string
+        default: "byteplus-ark"
+
+concurrency:
+  group: news-autopublish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  autopublish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Resolve discovery run id
+        id: discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.discovery_run_id }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          RUN_ID=""
+          if [ "${EVENT_NAME}" = "workflow_run" ] && [ -n "${WORKFLOW_RUN_ID:-}" ]; then
+            RUN_ID="${WORKFLOW_RUN_ID}"
+          elif [ -n "${INPUT_RUN_ID// }" ]; then
+            RUN_ID="${INPUT_RUN_ID}"
+          else
+            RUN_ID=$(gh run list --workflow "news-discovery.yml" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            if [ -z "${RUN_ID}" ]; then
+              RUN_ID=$(gh run list --workflow "News Discovery (human review queue)" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            fi
+          fi
+          if [ -z "${RUN_ID}" ]; then
+            echo "No discovery run id available" >&2
+            exit 1
+          fi
+          echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "Using discovery run id: ${RUN_ID}"
+
+      - name: Download discovery artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: news-discovery-${{ steps.discovery.outputs.run_id }}
+          run-id: ${{ steps.discovery.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .news-pilot/runs/from-ci-${{ steps.discovery.outputs.run_id }}
+
+      - name: Locate run directory
+        id: run
+        env:
+          DISCOVERY_RUN_ID: ${{ steps.discovery.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          BASE=".news-pilot/runs/from-ci-${DISCOVERY_RUN_ID}"
+          if [ -f "$BASE/candidates.json" ]; then
+            RUN_DIR="$BASE"
+          else
+            CAND=$(find "$BASE" -name candidates.json -type f | head -n 1)
+            if [ -z "$CAND" ]; then
+              echo "candidates.json not found under $BASE" >&2
+              find "$BASE" -maxdepth 3 -type f >&2 || true
+              exit 1
+            fi
+            RUN_DIR=$(dirname "$CAND")
+          fi
+          test -f "$RUN_DIR/candidates.json"
+          echo "run_dir=$RUN_DIR" >> "$GITHUB_OUTPUT"
+          echo "Using run dir: $RUN_DIR"
+
+      - name: Run autonomous publish gate
+        id: publish
+        env:
+          BYTEPLUS_API_KEY: ${{ secrets.BYTEPLUS_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          VENICE_API_KEY: ${{ secrets.VENICE_API_KEY }}
+          KIMI_CODER_API_KEY: ${{ secrets.KIMI_CODER_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          RUN_DIR: ${{ steps.run.outputs.run_dir }}
+          PREFER_MODEL: ${{ inputs.prefer_model }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          OUT_DIR=".news-pilot/publish/ci-${GITHUB_RUN_ID}"
+          mkdir -p "$OUT_DIR"
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+
+          args=(
+            --run="$RUN_DIR"
+            --out="$OUT_DIR"
+            --vault=/dev/null
+          )
+
+          if [ -n "${PREFER_MODEL// }" ]; then
+            args+=(--prefer-model="$PREFER_MODEL")
+          fi
+
+          # workflow_run path is never a dry-run; workflow_dispatch honors the input.
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ "${DRY_RUN}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+
+          echo "Running: node scripts/news-pilot/publish.mjs --run=... (secrets not printed)"
+          set +e
+          node scripts/news-pilot/publish.mjs "${args[@]}"
+          code=$?
+          set -e
+          echo "publish_exit=$code" >> "$GITHUB_OUTPUT"
+
+          if [ ! -f "$OUT_DIR/result.json" ]; then
+            echo "Publish produced no result.json" >&2
+            exit 1
+          fi
+
+          PUBLISHED=$(node -e 'const r=require(process.argv[1]); process.stdout.write(r.published===1?"true":"false")' "$OUT_DIR/result.json")
+          STATUS=$(node -e 'const r=require(process.argv[1]); process.stdout.write(String(r.status||""))' "$OUT_DIR/result.json")
+          SLUG=$(node -e 'const r=require(process.argv[1]); process.stdout.write(String(r.slug||""))' "$OUT_DIR/result.json")
+          echo "published=${PUBLISHED}" >> "$GITHUB_OUTPUT"
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+          echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+          echo "Publish status=${STATUS} published=${PUBLISHED} slug=${SLUG}"
+
+          # Hard failures only (missing run, model crash). Controlled zero-publish is exit 0.
+          exit "$code"
+
+      - name: Write job summary
+        if: always() && steps.publish.outputs.out_dir != ''
+        env:
+          OUT_DIR: ${{ steps.publish.outputs.out_dir }}
+          DISCOVERY_RUN_ID: ${{ steps.discovery.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const outDir = process.env.OUT_DIR;
+          const resultPath = `${outDir}/result.json`;
+          const result = fs.existsSync(resultPath)
+            ? JSON.parse(fs.readFileSync(resultPath, 'utf8'))
+            : { status: 'missing_result' };
+          const lines = [];
+          lines.push('# News autopublish — rare + certain');
+          lines.push('');
+          lines.push('> Autonomous path only publishes when **all** safety gates pass. Zero publishes is success.');
+          lines.push('');
+          lines.push('## Run');
+          lines.push('');
+          lines.push(`- discovery run id: \`${process.env.DISCOVERY_RUN_ID || ''}\``);
+          lines.push(`- this run id: \`${process.env.GITHUB_RUN_ID || ''}\``);
+          lines.push(`- status: **${result.status || 'unknown'}**`);
+          lines.push(`- published: **${result.published === 1 ? 1 : 0}**`);
+          lines.push(`- dryRun: ${result.dryRun === true}`);
+          if (result.slug) lines.push(`- slug: \`${result.slug}\``);
+          if (result.clusterId) lines.push(`- cluster: \`${result.clusterId}\``);
+          if (result.title) lines.push(`- title: ${result.title}`);
+          if (result.message) lines.push(`- message: ${result.message}`);
+          if (result.config) {
+            lines.push(`- minScore bar: ${result.config.minScore}`);
+            lines.push(`- maxPerDay: ${result.config.maxPerDay}`);
+            lines.push(`- neutral image: \`${result.config.neutralFallbackImage}\``);
+          }
+          lines.push('');
+          lines.push('## Safety reminders');
+          lines.push('');
+          lines.push('- Risk-flagged, single-source, imageless, duplicate, concluded, and low-score stories never auto-publish.');
+          lines.push('- At most one autonomous publish per day.');
+          lines.push('- Content PR targets `staging` only; coordinator + Opus gate control merge.');
+          lines.push('- Human draft workflow remains available and unchanged.');
+          lines.push('');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
+
+      - name: Open non-draft pull request into staging
+        id: pr
+        if: ${{ steps.publish.outputs.published == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLUG: ${{ steps.publish.outputs.slug }}
+        run: |
+          set -euo pipefail
+          git config user.name "LV Content Bot"
+          git config user.email "noreply@libertyvillage.co"
+          BR="news/auto-$(date +%s)"
+          git checkout -b "$BR"
+          git add data/posts.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Guard: only data/posts.json may be in this commit.
+          CHANGED=$(git diff --cached --name-only)
+          echo "$CHANGED" | grep -qx 'data/posts.json'
+          test "$(echo "$CHANGED" | wc -l | tr -d ' ')" = "1"
+          TITLE_SLUG="${SLUG:-post}"
+          git commit -m "news: autopublish ${TITLE_SLUG} $(date -u +%Y-%m-%d)"
+          git push -u origin "$BR"
+          URL=$(gh pr create --base staging --head "$BR" \
+            --title "news: autopublish ${TITLE_SLUG}" \
+            --body "Autonomous local-news publish (rare + certain gate). Only \`data/posts.json\` changed. CI and the autonomous Opus gate control staging merge eligibility. Zero-or-one publish per day; human review path unchanged.")
+          PR=$(gh pr view "$URL" --json number --jq .number)
+          SHA=$(git rev-parse HEAD)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Explicitly dispatch shared coordinator
+        if: ${{ steps.pr.outputs.created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind news --sha "${{ steps.pr.outputs.head_sha }}"
+
+      - name: Upload publish artifacts
+        if: always() && steps.publish.outputs.out_dir != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-autopublish-${{ github.run_id }}
+          path: |
+            ${{ steps.publish.outputs.out_dir }}/
+          if-no-files-found: error
+          retention-days: 30

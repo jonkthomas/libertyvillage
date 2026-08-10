@@ -29,6 +29,16 @@ const GENERATOR_POLICIES = {
     maxFiles: 20,
     maxRepairBytes: 300_000,
   },
+  // Rare autonomous local-news appends. Content-only PRs into staging; same
+  // Opus gate as blog. Images use an existing neutral OG asset (no new files).
+  news: {
+    base: 'staging',
+    headPrefixes: ['news/auto-'],
+    allowedPaths: ['data/posts.json'],
+    repairablePaths: ['data/posts.json'],
+    maxFiles: 5,
+    maxRepairBytes: 300_000,
+  },
   business: {
     base: 'staging',
     headPrefixes: ['auto/business-discovery'],
