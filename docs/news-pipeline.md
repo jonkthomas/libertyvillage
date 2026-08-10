@@ -195,17 +195,18 @@ Treat **auto-eligible + review** as the queue a human skims. Do not auto-publish
 
 ## Safety gates
 
-| Gate                               | Where                         | Blocks                                                                                            |
-| ---------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------- |
-| Shadow discovery / no publish path | `run.mjs`, discovery workflow | Any write to site content; no PR/merge                                                            |
-| Read-only posts index              | `run.mjs` / dedupe            | Uses `data/posts.json` only to mark covered/follow-up                                             |
-| Explicit cluster/rank selection    | `draft.mjs`                   | Refuses to draft without human selection                                                          |
-| Evidence gate                      | `draft-gate.mjs`              | Refuses model call when evidence is insufficient                                                  |
-| Grounded validation                | `draft-validate.mjs`          | Fails draft on ungrounded claims, bad links, date rules, etc.                                     |
-| Missing image human gate           | validation / `draft.md`       | Draft may pass text checks but **not** publish-ready without a real image                         |
-| Artifact-only CI outputs           | both workflows                | Uploads artifacts; does not commit, push, or open PRs                                             |
-| Minimum token permissions          | workflows                     | `contents: read` (+ `actions: read` on draft for artifact download); `persist-credentials: false` |
-| No vault in CI                     | both workflows                | `--vault=/dev/null`; secrets only via `${{ secrets.NAME }}`                                       |
+| Gate                               | Where                         | Blocks                                                                                 |
+| ---------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------- |
+| Shadow discovery / no publish path | `run.mjs`, discovery workflow | Any write to site content; no PR/merge                                                 |
+| Read-only posts index              | `run.mjs` / dedupe            | Uses `data/posts.json` only to mark covered/follow-up                                  |
+| Explicit cluster/rank selection    | `draft.mjs`                   | Refuses to draft without human selection                                               |
+| Evidence gate                      | `draft-gate.mjs`              | Refuses model call when evidence is insufficient                                       |
+| Grounded validation                | `draft-validate.mjs`          | Fails draft on ungrounded claims, bad links, date rules, etc.                          |
+| Missing image human gate           | validation / `draft.md`       | Draft may pass text checks but **not** publish-ready without a real image              |
+| Artifact-only CI outputs           | both workflows                | Uploads artifacts; does not commit, push, or open PRs                                  |
+| Minimum token permissions          | discovery + human draft       | `contents: read` (+ `actions: read` on draft); `persist-credentials: false`            |
+| Trusted publisher tooling          | autopublish                   | Executes scripts from protected `main`; hydrates only `data/posts.json` from `staging` |
+| No vault in CI                     | both workflows                | `--vault=/dev/null`; secrets only via `${{ secrets.NAME }}`                            |
 
 Controlled refusals (selection required, evidence gate fail) exit cleanly for the operator; hard failures (all sources down, model error, validation fail) fail the job.
 

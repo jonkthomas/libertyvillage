@@ -1,8 +1,18 @@
 import { notFound } from "next/navigation";
 import { getAllPosts, getPostBySlug } from "@/lib/data";
 import { generateBlogPostPageMeta } from "@/lib/meta";
-import { generateBlogPostSchema, generateSpeakableSchema } from "@/lib/schema";
-import { getRelatedPosts, getRelatedGuidesForPost, getRelatedServicesForPost, getBreadcrumbs, resolveCrossLinks } from "@/lib/links";
+import {
+  generateBlogPostSchema,
+  generateSpeakableSchema,
+  serializeJsonLd,
+} from "@/lib/schema";
+import {
+  getRelatedPosts,
+  getRelatedGuidesForPost,
+  getRelatedServicesForPost,
+  getBreadcrumbs,
+  resolveCrossLinks,
+} from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
@@ -53,37 +63,61 @@ export default async function BlogPostPage({ params }: Props) {
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-warm-400 mb-2">
         <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-medium text-amber-700">
-          {post.category.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+          {post.category
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, (c: string) => c.toUpperCase())}
         </span>
         <time dateTime={post.publishedAt}>
-          Published {new Date(post.publishedAt).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}
+          Published{" "}
+          {new Date(post.publishedAt).toLocaleDateString("en-CA", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })}
         </time>
         {post.updatedAt && post.updatedAt !== post.publishedAt && (
           <time dateTime={post.updatedAt} className="text-warm-500">
-            · Updated {new Date(post.updatedAt).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}
+            · Updated{" "}
+            {new Date(post.updatedAt).toLocaleDateString("en-CA", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
           </time>
         )}
       </div>
 
-      <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">{post.title}</h1>
+      <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
+        {post.title}
+      </h1>
       <p className="mt-3 text-lg text-warm-500">{post.description}</p>
 
       <p className="mt-4 text-sm text-warm-500">
         By{" "}
-        <a href="/about" className="font-medium text-warm-700 hover:text-amber-600 transition-colors">
+        <a
+          href="/about"
+          className="font-medium text-warm-700 hover:text-amber-600 transition-colors"
+        >
           {post.author}
-        </a>
-        {" "}— local residents covering Liberty Village since 2024.
+        </a>{" "}
+        — local residents covering Liberty Village since 2024.
       </p>
 
       <AnswerBlock>{post.answerBlock}</AnswerBlock>
 
-      {post.keyTakeaways.length > 0 && <KeyTakeaways items={post.keyTakeaways} />}
+      {post.keyTakeaways.length > 0 && (
+        <KeyTakeaways items={post.keyTakeaways} />
+      )}
 
       {post.tags.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
           {post.tags.map((tag) => (
-            <span key={tag} className="rounded-full border border-warm-200 px-3 py-1 text-xs text-warm-500">#{tag}</span>
+            <span
+              key={tag}
+              className="rounded-full border border-warm-200 px-3 py-1 text-xs text-warm-500"
+            >
+              #{tag}
+            </span>
           ))}
         </div>
       )}
@@ -117,11 +151,11 @@ export default async function BlogPostPage({ params }: Props) {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogPostSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(blogPostSchema) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(speakableSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(speakableSchema) }}
       />
     </div>
   );

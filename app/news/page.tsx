@@ -5,6 +5,7 @@ import { getNewsPosts } from "@/lib/data";
 import {
   generateCollectionPageSchema,
   generateBreadcrumbSchema,
+  serializeJsonLd,
 } from "@/lib/schema";
 import Breadcrumbs from "@/components/Breadcrumbs";
 
@@ -109,12 +110,12 @@ export default function NewsIndexPage() {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(collectionSchema) }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: serializeJsonLd(
             generateBreadcrumbSchema([
               { label: "Home", href: "/" },
               { label: "News", href: "/news" },

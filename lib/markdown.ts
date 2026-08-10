@@ -1,12 +1,31 @@
 type State = "default" | "paragraph" | "ul" | "ol" | "table";
 
+export function escapeHtml(value: string): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function isSafeMarkdownHref(value: string): boolean {
+  const href = String(value || "").trim();
+  if (/^\/(?!\/)/.test(href) || /^#[A-Za-z0-9_-]+$/.test(href)) return true;
+  return /^https?:\/\/[^\s]+$/i.test(href);
+}
+
 function processInline(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-warm-800">$1</strong>')
-    .replace(
-      /\[([^\]]+)\]\(\(?([^)]+?)\)?\)/g,
-      '<a href="$2" class="text-amber-700 underline hover:text-amber-900">$1</a>'
-    );
+  // Escape first; only the two Markdown constructs below may emit markup.
+  const escaped = escapeHtml(text);
+  return escaped
+    .replace(/\[([^\]]+)\]\(\(?([^)]+?)\)?\)/g, (_match, label, href) => {
+      const destination = String(href).trim();
+      return isSafeMarkdownHref(destination)
+        ? `<a href="${destination}" class="text-amber-700 underline hover:text-amber-900">${label}</a>`
+        : label;
+    })
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-warm-800">$1</strong>');
 }
 
 function parseTableRow(row: string): string[] {
@@ -22,20 +41,31 @@ function isTableSeparator(line: string): boolean {
 }
 
 function emitTable(rows: string[]): string {
-  if (rows.length < 2) return rows.map((r) => `<p class="text-warm-600 leading-relaxed mb-4">${processInline(r)}</p>`).join("\n");
+  if (rows.length < 2)
+    return rows
+      .map(
+        (r) =>
+          `<p class="text-warm-600 leading-relaxed mb-4">${processInline(r)}</p>`,
+      )
+      .join("\n");
 
   const headers = parseTableRow(rows[0]);
   const hasSeparator = isTableSeparator(rows[1]);
   const bodyStart = hasSeparator ? 2 : 1;
 
   const ths = headers
-    .map((h) => `<th class="px-4 py-2 text-left font-semibold text-warm-800 border-b border-warm-200 whitespace-nowrap">${processInline(h)}</th>`)
+    .map(
+      (h) =>
+        `<th class="px-4 py-2 text-left font-semibold text-warm-800 border-b border-warm-200 whitespace-nowrap">${processInline(h)}</th>`,
+    )
     .join("");
 
   const bodyRows = rows.slice(bodyStart).map((row, i) => {
     const cells = parseTableRow(row);
     const tds = cells
-      .map((c) => `<td class="px-4 py-2 text-warm-600">${processInline(c)}</td>`)
+      .map(
+        (c) => `<td class="px-4 py-2 text-warm-600">${processInline(c)}</td>`,
+      )
       .join("");
     return `<tr class="${i % 2 === 1 ? "bg-warm-50" : ""}">${tds}</tr>`;
   });
@@ -81,13 +111,17 @@ export function renderMarkdownContent(content: string): string {
     if (trimmed.startsWith("### ")) {
       closeBlock();
       const text = processInline(trimmed.slice(4));
-      html.push(`<h3 class="text-lg font-semibold text-warm-900 mt-6 mb-2">${text}</h3>`);
+      html.push(
+        `<h3 class="text-lg font-semibold text-warm-900 mt-6 mb-2">${text}</h3>`,
+      );
       continue;
     }
     if (trimmed.startsWith("## ")) {
       closeBlock();
       const text = processInline(trimmed.slice(3));
-      html.push(`<h2 class="text-xl font-semibold text-warm-900 mt-8 mb-3">${text}</h2>`);
+      html.push(
+        `<h2 class="text-xl font-semibold text-warm-900 mt-8 mb-3">${text}</h2>`,
+      );
       continue;
     }
 
@@ -121,7 +155,9 @@ export function renderMarkdownContent(content: string): string {
         html.push('<ul class="list-disc pl-6 space-y-1 mb-4 text-warm-600">');
         state = "ul";
       }
-      html.push(`<li class="leading-relaxed">${processInline(trimmed.slice(2))}</li>`);
+      html.push(
+        `<li class="leading-relaxed">${processInline(trimmed.slice(2))}</li>`,
+      );
       continue;
     }
 
@@ -130,10 +166,14 @@ export function renderMarkdownContent(content: string): string {
     if (olMatch) {
       if (state !== "ol") {
         closeBlock();
-        html.push('<ol class="list-decimal pl-6 space-y-1 mb-4 text-warm-600">');
+        html.push(
+          '<ol class="list-decimal pl-6 space-y-1 mb-4 text-warm-600">',
+        );
         state = "ol";
       }
-      html.push(`<li class="leading-relaxed">${processInline(olMatch[2])}</li>`);
+      html.push(
+        `<li class="leading-relaxed">${processInline(olMatch[2])}</li>`,
+      );
       continue;
     }
 
