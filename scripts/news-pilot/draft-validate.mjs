@@ -3,6 +3,9 @@
  * Fail closed — never treat a bad draft as publishable.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 export const DRAFT_VALIDATION_CONFIG = Object.freeze({
   maxQuoteWords: 25,
   requiredPostFields: Object.freeze([
@@ -81,10 +84,46 @@ export function enforceRunDates(post, newsArticleStructuredData, nowMs) {
 }
 
 /**
- * Explicit image absence handling. Never invent an image path.
- * @param {object|null|undefined} post
+ * Site-relative image path under /images/ with a real image extension.
+ * Rejects absolute URLs, path traversal, and non-image shapes.
+ * @param {string} image
  */
-export function normalizeDraftImageField(post) {
+export function isPlausibleLocalImagePath(image) {
+  const s = String(image || '').trim();
+  if (!s.startsWith('/images/')) return false;
+  if (s.includes('\\') || s.includes('\0') || s.includes('..')) return false;
+  if (/\s/.test(s)) return false;
+  if (!/^\/images\/[A-Za-z0-9][A-Za-z0-9/_-]*\.(?:jpe?g|png|webp|gif|avif)$/i.test(s)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Build an existence checker for local public image assets.
+ * @param {string} root repo root containing public/
+ */
+export function createLocalImageExists(root) {
+  const publicRoot = path.resolve(root, 'public');
+  return (imagePath) => {
+    if (!isPlausibleLocalImagePath(imagePath)) return false;
+    const abs = path.resolve(publicRoot, String(imagePath).replace(/^\//, ''));
+    if (abs !== publicRoot && !abs.startsWith(publicRoot + path.sep)) return false;
+    try {
+      return fs.existsSync(abs) && fs.statSync(abs).isFile();
+    } catch {
+      return false;
+    }
+  };
+}
+
+/**
+ * Explicit image absence handling. Never invent an image path.
+ * Fabricated or non-existent paths do NOT clear the human image gate.
+ * @param {object|null|undefined} post
+ * @param {{ imageExists?: (p: string) => boolean }} [opts]
+ */
+export function normalizeDraftImageField(post, opts = {}) {
   if (!post || typeof post !== 'object' || Array.isArray(post)) {
     return {
       post,
@@ -104,7 +143,30 @@ export function normalizeDraftImageField(post) {
       humanMustSupplyImage: true,
     };
   }
-  next.image = raw.trim();
+  const trimmed = raw.trim();
+  // Shape first — remote URLs and invented non-/images paths never count as present.
+  if (!isPlausibleLocalImagePath(trimmed)) {
+    next.image = null;
+    return {
+      post: next,
+      imageStatus: 'absent',
+      humanMustSupplyImage: true,
+      rejectedImage: trimmed,
+    };
+  }
+  // Existence: require a checker. If none provided, do not trust the path.
+  const verified =
+    typeof opts.imageExists === 'function' ? Boolean(opts.imageExists(trimmed)) : false;
+  if (!verified) {
+    next.image = null;
+    return {
+      post: next,
+      imageStatus: 'absent',
+      humanMustSupplyImage: true,
+      rejectedImage: trimmed,
+    };
+  }
+  next.image = trimmed;
   return {
     post: next,
     imageStatus: 'present',
@@ -173,7 +235,8 @@ export function extractQuotes(text) {
   // Only treat as a verbatim quote when quote chars wrap a span that looks like
   // spoken/written citation prose — not JSON string values (slug/title/FAQ fields).
   // We scan the markdown/prose body, so callers should pass content (not full JSON).
-  const patterns = [/"([^"\n]{3,400})"/g, /“([^”\n]{3,400})”/g];
+  // No upper bound: over-long quotes must be caught by the word cap, not skipped.
+  const patterns = [/"([^"\n]{3,})"/g, /“([^”\n]{3,})”/g];
   for (const re of patterns) {
     let m;
     while ((m = re.exec(s)) !== null) {
@@ -181,9 +244,6 @@ export function extractQuotes(text) {
       if (!q || q.startsWith('{') || q.includes('://')) continue;
       // Skip likely non-quotes: title-case single words, pure numbers, href leftovers.
       if (/^https?:/i.test(q)) continue;
-      // Multi-sentence explanatory blocks inside FAQs often get JSON-encoded with
-      // quotes when the whole draft JSON is scanned — require quote-like shape:
-      // either attributed dialogue cues nearby or short cited phrasing.
       out.push(q);
     }
   }
@@ -430,6 +490,7 @@ export function validateDraft({
   siteIndex,
   nowMs = null,
   repairWarnings = [],
+  imageExists = null,
   config = DRAFT_VALIDATION_CONFIG,
 }) {
   /** @type {{code:string,message:string,field?:string,detail?:unknown}[]} */
@@ -510,20 +571,34 @@ export function validateDraft({
   failures.push(...fmDateIssues);
 
   // Image: omit/null is correct (never fabricate), but blocks publish readiness.
-  const imageInfo = normalizeDraftImageField(post);
+  // Fabricated or non-existent paths are treated as absent and never clear the gate.
+  const imageInfo = normalizeDraftImageField(post, {
+    imageExists: typeof imageExists === 'function' ? imageExists : undefined,
+  });
   const imagePresent = imageInfo.imageStatus === 'present';
   checks.push({
     code: 'image_field',
     message: imagePresent
-      ? 'Image path present.'
-      : 'Image absent/null — human must supply image before publish (not fabricated).',
+      ? 'Image path present and verified on disk.'
+      : imageInfo.rejectedImage
+        ? 'Image path rejected (fabricated/unverified) — human must supply a real local asset.'
+        : 'Image absent/null — human must supply image before publish (not fabricated).',
     ok: true, // absence is not a content-validation failure
     detail: {
       imageStatus: imageInfo.imageStatus,
       humanMustSupplyImage: imageInfo.humanMustSupplyImage,
-      image: imagePresent ? post?.image : null,
+      image: imagePresent ? imageInfo.post?.image : null,
+      rejectedImage: imageInfo.rejectedImage || null,
     },
   });
+  if (imageInfo.rejectedImage) {
+    warnings.push({
+      code: 'image_path_rejected',
+      message: `Rejected unverified image path: ${imageInfo.rejectedImage}`,
+      field: 'image',
+      detail: { rejectedImage: imageInfo.rejectedImage },
+    });
+  }
   if (!imagePresent) {
     humanGates.push({
       code: 'image_required_for_publish',

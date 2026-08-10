@@ -41,6 +41,7 @@ import {
   repairInternalLinkFields,
   enforceRunDates,
   normalizeDraftImageField,
+  createLocalImageExists,
 } from './draft-validate.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -119,14 +120,13 @@ function stampFromMs(nowMs) {
   return new Date(nowMs).toISOString().replace(/[:.]/g, '-');
 }
 
-function ensureDraftOutDir(root, explicit, nowMs) {
+export function ensureDraftOutDir(root, explicit, nowMs) {
   const dir =
     explicit ||
     path.join(root, '.news-pilot', 'drafts', stampFromMs(nowMs));
-  fs.mkdirSync(dir, { recursive: true });
-  // Safety: refuse if someone aims at data/
   const resolved = path.resolve(dir);
   const dataDir = path.resolve(root, 'data');
+  // Safety: refuse BEFORE creating anything under data/.
   if (resolved === dataDir || resolved.startsWith(dataDir + path.sep)) {
     throw new Error('refusing_to_write_under_data/');
   }
@@ -134,6 +134,7 @@ function ensureDraftOutDir(root, explicit, nowMs) {
   if (resolved === postsPath) {
     throw new Error('refusing_to_write_posts_json');
   }
+  fs.mkdirSync(resolved, { recursive: true });
   return resolved;
 }
 
@@ -470,7 +471,8 @@ export async function runDraft(args, deps = {}) {
   }
 
   const repaired = repairInternalLinkFields(normalized.post, siteIndex);
-  const imageNorm = normalizeDraftImageField(repaired.post);
+  const imageExists = createLocalImageExists(root);
+  const imageNorm = normalizeDraftImageField(repaired.post, { imageExists });
   // Code-enforced run dates — model cannot backdate frontmatter to a source article date.
   const dated = enforceRunDates(
     imageNorm.post,
@@ -487,6 +489,7 @@ export async function runDraft(args, deps = {}) {
     siteIndex,
     nowMs,
     repairWarnings: repaired.warnings || [],
+    imageExists,
   });
   writeJson(path.join(outDir, 'validation-report.json'), validation);
   writeJson(path.join(outDir, 'draft.json'), {
