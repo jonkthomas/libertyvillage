@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseVaultEnvText } from './fetch.mjs';
+import { runDateIso } from './draft-validate.mjs';
 
 /**
  * Vault path comes only from env or an explicit --vault flag.
@@ -390,7 +391,7 @@ export async function resolveModelProvider(env = process.env, opts = {}) {
     ok: false,
     error: 'no_model_credential',
     message:
-      'No usable model API credential in process.env (checked KIMI_CODER_API_KEY, BYTEPLUS_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, VENICE_API_KEY).',
+      'No usable model API credential in process.env (checked ANTHROPIC_API_KEY, KIMI_CODER_API_KEY, BYTEPLUS_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, VENICE_API_KEY).',
     available,
   };
 }
@@ -410,7 +411,7 @@ export function buildDraftPrompt({
   nowMs,
   siteOrigin = 'https://libertyvillage.co',
 }) {
-  const today = new Date(nowMs).toISOString().slice(0, 10);
+  const today = runDateIso(nowMs);
   const evidenceForModel = {
     clusterId: evidencePack.clusterId,
     title: evidencePack.title,

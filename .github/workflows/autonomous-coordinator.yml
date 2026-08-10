@@ -55,7 +55,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
       - name: Verify merge ref contains the validated exact head
         env:
@@ -66,6 +66,7 @@ jobs:
       - run: npm run lint:changed
       - run: npm run build
       - run: npm run test:automation
+      - run: npm run test:news-pilot
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
@@ -108,7 +109,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
       - run: npm ci
       - name: Review untrusted PR diff as data with Opus gate
@@ -150,7 +151,13 @@ jobs:
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state "$STATE" --description "$DESCRIPTION"
 
   generator-fixer:
-    needs: [validate-generator, generator-ci, generator-review, generator-gate-status]
+    needs:
+      [
+        validate-generator,
+        generator-ci,
+        generator-review,
+        generator-gate-status,
+      ]
     if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed != 'true' && needs.validate-generator.outputs.can_repair == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -166,7 +173,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
       - run: npm ci
       - uses: actions/download-artifact@v4
@@ -265,7 +272,13 @@ jobs:
           if-no-files-found: error
 
   pass-generator:
-    needs: [validate-generator, generator-ci, generator-review, generator-gate-status]
+    needs:
+      [
+        validate-generator,
+        generator-ci,
+        generator-review,
+        generator-gate-status,
+      ]
     if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-ci.result == 'success' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -310,7 +323,17 @@ jobs:
         run: node scripts/automation/coordinator.mjs observe-and-promote --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
 
   block-generator:
-    needs: [validate-generator, generator-ci, generator-ci-status, generator-review, generator-gate-status, generator-fixer, apply-generator-repair, pass-generator]
+    needs:
+      [
+        validate-generator,
+        generator-ci,
+        generator-ci-status,
+        generator-review,
+        generator-gate-status,
+        generator-fixer,
+        apply-generator-repair,
+        pass-generator,
+      ]
     if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.pass-generator.result != 'success' && needs.apply-generator-repair.result != 'success' }}
     runs-on: ubuntu-latest
     permissions:
@@ -433,7 +456,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
       - name: Verify merge ref contains exact validated base and head
         env:
@@ -447,6 +470,7 @@ jobs:
       - run: npm run lint:changed
       - run: npm run build
       - run: npm run test:automation
+      - run: npm run test:news-pilot
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
@@ -470,7 +494,13 @@ jobs:
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --context automation/ci --state "$STATE" --description "Promotion merge-ref CI: $CI_RESULT"
 
   promotion-review:
-    needs: [validate-promotion, validate-promotion-pr, promotion-ci, promotion-ci-status]
+    needs:
+      [
+        validate-promotion,
+        validate-promotion-pr,
+        promotion-ci,
+        promotion-ci-status,
+      ]
     if: ${{ needs.validate-promotion-pr.outputs.trusted == 'true' && needs.promotion-ci.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -488,7 +518,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
       - run: npm ci
       - id: review
@@ -527,7 +557,14 @@ jobs:
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --context automation/opus-gate --state "$STATE" --description "$DESCRIPTION"
 
   pass-promotion:
-    needs: [validate-promotion, validate-promotion-pr, promotion-ci, promotion-review, promotion-gate-status]
+    needs:
+      [
+        validate-promotion,
+        validate-promotion-pr,
+        promotion-ci,
+        promotion-review,
+        promotion-gate-status,
+      ]
     if: ${{ needs.validate-promotion-pr.outputs.trusted == 'true' && needs.promotion-ci.result == 'success' && needs.promotion-review.outputs.review_ok == 'true' && needs.promotion-review.outputs.passed == 'true' }}
     runs-on: ubuntu-latest
     permissions:
@@ -557,7 +594,17 @@ jobs:
           if-no-files-found: error
 
   block-promotion:
-    needs: [validate-promotion, prepare-promotion, validate-promotion-pr, promotion-ci, promotion-ci-status, promotion-review, promotion-gate-status, pass-promotion]
+    needs:
+      [
+        validate-promotion,
+        prepare-promotion,
+        validate-promotion-pr,
+        promotion-ci,
+        promotion-ci-status,
+        promotion-review,
+        promotion-gate-status,
+        pass-promotion,
+      ]
     if: ${{ always() && needs.validate-promotion-pr.outputs.trusted == 'true' && needs.pass-promotion.result != 'success' }}
     runs-on: ubuntu-latest
     permissions:

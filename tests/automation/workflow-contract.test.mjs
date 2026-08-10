@@ -10,6 +10,21 @@ test('coordinator is dispatch-only and synthetic merge checkouts fetch parent hi
   assert.equal(mergeCheckouts.length, 2);
 });
 
+test('news-pilot safety regressions gate generator and promotion CI', () => {
+  const commands = workflow.match(/- run: npm run test:news-pilot/g) || [];
+  assert.equal(commands.length, 2, 'generator and promotion CI must both run news safety tests');
+  const generator = workflow.slice(
+    workflow.indexOf('  generator-ci:'),
+    workflow.indexOf('  generator-ci-status:'),
+  );
+  const promotion = workflow.slice(
+    workflow.indexOf('  promotion-ci:'),
+    workflow.indexOf('  promotion-ci-status:'),
+  );
+  assert.match(generator, /npm run test:news-pilot/);
+  assert.match(promotion, /npm run test:news-pilot/);
+});
+
 test('repair attempt is consumed before fixer push and redispatch', () => {
   const persist = workflow.indexOf('coordinator.mjs set-attempt');
   const push = workflow.indexOf('git push origin "HEAD:$HEAD_REF"');

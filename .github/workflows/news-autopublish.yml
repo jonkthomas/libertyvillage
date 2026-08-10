@@ -5,8 +5,9 @@ name: News Autopublish (rare + certain)
 # staging. Zero publishes is the expected success path most days.
 #
 # Does NOT:
-#   - commit directly to main
-#   - auto-merge to main
+#   - commit directly to staging or main
+#   - bypass the coordinator's exact-SHA staging gate or the separate cumulative
+#     staging-to-main promotion gate (both may native-auto-merge only after GO)
 #   - weaken discovery's read-only posture (discovery stays contents:read)
 #   - publish risk-flagged, single-source, imageless, or low-score stories
 #
@@ -32,7 +33,7 @@ on:
         description: "Optional model provider id"
         required: false
         type: string
-        default: "byteplus-ark"
+        default: "anthropic"
 
 concurrency:
   group: news-autopublish
@@ -124,6 +125,8 @@ jobs:
       - name: Run autonomous publish gate
         id: publish
         env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BYTEPLUS_API_KEY: ${{ secrets.BYTEPLUS_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -142,26 +145,46 @@ jobs:
           mkdir -p "$OUT_DIR"
           echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
 
-          args=(
-            --run="$RUN_DIR"
-            --out="$OUT_DIR"
-            --vault=/dev/null
-          )
+          # Concurrency serializes runs. Refuse another autonomous candidate while
+          # an earlier news PR is still pending, because that append is not yet
+          # visible in staging's posts ledger and could bypass the daily cap.
+          PENDING=$(gh pr list --base staging --state open --limit 100 --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("news/auto-"))] | length')
+          if [ "$PENDING" -gt 0 ]; then
+            node - "$OUT_DIR/result.json" <<'NODE'
+          const fs = require('node:fs');
+          const output = process.argv[2];
+          fs.writeFileSync(output, JSON.stringify({
+            ok: true,
+            exitCode: 0,
+            status: 'pending_autopublish_pr',
+            published: 0,
+            message: 'An earlier autonomous news PR is still open. Publishing zero is success.',
+          }, null, 2) + '\n');
+          NODE
+          else
+            args=(
+              --run="$RUN_DIR"
+              --out="$OUT_DIR"
+              --vault=/dev/null
+            )
 
-          if [ -n "${PREFER_MODEL// }" ]; then
-            args+=(--prefer-model="$PREFER_MODEL")
+            if [ -n "${PREFER_MODEL// }" ]; then
+              args+=(--prefer-model="$PREFER_MODEL")
+            fi
+
+            # workflow_run path is never a dry-run; workflow_dispatch honors the input.
+            if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ "${DRY_RUN}" = "true" ]; then
+              args+=(--dry-run)
+            fi
+
+            echo "Running: node scripts/news-pilot/publish.mjs --run=... (secrets not printed)"
+            set +e
+            node scripts/news-pilot/publish.mjs "${args[@]}"
+            code=$?
+            set -e
           fi
-
-          # workflow_run path is never a dry-run; workflow_dispatch honors the input.
-          if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ "${DRY_RUN}" = "true" ]; then
-            args+=(--dry-run)
-          fi
-
-          echo "Running: node scripts/news-pilot/publish.mjs --run=... (secrets not printed)"
-          set +e
-          node scripts/news-pilot/publish.mjs "${args[@]}"
-          code=$?
-          set -e
+          code=${code:-0}
           echo "publish_exit=$code" >> "$GITHUB_OUTPUT"
 
           if [ ! -f "$OUT_DIR/result.json" ]; then
@@ -169,9 +192,9 @@ jobs:
             exit 1
           fi
 
-          PUBLISHED=$(node -e 'const r=require(process.argv[1]); process.stdout.write(r.published===1?"true":"false")' "$OUT_DIR/result.json")
-          STATUS=$(node -e 'const r=require(process.argv[1]); process.stdout.write(String(r.status||""))' "$OUT_DIR/result.json")
-          SLUG=$(node -e 'const r=require(process.argv[1]); process.stdout.write(String(r.slug||""))' "$OUT_DIR/result.json")
+          PUBLISHED=$(node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(r.published===1?"true":"false")' "$OUT_DIR/result.json")
+          STATUS=$(node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(r.status||""))' "$OUT_DIR/result.json")
+          SLUG=$(node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(r.slug||""))' "$OUT_DIR/result.json")
           echo "published=${PUBLISHED}" >> "$GITHUB_OUTPUT"
           echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
           echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"

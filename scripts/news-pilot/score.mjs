@@ -831,9 +831,13 @@ export function reviewRankMetric(score, config = SCORE_CONFIG) {
   return total * (1 - w) + f * w;
 }
 
-/** @param {object} candidate @returns {string[]} */
-export function detectRiskFlags(candidate) {
-  const text = candidateText(candidate);
+/**
+ * @param {object} candidate
+ * @param {{ limit?: number }} [opts]
+ * @returns {string[]}
+ */
+export function detectRiskFlags(candidate, opts = {}) {
+  const text = candidateText(candidate, opts.limit ?? SCORE_CONFIG.textLimit);
   const flags = [];
   for (const p of RISK_PATTERNS) {
     if (p.re.test(text)) flags.push(p.flag);

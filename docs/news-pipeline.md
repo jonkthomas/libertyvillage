@@ -7,11 +7,11 @@ Human-gated hyperlocal news pipeline for Liberty Village. Discovery builds a **r
 
 ## What it does
 
-| Stage         | Trigger                                     | Output                                                                 | Writes site content?                                  |
-| ------------- | ------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
-| **Discovery** | Daily schedule + manual `workflow_dispatch` | `report.md`, `candidates.json`, `errors.json` (artifact + job summary) | **No** (reads `data/posts.json` read-only for dedupe) |
-| **Drafting**  | Manual `workflow_dispatch` only             | Draft bundle under `.news-pilot/drafts/` (artifact + job summary)      | **No**                                                |
-| **Autopublish** | After discovery (`workflow_run`) + manual | Optional single append to `data/posts.json` via PR into `staging`     | **Only if strict gate passes** (else zero = success) |
+| Stage           | Trigger                                     | Output                                                                 | Writes site content?                                  |
+| --------------- | ------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
+| **Discovery**   | Daily schedule + manual `workflow_dispatch` | `report.md`, `candidates.json`, `errors.json` (artifact + job summary) | **No** (reads `data/posts.json` read-only for dedupe) |
+| **Drafting**    | Manual `workflow_dispatch` only             | Draft bundle under `.news-pilot/drafts/` (artifact + job summary)      | **No**                                                |
+| **Autopublish** | After discovery (`workflow_run`) + manual   | Optional single append to `data/posts.json` via PR into `staging`      | **Only if strict gate passes** (else zero = success)  |
 
 Scripts (local or CI):
 
@@ -27,29 +27,25 @@ Workflows:
 
 ## Why most days still publish nothing
 
-1. **Precision is not high enough for the review queue.** ~6–7/10 review items are clearly publish-worthy. Publishing that band unattended would ship weak or wrong local news about real businesses and neighbours.
-2. **Autonomous publish is a separate, stricter gate.** It requires zero risk flags, official/primary **or** ≥2 independent substantive publishers, score ≥ **0.78** (above discovery `autoEligibleMin` 0.72), a verified image (draft path or neutral OG fallback `/images/og/og-home.jpg` — never fabricated), full `validateDraft` pass, non-duplicate coverage, not a concluded event, and **at most one** publish per day.
-3. **Images stay non-fabricated.** Autopublish never invents an event photo path. It either verifies a real local image from the draft or uses the neutral site OG asset.
-4. **Blast radius stays bounded.** Autopublish never commits to `main`, never auto-merges to main, and only opens a content PR into `staging` for the existing coordinator `news` kind + Opus gate.
+1. **The review queue is not the publish gate.** Roughly 6–7/10 review items are clearly publish-worthy, so that broad band remains human-only.
+2. **Autonomous eligibility is categorical.** It requires zero risk flags across discovery metadata **and fetched evidence bodies**; official/primary evidence or at least two substantive independent publisher domains; a real current event rather than a permit row, municipal landing page, video, listicle, or opinion; a verified existing image; non-duplicate coverage; full `validateDraft` success; and at most one publish per day. `score.total >= 0.42` is only a low review-queue sanity floor, not confidence.
+3. **Images stay non-fabricated.** Autopublish never invents an event-photo path. It verifies a real local asset and may use the existing neutral site OG asset when the story has no event-specific image.
+4. **The full path is autonomous but double-gated.** Autopublish itself only opens a content-only PR into `staging`. The trusted coordinator requires exact-SHA CI plus an independent Opus review before staging merge, then creates a cumulative `staging` → `main` promotion that receives a second exact-range CI/Opus review before native auto-merge. No workflow directly commits to either protected branch.
 
 Hard prohibitions that remain:
 
-- No auto-merge to **main**
-- No scheduled **drafting** of the human-gated workflow (discovery may trigger autopublish evaluation)
+- No direct commit to `staging` or `main`; publication must traverse both protected PR gates
+- No scheduled **drafting** of the human-gated workflow (discovery may trigger the separate strict autopublish evaluation)
 - No default pull-request creation from the **human draft** workflow
-- No weakening of evidence, SSRF, quote-cap, image-existence, or run-date gates
+- No weakening of evidence, SSRF, quote-cap, image-existence, or Toronto run-date gates
 - No branch-protection changes for this pipeline
 - Human draft path stays artifact-only
 
 ### Auto-publish bar justification
 
-Against real candidates in `.news-pilot/runs/`:
+A numeric threshold cannot separate real stories from database rows. Across real discovery artifacts, substantive Liberty Village stories score roughly 0.46–0.57 while raw AIC development-application records can exceed 0.78. Therefore `score.total` ranks the human queue but does not represent publication confidence.
 
-- `quality-9-v5-default` review reps top out ~0.61 (none clear 0.72 except development applications forced to review)
-- live `review-fix-live-20260810T143929Z`: 0 auto-eligible / 0 review
-- calibration rows ≥0.72 are almost entirely raw AIC development applications (excluded)
-
-So a bar of **0.78** plus source/risk/image/cap gates is expected to auto-publish **0** of a typical top-10 queue — rare and certain by design.
+The autonomous bar is instead the conjunction above. Calibration across historical runs produced roughly six distinct eligible stories while correctly excluding 40+ permit rows, municipal landing pages, video segments, single-source stories, crime/legal coverage, civic controversy, and concluded events. Zero publication remains a normal and successful result.
 
 ## Required GitHub Actions secrets (names only)
 
@@ -68,8 +64,9 @@ At least **one** model credential must be present for generation (not needed for
 
 | Secret name          | Purpose                                              |
 | -------------------- | ---------------------------------------------------- |
-| `BYTEPLUS_API_KEY`   | Preferred CI default (`prefer_model=byteplus-ark`)   |
-| `DEEPSEEK_API_KEY`   | Optional fallback provider                           |
+| `ANTHROPIC_API_KEY`  | Preferred CI default (`prefer_model=anthropic`)      |
+| `BYTEPLUS_API_KEY`   | Optional credential fallback (`byteplus-ark`)        |
+| `DEEPSEEK_API_KEY`   | Optional credential fallback                         |
 | `OPENAI_API_KEY`     | Optional fallback provider                           |
 | `GOOGLE_API_KEY`     | Optional Gemini fallback                             |
 | `VENICE_API_KEY`     | Optional fallback provider                           |
@@ -165,7 +162,7 @@ npm run test:news-pilot
 2. Actions → **News Draft (human-gated)** → Run workflow
    - `discovery_run_id` (required)
    - `cluster_id` **or** `rank` (required human selection)
-   - optional `prefer_model` (default `byteplus-ark`)
+   - optional `prefer_model` (default `anthropic`)
    - optional `skip_generate`
 3. Read the job **Summary** for gate + validation + human gates (especially missing image).
 4. Download artifact `news-draft-<run_id>`.
@@ -212,25 +209,25 @@ Treat **auto-eligible + review** as the queue a human skims. Do not auto-publish
 
 Controlled refusals (selection required, evidence gate fail) exit cleanly for the operator; hard failures (all sources down, model error, validation fail) fail the job.
 
-## Criteria before anyone considers relaxing the human gate
+## Autonomous activation decision and ongoing controls
 
-Do **not** enable auto-merge, scheduled drafting, or `data/posts.json` writes until **all** of the following are true and re-reviewed:
+The broad discovery queue and manual draft workflow remain human-gated. The separate strict autopublish path was explicitly approved for activation on **2026-08-10**, subject to all of these controls remaining true:
 
-1. **Precision:** sustained ≥ ~9/10 review-queue items clearly publish-worthy on blind human audit across multiple weeks (not a single lucky run).
-2. **Recall policy:** explicit product decision on missed civic stories vs. spam risk, documented and accepted.
-3. **Image policy:** automated image acquisition that is rights-safe, non-fabricated, and validated — or a proven path that never ships without an image.
-4. **Evidence regressions:** eval suite covering hallucination, date stamping, internal links, duplicate/follow-up handling, and source failures — maintained by a maker≠checker process.
-5. **Operational ownership:** on-call human still reviews a sample; kill switch documented; no silent widening of permissions (`contents: write`, PR bots, coordinator dispatch).
-6. **Separate sign-off:** a fresh independent review explicitly approves autonomous publishing (this doc’s human-gated sign-off is **not** that approval).
+1. **Precision boundary:** only the categorical strict gate may publish; discovery `auto-eligible` and `review` labels never authorize publication.
+2. **Recall policy:** missing a story is preferable to publishing uncertain local claims; zero publications is expected and successful.
+3. **Image policy:** every emitted image path must resolve to an existing repository asset; model-invented paths are rejected.
+4. **Evidence regressions:** tests cover source failures, evidence-body risk detection, dates, links, duplicates/follow-ups, images, atomic append, daily cap, and content-only workflow boundaries.
+5. **Operational ownership:** branch protections, workflow cancellation, audit artifacts, and the human draft path remain available; permissions may not widen silently.
+6. **Separate sign-off:** every content PR and cumulative promotion requires an exact-SHA/range independent Opus gate with score ≥8 and zero high/critical findings.
 
-Until then: **discovery proposes, humans dispose, drafts remain proposals.**
+If any control fails, the run must publish zero and remain blocked. The kill switch is disabling `.github/workflows/news-autopublish.yml`; discovery and manual drafting continue independently.
 
 ## Permissions quick reference
 
-| Workflow             | Job permissions                   |
-| -------------------- | --------------------------------- |
-| `news-discovery.yml`   | `contents: read`                                             |
-| `news-draft.yml`       | `contents: read`, `actions: read`                            |
+| Workflow               | Job permissions                                                 |
+| ---------------------- | --------------------------------------------------------------- |
+| `news-discovery.yml`   | `contents: read`                                                |
+| `news-draft.yml`       | `contents: read`, `actions: read`                               |
 | `news-autopublish.yml` | job: `contents: write`, `pull-requests: write`, `actions: read` |
 
 Discovery and human draft stay read-only. Only autopublish may open a staging PR (posts.json only) and dispatch coordinator kind `news`.
