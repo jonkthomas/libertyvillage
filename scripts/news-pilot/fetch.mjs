@@ -4,6 +4,10 @@
  */
 
 import { CKAN_DEV_APPS } from './sources.mjs';
+import {
+  assertSafePublicHttpUrl,
+  URL_GUARD_DEFAULTS,
+} from './url-guard.mjs';
 
 export const FETCH_DEFAULTS = Object.freeze({
   timeoutMs: 20_000,
@@ -154,21 +158,25 @@ function sleep(ms) {
 }
 
 /**
- * @param {string} url
- * @param {object} opts
- */
-/**
  * Optional public-HTTP host guard used by evidence fetches.
  * Discovery sources use known endpoints and leave this off.
+ * Delegates to the shared url-guard (lexical + DNS). Kept for callers/tests.
  * @param {string} candidateUrl
- * @param {(url: string) => boolean} [isBlocked]
+ * @param {object|(url: string) => boolean|Promise<boolean>} [isBlockedOrOpts]
+ *   When a function, treated as an extra lexical predicate (in addition to the
+ *   shared guard). When an object, passed through to assertSafePublicHttpUrl.
  */
-export function assertPublicHttpUrl(candidateUrl, isBlocked) {
-  if (typeof isBlocked === 'function' && isBlocked(candidateUrl)) {
-    const err = new Error('unusable_url');
-    err.code = 'unusable_url';
-    throw err;
+export async function assertPublicHttpUrl(candidateUrl, isBlockedOrOpts) {
+  if (typeof isBlockedOrOpts === 'function') {
+    if (await isBlockedOrOpts(candidateUrl)) {
+      const err = new Error('unusable_url');
+      err.code = 'unusable_url';
+      throw err;
+    }
+    await assertSafePublicHttpUrl(candidateUrl);
+    return true;
   }
+  await assertSafePublicHttpUrl(candidateUrl, isBlockedOrOpts || {});
   return true;
 }
 
@@ -184,43 +192,40 @@ export async function fetchWithRetry(url, opts = {}) {
     budget,
     sourceId = null,
     guardPublicHttp = false,
+    // Optional extra lexical predicate; DNS resolution always uses url-guard.
     isBlockedUrl = null,
     maxRedirects = 5,
+    dnsLookup = null,
+    dnsTimeoutMs = URL_GUARD_DEFAULTS.dnsTimeoutMs,
   } = opts;
 
   let lastError = null;
   let attempts = 0;
   let currentUrl = String(url || '');
 
-  const blocked =
-    typeof isBlockedUrl === 'function'
-      ? isBlockedUrl
-      : guardPublicHttp
-        ? (u) => {
-            // Lazy import avoided — inline lightweight private-host check for redirects.
-            // Evidence path also pre-filters via draft-evidence isUnusableUrl.
-            try {
-              const parsed = new URL(String(u || ''));
-              if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return true;
-              const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
-              if (!host || host === 'localhost' || host.endsWith('.localhost')) return true;
-              if (host === '127.0.0.1' || host === '0.0.0.0' || host === '::1') return true;
-              if (host.endsWith('.local') || host.endsWith('.internal')) return true;
-              if (host === 'metadata.google.internal') return true;
-              if (/^10\.\d+\.\d+\.\d+$/.test(host)) return true;
-              if (/^192\.168\.\d+\.\d+$/.test(host)) return true;
-              if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(host)) return true;
-              if (/^169\.254\.\d+\.\d+$/.test(host)) return true;
-              return false;
-            } catch {
-              return true;
-            }
-          }
-        : null;
+  const guardOpts = {
+    lookup: typeof dnsLookup === 'function' ? dnsLookup : undefined,
+    dnsTimeoutMs,
+  };
 
-  if (blocked) {
+  /**
+   * One guard path: shared url-guard (lexical + DNS). Optional isBlockedUrl is an
+   * extra lexical filter only and cannot weaken the shared implementation.
+   * @param {string} candidate
+   */
+  const assertGuardedUrl = async (candidate) => {
+    if (typeof isBlockedUrl === 'function' && (await isBlockedUrl(candidate))) {
+      const err = new Error('unusable_url');
+      err.code = 'unusable_url';
+      throw err;
+    }
+    // Always the shared implementation — no weaker inline fallback copy.
+    await assertSafePublicHttpUrl(candidate, guardOpts);
+  };
+
+  if (guardPublicHttp) {
     try {
-      assertPublicHttpUrl(currentUrl, blocked);
+      await assertGuardedUrl(currentUrl);
     } catch (e) {
       return {
         ok: false,
@@ -264,13 +269,14 @@ export async function fetchWithRetry(url, opts = {}) {
         },
         body,
         signal: controller.signal,
-        redirect: blocked ? 'manual' : 'follow',
+        redirect: guardPublicHttp ? 'manual' : 'follow',
       });
 
       // Manually walk redirects when guarding public HTTP hosts.
+      // Re-resolve + re-check every hop (lexical + DNS).
       let redirects = 0;
       while (
-        blocked &&
+        guardPublicHttp &&
         res.status >= 300 &&
         res.status < 400 &&
         res.headers.get('location')
@@ -289,7 +295,7 @@ export async function fetchWithRetry(url, opts = {}) {
         }
         const next = new URL(res.headers.get('location'), currentUrl).toString();
         try {
-          assertPublicHttpUrl(next, blocked);
+          await assertGuardedUrl(next);
         } catch (e) {
           return {
             ok: false,
@@ -705,10 +711,6 @@ async function fetchCkanDevApps(source, { budget, timeoutMs, maxRetries, base })
     if (ckanUsed + 1 > ckanCap) {
       errors.push({ error: 'ckan_budget_cap_reached', filters: job.filters });
       break;
-    }
-    // Stop before starting a job that cannot cover its retry budget from reservation.
-    if (reservedLeft < perJobBudget && reservedLeft < poolLeft) {
-      // still allow a final partial job if at least 1 remains
     }
     if (reservedLeft <= 0) {
       errors.push({ error: 'request_budget_exceeded', filters: job.filters });
