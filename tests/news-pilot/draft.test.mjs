@@ -40,6 +40,11 @@ import {
   FETCH_DEFAULTS,
   fetchWithRetry,
 } from '../../scripts/news-pilot/fetch.mjs';
+import {
+  isBlockedPublicHttpUrl,
+  isPrivateOrLocalIp,
+  ipv4MappedToDotted,
+} from '../../scripts/news-pilot/url-guard.mjs';
 import { ensureRunOutDir, reserveSourceBudgets } from '../../scripts/news-pilot/run.mjs';
 import { CKAN_DEV_APPS } from '../../scripts/news-pilot/sources.mjs';
 
@@ -1193,10 +1198,23 @@ test('finding10: private/loopback evidence URLs are blocked before fetchFn', asy
     'http://10.0.0.5/internal',
     'http://[::1]/status',
     'file:///etc/passwd',
+    // Reviewer probe: WHATWG serializes [::ffff:127.0.0.1] → ::ffff:7f00:1
+    'http://[::ffff:127.0.0.1]/',
+    'http://[::ffff:7f00:1]/',
+    'http://[::ffff:192.168.0.1]/',
+    'http://[::ffff:c0a8:1]/',
+    'http://[::ffff:0a00:1]/', // 10.0.0.1
+    'http://[::ffff:a9fe:a9fe]/', // 169.254.169.254
   ]) {
     assert.equal(isUnusableUrl(bad), true, `expected unusable: ${bad}`);
   }
   assert.equal(isUnusableUrl('https://example.com/story'), false);
+  assert.equal(isUnusableUrl('http://[::ffff:0808:0808]/'), false, 'public IPv4-mapped must remain allowed lexically');
+
+  assert.equal(ipv4MappedToDotted('::ffff:7f00:1'), '127.0.0.1');
+  assert.equal(ipv4MappedToDotted('::ffff:c0a8:101'), '192.168.1.1');
+  assert.equal(isPrivateOrLocalIp('::ffff:7f00:1'), true);
+  assert.equal(isPrivateOrLocalIp('::ffff:0808:0808'), false);
 
   let fetched = [];
   const rep = baseMember({
@@ -1218,6 +1236,26 @@ test('finding10: private/loopback evidence URLs are blocked before fetchFn', asy
   assert.equal(pack.sources[0].fetchError, 'unusable_url');
   assert.equal(pack.sources[0].urlUsable, false);
   assert.equal(pack.sources[0].bodyExcerpt, '');
+
+  // Mapped IPv6 loopback must also be blocked before fetchFn.
+  fetched = [];
+  const mappedRep = baseMember({
+    url: 'http://[::ffff:127.0.0.1]/secret',
+    canonicalUrl: 'http://[::ffff:127.0.0.1]/secret',
+    publisherDomain: '::ffff:7f00:1',
+  });
+  const mappedPack = await buildEvidencePack({
+    representative: mappedRep,
+    members: [mappedRep],
+    clusterId: 'c-ssrf-mapped',
+    nowMs: NOW,
+    fetchFn: async (url) => {
+      fetched.push(url);
+      return { ok: true, status: 200, rawText: '<html><body>should not run</body></html>' };
+    },
+  });
+  assert.deepEqual(fetched, [], 'fetchFn must not be called for IPv4-mapped loopback');
+  assert.equal(mappedPack.sources[0].urlUsable, false);
 
   // Redirect onto private host is rejected when guardPublicHttp is on.
   const redirectFetch = async (url, init = {}) => {
@@ -1241,6 +1279,11 @@ test('finding10: private/loopback evidence URLs are blocked before fetchFn', asy
       maxRetries: 0,
       guardPublicHttp: true,
       isBlockedUrl: isUnusableUrl,
+      // example.com must resolve public for the initial hop under the DNS guard.
+      dnsLookup: async (hostname) => {
+        if (hostname === 'example.com') return [{ address: '93.184.216.34', family: 4 }];
+        throw new Error(`unexpected dns for ${hostname}`);
+      },
       timeoutMs: 500,
     });
     assert.equal(res.ok, false);
@@ -1248,6 +1291,147 @@ test('finding10: private/loopback evidence URLs are blocked before fetchFn', asy
       res.errorCode === 'unusable_url' || res.errorCode === 'unsafe_redirect' || /unusable_url/.test(res.error || ''),
       `expected unsafe redirect rejection, got ${res.errorCode}:${res.error}`,
     );
+  } finally {
+    globalThis.fetch = prev;
+  }
+});
+
+test('finding10b: DNS-resolved private hosts and failures are blocked (offline resolver)', async () => {
+  const privateLookup = async (hostname) => {
+    if (hostname === 'private.example.test') {
+      return [{ address: '127.0.0.1', family: 4 }];
+    }
+    if (hostname === 'mixed.example.test') {
+      return [
+        { address: '93.184.216.34', family: 4 },
+        { address: '10.0.0.5', family: 4 },
+      ];
+    }
+    if (hostname === 'public.example.test') {
+      return [{ address: '93.184.216.34', family: 4 }];
+    }
+    if (hostname === 'fail.example.test') {
+      const err = new Error('ENOTFOUND');
+      err.code = 'ENOTFOUND';
+      throw err;
+    }
+    if (hostname === 'hang.example.test') {
+      return new Promise(() => {});
+    }
+    throw new Error(`unexpected dns hostname ${hostname}`);
+  };
+
+  assert.equal(
+    await isBlockedPublicHttpUrl('http://private.example.test/x', { lookup: privateLookup }),
+    true,
+    'hostname resolving to loopback must block',
+  );
+  assert.equal(
+    await isBlockedPublicHttpUrl('http://mixed.example.test/x', { lookup: privateLookup }),
+    true,
+    'any private address among results must block',
+  );
+  assert.equal(
+    await isBlockedPublicHttpUrl('http://public.example.test/story', { lookup: privateLookup }),
+    false,
+    'hostname resolving only to public IP must allow',
+  );
+  assert.equal(
+    await isBlockedPublicHttpUrl('http://fail.example.test/x', { lookup: privateLookup }),
+    true,
+    'DNS failure must fail closed (block)',
+  );
+  assert.equal(
+    await isBlockedPublicHttpUrl('http://hang.example.test/x', {
+      lookup: privateLookup,
+      dnsTimeoutMs: 40,
+    }),
+    true,
+    'DNS timeout must fail closed (block)',
+  );
+
+  // fetchWithRetry must not call network for private-resolving names.
+  const prev = globalThis.fetch;
+  let networkHits = 0;
+  globalThis.fetch = async (url) => {
+    networkHits += 1;
+    throw new Error(`network should not run for ${url}`);
+  };
+  try {
+    const blocked = await fetchWithRetry('http://private.example.test/secret', {
+      maxRetries: 0,
+      guardPublicHttp: true,
+      dnsLookup: privateLookup,
+      timeoutMs: 200,
+    });
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.errorCode, 'unusable_url');
+    assert.equal(networkHits, 0, 'blocked before fetch');
+
+    const allowedProbe = await fetchWithRetry('http://public.example.test/ok', {
+      maxRetries: 0,
+      guardPublicHttp: true,
+      dnsLookup: privateLookup,
+      timeoutMs: 200,
+    });
+    // Allowed past the guard; our stub fetch throws → network_error proves guard passed.
+    assert.equal(allowedProbe.ok, false);
+    assert.equal(allowedProbe.errorCode, 'network_error');
+    assert.equal(networkHits, 1, 'public-resolving host reaches fetch');
+
+    const dnsFail = await fetchWithRetry('http://fail.example.test/x', {
+      maxRetries: 0,
+      guardPublicHttp: true,
+      dnsLookup: privateLookup,
+      timeoutMs: 200,
+    });
+    assert.equal(dnsFail.ok, false);
+    assert.equal(dnsFail.errorCode, 'unusable_url');
+  } finally {
+    globalThis.fetch = prev;
+  }
+
+  // Redirect hop to a hostname that resolves private must be blocked (re-resolve hop).
+  const redirectLookup = async (hostname) => {
+    if (hostname === 'public.example.test') {
+      return [{ address: '93.184.216.34', family: 4 }];
+    }
+    if (hostname === 'evil-private.example.test') {
+      return [{ address: '192.168.9.9', family: 4 }];
+    }
+    throw new Error(`unexpected dns hostname ${hostname}`);
+  };
+  const seen = [];
+  globalThis.fetch = async (url) => {
+    seen.push(String(url));
+    if (String(url).includes('public.example.test/start')) {
+      return {
+        ok: false,
+        status: 302,
+        headers: {
+          get: (h) =>
+            String(h).toLowerCase() === 'location'
+              ? 'http://evil-private.example.test/pwn'
+              : null,
+        },
+        text: async () => '',
+      };
+    }
+    throw new Error(`should not follow redirect to ${url}`);
+  };
+  try {
+    const res = await fetchWithRetry('http://public.example.test/start', {
+      maxRetries: 0,
+      guardPublicHttp: true,
+      dnsLookup: redirectLookup,
+      timeoutMs: 500,
+    });
+    assert.equal(res.ok, false);
+    assert.ok(
+      res.errorCode === 'unusable_url' || res.errorCode === 'unsafe_redirect',
+      `expected redirect DNS block, got ${res.errorCode}:${res.error}`,
+    );
+    assert.deepEqual(seen, ['http://public.example.test/start']);
   } finally {
     globalThis.fetch = prev;
   }
