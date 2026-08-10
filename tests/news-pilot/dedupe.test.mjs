@@ -644,7 +644,15 @@ test('incidental 34 Hanna body mention does not suppress park project (real post
 });
 
 test('park competition stories survive incidental 34 Hanna body mentions', () => {
-  const posts = extractPostIndex(JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'posts.json'), 'utf8')));
+  const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'posts.json'), 'utf8'));
+  const records = Array.isArray(raw) ? raw : raw.posts;
+  // This regression isolates incidental address mentions. Once an actual Hanna
+  // park article exists (including the autonomous PR under test), duplicate is
+  // the correct product result and must not invalidate this unrelated scenario.
+  const withoutDedicatedHannaPark = records.filter(
+    (post) => !/\b(?:hanna.*park|park.*hanna)\b/i.test(`${post.slug || ''} ${post.title || ''}`),
+  );
+  const posts = extractPostIndex(withoutDedicatedHannaPark);
   const nowMs = Date.parse('2026-08-08T18:00:00.000Z');
 
   const shortlist = cand({
