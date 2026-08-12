@@ -1,63 +1,105 @@
 {
-  "collectedAt": "2026-08-05T00:00:00.000Z",
+  "collectedAt": "2026-08-12T00:00:00.000Z",
   "gsc": {
-    "searchAnalytics": [
+    "searchAnalytics": {
+      "topQueries": [
+        {
+          "query": "goodlife liberty village",
+          "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
+          "clicks": 2,
+          "impressions": 123,
+          "ctr": 0.016,
+          "position": 6.18
+        },
+        {
+          "query": "jukebox printing",
+          "page": "https://libertyvillage.co/directory/jukebox-print",
+          "clicks": 2,
+          "impressions": 25,
+          "ctr": 0.08,
+          "position": 7.68
+        },
+        {
+          "query": "happy hour liberty village",
+          "page": "https://libertyvillage.co/guide/happy-hour-guide",
+          "clicks": 2,
+          "impressions": 14,
+          "ctr": 0.14,
+          "position": 6.14
+        },
+        {
+          "query": "liberty village farmers market",
+          "page": "https://libertyvillage.co/guide/farmers-market",
+          "clicks": 2,
+          "impressions": 9,
+          "ctr": 0.22,
+          "position": 1.78
+        }
+      ],
+      "totalRows": 100
+    },
+    "quickWins": [
       {
-        "query": "liberty village happy hour",
-        "page": "https://libertyvillage.co/guide/happy-hour-guide",
-        "clicks": 2,
-        "impressions": 13,
-        "ctr": 0.154,
-        "position": 6.2
+        "query": "jukebox print",
+        "page": "https://libertyvillage.co/directory/jukebox-print",
+        "currentPosition": 6.3,
+        "impressions": 115,
+        "currentClicks": 0,
+        "opportunity": "High"
       },
       {
         "query": "goodlife liberty village",
         "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
-        "clicks": 1,
-        "impressions": 221,
-        "ctr": 0.005,
-        "position": 6.6
+        "currentPosition": 6.2,
+        "impressions": 123,
+        "currentClicks": 2,
+        "opportunity": "High"
       },
       {
-        "query": "altea liberty village reviews",
-        "clicks": 0,
-        "impressions": 8,
-        "ctr": 0,
-        "position": 8.75
-      }
-    ],
-    "quickWins": [
-      {
-        "query": "goodlife liberty village",
-        "impressions": 221,
-        "position": 6.6,
+        "query": "kat nail studio",
+        "page": "https://libertyvillage.co/blog/nail-salons-liberty-village-complete-guide-2026",
+        "currentPosition": 9.8,
+        "impressions": 73,
         "opportunity": "High"
       }
     ],
     "sitemapStatus": {
       "submitted": 307,
-      "indexed": 0
+      "indexed": 0,
+      "lastSubmitted": "2026-05-30T16:27:40.360Z"
     }
   },
   "ga4": {
     "trafficByPage": [
       {
+        "pagePath": "/",
+        "sessions": 590,
+        "bounceRate": 0.58,
+        "pageViews": 601
+      },
+      {
+        "pagePath": "/best/restaurants",
+        "sessions": 441,
+        "bounceRate": 0.44,
+        "pageViews": 615
+      },
+      {
+        "pagePath": "/directory/mildreds-temple-kitchen",
+        "sessions": 257,
+        "bounceRate": 0.42,
+        "pageViews": 354
+      },
+      {
+        "pagePath": "/vs/king-west",
+        "sessions": 224,
+        "bounceRate": 0.39,
+        "pageViews": 318
+      },
+      {
         "pagePath": "/guide/parking-guide",
-        "sessions": 15,
-        "bounceRate": 0.6,
-        "screenPageViews": 16
-      },
-      {
-        "pagePath": "/best/gyms",
-        "sessions": 7,
-        "bounceRate": 0.57,
-        "screenPageViews": 8
-      },
-      {
-        "pagePath": "/blog/dog-owners-guide-liberty-village",
-        "sessions": 7,
-        "bounceRate": 0.57,
-        "screenPageViews": 8
+        "sessions": 131,
+        "bounceRate": 0.69,
+        "pageViews": 131
       }
     ]
   }
