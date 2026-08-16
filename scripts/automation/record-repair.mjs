@@ -13,8 +13,8 @@ import { RECORD_REPAIR_RULES, POSTS_FILE, recordRepairRules, validateRecordRepai
 export { POSTS_FILE };
 export const RECORD_FILES = Object.freeze(Object.keys(RECORD_REPAIR_RULES));
 export const RECORD_REPAIR_PLAN_TYPE = 'record-repair';
-export const RECORD_REPAIR_MAX_BYTES = 60_000;
-export const MAX_REPAIRED_RECORDS = 10;
+export const RECORD_REPAIR_MAX_BYTES = 200_000;
+export const MAX_REPAIRED_RECORDS = 25;
 
 export function isRecordFile(file) {
   return RECORD_FILES.includes(file);

@@ -118,7 +118,7 @@ test('diffs appended and modified records by slug in each file and rejects malfo
   assert.equal(diffRecordsBySlug(BUSINESSES_FILE, BUSINESSES_BASE, `${JSON.stringify([OLD_BUSINESS, NEW_BUSINESS])}\n`).ok, false, 'non-canonical head must fail closed');
   assert.equal(readRecordFile(serializeRecords([NEW_TOPIC, NEW_TOPIC]), TOPICS_FILE, 'head').ok, false, 'duplicate slugs must fail closed');
   const budget = diffRecordsBySlug(POSTS_FILE, POSTS_BASE, serializeRecords([
-    OLD_POST, OLD_POST_TWO, ...Array.from({ length: 11 }, (_, index) => makePost(`extra-${index}`)),
+    OLD_POST, OLD_POST_TWO, ...Array.from({ length: 30 }, (_, index) => makePost(`extra-${index}`)),
   ]));
   assert.equal(budget.ok, false);
   assert.match(budget.errors.join('; '), /changed record budget exceeded/);
@@ -202,7 +202,7 @@ test('rejects structural, no-op, budget, and out-of-scope repairs', () => {
     [plan([{ file: BUSINESSES_FILE, records: [entry(NEW_BUSINESS.slug, makeBusiness(NEW_BUSINESS.slug))] }]), /at least one repairable field/],
     [plan([{ file: POSTS_FILE, records: [entry(NEW_POST.slug, makePost(NEW_POST.slug, { content: 'x'.repeat(RECORD_REPAIR_MAX_BYTES) }))] }]), /byte budget exceeded/],
     [plan([]), /must contain 1-3 files/],
-    [plan([{ file: POSTS_FILE, records: [] }]), /must contain 1-10 records/],
+    [plan([{ file: POSTS_FILE, records: [] }]), /must contain 1-25 records/],
     [plan([{ file: POSTS_FILE, records: [entry(NEW_POST.slug, fixedPost)] }], ''), /reason is required/],
     [plan([{ file: 'data/services.json', records: [entry('x', { slug: 'x' })] }]), /per-record repair does not cover: data\/services\.json/],
     [plan([
