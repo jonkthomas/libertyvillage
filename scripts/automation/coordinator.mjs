@@ -5,11 +5,14 @@ import { execFileSync } from 'node:child_process';
 import {
   FIXER_MODEL, GATE_MODEL, MAX_REPAIRS, STATUS_CONTEXTS,
 } from './constants.mjs';
-import { github, paged, writeOutput } from './github.mjs';
+import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
 import {
-  evaluateGeneratorBase, evaluateObservedMerge, isExactSha, validatePromotionRange, validatePullRequest,
-  validateRepairPlan,
+  evaluateGeneratorBase, evaluateObservedMerge, filterRepairablePaths, isExactSha, isTextRepairPath,
+  validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
 } from './policy.mjs';
+import {
+  applyPostRepairPlan, isPostRepairPlan, isPostsOnlyRepair, POSTS_FILE, readPostsFile,
+} from './post-repair.mjs';
 
 function parseArgs() {
   const values = {};
@@ -145,6 +148,47 @@ async function audit(options) {
   writeOutput({ comment_created: 'true' });
 }
 
+function repairTarget(file) {
+  const root = fs.realpathSync(process.cwd());
+  const target = path.resolve(root, file);
+  if (!target.startsWith(`${root}${path.sep}`)) throw new Error(`repair escaped checkout: ${file}`);
+  const stat = fs.lstatSync(target);
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`repair target must be a regular file: ${file}`);
+  return target;
+}
+
+function changedFiles() {
+  return execFileSync('git', ['diff', '--name-only'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+}
+
+// Per-post repair of data/posts.json: the plan carries only the posts the PR
+// appended or modified, so the whole-file byte budget never applies. Every other
+// guard the whole-file path uses is enforced here against the trusted base/head.
+async function applyPostFix(options, { plan, files, baseRef }) {
+  if (!isPostsOnlyRepair(filterRepairablePaths(options.kind, files))) {
+    throw new Error(`per-post repair requires ${POSTS_FILE} to be the only repairable path`);
+  }
+  const baseSha = await mergeBaseSha(options.repo, baseRef, options.sha);
+  try { execFileSync('git', ['merge-base', '--is-ancestor', baseSha, options.sha], { stdio: 'ignore' }); }
+  catch { throw new Error('resolved merge base is not an ancestor of the validated head'); }
+  const baseText = execFileSync('git', ['show', `${baseSha}:${POSTS_FILE}`], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const target = repairTarget(POSTS_FILE);
+  const headText = fs.readFileSync(target, 'utf8');
+  const applied = applyPostRepairPlan(options.kind, plan, { changedFiles: files, baseText, headText });
+  if (!applied.ok) throw new Error(`repair rejected before write: ${applied.errors.join('; ')}`);
+  fs.writeFileSync(target, applied.text);
+  const changed = changedFiles();
+  if (changed.length !== 1 || changed[0] !== POSTS_FILE) throw new Error('repair changed a file outside its validated plan');
+  const paths = validatePaths(options.kind, changed, { repair: true });
+  if (!paths.ok || !changed.every(isTextRepairPath)) throw new Error(`repair rejected after write: ${[...paths.errors, 'non-text repair target'].join('; ')}`);
+  const written = fs.readFileSync(target, 'utf8');
+  if (written !== applied.text) throw new Error('repair rejected after write: file content does not match the validated splice');
+  const verified = readPostsFile(written, 'repaired');
+  if (!verified.ok) throw new Error(`repair rejected after write: ${verified.errors.join('; ')}`);
+  writeOutput({ changed_files: changed.length });
+  console.log(`Validated per-post repair diff (1 file, ${applied.bytes} bytes, posts ${applied.slugs.join(', ')}).`);
+}
+
 async function applyFix(options) {
   requireOptions(options, ['repo', 'pr', 'kind', 'sha', 'plan']);
   const current = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -153,17 +197,14 @@ async function applyFix(options) {
   const livePr = await github(`/repos/${options.repo}/pulls/${options.pr}`);
   if (livePr.state !== 'open' || livePr.head.sha !== options.sha) throw new Error('PR became stale before repair application');
   const files = (await paged(`/repos/${options.repo}/pulls/${options.pr}/files`)).map((file) => file.filename);
+  if (isPostRepairPlan(plan)) {
+    await applyPostFix(options, { plan, files, baseRef: livePr.base.ref });
+    return;
+  }
   const valid = validateRepairPlan(options.kind, plan, files);
   if (!valid.ok) throw new Error(`repair rejected before write: ${valid.errors.join('; ')}`);
-  const root = fs.realpathSync(process.cwd());
-  for (const edit of plan.edits) {
-    const target = path.resolve(root, edit.path);
-    if (!target.startsWith(`${root}${path.sep}`)) throw new Error(`repair escaped checkout: ${edit.path}`);
-    const stat = fs.lstatSync(target);
-    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`repair target must be a regular file: ${edit.path}`);
-    fs.writeFileSync(target, edit.content);
-  }
-  const changed = execFileSync('git', ['diff', '--name-only'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+  for (const edit of plan.edits) fs.writeFileSync(repairTarget(edit.path), edit.content);
+  const changed = changedFiles();
   const post = validateRepairPlan(options.kind, { edits: changed.map((file) => ({ path: file, content: fs.readFileSync(file, 'utf8'), reason: 'post-write validation' })) }, files);
   if (!post.ok) throw new Error(`repair rejected after write: ${post.errors.join('; ')}`);
   if (changed.some((file) => !valid.paths.includes(file))) throw new Error('repair changed a file outside its validated plan');
