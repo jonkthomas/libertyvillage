@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { isExactSha } from './policy.mjs';
 
 const API = process.env.GITHUB_API_URL || 'https://api.github.com';
 
@@ -37,6 +38,13 @@ export async function paged(path) {
     if (result.length < 100) return values;
   }
   throw new Error(`pagination limit exceeded for ${path}`);
+}
+
+export async function mergeBaseSha(repo, baseRef, sha) {
+  const comparison = await github(`/repos/${repo}/compare/${encodeURIComponent(baseRef)}...${sha}`);
+  const baseSha = comparison?.merge_base_commit?.sha;
+  if (!isExactSha(baseSha)) throw new Error('cannot resolve an exact merge base for the PR head');
+  return baseSha;
 }
 
 export function writeOutput(values) {
