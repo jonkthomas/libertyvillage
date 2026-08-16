@@ -11,8 +11,8 @@ import {
   validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
 } from './policy.mjs';
 import {
-  applyPostRepairPlan, isPostRepairPlan, isPostsOnlyRepair, POSTS_FILE, readPostsFile,
-} from './post-repair.mjs';
+  applyRecordRepairPlan, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
+} from './record-repair.mjs';
 
 function parseArgs() {
   const values = {};
@@ -161,32 +161,49 @@ function changedFiles() {
   return execFileSync('git', ['diff', '--name-only'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
 }
 
-// Per-post repair of data/posts.json: the plan carries only the posts the PR
-// appended or modified, so the whole-file byte budget never applies. Every other
-// guard the whole-file path uses is enforced here against the trusted base/head.
-async function applyPostFix(options, { plan, files, baseRef }) {
-  if (!isPostsOnlyRepair(filterRepairablePaths(options.kind, files))) {
-    throw new Error(`per-post repair requires ${POSTS_FILE} to be the only repairable path`);
+// Per-record repair of the monolithic slug-keyed data files: the plan carries only
+// the records the PR appended or modified, so the whole-file byte budget never
+// applies. Every other guard the whole-file path uses is enforced here against the
+// trusted base/head.
+async function applyRecordFix(options, { plan, files, baseRef }) {
+  const { recordFiles } = partitionRepairFiles(filterRepairablePaths(options.kind, files));
+  const planned = plan.files.map((entry) => entry?.file);
+  if (recordFiles.length === 0 || planned.some((file) => !recordFiles.includes(file))) {
+    throw new Error(`per-record repair may only target repairable record files: ${recordFiles.join(', ') || 'none'}`);
   }
   const baseSha = await mergeBaseSha(options.repo, baseRef, options.sha);
   try { execFileSync('git', ['merge-base', '--is-ancestor', baseSha, options.sha], { stdio: 'ignore' }); }
   catch { throw new Error('resolved merge base is not an ancestor of the validated head'); }
-  const baseText = execFileSync('git', ['show', `${baseSha}:${POSTS_FILE}`], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
-  const target = repairTarget(POSTS_FILE);
-  const headText = fs.readFileSync(target, 'utf8');
-  const applied = applyPostRepairPlan(options.kind, plan, { changedFiles: files, baseText, headText });
+  const sources = {};
+  const targets = new Map();
+  for (const file of planned) {
+    const target = repairTarget(file);
+    targets.set(file, target);
+    sources[file] = {
+      baseText: execFileSync('git', ['show', `${baseSha}:${file}`], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }),
+      headText: fs.readFileSync(target, 'utf8'),
+    };
+  }
+  const applied = applyRecordRepairPlan(options.kind, plan, { changedFiles: files, sources });
   if (!applied.ok) throw new Error(`repair rejected before write: ${applied.errors.join('; ')}`);
-  fs.writeFileSync(target, applied.text);
+  for (const result of applied.results) fs.writeFileSync(targets.get(result.file), result.text);
   const changed = changedFiles();
-  if (changed.length !== 1 || changed[0] !== POSTS_FILE) throw new Error('repair changed a file outside its validated plan');
+  const expected = new Set(applied.files);
+  if (changed.length !== expected.size || changed.some((file) => !expected.has(file))) {
+    throw new Error('repair changed a file outside its validated plan');
+  }
   const paths = validatePaths(options.kind, changed, { repair: true });
   if (!paths.ok || !changed.every(isTextRepairPath)) throw new Error(`repair rejected after write: ${[...paths.errors, 'non-text repair target'].join('; ')}`);
-  const written = fs.readFileSync(target, 'utf8');
-  if (written !== applied.text) throw new Error('repair rejected after write: file content does not match the validated splice');
-  const verified = readPostsFile(written, 'repaired');
-  if (!verified.ok) throw new Error(`repair rejected after write: ${verified.errors.join('; ')}`);
+  for (const result of applied.results) {
+    const written = fs.readFileSync(targets.get(result.file), 'utf8');
+    if (written !== result.text) throw new Error(`repair rejected after write: ${result.file} does not match the validated splice`);
+    const verified = readRecordFile(written, result.file, 'repaired');
+    if (!verified.ok) throw new Error(`repair rejected after write: ${verified.errors.join('; ')}`);
+  }
+  const bytes = applied.results.reduce((sum, result) => sum + result.bytes, 0);
+  const summary = applied.results.map((result) => `${result.file} [${result.slugs.join(', ')}]`).join('; ');
   writeOutput({ changed_files: changed.length });
-  console.log(`Validated per-post repair diff (1 file, ${applied.bytes} bytes, posts ${applied.slugs.join(', ')}).`);
+  console.log(`Validated per-record repair diff (${changed.length} file(s), ${bytes} bytes, ${summary}).`);
 }
 
 async function applyFix(options) {
@@ -197,8 +214,9 @@ async function applyFix(options) {
   const livePr = await github(`/repos/${options.repo}/pulls/${options.pr}`);
   if (livePr.state !== 'open' || livePr.head.sha !== options.sha) throw new Error('PR became stale before repair application');
   const files = (await paged(`/repos/${options.repo}/pulls/${options.pr}/files`)).map((file) => file.filename);
-  if (isPostRepairPlan(plan)) {
-    await applyPostFix(options, { plan, files, baseRef: livePr.base.ref });
+  if (isRecordRepairPlan(plan)) {
+    if (!Array.isArray(plan.files) || plan.files.length === 0) throw new Error('record repair plan must contain files');
+    await applyRecordFix(options, { plan, files, baseRef: livePr.base.ref });
     return;
   }
   const valid = validateRepairPlan(options.kind, plan, files);
