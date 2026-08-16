@@ -56,7 +56,7 @@ const RECORD_REPAIR_SCHEMA = {
 
 // One extra fixer attempt, re-prompted with the exact validation errors, so a plan
 // rejected for touching an immutable field regenerates instead of failing the run.
-const MAX_FIXER_ATTEMPTS = 2;
+const MAX_FIXER_ATTEMPTS = 4;
 
 const LENSES = {
   seo: [
