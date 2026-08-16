@@ -160,7 +160,7 @@ jobs:
       ]
     if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed != 'true' && needs.validate-generator.outputs.can_repair == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: read
