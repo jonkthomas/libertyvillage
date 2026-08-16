@@ -158,7 +158,9 @@ export async function runPreflight(args, deps = {}) {
       const repairPath = path.join(outDir, `repair-${attempts}.json`);
       writeJson(postPath, currentPost);
       const plan = await (deps.fix || defaultFix)({ root, postPath, verdictPath, repairPath, env: childEnv() });
-      const repairedPost = plan?.post;
+      const entry = Array.isArray(plan?.posts) && plan.posts.length === 1 ? plan.posts[0] : null;
+      if (entry?.slug !== args.slug) return block('repair plan did not target the drafted post', { verdict });
+      const repairedPost = entry.post;
       const repairCheck = validatePostRepair(currentPost, repairedPost);
       if (!repairCheck.ok) return block(`invalid repair: ${repairCheck.errors.join('; ')}`, { verdict });
       const candidatePosts = [...baselinePosts, repairedPost];

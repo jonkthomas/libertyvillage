@@ -70,7 +70,7 @@ test('one repair is deterministically revalidated and re-reviewed to GO', async 
     hashObject: () => (hashes++ === 0 ? 'a' : 'd').repeat(40),
     hashBaseline: () => 'b'.repeat(40),
     review: ({ contentSha }) => verdict(contentSha, ++reviews === 1 ? 7 : 9),
-    fix: () => ({ post: { ...post, content: `Grounded repair ${++fixes}` }, reason: 'repair' }),
+    fix: () => ({ posts: [{ slug: post.slug, post: { ...post, content: `Grounded repair ${++fixes}` } }], reason: 'repair' }),
     validateDraft: () => ({ ok: true, publishReady: true, failures: [], humanGates: [] }),
     evaluatePublishReadyDraft: () => ({ ok: true }),
     loadSiteLinkIndex: () => ({ postSlugs: new Set([post.slug]) }),
@@ -93,7 +93,7 @@ test('three repairs without GO consume one shared budget and restore baseline', 
   const f = fixture(); let fixes = 0;
   const result = await runPreflight(f.args, {
     diff: () => 'diff', hashObject: () => 'a'.repeat(40), hashBaseline: () => 'b'.repeat(40), review: ({ contentSha }) => verdict(contentSha, 7),
-    fix: () => ({ post: { ...post, content: `Repair ${++fixes}` }, reason: 'repair' }),
+    fix: () => ({ posts: [{ slug: post.slug, post: { ...post, content: `Repair ${++fixes}` } }], reason: 'repair' }),
     validateDraft: () => ({ ok: true, publishReady: true, failures: [] }), evaluatePublishReadyDraft: () => ({ ok: true }),
     loadSiteLinkIndex: () => ({}), imageExists: () => true, writeOutput: () => {}, clock: () => Date.parse('2026-08-10T16:00:00Z'),
   });
@@ -109,7 +109,7 @@ test('immutable repair is rejected before write and reviewer failure is hard', a
   const f = fixture();
   const blocked = await runPreflight(f.args, {
     diff: () => 'diff', hashObject: () => 'a'.repeat(40), hashBaseline: () => 'b'.repeat(40), review: ({ contentSha }) => verdict(contentSha, 7),
-    fix: () => ({ post: { ...post, slug: 'changed', content: 'Repair' }, reason: 'repair' }),
+    fix: () => ({ posts: [{ slug: post.slug, post: { ...post, slug: 'changed', content: 'Repair' } }], reason: 'repair' }),
     writeOutput: () => {}, clock: () => Date.parse('2026-08-10T16:00:00Z'),
   });
   assert.equal(blocked.exitCode, 0); assert.equal(blocked.repairs_used, 1);
