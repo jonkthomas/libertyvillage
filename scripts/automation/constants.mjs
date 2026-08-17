@@ -42,7 +42,12 @@ const GENERATOR_POLICIES = {
   business: {
     base: 'staging',
     headPrefixes: ['auto/business-discovery'],
-    allowedPaths: ['data/businesses.json', 'public/images/businesses/', 'tasks/discovery-runs/'],
+    // discovery-seen.json is the append-only registry the generator writes so
+    // curated-out records are never re-discovered; it ships in the same PR.
+    allowedPaths: [
+      'data/businesses.json', 'data/discovery-seen.json',
+      'public/images/businesses/', 'tasks/discovery-runs/',
+    ],
     repairablePaths: ['data/businesses.json'],
     maxFiles: 20,
     maxRepairBytes: 300_000,

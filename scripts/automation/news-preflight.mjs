@@ -10,6 +10,7 @@ import { validateDraft, createLocalImageExists } from '../news-pilot/draft-valid
 import { AUTO_PUBLISH_CONFIG, evaluatePublishReadyDraft } from '../news-pilot/publish-gate.mjs';
 import { FIXER_MODEL, GATE_MODEL, MAX_REPAIRS, SCORE_THRESHOLD, BLOCKING_SEVERITIES } from './constants.mjs';
 import { writeOutput } from './github.mjs';
+import { planRecordEntries, POSTS_FILE } from './record-repair.mjs';
 import { assertAppendOnlyPostsChange, preflightDecision, validatePostRepair } from './preflight.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -158,7 +159,10 @@ export async function runPreflight(args, deps = {}) {
       const repairPath = path.join(outDir, `repair-${attempts}.json`);
       writeJson(postPath, currentPost);
       const plan = await (deps.fix || defaultFix)({ root, postPath, verdictPath, repairPath, env: childEnv() });
-      const repairedPost = plan?.post;
+      const entries = planRecordEntries(plan, POSTS_FILE);
+      const entry = entries.length === 1 ? entries[0] : null;
+      if (entry?.slug !== args.slug) return block('repair plan did not target the drafted post', { verdict });
+      const repairedPost = entry.record;
       const repairCheck = validatePostRepair(currentPost, repairedPost);
       if (!repairCheck.ok) return block(`invalid repair: ${repairCheck.errors.join('; ')}`, { verdict });
       const candidatePosts = [...baselinePosts, repairedPost];

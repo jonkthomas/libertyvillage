@@ -17,6 +17,10 @@ export function isExactSha(value) {
   return typeof value === 'string' && SHA_PATTERN.test(value);
 }
 
+export function isTextRepairPath(file) {
+  return typeof file === 'string' && TEXT_FILE_PATTERN.test(file);
+}
+
 export function normalizeRepoPath(value) {
   if (typeof value !== 'string' || value.length === 0 || value.includes('\\') || /[\0\r\n]/.test(value)) return null;
   if (value.startsWith('/') || value.split('/').some((part) => part === '..' || part === '')) return null;
@@ -152,7 +156,7 @@ export function validateRepairPlan(kind, plan, changedFiles) {
   let bytes = 0;
   for (const [index, edit] of plan.edits.entries()) {
     if (!changed.has(edit?.path)) errors.push(`repair may only touch an existing PR diff path: ${edit?.path}`);
-    if (typeof edit?.path !== 'string' || !TEXT_FILE_PATTERN.test(edit.path)) errors.push(`repair target must be a text file: ${edit?.path}`);
+    if (!isTextRepairPath(edit?.path)) errors.push(`repair target must be a text file: ${edit?.path}`);
     if (typeof edit?.content !== 'string') errors.push(`edit ${index} content must be a string`);
     else bytes += Buffer.byteLength(edit.content);
     if (typeof edit?.reason !== 'string' || !edit.reason.trim()) errors.push(`edit ${index} reason is required`);
