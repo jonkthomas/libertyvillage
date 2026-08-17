@@ -148,7 +148,7 @@ test('fetchImage returns the existing image without overwriting it', async () =>
 test('PR #57 replay: no duplicate survives the directory + seeded registry', () => {
   const existing = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'businesses.json'), 'utf8'));
   const registry = readSeenRegistry(path.join(ROOT, 'data', 'discovery-seen.json'));
-  assert.ok(Object.keys(registry).length >= existing.length, 'registry covers at least the live directory');
+  for (const b of existing) assert.ok(registry[norm(b.name)], `live record missing from registry: ${b.name}`);
 
   const state = buildDedupeState(existing, registry);
   const accepted = [];
