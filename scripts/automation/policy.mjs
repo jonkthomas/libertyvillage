@@ -5,6 +5,7 @@ import {
   FORBIDDEN_PATHS,
   GATE_MODEL,
   KIND_POLICIES,
+  MAX_HEALS,
   MAX_REPAIRS,
   SCORE_THRESHOLD,
   TRUSTED_PR_AUTHORS,
@@ -74,6 +75,29 @@ export function canRepair(attempt) {
   return Number.isInteger(attempt) && attempt >= 0 && attempt < MAX_REPAIRS;
 }
 
+export const HEAL_LABEL_PREFIX = 'automation-heal-';
+
+export function healLabel(attempt) {
+  return `${HEAL_LABEL_PREFIX}${attempt}`;
+}
+
+// Same single-controlled-label lifecycle as the repair series, on its own budget.
+export function readHealAttempt(labels) {
+  if (!Array.isArray(labels)) throw new Error('labels must be an array');
+  const values = labels
+    .map((label) => (typeof label === 'string' ? label : label?.name))
+    .filter((name) => /^automation-heal-\d+$/.test(name || ''))
+    .map((name) => Number(name.slice(HEAL_LABEL_PREFIX.length)));
+  if (values.length > 1) throw new Error('multiple controlled heal labels found');
+  const attempt = values[0] ?? 0;
+  if (!Number.isInteger(attempt) || attempt < 0 || attempt > MAX_HEALS) throw new Error(`invalid heal attempt: ${attempt}`);
+  return attempt;
+}
+
+export function canHeal(attempt) {
+  return Number.isInteger(attempt) && attempt >= 0 && attempt < MAX_HEALS;
+}
+
 export function validatePullRequest({ repository, kind, expectedSha, pr, files }) {
   const policy = KIND_POLICIES[kind];
   const errors = [];
@@ -94,7 +118,9 @@ export function validatePullRequest({ repository, kind, expectedSha, pr, files }
   errors.push(...pathResult.errors);
   let attempt = 0;
   try { attempt = readRepairAttempt(pr?.labels || []); } catch (error) { errors.push(error.message); }
-  return { ok: errors.length === 0, errors, attempt };
+  let healAttempt = 0;
+  try { healAttempt = readHealAttempt(pr?.labels || []); } catch (error) { errors.push(error.message); }
+  return { ok: errors.length === 0, errors, attempt, healAttempt };
 }
 
 export function evaluateVerdict(raw, expectedSha) {
