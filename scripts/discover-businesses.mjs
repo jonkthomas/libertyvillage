@@ -3,11 +3,12 @@
  * Weekly Liberty Village business discovery.
  *
  * Queries Google Maps (via SerpApi) across the directory's service categories,
- * dedupes against the existing data/businesses.json, filters to the Liberty
- * Village geo-box + a quality bar, and appends up to MAX_NEW new basic
- * directory records. A GitHub Action runs this weekly and opens a PR with the
- * additions; records can then be enriched (descriptions are intentionally
- * templated here so the deterministic job never hallucinates facts).
+ * dedupes against the existing data/businesses.json plus the append-only
+ * data/discovery-seen.json registry, filters to the Liberty Village geo-box +
+ * a quality bar, and appends up to MAX_NEW new basic directory records. A
+ * GitHub Action runs this weekly and opens a PR with the additions; records can
+ * then be enriched (descriptions are intentionally templated here so the
+ * deterministic job never hallucinates facts).
  *
  * Env: SERPAPI_API_KEY (required), PEXELS_API_KEY (optional - adds a
  *      category-matched stock hero image per new business).
@@ -15,16 +16,13 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const API_KEY = process.env.SERPAPI_API_KEY;
 const PEXELS_KEY = process.env.PEXELS_API_KEY;
 // Pexels' WAF 403s the default Node/urllib UA; a browser UA is required.
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-if (!API_KEY) {
-  console.error("ERROR: SERPAPI_API_KEY env var is required.");
-  process.exit(1);
-}
 
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry");
@@ -67,9 +65,15 @@ const CATEGORY_QUERIES = {
 
 const ROOT = process.cwd();
 const DATA = path.join(ROOT, "data", "businesses.json");
+// Append-only "we have discovered this before" registry. Deliberately a
+// separate file from businesses.json: records get curated out of the directory
+// (PR #8 removed 86 of them), and a dedupe set built only from the current
+// directory re-discovers every removed business on the next run (PR #57).
+const SEEN_REGISTRY = path.join(ROOT, "data", "discovery-seen.json");
+const IMAGE_DIR = path.join(ROOT, "public", "images", "businesses");
 
-const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-const slugify = (s) =>
+export const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+export const slugify = (s) =>
   (s || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -79,6 +83,60 @@ const inLV = (lat, lng) =>
   lat != null && lng != null && lat >= BOX.latMin && lat <= BOX.latMax && lng >= BOX.lngMin && lng <= BOX.lngMax;
 const lvCore = (b) => /M6K/.test(b.address || "") || /liberty/i.test((b.address || "") + (b.name || ""));
 const priceRange = (p) => (typeof p === "string" && /\$/.test(p) ? p.match(/\$+/)[0] : "$$");
+
+// { <normalized business name>: <first-seen YYYY-MM-DD> }. Missing/corrupt file
+// degrades to an empty registry so a bad read can never crash the weekly run.
+export function readSeenRegistry(file = SEEN_REGISTRY) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+// Append-only: an existing entry keeps its original first-seen date, and no key
+// is ever removed. Written sorted so weekly PR diffs stay reviewable.
+export function appendSeenRegistry(names, date, file = SEEN_REGISTRY) {
+  const registry = readSeenRegistry(file);
+  for (const name of names) {
+    const key = norm(name);
+    if (key && !registry[key]) registry[key] = date;
+  }
+  const sorted = Object.fromEntries(Object.keys(registry).sort().map((k) => [k, registry[k]]));
+  fs.writeFileSync(file, JSON.stringify(sorted, null, 2) + "\n");
+  return sorted;
+}
+
+// Dedupe set = current directory UNION every name ever discovered. The registry
+// half is what survives a record being deleted from businesses.json.
+export function buildDedupeState(existing, registry = {}) {
+  return {
+    haveName: new Set([...existing.map((b) => norm(b.name)), ...Object.keys(registry)]),
+    haveAddr: new Set(existing.map((b) => norm(b.address).slice(0, 25))),
+    haveSlug: new Set(existing.map((b) => b.slug)),
+    seen: new Set(),
+  };
+}
+
+export function isDuplicate(state, { name, address }) {
+  const nn = norm(name);
+  return state.haveName.has(nn) || state.haveAddr.has(norm(address).slice(0, 25)) || state.seen.has(nn);
+}
+
+// A slug collision means we already have this business, so skip it. Suffixing
+// (`-2`, `-3`) is what turned re-discovered records into visible duplicates.
+export function selectBatch(found, state, max) {
+  const batch = [];
+  for (const rec of found) {
+    if (batch.length >= max) break;
+    if (state.haveSlug.has(rec.slug)) continue;
+    state.haveSlug.add(rec.slug);
+    batch.push(rec);
+  }
+  return batch;
+}
 
 async function maps(query) {
   const url =
@@ -107,7 +165,10 @@ const PEXELS_QUERY = {
 
 // Fetch a category-matched landscape image from Pexels, download to public/images/businesses/<slug>.jpg.
 // Returns the public path, or "" on any failure (records stay blank-image, which renders fine).
-async function fetchImage(slug, category) {
+// An existing file already belongs to this slug; overwriting it would silently
+// re-skin a live directory record on every re-discovery.
+export async function fetchImage(slug, category, dir = IMAGE_DIR) {
+  if (fs.existsSync(path.join(dir, `${slug}.jpg`))) return `/images/businesses/${slug}.jpg`;
   if (!PEXELS_KEY) return "";
   const query = PEXELS_QUERY[category] || "toronto small business storefront";
   try {
@@ -124,7 +185,6 @@ async function fetchImage(slug, category) {
     if (!img.ok) return "";
     const buf = Buffer.from(await img.arrayBuffer());
     if (buf.length < 5000) return "";
-    const dir = path.join(ROOT, "public", "images", "businesses");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${slug}.jpg`), buf);
     return `/images/businesses/${slug}.jpg`;
@@ -175,13 +235,16 @@ function toRecord(x, categorySlug) {
 }
 
 async function main() {
+  if (!API_KEY) {
+    console.error("ERROR: SERPAPI_API_KEY env var is required.");
+    process.exit(1);
+  }
   const existing = JSON.parse(fs.readFileSync(DATA, "utf8"));
-  const haveName = new Set(existing.map((b) => norm(b.name)));
-  const haveAddr = new Set(existing.map((b) => norm(b.address).slice(0, 25)));
-  const haveSlug = new Set(existing.map((b) => b.slug));
+  const registry = readSeenRegistry();
+  const state = buildDedupeState(existing, registry);
+  console.log(`Dedupe set: ${existing.length} directory records + ${Object.keys(registry).length} registry names.`);
 
   const found = [];
-  const seen = new Set();
   for (const [query, slug] of Object.entries(CATEGORY_QUERIES)) {
     let results = [];
     try {
@@ -192,29 +255,18 @@ async function main() {
     }
     for (const x of results) {
       const gc = x.gps_coordinates || {};
-      const nn = norm(x.title);
-      const ak = norm(x.address).slice(0, 25);
       if (!inLV(gc.latitude, gc.longitude)) continue;
       if (!lvCore({ name: x.title, address: x.address })) continue;
       if ((x.rating ?? 0) < MIN_RATING || (x.reviews ?? 0) < MIN_REVIEWS) continue;
-      if (haveName.has(nn) || haveAddr.has(ak) || seen.has(nn)) continue;
-      seen.add(nn);
+      if (isDuplicate(state, { name: x.title, address: x.address })) continue;
+      state.seen.add(norm(x.title));
       found.push(toRecord(x, slug));
     }
     await new Promise((r) => setTimeout(r, 300));
   }
 
   found.sort((a, b) => b.reviewCount - a.reviewCount);
-  const batch = [];
-  for (const rec of found) {
-    if (batch.length >= MAX_NEW) break;
-    let s = rec.slug;
-    let n = 2;
-    while (haveSlug.has(s)) s = `${rec.slug}-${n++}`;
-    rec.slug = s;
-    haveSlug.add(s);
-    batch.push(rec);
-  }
+  const batch = selectBatch(found, state, MAX_NEW);
 
   if (!DRY && PEXELS_KEY) {
     for (const rec of batch) {
@@ -237,6 +289,7 @@ async function main() {
   }
 
   fs.writeFileSync(DATA, JSON.stringify([...existing, ...batch], null, 2) + "\n");
+  appendSeenRegistry(batch.map((b) => b.name), date);
   fs.mkdirSync(path.join(ROOT, "tasks", "discovery-runs"), { recursive: true });
   fs.writeFileSync(
     path.join(ROOT, "tasks", "discovery-runs", `${date}.json`),
@@ -247,7 +300,19 @@ async function main() {
   console.log(`Wrote ${batch.length} new businesses to data/businesses.json.`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// realpath both sides so a symlinked invocation path still runs the script.
+function isEntrypoint() {
+  try {
+    return Boolean(process.argv[1]) &&
+      fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntrypoint()) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
