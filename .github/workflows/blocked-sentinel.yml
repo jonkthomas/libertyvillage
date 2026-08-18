@@ -1,0 +1,42 @@
+name: Blocked automation PR sentinel
+
+# Read-only daily sweep: any PR the autonomous gate labelled automation-blocked and
+# nobody has touched for more than 24h gets one Slack line. No repository writes,
+# no auto-close — a blocked PR always waits for a human.
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: blocked-sentinel
+  cancel-in-progress: false
+
+jobs:
+  sentinel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Checkout trusted sentinel tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: List blocked PRs that have gone stale
+        id: scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/blocked-sentinel.mjs --repo "$GITHUB_REPOSITORY"
+      - name: Notify Slack once when configured
+        if: ${{ steps.scan.outputs.stale_count != '0' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_TEXT: ${{ steps.scan.outputs.slack_text }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
+          jq -n --arg text "$SLACK_TEXT" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
+          echo "Slack notified."

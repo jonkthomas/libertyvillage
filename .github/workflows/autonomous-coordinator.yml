@@ -27,6 +27,8 @@ jobs:
       head_ref: ${{ steps.validate.outputs.head_ref }}
       attempt: ${{ steps.validate.outputs.attempt }}
       can_repair: ${{ steps.validate.outputs.can_repair }}
+      heal_attempt: ${{ steps.validate.outputs.heal_attempt }}
+      can_heal: ${{ steps.validate.outputs.can_heal }}
     steps:
       - name: Checkout trusted coordinator tooling from main
         uses: actions/checkout@v4
@@ -89,6 +91,72 @@ jobs:
         run: |
           STATE=failure; [ "$CI_RESULT" = success ] && STATE=success
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/ci --state "$STATE" --description "Synthetic merge CI: $CI_RESULT"
+
+  # Residual stuck mode: staging advanced into the same monolithic data file as an
+  # open generator PR, so refs/pull/N/merge is frozen and generator-ci cannot even
+  # assert its exact head. Merge staging in for the branch, resolve only
+  # both-appended record conflicts, and redispatch the exact healed SHA. Any other
+  # shape falls through to block-generator untouched.
+  heal-generator-base:
+    needs: [validate-generator, generator-ci, generator-ci-status]
+    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.generator-ci.result == 'failure' && needs.validate-generator.outputs.can_heal == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout trusted coordinator tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - name: Checkout validated PR head without executing it
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-generator.outputs.head_sha }}
+          path: work
+          fetch-depth: 0
+      - name: Merge staging and resolve only both-appended record conflicts
+        id: heal
+        working-directory: work
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ../trusted/scripts/automation/coordinator.mjs heal-generator-base --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
+      - name: Recheck exact remote head and persist next heal attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ needs.validate-generator.outputs.head_ref }}
+          EXPECTED_SHA: ${{ needs.validate-generator.outputs.head_sha }}
+          NEXT_HEAL: ${{ steps.heal.outputs.next_heal }}
+        run: |
+          REMOTE_SHA=$(git -C work ls-remote origin "refs/heads/$HEAD_REF" | cut -f1)
+          [ "$REMOTE_SHA" = "$EXPECTED_SHA" ] || { echo "::error::PR head raced; refusing heal"; exit 1; }
+          node trusted/scripts/automation/coordinator.mjs set-heal --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --heal "$NEXT_HEAL"
+      - name: Recheck exact remote head and push the merge without force
+        working-directory: work
+        env:
+          HEAD_REF: ${{ needs.validate-generator.outputs.head_ref }}
+          EXPECTED_SHA: ${{ needs.validate-generator.outputs.head_sha }}
+        run: |
+          REMOTE_SHA=$(git ls-remote origin "refs/heads/$HEAD_REF" | cut -f1)
+          [ "$REMOTE_SHA" = "$EXPECTED_SHA" ] || { echo "::error::PR head raced; refusing push"; exit 1; }
+          git push origin "HEAD:$HEAD_REF"
+      - name: Audit heal and explicitly redispatch exact new SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_SHA: ${{ steps.heal.outputs.new_sha }}
+        run: |
+          test "$(git -C work rev-parse HEAD)" = "$NEW_SHA"
+          node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "$NEW_SHA"
+          node trusted/scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision healing --attempt "${{ needs.validate-generator.outputs.attempt }}" --out trusted/heal-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: heal-audit-${{ needs.validate-generator.outputs.head_sha }}
+          path: trusted/heal-audit.json
+          if-no-files-found: error
 
   generator-review:
     needs: [validate-generator, generator-ci, generator-ci-status]
@@ -328,13 +396,14 @@ jobs:
         validate-generator,
         generator-ci,
         generator-ci-status,
+        heal-generator-base,
         generator-review,
         generator-gate-status,
         generator-fixer,
         apply-generator-repair,
         pass-generator,
       ]
-    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.pass-generator.result != 'success' && needs.apply-generator-repair.result != 'success' }}
+    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.pass-generator.result != 'success' && needs.apply-generator-repair.result != 'success' && needs.heal-generator-base.result != 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

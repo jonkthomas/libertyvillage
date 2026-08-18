@@ -3,13 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  FIXER_MODEL, GATE_MODEL, MAX_REPAIRS, STATUS_CONTEXTS,
+  FIXER_MODEL, GATE_MODEL, MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS,
 } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
 import {
-  evaluateGeneratorBase, evaluateObservedMerge, filterRepairablePaths, isExactSha, isTextRepairPath,
-  validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
+  canHeal, evaluateGeneratorBase, evaluateObservedMerge, filterRepairablePaths, healLabel, isExactSha,
+  isTextRepairPath, validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
 } from './policy.mjs';
+import { planBaseHeal, resolveAppendUnion } from './heal-base.mjs';
 import {
   applyRecordRepairPlan, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
 } from './record-repair.mjs';
@@ -42,6 +43,7 @@ async function validatePr(options) {
   writeOutput({
     trusted: 'true', pr_number: pr.number, head_sha: pr.head.sha, head_ref: pr.head.ref,
     base_ref: pr.base.ref, attempt: result.attempt, can_repair: result.attempt < MAX_REPAIRS ? 'true' : 'false',
+    heal_attempt: result.healAttempt, can_heal: canHeal(result.healAttempt) ? 'true' : 'false',
     files: files.length,
   });
   console.log(`Validated trusted ${options.kind} PR #${pr.number} at ${pr.head.sha} (${files.length} files, attempt ${result.attempt}).`);
@@ -237,6 +239,26 @@ async function setAttempt(options) {
   await setLabels(options.repo, options.pr, 'repairing', attempt);
 }
 
+// Heal budget lifecycle, mirroring the repair label series: exactly one
+// automation-heal-N label survives, so a rerun cannot buy extra heals.
+async function setHealLabels(repo, prNumber, attempt) {
+  for (let n = 1; n <= MAX_HEALS; n += 1) await createLabel(repo, healLabel(n), '0e8a16', `Autonomous base heal ${n}`);
+  for (let n = 1; n <= MAX_HEALS; n += 1) {
+    if (n === attempt) continue;
+    try { await github(`/repos/${repo}/issues/${prNumber}/labels/${healLabel(n)}`, { method: 'DELETE' }); }
+    catch (error) { if (!error.message.includes('(404)')) throw error; }
+  }
+  await github(`/repos/${repo}/issues/${prNumber}/labels`, { method: 'POST', body: { labels: [healLabel(attempt)] } });
+}
+
+async function setHeal(options) {
+  requireOptions(options, ['repo', 'pr', 'heal']);
+  const attempt = Number(options.heal);
+  if (!Number.isInteger(attempt) || attempt < 1 || attempt > MAX_HEALS) throw new Error('invalid next heal attempt');
+  await setHealLabels(options.repo, options.pr, attempt);
+  console.log(`Consumed base heal ${attempt}/${MAX_HEALS} on PR #${options.pr}.`);
+}
+
 async function dispatch(options) {
   requireOptions(options, ['repo', 'kind', 'sha']);
   if (!isExactSha(options.sha)) throw new Error('dispatch SHA is invalid');
@@ -308,6 +330,102 @@ async function refreshGeneratorBase(options) {
   throw new Error('timed out waiting for updated PR head');
 }
 
+// Hooks are disabled for every git invocation here: the checkout is untrusted PR
+// content and nothing in it may execute.
+function git(args, options = {}) {
+  return execFileSync('git', ['-c', 'core.hooksPath=/dev/null', ...args], {
+    encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options,
+  });
+}
+
+function conflictedFiles() {
+  return git(['diff', '--name-only', '--diff-filter=U']).trim().split('\n').filter(Boolean);
+}
+
+function conflictStage(file, stage) {
+  try { return git(['show', `:${stage}:${file}`]); }
+  catch { throw new Error(`base heal refused: ${file} has no stage-${stage} content`); }
+}
+
+// Merges the current staging head into the validated PR head inside a checkout
+// that is never executed, resolving only both-appended record-file conflicts.
+// Anything else — a clean merge, an unknown conflict, a raced head — throws, and
+// block-generator keeps its existing fail-closed behaviour.
+async function healGeneratorBase(options) {
+  requireOptions(options, ['repo', 'pr', 'kind', 'sha']);
+  const current = git(['rev-parse', 'HEAD']).trim();
+  if (current !== options.sha) throw new Error('heal checkout does not match validated exact SHA');
+  const { pr, files } = await prData(options.repo, options.pr);
+  const trusted = validatePullRequest({
+    repository: options.repo, kind: options.kind, expectedSha: options.sha, pr, files,
+  });
+  if (!trusted.ok) throw new Error(`pull request rejected before base heal: ${trusted.errors.join('; ')}`);
+  if (!canHeal(trusted.healAttempt)) throw new Error(`base heal budget exhausted: ${trusted.healAttempt}/${MAX_HEALS}`);
+
+  const staging = await github(`/repos/${options.repo}/branches/staging`);
+  const stagingSha = staging?.commit?.sha;
+  if (!isExactSha(stagingSha)) throw new Error('staging head is not an exact SHA');
+  git(['fetch', '--no-tags', 'origin', '+refs/heads/staging:refs/remotes/origin/staging'], { stdio: 'ignore' });
+  if (git(['rev-parse', 'refs/remotes/origin/staging']).trim() !== stagingSha) {
+    throw new Error('fetched staging head does not match the live staging head');
+  }
+  let containsStaging = true;
+  try { git(['merge-base', '--is-ancestor', stagingSha, options.sha], { stdio: 'ignore' }); }
+  catch { containsStaging = false; }
+  if (containsStaging) throw new Error('PR already contains the current staging head; nothing to heal');
+
+  let conflicted = [];
+  let mergeError = null;
+  try {
+    git(['merge', '--no-commit', '--no-ff', '--no-verify', stagingSha], { stdio: 'pipe' });
+  } catch (error) {
+    mergeError = error;
+    conflicted = conflictedFiles();
+  }
+  if (conflicted.length === 0) {
+    try { git(['merge', '--abort'], { stdio: 'ignore' }); } catch { /* nothing staged to abort */ }
+    if (mergeError) throw new Error(`merge failed without a resolvable conflict: ${String(mergeError.stderr || mergeError.message).trim().slice(0, 200)}`);
+    throw new Error('staging merges cleanly into this PR; the failure is not a base conflict');
+  }
+
+  const plan = planBaseHeal(options.kind, conflicted);
+  if (!plan.ok) throw new Error(`base heal refused: ${plan.errors.join('; ')}`);
+  const resolutions = [];
+  for (const file of conflicted) {
+    const target = repairTarget(file);
+    const resolved = resolveAppendUnion(file, {
+      baseText: conflictStage(file, 1), oursText: conflictStage(file, 2), theirsText: conflictStage(file, 3),
+    });
+    if (!resolved.ok) throw new Error(`base heal refused: ${resolved.errors.join('; ')}`);
+    fs.writeFileSync(target, resolved.text);
+    if (fs.readFileSync(target, 'utf8') !== resolved.text) throw new Error(`base heal refused: ${file} does not match the validated union`);
+    git(['add', '--', file]);
+    resolutions.push(resolved);
+  }
+  const remaining = conflictedFiles();
+  if (remaining.length) throw new Error(`base heal refused: unresolved conflicts remain: ${remaining.join(', ')}`);
+
+  git([
+    '-c', 'user.name=LV Automation Healer', '-c', 'user.email=noreply@libertyvillage.co',
+    'commit', '--no-verify', '-m', `automation: heal generator base conflict with staging (heal ${trusted.healAttempt + 1})`,
+  ], { stdio: 'pipe' });
+  const newSha = git(['rev-parse', 'HEAD']).trim();
+  const parents = git(['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ');
+  if (parents.length !== 3 || parents[1] !== options.sha || parents[2] !== stagingSha) {
+    throw new Error('healed commit is not an exact merge of the validated head and staging');
+  }
+  const changed = git(['diff', '--name-only', `${stagingSha}..HEAD`]).trim().split('\n').filter(Boolean);
+  const paths = validatePaths(options.kind, changed);
+  if (!paths.ok) throw new Error(`healed tree is outside policy: ${paths.errors.join('; ')}`);
+
+  writeOutput({
+    healed: 'true', new_sha: newSha, staging_sha: stagingSha,
+    next_heal: trusted.healAttempt + 1, resolved_files: resolutions.length,
+  });
+  const summary = resolutions.map((result) => `${result.file} [+${result.appendedSlugs.join(', ')}]`).join('; ');
+  console.log(`Healed PR #${pr.number} base against staging ${stagingSha} as ${newSha} (${summary}).`);
+}
+
 async function observeAndPromote(options) {
   requireOptions(options, ['repo', 'pr', 'sha']);
   for (let poll = 0; poll < 72; poll += 1) {
@@ -331,6 +449,7 @@ const commands = {
   'validate-pr': validatePr, 'validate-promotion': validatePromotion, 'prepare-promotion': preparePromotion,
   status: publishStatus, audit, 'apply-fix': applyFix, 'set-attempt': setAttempt, dispatch,
   'refresh-generator-base': refreshGeneratorBase, 'observe-and-promote': observeAndPromote,
+  'heal-generator-base': healGeneratorBase, 'set-heal': setHeal,
 };
 try {
   const command = process.argv[2];
