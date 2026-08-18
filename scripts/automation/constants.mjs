@@ -2,6 +2,9 @@ export const GATE_MODEL = 'claude-opus-5';
 export const FIXER_MODEL = 'claude-sonnet-4-5-20250929';
 export const SCORE_THRESHOLD = 8;
 export const MAX_REPAIRS = 3;
+// Bounded automatic merges of staging into a conflicted generator branch; the
+// third conflict falls through to block-generator because the content needs eyes.
+export const MAX_HEALS = 2;
 
 export const STATUS_CONTEXTS = Object.freeze({
   ci: 'automation/ci',

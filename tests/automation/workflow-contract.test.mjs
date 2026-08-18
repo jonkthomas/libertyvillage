@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const workflow = fs.readFileSync(new URL('../../.github/workflows/autonomous-coordinator.yml', import.meta.url), 'utf8');
+const sentinel = fs.readFileSync(new URL('../../.github/workflows/blocked-sentinel.yml', import.meta.url), 'utf8');
 const reviewAgent = fs.readFileSync(new URL('../../scripts/automation/review-agent.mjs', import.meta.url), 'utf8');
 const preflight = fs.readFileSync(new URL('../../scripts/automation/news-preflight.mjs', import.meta.url), 'utf8');
 
@@ -43,14 +44,51 @@ test('preflight reuses canonical models and content commands avoid GitHub APIs',
 });
 
 test('repair attempt is consumed before fixer push and redispatch', () => {
-  const persist = workflow.indexOf('coordinator.mjs set-attempt');
-  const push = workflow.indexOf('git push origin "HEAD:$HEAD_REF"');
-  const redispatch = workflow.indexOf('coordinator.mjs dispatch', push);
+  // Scoped to the repair job: the heal job carries its own push and budget label.
+  const repairJob = workflow.slice(workflow.indexOf('  apply-generator-repair:'), workflow.indexOf('  pass-generator:'));
+  const persist = repairJob.indexOf('coordinator.mjs set-attempt');
+  const push = repairJob.indexOf('git push origin "HEAD:$HEAD_REF"');
+  const redispatch = repairJob.indexOf('coordinator.mjs dispatch', push);
   assert.ok(persist >= 0, 'missing attempt persistence');
   assert.ok(persist < push, 'attempt must be persisted before push');
   assert.ok(push < redispatch, 'redispatch must use the pushed repair SHA');
-  assert.match(workflow.slice(persist, push), /NEXT_ATTEMPT/);
-  assert.match(workflow.slice(persist, push), /ls-remote/);
+  assert.match(repairJob.slice(persist, push), /NEXT_ATTEMPT/);
+  assert.match(repairJob.slice(persist, push), /ls-remote/);
+});
+
+test('base heal consumes its budget before pushing an unforced merge and redispatches the healed SHA', () => {
+  const healJob = workflow.slice(workflow.indexOf('  heal-generator-base:'), workflow.indexOf('  generator-review:'));
+  assert.match(healJob, /if: \$\{\{ always\(\) && needs\.validate-generator\.outputs\.trusted == 'true' && needs\.generator-ci\.result == 'failure' && needs\.validate-generator\.outputs\.can_heal == 'true' \}\}/);
+  const persist = healJob.indexOf('coordinator.mjs set-heal');
+  const push = healJob.indexOf('git push origin "HEAD:$HEAD_REF"');
+  const redispatch = healJob.indexOf('coordinator.mjs dispatch', push);
+  assert.ok(persist >= 0 && persist < push, 'heal budget must be consumed before push');
+  assert.ok(push < redispatch, 'redispatch must use the pushed heal SHA');
+  assert.equal((healJob.match(/ls-remote/g) || []).length, 2, 'both the label bump and the push recheck the remote head');
+  assert.doesNotMatch(healJob, /--force|\+HEAD/);
+  assert.doesNotMatch(healJob, /npm (ci|run)/, 'the heal job never executes PR code');
+  assert.match(healJob, /ref: \$\{\{ needs\.validate-generator\.outputs\.head_sha \}\}/);
+});
+
+test('block-generator stands down only when a pass, repair, or heal succeeded', () => {
+  const blockJob = workflow.slice(workflow.indexOf('  block-generator:'), workflow.indexOf('  validate-promotion:'));
+  assert.match(blockJob, /needs\.pass-generator\.result != 'success'/);
+  assert.match(blockJob, /needs\.apply-generator-repair\.result != 'success'/);
+  assert.match(blockJob, /needs\.heal-generator-base\.result != 'success'/);
+  assert.match(blockJob, /\n\s+heal-generator-base,\n/);
+});
+
+test('the blocked sentinel is a read-only daily sweep that only notifies', () => {
+  assert.match(sentinel, /schedule:\n\s+- cron: "0 12 \* \* \*"/);
+  assert.match(sentinel, /workflow_dispatch:/);
+  const permissions = sentinel.slice(sentinel.indexOf('permissions:'), sentinel.indexOf('steps:'));
+  assert.match(permissions, /contents: read/);
+  assert.match(permissions, /issues: read/);
+  assert.match(permissions, /pull-requests: read/);
+  assert.doesNotMatch(permissions, /write/);
+  assert.doesNotMatch(sentinel, /gh pr|gh issue|coordinator\.mjs/);
+  assert.match(sentinel, /node scripts\/automation\/blocked-sentinel\.mjs/);
+  assert.match(sentinel, /SLACK_WEBHOOK_URL/);
 });
 
 test('generator pass refreshes after audit and skips auto-merge and observation when redispatched', () => {
