@@ -1,63 +1,99 @@
 {
-  "collectedAt": "2026-08-05T00:00:00.000Z",
+  "collectedAt": "2026-08-19T00:00:00Z",
   "gsc": {
     "searchAnalytics": [
       {
         "query": "liberty village happy hour",
         "page": "https://libertyvillage.co/guide/happy-hour-guide",
-        "clicks": 2,
-        "impressions": 13,
-        "ctr": 0.154,
-        "position": 6.2
+        "clicks": 3,
+        "impressions": 19,
+        "ctr": 0.158,
+        "position": 5.4
       },
       {
         "query": "goodlife liberty village",
         "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
         "clicks": 1,
-        "impressions": 221,
-        "ctr": 0.005,
-        "position": 6.6
+        "impressions": 87,
+        "ctr": 0.011,
+        "position": 7.1
       },
       {
         "query": "altea liberty village reviews",
+        "page": "https://libertyvillage.co/blog/liberty-village-fitness-guide-every-gym-compared",
         "clicks": 0,
-        "impressions": 8,
+        "impressions": 27,
         "ctr": 0,
-        "position": 8.75
+        "position": 9.0
+      },
+      {
+        "query": "bars in liberty village",
+        "page": "https://libertyvillage.co/blog/best-bars-liberty-village-toronto-guide-2026",
+        "clicks": 0,
+        "impressions": 13,
+        "ctr": 0,
+        "position": 9.2
       }
     ],
     "quickWins": [
       {
         "query": "goodlife liberty village",
-        "impressions": 221,
-        "position": 6.6,
+        "page": "https://libertyvillage.co/blog/goodlife-fitness-liberty-village-review-guide",
+        "currentPosition": 7.1,
+        "impressions": 87,
+        "potentialClicks": 4,
+        "opportunity": "High"
+      },
+      {
+        "query": "jukebox print",
+        "currentPosition": 6.8,
+        "impressions": 63,
+        "opportunity": "High"
+      },
+      {
+        "query": "kat nail studio",
+        "currentPosition": 8.2,
+        "impressions": 67,
+        "opportunity": "High"
+      },
+      {
+        "query": "liberty village parking",
+        "currentPosition": 7.8,
+        "impressions": 59,
         "opportunity": "High"
       }
     ],
     "sitemapStatus": {
       "submitted": 307,
-      "indexed": 0
+      "indexed": 0,
+      "lastSubmitted": "2026-05-30"
     }
   },
   "ga4": {
     "trafficByPage": [
       {
+        "pagePath": "/",
+        "sessions": 773,
+        "bounceRate": 0.58,
+        "pageViews": 776
+      },
+      {
+        "pagePath": "/best/restaurants",
+        "sessions": 661,
+        "bounceRate": 0.51,
+        "pageViews": 975
+      },
+      {
         "pagePath": "/guide/parking-guide",
-        "sessions": 15,
-        "bounceRate": 0.6,
-        "screenPageViews": 16
+        "sessions": 214,
+        "bounceRate": 0.93,
+        "pageViews": 211
       },
       {
-        "pagePath": "/best/gyms",
-        "sessions": 7,
-        "bounceRate": 0.57,
-        "screenPageViews": 8
-      },
-      {
-        "pagePath": "/blog/dog-owners-guide-liberty-village",
-        "sessions": 7,
-        "bounceRate": 0.57,
-        "screenPageViews": 8
+        "pagePath": "/guide/happy-hour-guide",
+        "sessions": 10,
+        "bounceRate": 0.2,
+        "pageViews": 11
       }
     ]
   }
