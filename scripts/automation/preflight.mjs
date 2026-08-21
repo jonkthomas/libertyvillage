@@ -1,6 +1,9 @@
 import { BLOCKING_SEVERITIES, KIND_POLICIES, MAX_REPAIRS } from './constants.mjs';
 import { POSTS_FILE, recordRepairRules } from './record-rules.mjs';
 import { canRepair, evaluateVerdict, validatePaths } from './policy.mjs';
+import {
+  OPERATIONAL_PREMISES, corePremiseText, identityPremiseText,
+} from '../lib/referenced-businesses.mjs';
 
 export {
   IMMUTABLE_POST_FIELDS, REPAIRABLE_POST_FIELDS, POSTS_FILE, RECORD_REPAIR_RULES, recordRepairRules,
@@ -55,6 +58,9 @@ export function validateRecordRepair(file, original, repaired, { maxBytes = 60_0
   for (const field of changedFields) {
     if (!isRepairable(field)) errors.push(`non-repairable field changed: ${field}`);
   }
+  if (file === POSTS_FILE && isUnrepairablePremiseAbandonment(original, repaired)) {
+    errors.push('unrepairable premise abandonment: immutable slug/image still carry a deleted operational premise');
+  }
   if (Buffer.byteLength(JSON.stringify(repaired)) > maxBytes) errors.push(`repaired ${rules.label} byte budget exceeded`);
   return { ok: errors.length === 0, errors, changedFields };
 }
@@ -74,6 +80,26 @@ const STRUCTURAL_NOTE_PATTERNS = Object.freeze([
   /\bslug\b[\s\S]{0,40}\bduplicat/i,
   /\bslug\b[\s\S]{0,40}\b(?:collides|conflicts|already exists|is taken)\b/i,
 ]);
+
+// Gate notes that the immutable identity (slug + image) still names a premise the
+// repairable fields abandoned. Further fixer rewrites cannot change those fields.
+const PREMISE_ABANDONMENT_NOTE = /\bslug\b[\s\S]{0,200}\bimage\b/i;
+
+export function isUnrepairablePremiseAbandonment(original, repaired) {
+  if (!original || typeof original !== 'object' || !repaired || typeof repaired !== 'object') return false;
+  const identity = identityPremiseText(repaired);
+  const originalIdentity = identityPremiseText(original);
+  const core = corePremiseText(repaired);
+  return OPERATIONAL_PREMISES.some((premise) => (
+    premise.core.test(identity)
+    && premise.core.test(originalIdentity)
+    && !premise.core.test(core)
+  ));
+}
+
+function isPremiseAbandonmentFinding(finding) {
+  return typeof finding?.note === 'string' && PREMISE_ABANDONMENT_NOTE.test(finding.note);
+}
 
 function repairableKinds(kind) {
   if (kind && KIND_POLICIES[kind]) return [kind];
@@ -95,25 +121,31 @@ export function classifyFindings(kind, verdict, { changedFiles } = {}) {
 
   const repairable = [];
   const unrepairable = [];
+  let premiseAbandoned = false;
   for (const finding of considered) {
     const path = finding?.path;
-    const structural = typeof finding?.note === 'string'
-      && STRUCTURAL_NOTE_PATTERNS.some((pattern) => pattern.test(finding.note));
+    const abandoned = isPremiseAbandonmentFinding(finding);
+    if (abandoned) premiseAbandoned = true;
+    const structural = abandoned
+      || (typeof finding?.note === 'string'
+        && STRUCTURAL_NOTE_PATTERNS.some((pattern) => pattern.test(finding.note)));
     const reachable = isRepairablePath(kind, path) && (!inDiff || inDiff.has(path));
     (reachable && !structural ? repairable : unrepairable).push(finding);
   }
   return {
     repairable,
     unrepairable,
-    allUnrepairable: unrepairable.length > 0 && repairable.length === 0,
+    allUnrepairable: premiseAbandoned || (unrepairable.length > 0 && repairable.length === 0),
   };
 }
 
 export function preflightDecision({ verdict, contentSha, attempts, maxRepairs = MAX_REPAIRS, kind, changedFiles }) {
   const decision = evaluateVerdict(verdict, contentSha);
-  if (!decision.ok) return 'block';
-  if (decision.passed) return 'go';
+  if (decision.ok && decision.passed) return 'go';
   // Short-circuit a foregone conclusion before it costs 3 rounds x 4 fixer plans.
+  // An identity/premise-abandonment finding is unrepairable even when the verdict
+  // object is a coordinator fixture rather than a fully-keyed gate document.
   if (classifyFindings(kind, verdict, { changedFiles }).allUnrepairable) return 'unrepairable';
+  if (!decision.ok) return 'block';
   return attempts < maxRepairs && canRepair(attempts) ? 'repair' : 'block';
 }

@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { comparable, isBusinessMention, lintPost, resolveLintMode } from '../../scripts/blog-lint.mjs';
+import { comparable, extractReferencedBusinesses, isBusinessMention, lintPost, resolveLintMode } from '../../scripts/blog-lint.mjs';
 
 const BUSINESSES = [
   {
@@ -153,6 +153,52 @@ test('attribution is sentence-scoped, so a business does not adopt the next para
 // ---------------------------------------------------------------------------
 // The rollback lever stays a lever, not a default.
 // ---------------------------------------------------------------------------
+test('extractReferencedBusinesses is re-exported and finds exact recorded names across serializations', () => {
+  const post = {
+    slug: 'guide',
+    title: 'A guide',
+    content: 'Brazen Head Irish Pub at 165 East Liberty St. [Arvo](/directory/arvo-coffee) nearby.',
+    relatedBusinesses: ['jimmys-coffee-liberty-village'],
+  };
+  const businesses = [
+    { slug: 'brazen-head-irish-pub', name: 'Brazen Head Irish Pub' },
+    { slug: 'arvo-coffee', name: 'Arvo Coffee' },
+    { slug: 'jimmys-coffee-liberty-village', name: "Jimmy's Coffee" },
+    { slug: 'unmentioned-cafe', name: 'Unmentioned Cafe' },
+  ];
+  const slugsOf = (source) => extractReferencedBusinesses(source, businesses).map((row) => row.slug).sort();
+  const fromPost = slugsOf(post);
+  const fromJson = slugsOf(JSON.stringify(post));
+  assert.deepEqual(fromPost, ['arvo-coffee', 'brazen-head-irish-pub', 'jimmys-coffee-liberty-village']);
+  assert.deepEqual(fromPost, fromJson);
+  assert.deepEqual(extractReferencedBusinesses(post, null), []);
+});
+
+test('an operational slug/title premise fails without record support and passes when a record has it', () => {
+  const cafe = {
+    slug: 'paw-cafe',
+    name: 'Paw Cafe',
+    address: '1 Fraser Ave',
+    hours: 'Mon-Sun 8am-6pm',
+    tags: ['dog-friendly', 'pet-friendly'],
+    description: 'Dogs are welcome on the patio.',
+  };
+  const unsupported = lintPost({
+    slug: 'pet-friendly-cafes-liberty-village-2026',
+    title: 'Pet-Friendly Cafes in Liberty Village',
+    content: '**Paw Cafe** at 1 Fraser Ave is open Mon-Sun 8am-6pm.',
+  }, { businesses: [{ slug: 'paw-cafe', name: 'Paw Cafe', address: '1 Fraser Ave', hours: 'Mon-Sun 8am-6pm' }] });
+  assert.equal(unsupported.ok, false);
+  assert.ok(unsupported.findings.some((finding) => finding.rule === 'unsupported-operational-premise'));
+
+  const supported = lintPost({
+    slug: 'pet-friendly-cafes-liberty-village-2026',
+    title: 'Pet-Friendly Cafes in Liberty Village',
+    content: '**Paw Cafe** at 1 Fraser Ave is dog-friendly. Hours are Mon-Sun 8am-6pm.',
+  }, { businesses: [cafe] });
+  assert.equal(supported.ok, true, JSON.stringify(supported.findings));
+});
+
 test('the linter is fail-closed by default and warn is opt-in only', () => {
   assert.equal(resolveLintMode({}), 'fail');
   assert.equal(resolveLintMode({ LINT_MODE: '' }), 'fail');

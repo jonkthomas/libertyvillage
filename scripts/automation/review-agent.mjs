@@ -10,6 +10,7 @@ import {
 } from './record-repair.mjs';
 import { evaluateVerdict, filterRepairablePaths, validateRepairPlan } from './policy.mjs';
 import { classifyFindings, validatePostRepair } from './preflight.mjs';
+import { extractReferencedBusinesses } from '../lib/referenced-businesses.mjs';
 import { buildRepairHistory, classifyRunFailure, evaluateRepairProgress } from './recovery.mjs';
 
 const VERDICT_SCHEMA = {
@@ -107,25 +108,10 @@ const GROUNDING_LENS = 'GROUNDING lens: verify named-business facts against the 
   + ' if a claim is unverifiable from diff + records, flag it as unsupported —'
   + ' never assert a correction from memory.';
 
-function normalizeName(value) {
-  return String(value ?? '').replace(/[‘’]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-// Deterministic selection: bold names and slugs the diff itself mentions. No model
-// call, no heuristics the fixer and the gate could disagree about.
+// Deterministic selection: the shared extractor, then the existing record/byte
+// caps. Gate and fixer must see the same records the linter attributed.
 export function selectReferenceRecords(diff, businesses) {
-  const records = Array.isArray(businesses) ? businesses : [];
-  const mentioned = new Set();
-  for (const match of String(diff).matchAll(/\*\*([^*\n]{2,80})\*\*/g)) mentioned.add(normalizeName(match[1]));
-  const selected = [];
-  for (const record of records) {
-    if (selected.length >= MAX_REFERENCE_RECORDS) break;
-    const name = normalizeName(record?.name);
-    const slug = String(record?.slug ?? '');
-    if (!name && !slug) continue;
-    const named = name && [...mentioned].some((value) => value === name || value.includes(name) || name.includes(value));
-    if (named || (slug && diff.includes(slug))) selected.push(record);
-  }
+  const selected = extractReferencedBusinesses(diff, businesses).slice(0, MAX_REFERENCE_RECORDS);
   let text = JSON.stringify(selected, null, 2);
   while (selected.length > 0 && Buffer.byteLength(text) > MAX_REFERENCE_BYTES) {
     selected.pop();
