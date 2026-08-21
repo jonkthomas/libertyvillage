@@ -12,6 +12,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  unsupportedOperationalPremises, unsupportedPremiseAttributions,
+} from './lib/referenced-businesses.mjs';
+
+export { extractReferencedBusinesses } from './lib/referenced-businesses.mjs';
 
 export const LINT_MODES = Object.freeze(['fail', 'warn']);
 
@@ -402,6 +407,28 @@ export function lintPost(post, { businesses = [], now } = {}) {
   const findings = [];
   const add = (rule, claim, detail, field) => findings.push({ rule, severity: 'high', claim, detail: `${field}: ${detail}` });
   const year = postYear(post, now);
+
+  // Operational slug/title premises (pet-friendly, happy hour, accessibility,
+  // reservations) fail closed unless attributed records actually support them.
+  // Missing/non-array businesses is fail-closed. One supported record cannot
+  // license pet/happy-hour/accessibility/reservation claims for unsupported peers.
+  for (const premise of unsupportedOperationalPremises(post, businesses)) {
+    add(
+      'unsupported-operational-premise',
+      premise.label,
+      `slug/title asserts the ${premise.label} operational attribute but no attributed record supports that policy`,
+      'slug',
+    );
+  }
+  for (const { premise, record } of unsupportedPremiseAttributions(post, businesses)) {
+    const who = record?.name || record?.slug || 'attributed business';
+    add(
+      'unsupported-operational-premise',
+      premise.label,
+      `${who} is attributed as satisfying the ${premise.label} operational attribute but its own record does not support that policy`,
+      record?.slug || 'content',
+    );
+  }
 
   // Declared attribution: every slug the post claims to be about must be a record.
   for (const [position, slug] of (Array.isArray(post?.relatedBusinesses) ? post.relatedBusinesses : []).entries()) {

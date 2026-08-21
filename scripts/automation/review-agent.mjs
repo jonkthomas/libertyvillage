@@ -10,7 +10,10 @@ import {
 } from './record-repair.mjs';
 import { evaluateVerdict, filterRepairablePaths, validateRepairPlan } from './policy.mjs';
 import { classifyFindings, validatePostRepair } from './preflight.mjs';
+import { selectReferenceRecords } from '../lib/referenced-businesses.mjs';
 import { buildRepairHistory, classifyRunFailure, evaluateRepairProgress } from './recovery.mjs';
+
+export { selectReferenceRecords };
 
 const VERDICT_SCHEMA = {
   // No `passed` field: the outcome is recomputed server-side from overall +
@@ -101,38 +104,9 @@ const GATE_BAR = `A blocking finding is any finding with severity ${BLOCKING_SEV
 // never "corrected" from parametric memory (the Balzac's false positive, #97).
 const GROUNDED_KINDS = Object.freeze(['blog', 'news']);
 const BUSINESSES_FILE = 'data/businesses.json';
-const MAX_REFERENCE_RECORDS = 40;
-const MAX_REFERENCE_BYTES = 120_000;
 const GROUNDING_LENS = 'GROUNDING lens: verify named-business facts against the supplied records;'
   + ' if a claim is unverifiable from diff + records, flag it as unsupported —'
   + ' never assert a correction from memory.';
-
-function normalizeName(value) {
-  return String(value ?? '').replace(/[‘’]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-// Deterministic selection: bold names and slugs the diff itself mentions. No model
-// call, no heuristics the fixer and the gate could disagree about.
-export function selectReferenceRecords(diff, businesses) {
-  const records = Array.isArray(businesses) ? businesses : [];
-  const mentioned = new Set();
-  for (const match of String(diff).matchAll(/\*\*([^*\n]{2,80})\*\*/g)) mentioned.add(normalizeName(match[1]));
-  const selected = [];
-  for (const record of records) {
-    if (selected.length >= MAX_REFERENCE_RECORDS) break;
-    const name = normalizeName(record?.name);
-    const slug = String(record?.slug ?? '');
-    if (!name && !slug) continue;
-    const named = name && [...mentioned].some((value) => value === name || value.includes(name) || name.includes(value));
-    if (named || (slug && diff.includes(slug))) selected.push(record);
-  }
-  let text = JSON.stringify(selected, null, 2);
-  while (selected.length > 0 && Buffer.byteLength(text) > MAX_REFERENCE_BYTES) {
-    selected.pop();
-    text = JSON.stringify(selected, null, 2);
-  }
-  return selected;
-}
 
 // N5. Fail CLOSED. An ungrounded gate is exactly the configuration that produced the
 // Balzac's false positive on #97, so a run that cannot load the repository's own

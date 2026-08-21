@@ -1,0 +1,144 @@
+{
+  "pr": 104,
+  "repo": "jonkthomas/libertyvillage",
+  "head_branch": "blog/auto-1787342297",
+  "base_branch": "staging",
+  "base_sha": "f539fcb12e0d5d2feb67d8ffc45104a840af2920",
+  "generation_run": 32520547728,
+  "trajectory": [3.5, 4.5, 5.5, 3.5],
+  "terminal": {
+    "decision": "exhausted",
+    "labels": ["automation-blocked", "automation-repair-3"],
+    "head_sha": "3850da18a6744f86cb24793b5e9235d9a6b20a32"
+  },
+  "immutable_identity": {
+    "slug": "pet-friendly-restaurants-patios-cafes-liberty-village-2026",
+    "image": "/images/blog/pet-friendly-restaurants-patios-cafes-liberty-village-2026.jpg"
+  },
+  "six_repository_backed_claims": [
+    {
+      "slug": "brazen-head-irish-pub",
+      "name": "Brazen Head Irish Pub",
+      "address": "165 East Liberty St",
+      "hours": "Mon-Sun 11am-2am"
+    },
+    {
+      "slug": "local-public-eatery",
+      "name": "LOCAL Public Eatery",
+      "address": "55 East Liberty St",
+      "hours": "Mon-Wed 11am-12am / Thu-Fri 11am-1am / Sat 10am-1am / Sun 10am-11pm"
+    },
+    {
+      "slug": "local-public-eatery-liberty-village",
+      "name": "LOCAL Public Eatery Liberty Village",
+      "address": "Unit 100, 171 E Liberty St"
+    },
+    {
+      "slug": "school-restaurant",
+      "name": "School Restaurant",
+      "address": "70 Fraser Ave"
+    },
+    {
+      "slug": "arvo-coffee",
+      "name": "Arvo Coffee",
+      "address": "17 Fraser Ave"
+    },
+    {
+      "slug": "jimmys-coffee-liberty-village",
+      "name": "Jimmy's Coffee",
+      "address": "107 Atlantic Ave"
+    }
+  ],
+  "final_gate_reference_slugs": [
+    "liberty-commons-big-rock-brewery",
+    "balzacs-coffee-liberty-village",
+    "louie-coffee-bar",
+    "left-field-brewery",
+    "left-field-brewery-liberty-village"
+  ],
+  "commits": [
+    {
+      "sha": "e82a89d6c7020d4d335d83822a440a73de1e116f",
+      "short": "e82a89d6",
+      "coordinator_run": 32521194011,
+      "overall": 3.5,
+      "reference_records": 12,
+      "decision": "repairing",
+      "attempts": 1,
+      "title": "Pet-Friendly Dining in Liberty Village: Dog-Friendly Patios Guide",
+      "blocking": [
+        {
+          "severity": "high",
+          "path": "data/posts.json",
+          "note": "GROUNDING: The post's entire premise — that specific named businesses admit dogs — is unsupported. None of the 12 supplied reference records mention pets, dogs, or animal policies for any business."
+        },
+        {
+          "severity": "high",
+          "path": "data/posts.json",
+          "note": "GROUNDING/CONTENT: The FAQ 'Can I bring my dog to Left Field Brewery?' answers affirmatively. The Left Field records contain no pet policy at all."
+        },
+        {
+          "severity": "high",
+          "path": "data/posts.json",
+          "note": "CONTENT/GROUNDING: Unsupported superlatives and hardened hedges, including Liberty Village as 'one of Toronto's most dog-friendly dining districts'."
+        }
+      ]
+    },
+    {
+      "sha": "4bde753e5fdc0d126628d01fea547ee121ea5aaa",
+      "short": "4bde753e",
+      "coordinator_run": 32521917915,
+      "overall": 4.5,
+      "reference_records": 12,
+      "decision": "repairing",
+      "attempts": 2,
+      "title": "Pet-Friendly Dining in Liberty Village: Dog-Friendly Patios Guide",
+      "blocking": [
+        {
+          "severity": "high",
+          "path": "data/posts.json",
+          "note": "Grounding failure on the post's core premise: the title/description/answerBlock market a dog-friendly patio guide. None of the 12 supplied reference records contains any pet/dog policy."
+        }
+      ]
+    },
+    {
+      "sha": "e729465adc48a5411c563e3e2fa6ce533ca6307f",
+      "short": "e729465a",
+      "coordinator_run": 32522675980,
+      "overall": 5.5,
+      "reference_records": 12,
+      "decision": "repairing",
+      "attempts": 3,
+      "title": "Exploring Liberty Village Patios with Your Dog: What to Know Before You Go",
+      "blocking": [
+        {
+          "severity": "high",
+          "path": "data/posts.json",
+          "note": "Core premise is undelivered. Slug, title, description, tags (pet-friendly, dog-friendly) and answerBlock promise pet-friendly restaurants/patios/cafes, but the body never states that any named venue permits dogs. The supplied records contain no pet-policy field."
+        }
+      ]
+    },
+    {
+      "sha": "3850da18a6744f86cb24793b5e9235d9a6b20a32",
+      "short": "3850da18",
+      "coordinator_run": 32523454965,
+      "overall": 3.5,
+      "reference_records": 5,
+      "decision": "exhausted",
+      "attempts": 3,
+      "title": "Liberty Village Outdoor Dining Guide: Patios, Cafes, and Beer Gardens",
+      "blocking": [
+        {
+          "severity": "high",
+          "path": "data/posts.json",
+          "note": "Slug/metadata misrepresents the article. Slug and image filename are 'pet-friendly-restaurants-patios-cafes-liberty-village-2026', but the title ('Liberty Village Outdoor Dining Guide'), description, answerBlock, tags, and relatedServices contain nothing pet-related."
+        },
+        {
+          "severity": "high",
+          "path": "data/posts.json",
+          "note": "Unsupported named-business facts. The post asserts precise addresses and full operating hours for six businesses that appear in none of the five supplied reference records: Brazen Head Irish Pub, LOCAL Public Eatery, LOCAL Public Eatery Liberty Village, School Restaurant, Arvo Coffee, Jimmy's Coffee. All six exist in data/businesses.json; the gate never received those records."
+        }
+      ]
+    }
+  ]
+}
