@@ -1,0 +1,25 @@
+# Integrity lock for the evaluator-owned additive artifacts of the
+# PR #104 canary grounding eval.
+#
+# These files are LOCKED. The builder must not edit, weaken, delete, re-scope,
+# or skip any of them. Maker != checker.
+#
+# Verify (run from the repository root; must print "OK" for every line and exit 0):
+#
+#   shasum -a 256 -c evals/canary104-grounding.sha256
+#
+# Linux equivalent:
+#
+#   sha256sum -c evals/canary104-grounding.sha256
+#
+# A FAILED line means an evaluator-owned artifact was modified. That is an
+# automatic FAIL of the acceptance review — re-verify authorship before
+# accepting any implementation work built against the altered file.
+14bc283f30c9626007d493389e7ae88ec89e4ef71a5519ca5d759e2c3a61aac4  tests/automation/canary104-grounding.eval.mjs
+5b71b53c506cf0b617b695af350eb03e5a4f057a0823be5bfb6b5a98f0064b60  tests/reliability/fixtures/pr104/README.md
+e6cb03b7443e902a951388989a474231e506fd7f06af5de86e8144a95a123759  tests/reliability/fixtures/pr104/gate-audits.json
+a842b148c0e465ba6da0fb2219abdf64953c0aef49c842125aea5be92e385ff9  tests/reliability/fixtures/pr104/businesses-excerpts.json
+83e312110a86d37b9f8c01a4010010753a692bc1afed07e1fe269901741543ca  tests/reliability/fixtures/pr104/e82a89d6-post.json
+54ab986ee4f0cf89776c45bbb8884b2c515670aaae33aea67d80b7ede8b2b35c  tests/reliability/fixtures/pr104/4bde753e-post.json
+d22f84ad466a8a62340764c15386e656f90ac41c026ee232f3ff2b9baa1262d6  tests/reliability/fixtures/pr104/e729465a-post.json
+8366fd03fa3142603e6fdc2dab405b9b6ccb620fc325e1e18567c4d9c777b8b2  tests/reliability/fixtures/pr104/3850da18-post.json

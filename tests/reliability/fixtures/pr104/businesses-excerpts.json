@@ -1,0 +1,201 @@
+[
+  {
+    "slug": "local-public-eatery",
+    "name": "LOCAL Public Eatery",
+    "address": "55 East Liberty St, Toronto, ON M6K 3P9",
+    "hours": "Mon-Wed 11am-12am, Thu-Fri 11am-1am, Sat 10am-1am, Sun 10am-11pm",
+    "category": "restaurants",
+    "categories": [
+      "patios"
+    ],
+    "tags": [
+      "pub-food",
+      "sports-bar",
+      "patio",
+      "craft-beer",
+      "brunch"
+    ],
+    "description": "LOCAL Public Eatery is the neighbourhood's go-to for watching sports over elevated pub food and a curated craft beer list. The patio is one of the biggest in Liberty Village and absolutely packed on warm summer evenings. Their brunch game is also strong, with a solid Caesar bar on weekends."
+  },
+  {
+    "slug": "school-restaurant",
+    "name": "School Restaurant",
+    "address": "70 Fraser Ave, Toronto, ON M6K 3E2",
+    "hours": "Tue-Fri 5pm-10pm, Sat-Sun 10:30am-2:30pm (brunch), 5pm-10pm",
+    "category": "restaurants",
+    "categories": [
+      "patios"
+    ],
+    "tags": [
+      "canadian",
+      "brunch",
+      "cocktails",
+      "date-night",
+      "heritage-building"
+    ],
+    "description": "School occupies a beautifully restored 1890s schoolhouse and serves creative Canadian cuisine with global influences. The heritage brick, soaring ceilings, and original chalkboards create one of the most atmospheric dining rooms in the city. Their brunch is a Liberty Village classic, and the cocktail menu is inventive and well-executed."
+  },
+  {
+    "slug": "brazen-head-irish-pub",
+    "name": "Brazen Head Irish Pub",
+    "address": "165 East Liberty St, Toronto, ON M6K 3P6",
+    "hours": "Mon-Sun 11am-2am",
+    "category": "bars",
+    "categories": [
+      "patios"
+    ],
+    "tags": [
+      "irish-pub",
+      "patio",
+      "trivia",
+      "live-music",
+      "beer"
+    ],
+    "description": "Brazen Head has been the beating heart of Liberty Village pub culture for years, with a massive wraparound patio that's arguably the neighbourhood's best warm-weather hangout. Inside it's all dark wood and Guinness on tap, with a menu of reliable pub classics. Their trivia nights and live music evenings keep the regulars coming back."
+  },
+  {
+    "slug": "liberty-commons-big-rock-brewery",
+    "name": "Liberty Commons at Big Rock Brewery",
+    "address": "171 East Liberty St, Unit 143, Toronto, ON M6K 3P6",
+    "hours": "Mon-Wed 11:30am-11pm, Thu-Fri 11:30am-12am, Sat 11am-12am, Sun 11am-10pm",
+    "category": "breweries",
+    "tags": [
+      "brewery",
+      "craft-beer",
+      "beer-hall",
+      "pizza",
+      "group-friendly"
+    ],
+    "description": "Liberty Commons is Big Rock Brewery's Toronto taproom, offering house-brewed craft beers in a sprawling industrial-chic space that celebrates Liberty Village's manufacturing heritage. The beer hall vibe is perfect for big groups, with communal tables and a rotating selection of seasonal brews. Their wood-fired pizzas and beer cheese pretzels are ideal companions to a flight."
+  },
+  {
+    "slug": "balzacs-coffee-liberty-village",
+    "name": "Balzac's Coffee Roasters",
+    "address": "171 East Liberty St, Unit 130, Toronto, ON M6K 3P6",
+    "hours": "Mon-Fri 7am-7pm, Sat-Sun 8am-6pm",
+    "category": "coffee-shops",
+    "tags": [
+      "coffee",
+      "specialty-coffee",
+      "laptop-friendly",
+      "heritage-building",
+      "pastries"
+    ],
+    "description": "Balzac's Liberty Village location sits inside the heritage Liberty Market building and is the neighbourhood's unofficial living room. The Parisian-inspired decor, excellent espresso, and ample seating make it ideal for remote workers and casual meetups alike. Their house blend is roasted in small batches at their Niagara facility."
+  },
+  {
+    "slug": "louie-coffee-bar",
+    "name": "Louie Coffee Bar",
+    "address": "171 East Liberty St, Toronto, ON M6K 3P6",
+    "hours": "Mon-Fri 7am-5pm, Sat-Sun 8am-4pm",
+    "category": "coffee-shops",
+    "tags": [
+      "coffee",
+      "espresso",
+      "single-origin",
+      "quick-stop",
+      "latte-art"
+    ],
+    "description": "Louie Coffee Bar is a compact, design-forward coffee spot that takes its espresso seriously. They pull shots using rotating single-origin beans and their lattes are consistently beautiful — both visually and in the cup. The vibe is more grab-and-go than linger, but there are a few window seats for a quick break."
+  },
+  {
+    "slug": "arvo-coffee",
+    "name": "Arvo Coffee",
+    "address": "17 Fraser Ave, Toronto, ON M6K 1Y7",
+    "hours": "Mon-Fri 7:30am-4pm, Sat-Sun 8:30am-4pm",
+    "category": "coffee-shops",
+    "tags": [
+      "coffee",
+      "australian-coffee",
+      "flat-white",
+      "minimalist",
+      "pastries"
+    ],
+    "description": "Arvo is a minimalist Australian-style coffee shop that nails the basics — flat whites, long blacks, and perfectly pulled espresso. The interior is clean and bright with concrete floors and a blonde-wood aesthetic that feels calm even when it's busy. They also serve simple but excellent pastries and toasties."
+  },
+  {
+    "slug": "jimmys-coffee-liberty-village",
+    "name": "Jimmy's Coffee",
+    "address": "107 Atlantic Ave, Toronto, ON M6K 1X4",
+    "hours": "Mon-Fri 7am-6pm, Sat-Sun 8am-5pm",
+    "category": "coffee-shops",
+    "tags": [
+      "coffee",
+      "independent",
+      "cookies",
+      "cozy",
+      "local-roaster"
+    ],
+    "description": "Jimmy's Coffee is a beloved Toronto chainlet with a rustic, lived-in charm that makes every location feel like your neighbourhood spot. The Liberty Village shop draws a loyal morning crowd for their drip coffee and signature peanut butter cookie. They roast their own beans and keep things simple and honest."
+  },
+  {
+    "slug": "left-field-brewery",
+    "name": "Left Field Brewery",
+    "address": "36 Wagstaff Dr, Toronto, ON M6K 0B2",
+    "hours": "Wed-Fri 3pm-11pm, Sat 12pm-11pm, Sun 12pm-9pm",
+    "category": "breweries",
+    "tags": [
+      "brewery",
+      "craft-beer",
+      "taproom",
+      "patio",
+      "local"
+    ],
+    "description": "Left Field Brewery is a baseball-themed craft brewery tucked into the industrial south end of Liberty Village with a taproom that's become a neighbourhood favourite. Their Eephus oatmeal brown ale and Greenwood IPA are flagship staples, but the seasonal and small-batch releases keep things exciting. The patio fills up fast on summer weekends with locals and craft beer pilgrims alike."
+  },
+  {
+    "slug": "local-public-eatery-liberty-village",
+    "name": "LOCAL Public Eatery Liberty Village",
+    "address": "Unit 100, 171 E Liberty St, Toronto, ON M6K 3P6",
+    "hours": "Mon-Wed 11 AM-1 AM; Thu-Fri 11 AM-2 AM; Sat 10 AM-2 AM; Sun 10 AM-1 AM",
+    "category": "restaurants",
+    "categories": [
+      "restaurants"
+    ],
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "description": "LOCAL Public Eatery Liberty Village is a restaurant in Liberty Village, located at Unit 100, 171 E Liberty St, Toronto, ON M6K 3P6. It holds a 4.5-star rating across 5144 Google reviews."
+  },
+  {
+    "slug": "arvo-coffee-wine",
+    "name": "Arvo Coffee & Wine",
+    "address": "80 Atlantic Ave, Toronto, ON M6K 1X9, Canada",
+    "hours": "Open · Closes 5 PM",
+    "category": "coffee-shops",
+    "categories": [
+      "coffee-shops"
+    ],
+    "tags": [
+      "coffee",
+      "espresso",
+      "wine",
+      "cafe",
+      "liberty-village",
+      "work-friendly"
+    ],
+    "description": "Tucked into the brick-and-beam Atlantic Avenue stretch of Liberty Village, Arvo Coffee & Wine pulls double duty as a polished daytime cafe and an easygoing wine spot. Expect carefully made espresso drinks in a bright, design-forward room that draws remote workers and weekend wanderers alike. With a 4.5 rating across more than 450 reviews, it has earned a steady following among the neighbourhood's coffee crowd."
+  },
+  {
+    "slug": "left-field-brewery-liberty-village",
+    "name": "Left Field Brewery (Liberty Village)",
+    "address": "40 Hanna Ave Ste G1, Toronto, ON M6K 1A5, Canada",
+    "hours": "Opens daily at 12 PM",
+    "category": "breweries",
+    "categories": [
+      "breweries",
+      "bars"
+    ],
+    "tags": [
+      "craft beer",
+      "brewery",
+      "taproom",
+      "sports bar",
+      "beer store",
+      "liberty village"
+    ],
+    "description": "Left Field Brewery's Liberty Village location brings the baseball-themed Toronto craft brewery to the heart of the neighbourhood, pouring its lineup of hop-forward ales, lagers and seasonal small-batch beers in a relaxed taproom setting. Part brewery, part sports bar and part bottle shop, it doubles as a spot to catch the game over a pint and grab cans to take home. With a 4.5-star average across 351 reviews, it's a reliable go-to for craft beer fans wandering Liberty Village's brick-and-beam district."
+  }
+]
