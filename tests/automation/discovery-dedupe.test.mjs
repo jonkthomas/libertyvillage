@@ -164,7 +164,9 @@ test('PR #57 replay: no duplicate survives the directory + seeded registry', () 
   }
   const batch = selectBatch(accepted, state, 15);
 
-  assert.equal(rejected.length, 14, `expected 14 duplicates, rejected: ${rejected.join(', ')}`);
+  // >= 14: the 14 known duplicates must be rejected; additional rejections are fine
+  // (a directory PR under review may itself add one of these names to the merged tree).
+  assert.ok(rejected.length >= 14, `expected at least 14 duplicates rejected, got: ${rejected.join(', ')}`);
   assert.equal(rejected.includes(PR57_GENUINELY_NEW), false);
   assert.deepEqual(batch.map((b) => b.name), [PR57_GENUINELY_NEW]);
   for (const name of ['Brodflour', 'Caffino', 'KINTON RAMEN LIBERTY VILLAGE']) {
