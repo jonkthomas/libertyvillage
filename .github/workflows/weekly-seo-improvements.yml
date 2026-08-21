@@ -31,6 +31,9 @@ concurrency:
 
 permissions:
   contents: write
+  # The bounded candidate ladder creates the controlled regeneration/abandonment
+  # labels and maintains its durable state issue.
+  issues: write
   pull-requests: write
 
 jobs:
@@ -38,10 +41,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
+      # staging is the GENERATED-DATA worktree and nothing more.
       - uses: actions/checkout@v4
         with:
           ref: staging
           fetch-depth: 0
+
+      # Trusted tooling comes from protected main, never from the mutable staging
+      # checkout the agent is about to write into.
+      - name: Checkout trusted policy tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+
+      - name: Keep the trusted tooling out of the generated-data worktree
+        run: echo 'trusted/' >> .git/info/exclude
 
       - uses: actions/setup-node@v4
         with:
@@ -49,10 +65,35 @@ jobs:
 
       - run: npm ci
 
+      # F14. The same bounded candidate ladder the blog path uses, on the SEO kind.
+      # An exhausted or stranded SEO candidate is closed and regenerated after the
+      # cooldown, and the third failure abandons the topic visibly — no hot loop and
+      # no re-push of a rejected draft. Every command below names this pipeline's own
+      # generator kind; the blog kind belongs to the blog workflow and only there.
+      - name: Apply the bounded candidate policy before generating anything
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs plan-candidate --repo "$GITHUB_REPOSITORY" --kind seo
+
+      - name: Report the candidate decision
+        run: |
+          {
+            echo "## Candidate policy (seo)"
+            echo
+            echo "- decision: **${{ steps.candidate.outputs.action }}**"
+            echo "- reason: ${{ steps.candidate.outputs.reason }}"
+            echo "- generating this cycle: ${{ steps.candidate.outputs.generate }}"
+            echo "- regenerations used: ${{ steps.candidate.outputs.regenerations }}"
+            echo "- durable ladder: issue #${{ steps.candidate.outputs.state_issue }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install Playwright Chromium
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         run: npx playwright install chromium
 
       - name: Write service-account credentials
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -61,6 +102,7 @@ jobs:
           jq -e . /tmp/gsa-credentials.json > /dev/null
 
       - name: Run SEO improvement agent
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
@@ -73,12 +115,12 @@ jobs:
         run: node scripts/seo-improve-agent.js
 
       - name: Show summary (dry run)
-        if: ${{ inputs.dry_run == true || inputs.dry_run == 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && (inputs.dry_run == true || inputs.dry_run == 'true') }}
         run: cat tasks/seo-improve-summary.md >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Guard — forbidden paths & change budget
         id: guard
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           ALL=$(git status --porcelain | sed 's/^...//' | sed 's/.* -> //' | grep -vE '^tasks/seo-(improve-(summary\.md|runs/)|scores\.json)' || true)
           # FORBIDDEN paths -> hard fail (security). Checked on the full set.
@@ -102,7 +144,7 @@ jobs:
 
       - name: Read review scores
         id: scores
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           OVERALL="n/a"; PASSED="true"
           if [ -f tasks/seo-scores.json ]; then
@@ -119,7 +161,7 @@ jobs:
 
       - name: Open Pull Request
         id: cpr
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -152,11 +194,20 @@ jobs:
           echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "created=true" >> "$GITHUB_OUTPUT"
 
+      # Carries this topic's regeneration budget onto the fresh SEO candidate with the
+      # same single-controlled-label lifecycle the blog path uses, so a rerun cannot
+      # buy a fourth candidate.
+      - name: Carry the regeneration budget onto the fresh candidate
+        if: ${{ steps.cpr.outputs.created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs mark-regeneration --repo "$GITHUB_REPOSITORY" --pr "${{ steps.cpr.outputs.pr_number }}" --regenerations "${{ steps.candidate.outputs.regenerations }}"
+
       - name: Explicitly dispatch shared coordinator
         if: ${{ steps.cpr.outputs.created == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.cpr.outputs.pr_number }}" --kind seo --sha "${{ steps.cpr.outputs.head_sha }}"
+        run: node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.cpr.outputs.pr_number }}" --kind seo --sha "${{ steps.cpr.outputs.head_sha }}"
 
       - name: Notify Slack
         if: ${{ steps.cpr.outputs.created == 'true' }}

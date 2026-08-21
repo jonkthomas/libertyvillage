@@ -44,9 +44,32 @@ const HOLIDAYS = Object.freeze([
 ]);
 
 const BOLD_PATTERN = /\*\*([^*\n]{2,80})\*\*/g;
+// The site's business pages live at /directory/<slug>, so a markdown link into that
+// route is a deterministic, repository-checkable attribution: the slug either names
+// a record or it does not. This is the format the generator must emit for any
+// business it makes a specific claim about — no capitalized-prose guessing.
+export const DIRECTORY_LINK_PREFIX = '/directory/';
+const DIRECTORY_LINK_PATTERN = /\[([^\]\n]{1,120})\]\((\/directory\/[A-Za-z0-9._-]+)\)/g;
 const STREET_TYPES = 'St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Way|Lane|Ln|Cres|Crescent|Pl|Place|Ct|Court|Terrace|Trail|Parkway|Pkwy';
+const STREET_SUFFIX = String.raw`(?:\s+(?:West|East|North|South|W|E|N|S)\b)?`;
 const ADDRESS_PATTERN = new RegExp(
-  String.raw`\b\d{1,5}[A-Za-z]?\s+(?:[A-Z][A-Za-z.'’-]*\s+){0,3}(?:${STREET_TYPES})\b\.?(?:\s+(?:Unit|Suite|Ste|#)\s*[\w-]+)?`,
+  String.raw`\b\d{1,5}[A-Za-z]?\s+(?:[A-Z][A-Za-z.'’-]*\s+){0,3}(?:${STREET_TYPES})\b\.?${STREET_SUFFIX}(?:\s+(?:Unit|Suite|Ste|#)\s*[\w-]+)?`,
+  'g',
+);
+// #97 was never a street NUMBER: it was "sits where Hanna Ave meets Wellington St W".
+// A business's location expressed as an intersection, a bare street, or a bearing
+// off some landmark is exactly as specific — and exactly as unverifiable from the
+// record — as a civic address, so it is the same rule.
+const PROPER_PLACE = String.raw`(?:the\s+)?[A-Z][A-Za-z.'’-]*(?:\s+(?:of|and|the|de|la))?(?:\s+[A-Z][A-Za-z.'’-]*){0,3}`;
+const RELATIVE_GEOGRAPHY_PATTERNS = Object.freeze([
+  new RegExp(String.raw`\bwhere\s+${PROPER_PLACE}\s+(?:meets|crosses|intersects)\s+${PROPER_PLACE}`, 'g'),
+  new RegExp(String.raw`\b(?:at|on|near)\s+the\s+(?:corner|intersection)\s+of\s+${PROPER_PLACE}\s+(?:and|&|at)\s+${PROPER_PLACE}`, 'g'),
+  new RegExp(String.raw`\b(?:just\s+|immediately\s+|directly\s+|right\s+)?(?:north|south|east|west|north-?east|north-?west|south-?east|south-?west)\s+of\s+${PROPER_PLACE}`, 'gi'),
+  new RegExp(String.raw`\b(?:steps|a\s+[\w-]+-minute\s+walk|a\s+short\s+walk|across(?:\s+the\s+street)?|opposite|next\s+door|around\s+the\s+corner)\s+(?:from|to)\s+${PROPER_PLACE}`, 'gi'),
+  new RegExp(String.raw`\b(?:on|along)\s+the\s+(?:north|south|east|west)\s+side\s+of\s+${PROPER_PLACE}`, 'gi'),
+]);
+const BARE_STREET_PATTERN = new RegExp(
+  String.raw`\b[A-Z][A-Za-z.'’-]*(?:\s+[A-Z][A-Za-z.'’-]*){0,2}\s+(?:${STREET_TYPES})\b\.?${STREET_SUFFIX}`,
   'g',
 );
 const PRICE_PATTERN = /\$\s?\d[\d,]*(?:\.\d{1,2})?/g;
@@ -65,6 +88,32 @@ function normalize(value) {
     .trim();
 }
 
+// "Verbatim in the record" must mean the same FACT, not the same typography. The
+// record says "165 East Liberty St", the post says "East Liberty Street"; the record
+// says "7:00 AM - 7:00 PM", the post says "7 AM to 7 PM". Comparing those literally
+// reported a fabrication every time a draft spelled a street out, which is noise, not
+// grounding. Both sides go through the same fold, so nothing is loosened one-way.
+const COMPARISON_FOLDS = Object.freeze([
+  [/[.,]/g, ''],
+  [/\bstreet\b/g, 'st'], [/\bavenue\b/g, 'ave'], [/\broad\b/g, 'rd'],
+  [/\bboulevard\b/g, 'blvd'], [/\bdrive\b/g, 'dr'], [/\bcrescent\b/g, 'cres'],
+  [/\bplace\b/g, 'pl'], [/\bcourt\b/g, 'ct'], [/\blane\b/g, 'ln'],
+  [/\bparkway\b/g, 'pkwy'], [/\bterrace\b/g, 'terr'],
+  [/\bwest\b/g, 'w'], [/\beast\b/g, 'e'], [/\bnorth\b/g, 'n'], [/\bsouth\b/g, 's'],
+  [/\bunit\b|\bsuite\b|\bste\b/g, '#'],
+  [/(\d)\s*:\s*00\b/g, '$1'],
+  // `to` is word-bounded on purpose: an unbounded alternative eats the "to" inside
+  // "Toronto" and turns every address in the city into noise.
+  [/\s*(?:–|—|-|\bto\b)\s*/g, '-'],
+  [/\s+/g, ' '],
+]);
+
+export function comparable(value) {
+  let text = normalize(value);
+  for (const [pattern, replacement] of COMPARISON_FOLDS) text = text.replace(pattern, replacement);
+  return text.trim();
+}
+
 // The comparison surface for "verbatim in the record": every string the record
 // carries, so a claim grounded in the description counts as grounded.
 function recordText(record) {
@@ -79,20 +128,47 @@ function recordText(record) {
   return normalize(parts.join(' | '));
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function indexBusinesses(businesses) {
   const records = Array.isArray(businesses) ? businesses.filter((record) => record && typeof record === 'object') : [];
-  return records.map((record) => ({
+  const entries = records.map((record) => ({
     record,
     slug: normalize(record.slug),
     name: normalize(record.name),
     text: recordText(record),
+    comparable: comparable(recordText(record)),
   }));
+  // The repository owns the list of business names, so an unbolded, unlinked mention
+  // of one is found by LOOKING IT UP, never by guessing which capitalised prose is a
+  // company. Longest first so "Balzac's Coffee Roasters" wins over "Balzac's".
+  const names = entries
+    .map((entry) => String(entry.record?.name ?? '').trim())
+    .filter((name) => name.length >= 4)
+    .sort((left, right) => right.length - left.length);
+  // Either apostrophe spelling resolves to the same record: "Mildred's" and
+  // "Mildred’s" are the same business, and a curly quote is not a new company.
+  const asPattern = (name) => escapeRegExp(name).replace(/['’]/g, "['’]");
+  entries.namePattern = names.length
+    ? new RegExp(`(?<![A-Za-z0-9])(?:${names.map(asPattern).join('|')})(?![A-Za-z0-9])`, 'g')
+    : null;
+  entries.bySlug = new Map(entries.map((entry) => [entry.slug, entry]));
+  return entries;
 }
 
 // Bold is also used for streets, parks, trails and public venues, which are not
-// businesses and have no `businesses.json` record by design. Flagging those would
-// discard every draft that names a landmark, so a place name is not a claim about
-// a business. Anything else that reads like a proper name IS one, and must resolve.
+// businesses and have no `businesses.json` record by design. It is also the site's
+// ordinary emphasis mark, a table header, and a section heading. None of those is a
+// claim that a business exists, and treating them as one flagged ~70% of the
+// historical corpus on strings like "Best For", "Pool", "Venue" and "Yes".
+//
+// So a bold span is a business mention only when it either resolves to a record, or
+// it is a title-cased proper name that carries a business-type token ("... Cafe",
+// "... Kitchen", "... Studio") or a possessive ("Balzac's ..."). Everything else is
+// structure or emphasis, and the attributable formats — a bold recorded name, a
+// /directory/<slug> link, a plain-text recorded name — are what carry the claims.
 const PLACE_SUFFIX = new RegExp(String.raw`\b(?:park|parkette|trail|boulevard|blvd|street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|crescent|cres|court|square|stadium|arena|beach|bridge|station|line|garden|gardens|island|creek|river|lake|expressway|exhibition|grounds|run|loop|path|pier|quay|waterfront|neighbourhood|neighborhood|village|express|streetcar|subway|transit|route)\b\.?$`, 'i');
 
 // Bold spans that are dates, seasons or a bare domain are never business names.
@@ -108,26 +184,46 @@ const NOT_A_NAME = [
 // Lowercase words a real proper name may still contain.
 const NAME_CONNECTORS = new Set(['of', 'and', 'the', 'a', 'an', 'at', 'on', 'in', 'for', 'by', 'de', 'la', 'le', 'du', 'des', 'von', '&', '+']);
 
-// A bold span is a business mention only when it reads like a proper name: a
-// title-cased noun phrase that is not a street, park or public venue. Bold is
-// also the site's emphasis mark ("**Work from home**", "**Tip:**"), and emphasis
-// is not a claim that a business exists.
-function isBusinessMention(text, nextChar = '') {
-  const trimmed = text.trim().replace(/[.,;!?]+$/, '');
+// The vocabulary that makes a proper name read as a *business* rather than as a
+// heading, a table label, or a piece of emphasis.
+const BUSINESS_TYPE_TOKEN = new RegExp(String.raw`\b(?:cafe|café|caffe|coffee|roasters?|espresso|kitchen|restaurant|resto|bistro|brasserie|eatery|diner|grill|grille|bar|taproom|tavern|pub|brewery|brewhouse|brewing|distillery|winery|bakery|bakehouse|patisserie|creamery|gelato|pizzeria|pizza|taqueria|sushi|ramen|noodle|deli|delicatessen|butcher|grocer|grocery|market|marketplace|bodega|shop|store|boutique|outfitters?|studio|gym|fitness|crossfit|yoga|pilates|spa|salon|barbers?|barbershop|clinic|dental|dentistry|optical|optometry|pharmacy|apothecary|veterinary|academy|daycare|montessori|gallery|theatre|theater|cinema|hotel|inn|lounge|club|cleaners|laundry|realty|brokerage|company|co\.|inc\.?|ltd\.?|llc|corp\.?)\b`, 'i');
+const POSSESSIVE_NAME = /^[A-Z][A-Za-z.'’-]*['’]s\b/;
+
+// A heading, a table row, or a standalone bold line is document structure. The
+// generator uses all three, and none of them asserts that a business exists.
+function isStructuralBold(line, span) {
+  const trimmed = String(line ?? '').trim();
+  if (trimmed.startsWith('|')) return true;
+  if (trimmed.startsWith('#')) return true;
+  if (trimmed.startsWith('>')) return true;
+  if (new RegExp(`^\\*\\*${escapeRegExp(span.trim())}\\*\\*[:.]?$`).test(trimmed)) return true;
+  return false;
+}
+
+function isTitleCased(words) {
+  return words.every((word, position) => {
+    const bare = word.replace(/^[('"‘“]+|[)'"’”.,;!?]+$/g, '');
+    if (!bare || /^[\d$#&+-]/.test(bare)) return true;
+    if (/^[A-Z]/.test(bare)) return true;
+    return position > 0 && NAME_CONNECTORS.has(bare.toLowerCase());
+  });
+}
+
+export function isBusinessMention(text, { nextChar = '', line = '', resolved = false } = {}) {
+  const trimmed = String(text ?? '').trim().replace(/[.,;!?]+$/, '');
   // `**Address**: 171 East Liberty St` — a bold field label, not a business name.
   if (nextChar === ':') return false;
   if (!trimmed || trimmed.endsWith(':') || !/^[A-Z0-9]/.test(trimmed)) return false;
+  if (isStructuralBold(line, text)) return false;
+  // A name the repository already records is a business by definition.
+  if (resolved) return true;
   if (PLACE_SUFFIX.test(trimmed)) return false;
   if (NOT_A_NAME.some((pattern) => pattern.test(trimmed))) return false;
   const words = trimmed.split(/\s+/);
   if (words.length > 8) return false;
   if (!words.some((word) => /[A-Za-z]{2,}/.test(word))) return false;
-  return words.every((word, position) => {
-    const bare = word.replace(/^[('"]+|[)'".,;!?]+$/g, '');
-    if (!bare || /^[\d$#&+-]/.test(bare)) return true;
-    if (/^[A-Z]/.test(bare)) return true;
-    return position > 0 && NAME_CONNECTORS.has(bare.toLowerCase());
-  });
+  if (!isTitleCased(words)) return false;
+  return BUSINESS_TYPE_TOKEN.test(trimmed) || POSSESSIVE_NAME.test(trimmed);
 }
 
 function resolveBusiness(mention, index) {
@@ -141,23 +237,80 @@ function resolveBusiness(mention, index) {
 
 // Splits a field into [{ business, text }] so a specific is checked against the
 // business it is attributed to, not against the union of every record mentioned.
-// Attribution resets at every paragraph so a business named in the intro does not
-// silently own a number eight paragraphs later.
+//
+// Attribution is SENTENCE-scoped. A specific belongs to a business only when that
+// business is named in the same sentence; a business named in the intro does not
+// silently own every dollar amount in the paragraph. Paragraph-scoped attribution
+// was measurably worse in both directions — it adopted unrelated transit fares and
+// civic addresses as if a nearby cafe had asserted them.
+//
+// Three attribution formats, all deterministic and all checkable against the
+// repository — no guessing which capitalised prose is a company:
+//   1. `[Name](/directory/<slug>)`  — the slug names a record, or it is a finding.
+//   2. `**Name**`                   — a business-shaped bold span (isBusinessMention).
+//   3. a plain-text occurrence of a name `businesses.json` already records, which is
+//      what gives unbolded, unlinked mentions their coverage.
+function attributionScanner(index) {
+  const parts = [
+    DIRECTORY_LINK_PATTERN.source,
+    BOLD_PATTERN.source,
+    ...(index.namePattern ? [index.namePattern.source] : []),
+  ];
+  return new RegExp(parts.join('|'), 'g');
+}
+
+function lineAt(text, position) {
+  const start = text.lastIndexOf('\n', position - 1) + 1;
+  const end = text.indexOf('\n', position);
+  return text.slice(start, end === -1 ? text.length : end);
+}
+
 function attributeSegments(text, index) {
   const segments = [];
-  for (const paragraph of String(text ?? '').split(/\n\s*\n+/)) {
+  const scanner = attributionScanner(index);
+  for (const paragraph of sentences(text)) {
+    // A markdown heading or a table row is document structure. "## The $50 Date" is
+    // a section title, not a claim that the business named two sentences ago charges
+    // fifty dollars, so structure neither carries specifics nor attributes them.
+    const structural = /^\s*(?:#{1,6}\s|\||>|-{3,}|\*{3,})/.test(paragraph);
+    if (structural) {
+      segments.push({ business: null, text: '', mention: null });
+      continue;
+    }
     let cursor = 0;
     let current = null;
-    BOLD_PATTERN.lastIndex = 0;
-    for (let match = BOLD_PATTERN.exec(paragraph); match; match = BOLD_PATTERN.exec(paragraph)) {
-      segments.push({ business: current, text: paragraph.slice(cursor, match.index), mention: null });
-      const mention = match[1].trim();
-      if (isBusinessMention(mention, paragraph[match.index + match[0].length] ?? '')) {
-        const resolved = resolveBusiness(mention, index);
-        segments.push({ business: resolved, text: '', mention });
+    scanner.lastIndex = 0;
+    for (let match = scanner.exec(paragraph); match; match = scanner.exec(paragraph)) {
+      const [whole, linkLabel, linkHref, boldText] = match;
+      const before = paragraph.slice(cursor, match.index);
+      cursor = match.index + whole.length;
+      if (linkHref !== undefined) {
+        segments.push({ business: current, text: before, mention: null });
+        const slug = normalize(linkHref.slice(DIRECTORY_LINK_PREFIX.length));
+        const resolved = index.bySlug.get(slug) ?? null;
+        segments.push({ business: resolved, text: '', mention: resolved ? null : (linkLabel || linkHref) });
         current = resolved;
+        continue;
       }
-      cursor = match.index + match[0].length;
+      if (boldText !== undefined) {
+        segments.push({ business: current, text: before, mention: null });
+        const mention = boldText.trim();
+        const resolved = resolveBusiness(mention, index);
+        const context = { nextChar: paragraph[match.index + whole.length] ?? '', line: lineAt(paragraph, match.index), resolved: Boolean(resolved) };
+        if (isBusinessMention(mention, context)) {
+          segments.push({ business: resolved, text: '', mention: resolved ? null : mention });
+          current = resolved;
+        } else {
+          // Structure or emphasis: it neither attributes nor asserts anything.
+          segments.push({ business: current, text: whole, mention: null });
+        }
+        continue;
+      }
+      // A plain-text occurrence of a recorded business name.
+      segments.push({ business: current, text: before, mention: null });
+      const resolved = resolveBusiness(whole, index);
+      segments.push({ business: resolved, text: '', mention: null });
+      if (resolved) current = resolved;
     }
     segments.push({ business: current, text: paragraph.slice(cursor), mention: null });
   }
@@ -221,11 +374,23 @@ function collectFields(post) {
   return fields;
 }
 
-const SPECIFIC_RULES = Object.freeze([
+// Geography is checked longest-phrase first and each match is blanked out of the
+// working copy, so "171 East Liberty St Unit 130" is judged once as an address and
+// never again as a bare street.
+const GEOGRAPHY_RULES = Object.freeze([
+  ...RELATIVE_GEOGRAPHY_PATTERNS.map((pattern) => ({ rule: 'unsupported-address', pattern, label: 'location' })),
   { rule: 'unsupported-address', pattern: ADDRESS_PATTERN, label: 'address' },
+  { rule: 'unsupported-address', pattern: BARE_STREET_PATTERN, label: 'street' },
+]);
+
+const SPECIFIC_RULES = Object.freeze([
   { rule: 'unsupported-price', pattern: PRICE_PATTERN, label: 'price' },
   { rule: 'unsupported-hours', pattern: HOURS_PATTERN, label: 'opening hours' },
 ]);
+
+function blankOut(text, start, length) {
+  return text.slice(0, start) + ' '.repeat(length) + text.slice(start + length);
+}
 
 /**
  * @param post   a post record as it would be appended to data/posts.json
@@ -238,22 +403,38 @@ export function lintPost(post, { businesses = [], now } = {}) {
   const add = (rule, claim, detail, field) => findings.push({ rule, severity: 'high', claim, detail: `${field}: ${detail}` });
   const year = postYear(post, now);
 
+  // Declared attribution: every slug the post claims to be about must be a record.
+  for (const [position, slug] of (Array.isArray(post?.relatedBusinesses) ? post.relatedBusinesses : []).entries()) {
+    if (!index.bySlug.has(normalize(slug))) {
+      add('unrecorded-business', String(slug), 'no data/businesses.json record has this slug', `relatedBusinesses[${position}]`);
+    }
+  }
+
   for (const { field, text } of collectFields(post)) {
     for (const segment of attributeSegments(text, index)) {
       if (segment.mention && !segment.business) {
-        add('unrecorded-business', segment.mention, `no data/businesses.json record matches this bold business name`, field);
+        add('unrecorded-business', segment.mention, 'no data/businesses.json record matches this business reference', field);
         continue;
       }
-      for (const { rule, pattern, label } of SPECIFIC_RULES) {
+      // A specific is a claim about a business only when it is attributed to one.
+      // An unattributed number (a transit fare, a park's size) belongs to no record
+      // and is not something businesses.json can adjudicate.
+      if (!segment.business) continue;
+      const record = segment.business;
+      let remaining = segment.text;
+      for (const { rule, pattern, label } of [...GEOGRAPHY_RULES, ...SPECIFIC_RULES]) {
         pattern.lastIndex = 0;
-        for (let match = pattern.exec(segment.text); match; match = pattern.exec(segment.text)) {
-          // A specific is a claim about a business only when it is attributed to
-          // one. An unattributed number (a transit fare, a park's size) belongs to
-          // no record and is not something businesses.json can adjudicate.
-          if (!segment.business) continue;
-          const claim = match[0].trim();
-          if (segment.business.text.includes(normalize(claim))) continue;
-          add(rule, claim, `${label} is not verbatim in the record for ${segment.business.record.name}`, field);
+        const hits = [];
+        for (let match = pattern.exec(remaining); match; match = pattern.exec(remaining)) {
+          hits.push({ index: match.index, text: match[0] });
+          if (match[0].length === 0) pattern.lastIndex += 1;
+        }
+        for (const hit of hits) remaining = blankOut(remaining, hit.index, hit.text.length);
+        for (const hit of hits) {
+          const claim = hit.text.trim();
+          if (!claim) continue;
+          if (record.comparable.includes(comparable(claim))) continue;
+          add(rule, claim, `${label} is not verbatim in the record for ${record.record.name}`, field);
         }
       }
     }

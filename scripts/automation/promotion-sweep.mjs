@@ -13,19 +13,44 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { github, paged, writeOutput } from './github.mjs';
-import { planPromotionSweep, PROMOTION_STALE_HOURS, SWEEP_MIN_DISPATCH_INTERVAL_HOURS } from './recovery.mjs';
+import {
+  isPromotionCoordinatorRun, planPromotionSweep, PROMOTION_STALE_HOURS,
+  selectRecentDispatchRuns, SWEEP_MIN_DISPATCH_INTERVAL_HOURS,
+} from './recovery.mjs';
 
-// Any coordinator dispatch at all counts as "this tick already dispatched": if the
-// ordinary path is alive and working, the sweep must stand down rather than race it.
-async function lastCoordinatorDispatchAt(repo) {
+// Only a PROMOTION dispatch counts as "this tick already dispatched". Counting any
+// coordinator dispatch let ordinary blog/SEO/news generator activity — which happens
+// several times a week — suppress the sweep forever, leaving `main` stranded behind
+// `staging` with the one mechanism built to notice permanently stood down.
+//
+// The dispatch payload is not readable from the runs API, so the run's job graph is
+// the evidence: a promotion dispatch runs `validate-promotion`, a generator dispatch
+// skips it. Only the runs recent enough to matter are inspected, newest first.
+async function lastPromotionDispatchAt(repo, now) {
+  let runs;
   try {
-    const runs = await github(`/repos/${repo}/actions/workflows/autonomous-coordinator.yml/runs?event=repository_dispatch&per_page=1`);
-    return runs?.workflow_runs?.[0]?.created_at ?? null;
+    const response = await github(`/repos/${repo}/actions/workflows/autonomous-coordinator.yml/runs?event=repository_dispatch&per_page=30`);
+    runs = response?.workflow_runs ?? [];
   } catch (error) {
     // Unknown recent-dispatch history means we cannot prove we are not racing.
     console.log(`Cannot read coordinator run history (${error.message}); treating this tick as already dispatched.`);
-    return new Date().toISOString();
+    return new Date(now).toISOString();
   }
+  for (const run of selectRecentDispatchRuns(runs, { now })) {
+    let jobs;
+    try {
+      jobs = (await github(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`))?.jobs ?? [];
+    } catch (error) {
+      console.log(`Cannot read jobs for run ${run.id} (${error.message}); treating this tick as already dispatched.`);
+      return new Date(now).toISOString();
+    }
+    if (isPromotionCoordinatorRun(jobs)) {
+      console.log(`Run ${run.id} at ${run.created_at} was a promotion dispatch; the sweep stands down this tick.`);
+      return run.created_at;
+    }
+    console.log(`Run ${run.id} at ${run.created_at} was a generator dispatch; it does not suppress the promotion sweep.`);
+  }
+  return null;
 }
 
 function writeSummary(lines) {
@@ -39,11 +64,12 @@ async function main() {
   if (!repo) throw new Error('missing --repo');
   const owner = repo.split('/')[0];
 
+  const now = Date.now();
   const [comparison, staging, openPromotionPrs, lastDispatchAt] = await Promise.all([
     github(`/repos/${repo}/compare/main...staging`),
     github(`/repos/${repo}/branches/staging`),
     paged(`/repos/${repo}/pulls?state=open&base=main&head=${encodeURIComponent(`${owner}:staging`)}`),
-    lastCoordinatorDispatchAt(repo),
+    lastPromotionDispatchAt(repo, now),
   ]);
 
   const stagingSha = staging?.commit?.sha;
@@ -54,7 +80,7 @@ async function main() {
     openPromotionPrs,
     lastDispatchAt,
     stagingSha,
-    now: Date.now(),
+    now,
   });
 
   writeOutput({ action: plan.action, sha: plan.sha ?? '', reason: plan.reason });
@@ -68,7 +94,8 @@ async function main() {
     `- main is behind staging by: ${comparison?.ahead_by ?? 'unknown'} commit(s)`,
     `- staging head: \`${stagingSha ?? 'unknown'}\` (${stagingHeadAt ?? 'unknown'})`,
     `- open promotion PRs: ${openPromotionPrs.length ? openPromotionPrs.map((pr) => `#${pr.number}`).join(', ') : 'none'}`,
-    `- last coordinator dispatch: ${lastDispatchAt ?? 'never'}`,
+    `- last **promotion** coordinator dispatch: ${lastDispatchAt ?? 'none in the suppression window'}`,
+    '- (generator dispatches are deliberately not counted here — they must never suppress the sweep)',
     `- thresholds: staging head older than ${PROMOTION_STALE_HOURS}h, at most one dispatch per ${SWEEP_MIN_DISPATCH_INTERVAL_HOURS}h`,
     '',
     plan.action === 'dispatch'

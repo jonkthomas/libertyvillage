@@ -174,6 +174,8 @@ jobs:
       passed: ${{ steps.review.outputs.passed }}
       overall: ${{ steps.review.outputs.overall }}
       repairable: ${{ steps.review.outputs.repairable }}
+      converging: ${{ steps.review.outputs.converging }}
+      progress_reason: ${{ steps.review.outputs.progress_reason }}
       failure_class: ${{ steps.review.outputs.failure_class }}
     steps:
       - uses: actions/checkout@v4
@@ -227,6 +229,14 @@ jobs:
     # `repairable != 'false'` is the F5 short-circuit: a verdict whose blocking
     # findings are all structurally unrepairable skips the fixer entirely rather
     # than burning 3 rounds x 4 plans on a foregone conclusion.
+    #
+    # `converging != 'false'` is the F4 short-circuit, decided by
+    # recovery.evaluateRepairProgress over the ordered gate history rebuilt from
+    # this PR's durable audit comments: a round that regressed the score (#97
+    # 7.2 -> 6.5, #75 5.0 -> 4.5) or that introduced a blocking finding the previous
+    # round did not have abandons the repair loop here, BEFORE the fixer is
+    # dispatched. block-generator then makes it a visible terminal state and the
+    # bounded candidate ladder closes and regenerates from there.
     needs:
       [
         validate-generator,
@@ -234,7 +244,7 @@ jobs:
         generator-review,
         generator-gate-status,
       ]
-    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed != 'true' && needs.validate-generator.outputs.can_repair == 'true' && needs.generator-review.outputs.repairable != 'false' }}
+    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed != 'true' && needs.validate-generator.outputs.can_repair == 'true' && needs.generator-review.outputs.repairable != 'false' && needs.generator-review.outputs.converging != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -472,10 +482,18 @@ jobs:
           REVIEW_OK: ${{ needs.generator-review.outputs.review_ok }}
           REPAIRABLE: ${{ needs.generator-review.outputs.repairable }}
           CAN_REPAIR: ${{ steps.budget.outputs.can_repair }}
+          CONVERGING: ${{ needs.generator-review.outputs.converging }}
+          PROGRESS_REASON: ${{ needs.generator-review.outputs.progress_reason }}
         run: |
           DECISION=error
           if [ "$CI_RESULT" = success ] && [ "$REVIEW_OK" = true ] && [ "$CAN_REPAIR" != true ]; then DECISION=exhausted; fi
           if [ "$CI_RESULT" = success ] && [ "$REVIEW_OK" = true ] && [ "$REPAIRABLE" = false ]; then DECISION=unrepairable; fi
+          # F4: the repair loop was abandoned early because it was not converging.
+          if [ "$CI_RESULT" = success ] && [ "$REVIEW_OK" = true ] && [ "$CONVERGING" = false ]; then
+            DECISION=exhausted
+            echo "Repair loop abandoned before dispatching the fixer: $PROGRESS_REASON"
+            { echo "## Repair convergence"; echo; echo "- decision: **abandon**"; echo "- reason: $PROGRESS_REASON"; } >> "$GITHUB_STEP_SUMMARY"
+          fi
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state failure --description "Automation blocked: $DECISION"
           VERDICT_ARGS=(); [ -f gate-verdict.json ] && VERDICT_ARGS=(--verdict gate-verdict.json)
           node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision "$DECISION" --attempt "${{ steps.budget.outputs.attempt }}" "${VERDICT_ARGS[@]}" --out blocked-audit.json

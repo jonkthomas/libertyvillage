@@ -10,7 +10,7 @@ import {
 } from './record-repair.mjs';
 import { evaluateVerdict, filterRepairablePaths, validateRepairPlan } from './policy.mjs';
 import { classifyFindings, validatePostRepair } from './preflight.mjs';
-import { classifyRunFailure } from './recovery.mjs';
+import { buildRepairHistory, classifyRunFailure, evaluateRepairProgress } from './recovery.mjs';
 
 const VERDICT_SCHEMA = {
   // No `passed` field: the outcome is recomputed server-side from overall +
@@ -134,17 +134,23 @@ export function selectReferenceRecords(diff, businesses) {
   return selected;
 }
 
+// N5. Fail CLOSED. An ungrounded gate is exactly the configuration that produced the
+// Balzac's false positive on #97, so a run that cannot load the repository's own
+// reference records must refuse rather than quietly score the diff from parametric
+// memory. Selecting zero records because the diff names no recorded business is a
+// different thing and stays fine.
 async function referenceRecordsFor(repo, kind, sha, diff) {
   if (!GROUNDED_KINDS.includes(kind)) return [];
+  let businesses;
   try {
-    const businesses = JSON.parse(await fileAtSha(repo, BUSINESSES_FILE, sha));
-    return selectReferenceRecords(diff, businesses);
+    businesses = JSON.parse(await fileAtSha(repo, BUSINESSES_FILE, sha));
   } catch (error) {
-    // Fail loud but not closed: the gate without grounding is the status quo, and
-    // an unreadable reference file must not silently pass a diff.
-    console.log(`Grounding records unavailable (${error.message}); gate runs ungrounded.`);
-    return [];
+    throw new Error(`grounded reference records could not be loaded from ${BUSINESSES_FILE}@${sha}; refusing to run an ungrounded ${kind} gate: ${error.message}`);
   }
+  if (!Array.isArray(businesses)) {
+    throw new Error(`grounded reference records in ${BUSINESSES_FILE}@${sha} are not an array; refusing to run an ungrounded ${kind} gate`);
+  }
+  return selectReferenceRecords(diff, businesses);
 }
 
 function referenceBlock(records) {
@@ -223,6 +229,8 @@ async function review(options) {
   // possibly help. An all-unrepairable verdict is a foregone conclusion, and
   // 3 rounds x 4 fixer plans on one is pure waste.
   let repairable = 'true';
+  let converging = 'true';
+  let progressReason = 'first scored round; nothing to converge against yet';
   if (!decision.passed && kind !== 'promotion') {
     const changedFiles = (await paged(`/repos/${repo}/pulls/${pr}/files`)).map((file) => file.filename);
     const classified = classifyFindings(kind, raw, { changedFiles });
@@ -230,8 +238,27 @@ async function review(options) {
     if (classified.allUnrepairable) {
       console.log(`Every blocking finding is structurally unrepairable: ${classified.unrepairable.map((finding) => `${finding.path} (${finding.note})`).join('; ')}`);
     }
+    // F4. #97 went 7.2 -> 6.5 and #75 went 5.0 -> 4.5 while the budget kept paying
+    // for rounds that made the candidate worse. The ordered history is rebuilt from
+    // the durable audit comments the coordinator posted on the earlier rounds — the
+    // only evidence that survives between coordinator runs — and this round is
+    // appended before the question is asked, so the decision happens BEFORE the
+    // fixer is ever dispatched rather than after the budget is gone.
+    const blockingCount = raw.findings.filter((finding) => BLOCKING_SEVERITIES.includes(finding?.severity)).length;
+    const comments = await paged(`/repos/${repo}/issues/${pr}/comments`);
+    const history = buildRepairHistory(comments);
+    if (!history.some((round) => round.sha === sha)) {
+      history.push({ sha, decision: 'reviewing', attempt: history.length, overall: raw.overall, blockingCount });
+    }
+    const progress = evaluateRepairProgress({ history });
+    converging = progress.decision === 'abandon' ? 'false' : 'true';
+    progressReason = progress.reason;
+    console.log(`Repair convergence over ${history.length} scored round(s): ${progress.decision} — ${progress.reason}.`);
   }
-  writeOutput({ review_ok: 'true', passed: decision.passed ? 'true' : 'false', overall: raw.overall, repairable });
+  writeOutput({
+    review_ok: 'true', passed: decision.passed ? 'true' : 'false', overall: raw.overall,
+    repairable, converging, progress_reason: progressReason.slice(0, 200),
+  });
 }
 
 async function reviewContent(options) {

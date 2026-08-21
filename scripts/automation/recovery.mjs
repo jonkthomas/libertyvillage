@@ -4,7 +4,7 @@
 // is finite (N3). Nothing in this module can publish, lower the gate, or re-enter
 // generation without crossing a cooldown — the exhaustion path always ends in a
 // human-visible terminal state, never in a retry loop.
-import { MAX_REPAIRS, MAX_TRANSIENT_RETRIES } from './constants.mjs';
+import { MAX_REPAIRS, MAX_TRANSIENT_RETRIES, TRUSTED_PR_AUTHORS } from './constants.mjs';
 import { isExactSha } from './policy.mjs';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -81,6 +81,72 @@ export function nextRetry({ attempts, classification } = {}) {
   };
 }
 
+// F5/F14. What the last *durable* coordinator decision on a candidate actually was.
+// A candidate that carries the blocked label is a candidate the loop already
+// stopped: `block-generator` writes one of these decisions and only then applies
+// `automation-blocked`. Reading the repair counter alone cannot tell a genuinely
+// repairable mid-flight candidate from a validation-failed / unrepairable / errored
+// one that will never move again — which is exactly how attempts=0 blocked PRs were
+// stranded forever on `repair`.
+export const NO_USEFUL_WORK_DECISIONS = Object.freeze([
+  'blocked', 'error', 'exhausted', 'unrepairable', 'validation-failed', 'abandoned', 'lint-discarded',
+]);
+
+// The documented continuations plus the success terminals: while one of these is the
+// latest durable decision the loop is still doing real work on this candidate, so the
+// bounded repair budget is the right thing to read.
+export const IN_FLIGHT_DECISIONS = Object.freeze(['repairing', 'healing', 'passed', 'promoted']);
+
+export function classifyBlockDecision(decision) {
+  const value = typeof decision === 'string' ? decision.trim() : '';
+  if (IN_FLIGHT_DECISIONS.includes(value)) return 'in-flight';
+  // Unknown or unreadable durable evidence is NOT a reason to keep waiting: a
+  // blocked candidate nobody can explain is precisely the stranded case. Fail
+  // closed towards the bounded close-and-regenerate ladder, never towards forever.
+  return 'no-useful-work';
+}
+
+// The machine-readable half of the durable audit comment the coordinator posts on
+// every round. It is written by trusted code and read back by trusted code; the
+// human-readable body next to it is what a person reads.
+export const AUDIT_DATA_MARKER = 'automation-audit-data';
+const AUDIT_DATA_PATTERN = new RegExp(`<!--\\s*${AUDIT_DATA_MARKER}:(\\{[\\s\\S]*?\\})\\s*-->`);
+
+export function parseAuditRecord(body) {
+  const match = AUDIT_DATA_PATTERN.exec(String(body ?? ''));
+  if (!match) return null;
+  let value = null;
+  try { value = JSON.parse(match[1]); } catch { return null; }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (!isExactSha(value.sha)) return null;
+  const decision = typeof value.decision === 'string' ? value.decision : null;
+  const overall = Number(value.overall);
+  const blockingCount = Number(value.blockingCount);
+  return {
+    sha: value.sha,
+    decision,
+    attempt: Number.isInteger(value.attempt) ? value.attempt : null,
+    overall: Number.isFinite(overall) ? overall : null,
+    blockingCount: Number.isFinite(blockingCount) ? blockingCount : 0,
+  };
+}
+
+// F4. Rebuilds the ordered gate history for one candidate from the durable audit
+// comments the coordinator has already posted, oldest first. Only comments written
+// by a trusted author count, and only the FIRST scored record per reviewed SHA, so
+// neither a rerun nor an untrusted commenter can forge convergence.
+export function buildRepairHistory(comments, { trustedAuthors = TRUSTED_PR_AUTHORS } = {}) {
+  const bySha = new Map();
+  for (const comment of Array.isArray(comments) ? comments : []) {
+    const author = comment?.user?.login;
+    if (!trustedAuthors.includes(author)) continue;
+    const record = parseAuditRecord(comment?.body);
+    if (!record || record.overall === null || bySha.has(record.sha)) continue;
+    bySha.set(record.sha, record);
+  }
+  return [...bySha.values()].map((record, index) => ({ ...record, attempt: index }));
+}
+
 // F4. #97 went 7.2 -> 6.5 and #75 went 5.0 -> 4.5 while the budget kept paying for
 // rounds that were making the candidate worse. A round that regresses the score, or
 // introduces a blocking finding the previous round did not have, ends the loop.
@@ -126,42 +192,95 @@ function hoursSince(timestamp, now) {
   return (nowMs - then) / HOUR_MS;
 }
 
+// F14. The ladder movement a just-observed candidate failure causes. It is asked
+// at the moment of failure and is deliberately independent of the cooldown: the
+// cooldown governs when the NEXT candidate may start, never whether this failure
+// counted. Splitting it out gives the ladder one binding site that both the open-PR
+// path and the pre-PR claim-linter discard go through.
+export function recordCandidateFailure({ regenerations = 0 } = {}) {
+  const spent = Number.isInteger(regenerations) && regenerations >= 0 ? regenerations : MAX_CANDIDATE_REGENERATIONS;
+  if (spent >= MAX_CANDIDATE_REGENERATIONS) {
+    return {
+      action: 'abandon-topic',
+      regenerations: spent,
+      reason: `every bounded candidate failed (${spent}/${MAX_CANDIDATE_REGENERATIONS} regenerations); escalating once to a human`,
+    };
+  }
+  return {
+    action: 'close-and-regenerate',
+    regenerations: spent,
+    reason: `regeneration ${spent + 1}/${MAX_CANDIDATE_REGENERATIONS} is still within the bounded ladder`,
+  };
+}
+
 // F8/F14. An exhausted candidate is CLOSED and a fresh grounded candidate is
 // generated a full cycle later — never re-pushed, never force-published, and never
 // past the gate (N4). `reuseDraft` is false on every path by construction.
 export function nextCandidateAction({
-  attempts, maxRepairs = MAX_REPAIRS, regenerations = 0, healExhausted = false, blockedAt, now,
+  attempts, maxRepairs = MAX_REPAIRS, regenerations = 0, healExhausted = false, blockDecision,
+  blockedAt, now,
 } = {}) {
   const decision = (action, reason, closeCandidate = false) => ({
     action, reason, closeCandidate, reuseDraft: false, lowerThreshold: false,
   });
   const budget = Number.isInteger(maxRepairs) && maxRepairs >= 0 ? maxRepairs : MAX_REPAIRS;
   const used = Number.isInteger(attempts) && attempts >= 0 ? attempts : budget;
-  const exhausted = Boolean(healExhausted) || used >= budget;
+  // A repair counter with budget left only means "keep repairing" when the durable
+  // evidence says the loop is still mid-flight. A blocked candidate whose recorded
+  // decision was validation-failed / unrepairable / errored has no useful repair
+  // work left however many attempts it never spent, and must enter the bounded
+  // close-and-regenerate ladder instead of waiting forever.
+  const stranded = blockDecision !== undefined && classifyBlockDecision(blockDecision) === 'no-useful-work';
+  const exhausted = Boolean(healExhausted) || used >= budget || stranded;
 
   if (!exhausted) return decision('repair', `repair budget remains: ${used}/${budget}`);
 
-  const spent = Number.isInteger(regenerations) && regenerations >= 0 ? regenerations : MAX_CANDIDATE_REGENERATIONS;
-  if (spent >= MAX_CANDIDATE_REGENERATIONS) {
-    return decision(
-      'abandon-topic',
-      `every bounded candidate failed (${spent}/${MAX_CANDIDATE_REGENERATIONS} regenerations); escalating once to a human`,
-      true,
-    );
-  }
+  const ladder = recordCandidateFailure({ regenerations });
+  if (ladder.action === 'abandon-topic') return decision('abandon-topic', ladder.reason, true);
 
   const idle = hoursSince(blockedAt, now);
   if (idle === null) return decision('wait', 'blocked-at timestamp is unreadable; waiting rather than regenerating');
   if (idle < REGENERATION_COOLDOWN_HOURS) {
     return decision('wait', `cooling down: ${idle.toFixed(1)}h of ${REGENERATION_COOLDOWN_HOURS}h elapsed`);
   }
+  const why = healExhausted
+    ? 'base conflict is unhealable'
+    : stranded
+      ? `the recorded terminal decision \`${String(blockDecision)}\` leaves no repair work this candidate could ever do`
+      : `repair budget exhausted at ${used}/${budget}`;
   return decision(
     'close-and-regenerate',
-    healExhausted
-      ? 'base conflict is unhealable; closing this candidate and generating a fresh grounded draft'
-      : `repair budget exhausted at ${used}/${budget}; closing this candidate and generating a fresh grounded draft`,
+    `${why}; closing this candidate and generating a fresh grounded draft`,
     true,
   );
+}
+
+// F10. Telling a promotion coordinator run apart from an ordinary generator one.
+// The dispatch payload is not exposed on the workflow-run API, but the job graph is:
+// a promotion dispatch runs `validate-promotion` and skips `validate-generator`, and
+// vice versa. Without this distinction any blog/SEO/news dispatch counted as "already
+// dispatched this tick" and normal generator activity could suppress the sweep
+// indefinitely — which is precisely the stranded-`main` case the sweep exists for.
+export const PROMOTION_COORDINATOR_JOBS = Object.freeze(['validate-promotion', 'prepare-promotion', 'validate-promotion-pr']);
+
+export function isPromotionCoordinatorRun(jobs) {
+  return (Array.isArray(jobs) ? jobs : []).some((job) => (
+    PROMOTION_COORDINATOR_JOBS.includes(job?.name)
+    && job?.conclusion !== 'skipped'
+    && job?.status !== 'skipped'
+  ));
+}
+
+// The only runs worth inspecting are the ones recent enough to still suppress a
+// dispatch. Newest first, and hard-capped so one tick cannot fan out over history.
+export function selectRecentDispatchRuns(runs, { now, hours = SWEEP_MIN_DISPATCH_INTERVAL_HOURS, limit = 10 } = {}) {
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
+  if (!Number.isFinite(nowMs)) throw new Error('sweep run selection requires an explicit clock');
+  return (Array.isArray(runs) ? runs : [])
+    .filter((run) => Number.isFinite(Date.parse(run?.created_at ?? '')))
+    .filter((run) => (nowMs - Date.parse(run.created_at)) / HOUR_MS < hours)
+    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
+    .slice(0, limit);
 }
 
 // F10. Dispatch only when main is genuinely stranded behind staging, the ordinary

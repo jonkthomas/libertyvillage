@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  ALLOW_RECORD_DELETION_LABEL, BLOCKED_LABEL, FIXER_MODEL, GATE_MODEL, KIND_POLICIES,
-  MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS, TRUSTED_PR_AUTHORS,
+  ALLOW_RECORD_DELETION_LABEL, BLOCKED_LABEL, BLOCKING_SEVERITIES, FIXER_MODEL, GATE_MODEL,
+  KIND_POLICIES, MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS, TRUSTED_PR_AUTHORS,
 } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
 import {
@@ -15,8 +15,10 @@ import {
 } from './policy.mjs';
 import { MAX_TRANSIENT_RETRIES } from './constants.mjs';
 import {
-  MAX_CANDIDATE_REGENERATIONS, nextCandidateAction, nextRetry,
+  MAX_CANDIDATE_REGENERATIONS, nextCandidateAction, nextRetry, parseAuditRecord,
+  recordCandidateFailure, REGENERATION_COOLDOWN_HOURS,
 } from './recovery.mjs';
+import { isGeneratorKind, loadCandidateState, recordCandidateEvent } from './candidate-state.mjs';
 import { planBaseHeal, resolveAppendUnion } from './heal-base.mjs';
 import {
   applyRecordRepairPlan, isRecordFile, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
@@ -185,23 +187,46 @@ async function audit(options) {
   };
   fs.writeFileSync(options.out, `${JSON.stringify(record, null, 2)}\n`);
   await setLabels(options.repo, options.pr, options.decision, attempt);
+  // F13. A human-applied `allow-record-deletion` is read live from the PR so the
+  // durable comment says so loudly. An override that only ever surfaced as an
+  // internal return value and a job log line is an override nobody reviews.
+  const live = await github(`/repos/${options.repo}/issues/${options.pr}`);
+  const overridden = (live?.labels || [])
+    .some((label) => (typeof label === 'string' ? label : label?.name) === ALLOW_RECORD_DELETION_LABEL);
   const marker = `<!-- automation-audit:${options.sha}:${options.decision}:${attempt} -->`;
   const comments = await paged(`/repos/${options.repo}/issues/${options.pr}/comments`);
   if (comments.some((comment) => comment.body?.includes(marker))) {
-    writeOutput({ comment_created: 'false' });
+    writeOutput({ comment_created: 'false', record_deletion_overridden: overridden ? 'true' : 'false' });
     console.log('Audit comment already exists; notification remains deduplicated.');
     return;
   }
   const findings = record.findings.length ? record.findings.map((finding) => `- **${finding.severity}** \`${finding.path}\`: ${finding.note}`).join('\n') : '- none';
+  const blockingCount = record.findings.filter((finding) => BLOCKING_SEVERITIES.includes(finding?.severity)).length;
+  // The machine-readable half of the same evidence: what `recovery.buildRepairHistory`
+  // replays on the next round to decide whether the repairs are converging at all.
+  const data = `<!-- automation-audit-data:${JSON.stringify({
+    sha: record.commit_sha, decision: record.decision, attempt,
+    overall: record.score, blockingCount, recordDeletionOverridden: overridden,
+  })} -->`;
   const body = [
-    marker, '## Autonomous gate audit', '',
+    marker, data, '## Autonomous gate audit', '',
     `- Decision: **${record.decision}**`, `- Commit: \`${record.commit_sha}\``,
     `- Reviewer: \`${record.reviewer_model}\``, `- Fixer: \`${record.fixer_model}\``,
     `- Score: ${record.score ?? 'unavailable'}`, `- Repair attempts: ${record.attempts}/${MAX_REPAIRS}`,
-    `- Range: \`${record.range ?? `PR #${options.pr} @ ${record.commit_sha}`}\``, '', '### Findings', findings,
+    `- Blocking findings: ${blockingCount}`,
+    `- Range: \`${record.range ?? `PR #${options.pr} @ ${record.commit_sha}`}\``,
+    ...(overridden ? [
+      '',
+      `> [!CAUTION]`,
+      `> **A human applied \`${ALLOW_RECORD_DELETION_LABEL}\` to this pull request.** The merge-time`,
+      '> destructive-diff guard was overridden, so this diff was allowed to DELETE slug-keyed base',
+      '> records. This was a person\'s decision, not the automation\'s — check the removed records.',
+    ] : []),
+    '', '### Findings', findings,
   ].join('\n');
   await github(`/repos/${options.repo}/issues/${options.pr}/comments`, { method: 'POST', body: { body } });
-  writeOutput({ comment_created: 'true' });
+  writeOutput({ comment_created: 'true', record_deletion_overridden: overridden ? 'true' : 'false' });
+  if (overridden) console.log(`WARNING: ${ALLOW_RECORD_DELETION_LABEL} override reported loudly in the audit comment on PR #${options.pr}.`);
 }
 
 function repairTarget(file) {
@@ -369,48 +394,119 @@ async function setHeal(options) {
 
 const ABANDONED_LABEL = 'automation-abandoned';
 
+// The latest durable coordinator decision on this candidate, read back from the
+// audit comments the coordinator itself posted. Untrusted commenters are ignored,
+// so a human cannot talk the ladder into believing a blocked PR is still healthy.
+async function latestAuditDecision(repo, prNumber) {
+  const comments = await paged(`/repos/${repo}/issues/${prNumber}/comments`);
+  let decision = null;
+  for (const comment of comments) {
+    if (!TRUSTED_PR_AUTHORS.includes(comment?.user?.login)) continue;
+    const record = parseAuditRecord(comment?.body);
+    if (record?.decision) { decision = record.decision; continue; }
+    const legacy = /<!--\s*automation-audit:[0-9a-f]{40}:([a-z-]+):\d+\s*-->/.exec(String(comment?.body ?? ''));
+    if (legacy) decision = legacy[1];
+  }
+  return decision;
+}
+
 // F14. Runs at the START of a generation cycle, before any model spend. It answers
 // one question: may this topic have a new candidate right now? The decision itself
-// is nextCandidateAction's; everything here is reading the controlled labels that
-// carry the budget between candidates, and closing what the policy says to close.
+// is nextCandidateAction's; everything here reads the durable ladder state and the
+// controlled labels that carry the budget between candidates, and closes what the
+// policy says to close.
+//
+// The ladder state lives in a controlled state issue rather than only on the open
+// candidate's labels, because the two cases that used to lose it are exactly the
+// two that matter: the PR closing, and a claim-linter refusal that never opened one.
 async function planCandidate(options) {
   requireOptions(options, ['repo', 'kind']);
-  const policy = KIND_POLICIES[options.kind];
-  if (!policy || options.kind === 'promotion') throw new Error(`plan-candidate requires a generator kind: ${options.kind}`);
+  const kind = options.kind;
+  if (!isGeneratorKind(kind)) throw new Error(`plan-candidate requires a generator kind: ${kind}`);
+  const policy = KIND_POLICIES[kind];
+  const now = Date.now();
+  // Fail closed: an unreadable ladder never silently restarts the budget at zero.
+  const { issue, state } = await loadCandidateState(options.repo, kind);
+  const stateIssue = issue?.number ?? '';
+
   const open = await paged(`/repos/${options.repo}/pulls?state=open&base=${encodeURIComponent(policy.base)}`);
   const candidates = open
     .filter((pr) => TRUSTED_PR_AUTHORS.includes(pr?.user?.login))
     .filter((pr) => policy.headPrefixes.some((prefix) => pr?.head?.ref === prefix || pr?.head?.ref?.startsWith(prefix)))
     .sort((left, right) => right.number - left.number);
 
-  const emit = (values, message) => { writeOutput(values); console.log(message); };
+  const emit = (values, message) => {
+    writeOutput({ kind, state_issue: stateIssue, ...values });
+    console.log(message);
+  };
+
+  if (state.abandoned) {
+    emit({ action: 'abandon-topic', generate: 'false', regenerations: state.regenerations, pr_number: candidates[0]?.number ?? '', reason: 'topic is already abandoned and waiting on a human' },
+      `The ${kind} topic is already abandoned in the durable ladder; no new candidate until a human acts.`);
+    return;
+  }
+
+  // No candidate in flight. The ladder is entirely durable here — which is what
+  // makes a pre-PR claim-linter discard count towards the same bounded budget.
   if (candidates.length === 0) {
-    emit({ action: 'generate', generate: 'true', regenerations: 0, pr_number: '', reason: 'no candidate is in flight' },
-      `No open ${options.kind} candidate; generating a fresh one.`);
+    if (state.lastFailureAt === null) {
+      emit({ action: 'generate', generate: 'true', regenerations: state.regenerations, pr_number: '', reason: 'no candidate is in flight' },
+        `No open ${kind} candidate; generating a fresh one.`);
+      return;
+    }
+    const decision = nextCandidateAction({
+      attempts: MAX_REPAIRS, maxRepairs: MAX_REPAIRS, regenerations: state.regenerations,
+      blockDecision: 'lint-discarded', blockedAt: state.lastFailureAt, now,
+    });
+    if (decision.action === 'abandon-topic') {
+      const recorded = await recordCandidateEvent(options.repo, kind, {
+        key: `${kind}:ladder:${state.regenerations}:abandon-topic`,
+        action: 'abandon-topic', at: new Date(now).toISOString(), reason: decision.reason,
+      });
+      writeOutput({ kind, state_issue: recorded.issue?.number ?? stateIssue, action: 'abandon-topic', generate: 'false', regenerations: recorded.state.regenerations, pr_number: '', reason: decision.reason });
+      console.log(`ABANDONED_TOPIC for ${kind}: ${decision.reason}.`);
+      return;
+    }
+    if (decision.action !== 'close-and-regenerate') {
+      emit({ action: decision.action, generate: 'false', regenerations: state.regenerations, pr_number: '', reason: decision.reason },
+        `Holding: ${decision.reason}.`);
+      return;
+    }
+    emit({ action: 'generate', generate: 'true', regenerations: state.regenerations, pr_number: '', reason: `${decision.reason} (previous candidate: ${state.lastReason ?? 'discarded'})` },
+      `Cooldown elapsed after a discarded ${kind} candidate; generating regeneration ${state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}.`);
     return;
   }
 
   const candidate = candidates[0];
   const labels = candidate.labels || [];
   const names = labels.map((label) => (typeof label === 'string' ? label : label?.name));
+  // Neither store may lose budget: the durable ladder and the controlled label on
+  // the candidate are reconciled upwards, never downwards.
+  const regenerations = Math.max(state.regenerations, readRegenerationCount(labels));
   if (names.includes(ABANDONED_LABEL)) {
-    emit({ action: 'abandon-topic', generate: 'false', regenerations: readRegenerationCount(labels), pr_number: candidate.number, reason: 'topic is already abandoned and waiting on a human' },
+    emit({ action: 'abandon-topic', generate: 'false', regenerations, pr_number: candidate.number, reason: 'topic is already abandoned and waiting on a human' },
       `PR #${candidate.number} is already abandoned; no new candidate until a human acts.`);
     return;
   }
   if (!names.includes(BLOCKED_LABEL)) {
-    emit({ action: 'wait', generate: 'false', regenerations: readRegenerationCount(labels), pr_number: candidate.number, reason: 'a candidate is still in flight' },
+    emit({ action: 'wait', generate: 'false', regenerations, pr_number: candidate.number, reason: 'a candidate is still in flight' },
       `PR #${candidate.number} is still in flight; not opening a second candidate.`);
     return;
   }
 
   const attempts = readRepairAttempt(labels);
-  const regenerations = readRegenerationCount(labels);
+  // A blocked candidate is a candidate the loop already stopped. Reading only the
+  // repair counter mapped an automation-blocked, validation-failed PR with zero
+  // attempts to `repair` and stranded it forever; the recorded decision is what
+  // says whether any repair round could still do useful work.
+  const blockDecision = (await latestAuditDecision(options.repo, candidate.number)) ?? 'blocked';
   const decision = nextCandidateAction({
     attempts, maxRepairs: MAX_REPAIRS, regenerations,
     healExhausted: !canHeal(readHealAttempt(labels)),
-    blockedAt: candidate.updated_at, now: Date.now(),
+    blockDecision,
+    blockedAt: candidate.updated_at, now,
   });
+  console.log(`PR #${candidate.number} is blocked with recorded decision \`${blockDecision}\` at ${attempts}/${MAX_REPAIRS} repairs and ${regenerations}/${MAX_CANDIDATE_REGENERATIONS} regenerations.`);
 
   if (decision.action === 'abandon-topic') {
     await createLabel(options.repo, ABANDONED_LABEL, '000000', 'Every bounded candidate for this topic failed');
@@ -419,11 +515,16 @@ async function planCandidate(options) {
       '## Autonomous candidate policy — topic abandoned', '',
       `- Decision: **abandon-topic**`,
       `- Regenerations used: ${regenerations}/${MAX_CANDIDATE_REGENERATIONS}`,
+      `- Recorded block decision: \`${blockDecision}\``,
       `- Reason: ${decision.reason}`, '',
       'No further candidate will be generated for this topic. Read the gate audit comments above and decide whether it is worth a hand-written post.',
     ].join('\n'));
-    emit({ action: decision.action, generate: 'false', regenerations, pr_number: candidate.number, reason: decision.reason },
-      `Abandoned the topic behind PR #${candidate.number}: ${decision.reason}.`);
+    const recorded = await recordCandidateEvent(options.repo, kind, {
+      key: `${kind}:pr-${candidate.number}:${candidate.head.sha}:abandon-topic`,
+      action: 'abandon-topic', at: new Date(now).toISOString(), reason: decision.reason,
+    });
+    writeOutput({ kind, state_issue: recorded.issue?.number ?? stateIssue, action: decision.action, generate: 'false', regenerations: recorded.state.regenerations, pr_number: candidate.number, reason: decision.reason });
+    console.log(`Abandoned the topic behind PR #${candidate.number}: ${decision.reason}.`);
     return;
   }
 
@@ -434,20 +535,55 @@ async function planCandidate(options) {
   }
 
   // N4: the failed candidate is CLOSED. The next cycle generates a fresh grounded
-  // draft through the linter — the rejected draft is never re-pushed.
+  // draft through the linter — the rejected draft is never re-pushed. The ladder
+  // moves in durable state FIRST, so the count survives the PR closing.
+  const recorded = await recordCandidateEvent(options.repo, kind, {
+    key: `${kind}:pr-${candidate.number}:${candidate.head.sha}:close-and-regenerate`,
+    action: 'close-and-regenerate', at: new Date(now).toISOString(), reason: decision.reason,
+  });
   await postOnce(options.repo, candidate.number, `<!-- automation-candidate:${candidate.head.sha}:close-and-regenerate -->`, [
     '## Autonomous candidate policy — closing and regenerating', '',
     `- Decision: **close-and-regenerate**`,
     `- Repair attempts used: ${attempts}/${MAX_REPAIRS}`,
-    `- Regeneration: ${regenerations + 1}/${MAX_CANDIDATE_REGENERATIONS}`,
+    `- Recorded block decision: \`${blockDecision}\``,
+    `- Regeneration: ${recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`,
     `- Reason: ${decision.reason}`, '',
     'This draft is not being re-pushed. The next cycle generates a fresh, grounded candidate through the claim linter.',
   ].join('\n'));
   await github(`/repos/${options.repo}/pulls/${candidate.number}`, { method: 'PATCH', body: { state: 'closed' } });
-  emit({
-    action: decision.action, generate: 'true', regenerations: regenerations + 1,
+  writeOutput({
+    kind, state_issue: recorded.issue?.number ?? stateIssue,
+    action: decision.action, generate: 'true', regenerations: recorded.state.regenerations,
     pr_number: candidate.number, reason: decision.reason,
-  }, `Closed exhausted candidate PR #${candidate.number} and cleared the way for regeneration ${regenerations + 1}/${MAX_CANDIDATE_REGENERATIONS}.`);
+  });
+  console.log(`Closed exhausted candidate PR #${candidate.number} and cleared the way for regeneration ${recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}.`);
+}
+
+// F14, pre-PR half. A draft the claim linter refuses never becomes a pull request,
+// so there is no PR and no label to carry its budget. This records that failure in
+// the same durable ladder, idempotently: the discard costs one regeneration, starts
+// the >=24h cooldown, and the third one ends in a visible ABANDONED_TOPIC. It never
+// re-pushes the refused draft and never touches scored content.
+async function recordCandidateOutcome(options) {
+  requireOptions(options, ['repo', 'kind', 'outcome', 'key']);
+  const kind = options.kind;
+  if (!isGeneratorKind(kind)) throw new Error(`record-candidate-outcome requires a generator kind: ${kind}`);
+  const { state } = await loadCandidateState(options.repo, kind);
+  const ladder = recordCandidateFailure({ regenerations: state.regenerations });
+  const reason = `${options.outcome}: ${options.reason || ladder.reason}`;
+  const recorded = await recordCandidateEvent(options.repo, kind, {
+    key: `${kind}:${options.outcome}:${options.key}`,
+    action: ladder.action, at: new Date().toISOString(), reason,
+  });
+  writeOutput({
+    kind, action: ladder.action, recorded: recorded.changed ? 'true' : 'false',
+    regenerations: recorded.state.regenerations, abandoned: recorded.state.abandoned ? 'true' : 'false',
+    state_issue: recorded.issue?.number ?? '', reason,
+  });
+  console.log(recorded.changed
+    ? `Recorded ${options.outcome} for ${kind}: ${ladder.action}, ladder now ${recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`
+      + `${recorded.state.abandoned ? ' — ABANDONED_TOPIC' : `, next candidate after ${REGENERATION_COOLDOWN_HOURS}h`}.`
+    : `Outcome ${options.outcome} for ${kind} was already recorded (${recorded.reason}); the ladder is unchanged.`);
 }
 
 // Deduplicated by marker, exactly like the gate audit comment.
@@ -673,6 +809,7 @@ const commands = {
   'refresh-generator-base': refreshGeneratorBase, 'observe-and-promote': observeAndPromote,
   'heal-generator-base': healGeneratorBase, 'set-heal': setHeal,
   recover, 'read-attempt': readAttempt, 'plan-candidate': planCandidate, 'mark-regeneration': markRegeneration,
+  'record-candidate-outcome': recordCandidateOutcome,
 };
 try {
   const command = process.argv[2];

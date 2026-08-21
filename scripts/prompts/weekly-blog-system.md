@@ -261,6 +261,26 @@ Write 800-1200 words in markdown format:
 > another business, and never write it from memory. A vaguer sentence is always
 > correct; an invented specific is a blocking finding and discards the whole draft
 > before a pull request is opened.
+
+> **Attribution format (non-negotiable, machine-checked).** The claim linter can only
+> adjudicate a specific against the business it belongs to, so every business you make
+> a specific claim about must be *attributable in the text itself*, in one of exactly
+> these forms:
+>
+> 1. `[Name](/directory/<slug>)` — a link to that business's directory page. The slug
+>    must exist in `data/businesses.json`.
+> 2. `**Name**` — the bold name exactly as `data/businesses.json` spells it.
+> 3. The name written out exactly as `data/businesses.json` spells it.
+>
+> Put the business and its specific **in the same sentence**. "Mildred's Temple Kitchen
+> is at 85 Hanna Ave" is checkable; "Mildred's Temple Kitchen is the crown jewel. It is
+> at 85 Hanna Ave" is not, and the second sentence's address will be dropped or flagged.
+>
+> **Location claims are addresses.** A cross street ("on Liberty Street"), an
+> intersection ("where Hanna Ave meets Wellington St W"), and a bearing ("just north of
+> the rail corridor", "a two-minute walk from BMO Field") are all as specific as a civic
+> address and are checked the same way. If the business's own record does not contain
+> that geography, do not write it. Say "in Liberty Village" instead.
 - Natural paragraph flow with subheadings every 150-200 words
 - Include a brief intro paragraph and conclusion
 
@@ -513,6 +533,10 @@ Before declaring success, confirm:
 - [ ] Blog post matches BlogPost interface with all required fields
 - [ ] No duplicate slugs in posts.json
 - [ ] No fabricated businesses — all bold names exist in businesses.json
+- [ ] Every business carrying a specific is attributed in the same sentence, as a
+      `/directory/<slug>` link, a bold record name, or the exact record name
+- [ ] No cross street, intersection, or "N minutes from X" geography that the
+      business's own record does not contain verbatim
 - [ ] All cross-reference slugs verified against their data files
 - [ ] Hero image exists at public/images/blog/{slug}.jpg and is >10KB
 - [ ] `node scripts/diagnostic.js` exits 0
