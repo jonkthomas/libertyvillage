@@ -27,6 +27,9 @@ concurrency:
 
 permissions:
   contents: write
+  # The candidate policy creates the controlled regeneration/abandonment labels and
+  # posts the deduplicated closing comment on an exhausted candidate.
+  issues: write
   pull-requests: write
 
 jobs:
@@ -45,10 +48,32 @@ jobs:
 
       - run: npm ci
 
+      # F14. Decide whether this topic may have a new candidate at all, before any
+      # model spend. An exhausted candidate is closed and regenerated only after the
+      # cooldown; a third failure abandons the topic to a human. Nothing here can
+      # re-push a rejected draft — regeneration always means a fresh grounded one.
+      - name: Apply the bounded candidate policy before generating anything
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs plan-candidate --repo "$GITHUB_REPOSITORY" --kind blog
+
+      - name: Report the candidate decision
+        run: |
+          {
+            echo "## Candidate policy"
+            echo
+            echo "- decision: **${{ steps.candidate.outputs.action }}**"
+            echo "- reason: ${{ steps.candidate.outputs.reason }}"
+            echo "- generating this cycle: ${{ steps.candidate.outputs.generate }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install Playwright Chromium
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         run: npx playwright install chromium
 
       - name: Write service-account credentials
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -57,6 +82,7 @@ jobs:
           jq -e . /tmp/gsa-credentials.json > /dev/null
 
       - name: Run blog pipeline
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
@@ -66,9 +92,31 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: node scripts/weekly-blog-agent.js
 
+      - name: Refuse ungrounded claims before anything is committed
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
+        env:
+          # L1 rollback lever: LINT_MODE=warn reports without discarding drafts.
+          LINT_MODE: ${{ vars.LINT_MODE }}
+        run: node scripts/blog-lint.mjs --posts data/posts.json --businesses data/businesses.json
+
+      - name: Record provenance in the run summary instead of the pull request
+        if: ${{ always() && steps.candidate.outputs.generate == 'true' }}
+        run: |
+          {
+            echo "## Blog run provenance"
+            echo
+            echo "These files stay out of the scored diff (PRD ticket 1a) because the"
+            echo "fixer cannot repair them: a finding on one guarantees exhaustion."
+            echo
+            for f in tasks/seo-data-latest.json tasks/auto-blog-runs/*.json; do
+              [ -f "$f" ] || continue
+              echo "- \`$f\` ($(wc -c < "$f") bytes)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Open non-draft pull request into staging
         id: pr
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -76,7 +124,7 @@ jobs:
           git config user.email "noreply@libertyvillage.co"
           BR="blog/auto-$(date +%s)"
           git checkout -b "$BR"
-          git add data/posts.json "public/images/blog/" "tasks/seo-data-latest.json" "tasks/auto-blog-runs/"
+          git add data/posts.json "public/images/blog/"
           if git diff --cached --quiet; then echo "No changes to commit"; echo "created=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           git commit -m "blog: weekly automated post $(date +%Y-%m-%d)"
           git push -u origin "$BR"
@@ -87,6 +135,15 @@ jobs:
           echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
           echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "created=true" >> "$GITHUB_OUTPUT"
+
+      # Carries the topic's regeneration budget onto the fresh candidate, using the
+      # same single-controlled-label lifecycle as the repair and heal series, so a
+      # rerun cannot buy a fourth candidate.
+      - name: Carry the regeneration budget onto the fresh candidate
+        if: ${{ steps.pr.outputs.created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs mark-regeneration --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --regenerations "${{ steps.candidate.outputs.regenerations }}"
 
       - name: Explicitly dispatch shared coordinator
         if: ${{ steps.pr.outputs.created == 'true' }}

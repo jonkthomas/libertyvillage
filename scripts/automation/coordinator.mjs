@@ -3,16 +3,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  FIXER_MODEL, GATE_MODEL, MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS,
+  ALLOW_RECORD_DELETION_LABEL, BLOCKED_LABEL, FIXER_MODEL, GATE_MODEL, KIND_POLICIES,
+  MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS, TRUSTED_PR_AUTHORS,
 } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
 import {
   canHeal, evaluateGeneratorBase, evaluateObservedMerge, filterRepairablePaths, healLabel, isExactSha,
-  isTextRepairPath, validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
+  isTextRepairPath, readHealAttempt, readRegenerationCount, readRepairAttempt, readRetryAttempt,
+  regenerationLabel, retryLabel, validatePaths, validatePromotionRange, validatePullRequest,
+  validateRepairPlan,
 } from './policy.mjs';
+import { MAX_TRANSIENT_RETRIES } from './constants.mjs';
+import {
+  MAX_CANDIDATE_REGENERATIONS, nextCandidateAction, nextRetry,
+} from './recovery.mjs';
 import { planBaseHeal, resolveAppendUnion } from './heal-base.mjs';
 import {
-  applyRecordRepairPlan, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
+  applyRecordRepairPlan, isRecordFile, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
 } from './record-repair.mjs';
 
 function parseArgs() {
@@ -29,24 +36,64 @@ function requireOptions(options, names) {
   for (const name of names) if (!options[name]) throw new Error(`missing --${name}`);
 }
 
+// The dispatch payload is repo-scoped but still data: a PR number that reaches a
+// GitHub path must be an exact positive integer, never a fragment.
+function exactPrNumber(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number <= 0 || String(value).trim() !== String(number)) {
+    throw new Error(`pull request number is not an exact positive integer: ${String(value)}`);
+  }
+  return number;
+}
+
 async function prData(repo, number) {
   const pr = await github(`/repos/${repo}/pulls/${number}`);
   const files = (await paged(`/repos/${repo}/pulls/${number}/files`)).map((file) => file.filename);
   return { pr, files };
 }
 
+async function textAtSha(repo, file, sha) {
+  const encoded = file.split('/').map(encodeURIComponent).join('/');
+  const response = await github(`/repos/${repo}/contents/${encoded}?ref=${sha}`);
+  if (response.type !== 'file' || response.encoding !== 'base64') throw new Error(`cannot load text file: ${file}`);
+  return Buffer.from(response.content, 'base64').toString('utf8');
+}
+
+// Trusted base/head text for every slug-keyed record file in the diff, so the
+// destructive-diff guard adjudicates real content instead of being skipped.
+async function recordSources(repo, pr, files) {
+  const recordFiles = files.filter((file) => isRecordFile(file));
+  if (recordFiles.length === 0) return {};
+  const baseSha = await mergeBaseSha(repo, pr.base.ref, pr.head.sha);
+  const sources = {};
+  for (const file of recordFiles) {
+    sources[file] = {
+      baseText: await textAtSha(repo, file, baseSha),
+      headText: await textAtSha(repo, file, pr.head.sha),
+    };
+  }
+  return sources;
+}
+
 async function validatePr(options) {
   requireOptions(options, ['repo', 'pr', 'kind', 'sha']);
   const { pr, files } = await prData(options.repo, options.pr);
-  const result = validatePullRequest({ repository: options.repo, kind: options.kind, expectedSha: options.sha, pr, files });
+  const sources = await recordSources(options.repo, pr, files);
+  const result = validatePullRequest({
+    repository: options.repo, kind: options.kind, expectedSha: options.sha, pr, files, sources,
+  });
   if (!result.ok) throw new Error(`pull request rejected: ${result.errors.join('; ')}`);
   writeOutput({
     trusted: 'true', pr_number: pr.number, head_sha: pr.head.sha, head_ref: pr.head.ref,
     base_ref: pr.base.ref, attempt: result.attempt, can_repair: result.attempt < MAX_REPAIRS ? 'true' : 'false',
     heal_attempt: result.healAttempt, can_heal: canHeal(result.healAttempt) ? 'true' : 'false',
     files: files.length,
+    record_deletion_overridden: result.destructiveOverridden ? 'true' : 'false',
   });
-  console.log(`Validated trusted ${options.kind} PR #${pr.number} at ${pr.head.sha} (${files.length} files, attempt ${result.attempt}).`);
+  if (result.destructiveOverridden) {
+    console.log(`WARNING: a human applied ${ALLOW_RECORD_DELETION_LABEL} to PR #${pr.number}; record deletions were allowed through the merge-time guard.`);
+  }
+  console.log(`Validated trusted ${options.kind} PR #${pr.number} at ${pr.head.sha} (${files.length} files, attempt ${result.attempt}, destructive-diff guard ${result.destructiveChecked ? 'ran' : 'not applicable'}).`);
 }
 
 async function validatePromotion(options) {
@@ -98,13 +145,18 @@ async function createLabel(repo, name, color, description) {
   catch (error) { if (!error.message.includes('(422)')) throw error; }
 }
 
+// Every decision that leaves the candidate stopped and human-visible. A decision
+// missing from this set is how a blocked PR goes silent, so it lives next to the
+// single BLOCKED_LABEL binding the sentinel reads.
+const BLOCKED_DECISIONS = Object.freeze(['blocked', 'error', 'exhausted', 'unrepairable', 'validation-failed', 'abandoned']);
+
 async function setLabels(repo, prNumber, decision, attempt) {
-  await createLabel(repo, 'automation-blocked', 'b60205', 'Autonomous promotion gate blocked this PR');
+  await createLabel(repo, BLOCKED_LABEL, 'b60205', 'Autonomous promotion gate blocked this PR');
   for (let n = 1; n <= MAX_REPAIRS; n += 1) await createLabel(repo, `automation-repair-${n}`, 'fbca04', `Autonomous repair attempt ${n}`);
-  if (decision === 'blocked' || decision === 'error' || decision === 'exhausted') {
-    await github(`/repos/${repo}/issues/${prNumber}/labels`, { method: 'POST', body: { labels: ['automation-blocked'] } });
+  if (BLOCKED_DECISIONS.includes(decision)) {
+    await github(`/repos/${repo}/issues/${prNumber}/labels`, { method: 'POST', body: { labels: [BLOCKED_LABEL] } });
   } else {
-    try { await github(`/repos/${repo}/issues/${prNumber}/labels/automation-blocked`, { method: 'DELETE' }); }
+    try { await github(`/repos/${repo}/issues/${prNumber}/labels/${BLOCKED_LABEL}`, { method: 'DELETE' }); }
     catch (error) { if (!error.message.includes('(404)')) throw error; }
   }
   if (attempt !== undefined) {
@@ -119,6 +171,8 @@ async function setLabels(repo, prNumber, decision, attempt) {
 
 async function audit(options) {
   requireOptions(options, ['repo', 'pr', 'sha', 'kind', 'decision', 'attempt', 'out']);
+  exactPrNumber(options.pr);
+  if (!isExactSha(options.sha)) throw new Error('audit SHA is invalid');
   const attempt = Number(options.attempt);
   if (!Number.isInteger(attempt) || attempt < 0 || attempt > MAX_REPAIRS) throw new Error('invalid audit attempt');
   let verdict = null;
@@ -251,12 +305,175 @@ async function setHealLabels(repo, prNumber, attempt) {
   await github(`/repos/${repo}/issues/${prNumber}/labels`, { method: 'POST', body: { labels: [healLabel(attempt)] } });
 }
 
+// Same single-controlled-label lifecycle as repairs and heals, on the transient
+// retry budget: a rerun cannot buy extra redispatches.
+async function setRetryLabels(repo, prNumber, attempt) {
+  for (let n = 1; n <= MAX_TRANSIENT_RETRIES; n += 1) await createLabel(repo, retryLabel(n), '5319e7', `Autonomous transient redispatch ${n}`);
+  for (let n = 1; n <= MAX_TRANSIENT_RETRIES; n += 1) {
+    if (n === attempt) continue;
+    try { await github(`/repos/${repo}/issues/${prNumber}/labels/${retryLabel(n)}`, { method: 'DELETE' }); }
+    catch (error) { if (!error.message.includes('(404)')) throw error; }
+  }
+  await github(`/repos/${repo}/issues/${prNumber}/labels`, { method: 'POST', body: { labels: [retryLabel(attempt)] } });
+}
+
+// F7. Decide, and consume the budget BEFORE anything redispatches, so a rerun of
+// this job cannot buy a third try. A terminal failure never reaches `retry`.
+async function recover(options) {
+  requireOptions(options, ['repo', 'pr', 'sha', 'classification']);
+  const prNumber = exactPrNumber(options.pr);
+  if (!isExactSha(options.sha)) throw new Error('recovery SHA is invalid');
+  const pr = await github(`/repos/${options.repo}/pulls/${prNumber}`);
+  if (pr.state !== 'open' || pr.head.sha !== options.sha) {
+    writeOutput({ action: 'block', delay_seconds: 0, attempt: 0, reason: 'PR moved on; failing closed to a visible block' });
+    return;
+  }
+  const attempts = readRetryAttempt(pr.labels || []);
+  const plan = nextRetry({ attempts, classification: options.classification });
+  if (plan.action !== 'retry') {
+    writeOutput({ action: 'block', delay_seconds: 0, attempt: attempts, reason: plan.reason });
+    console.log(`No bounded recovery available: ${plan.reason}.`);
+    return;
+  }
+  await setRetryLabels(options.repo, prNumber, attempts + 1);
+  writeOutput({ action: 'retry', delay_seconds: plan.delaySeconds, attempt: attempts + 1, reason: plan.reason });
+  console.log(`Consumed transient redispatch ${attempts + 1}/${MAX_TRANSIENT_RETRIES} on PR #${prNumber}: ${plan.reason}.`);
+}
+
+// 3h. The attempt label is the live budget; a `needs.` output captured before the
+// repair job bumped it is stale, and acting on a stale count is how a candidate
+// buys an extra round.
+async function readAttempt(options) {
+  requireOptions(options, ['repo', 'pr']);
+  const prNumber = exactPrNumber(options.pr);
+  const pr = await github(`/repos/${options.repo}/pulls/${prNumber}`);
+  const labels = pr.labels || [];
+  const attempt = readRepairAttempt(labels);
+  const healAttempt = readHealAttempt(labels);
+  writeOutput({
+    attempt, heal_attempt: healAttempt,
+    can_repair: attempt < MAX_REPAIRS ? 'true' : 'false',
+    can_heal: canHeal(healAttempt) ? 'true' : 'false',
+    regenerations: readRegenerationCount(labels),
+  });
+  console.log(`Live budgets on PR #${prNumber}: repair ${attempt}/${MAX_REPAIRS}, heal ${healAttempt}/${MAX_HEALS}.`);
+}
+
 async function setHeal(options) {
   requireOptions(options, ['repo', 'pr', 'heal']);
   const attempt = Number(options.heal);
   if (!Number.isInteger(attempt) || attempt < 1 || attempt > MAX_HEALS) throw new Error('invalid next heal attempt');
   await setHealLabels(options.repo, options.pr, attempt);
   console.log(`Consumed base heal ${attempt}/${MAX_HEALS} on PR #${options.pr}.`);
+}
+
+const ABANDONED_LABEL = 'automation-abandoned';
+
+// F14. Runs at the START of a generation cycle, before any model spend. It answers
+// one question: may this topic have a new candidate right now? The decision itself
+// is nextCandidateAction's; everything here is reading the controlled labels that
+// carry the budget between candidates, and closing what the policy says to close.
+async function planCandidate(options) {
+  requireOptions(options, ['repo', 'kind']);
+  const policy = KIND_POLICIES[options.kind];
+  if (!policy || options.kind === 'promotion') throw new Error(`plan-candidate requires a generator kind: ${options.kind}`);
+  const open = await paged(`/repos/${options.repo}/pulls?state=open&base=${encodeURIComponent(policy.base)}`);
+  const candidates = open
+    .filter((pr) => TRUSTED_PR_AUTHORS.includes(pr?.user?.login))
+    .filter((pr) => policy.headPrefixes.some((prefix) => pr?.head?.ref === prefix || pr?.head?.ref?.startsWith(prefix)))
+    .sort((left, right) => right.number - left.number);
+
+  const emit = (values, message) => { writeOutput(values); console.log(message); };
+  if (candidates.length === 0) {
+    emit({ action: 'generate', generate: 'true', regenerations: 0, pr_number: '', reason: 'no candidate is in flight' },
+      `No open ${options.kind} candidate; generating a fresh one.`);
+    return;
+  }
+
+  const candidate = candidates[0];
+  const labels = candidate.labels || [];
+  const names = labels.map((label) => (typeof label === 'string' ? label : label?.name));
+  if (names.includes(ABANDONED_LABEL)) {
+    emit({ action: 'abandon-topic', generate: 'false', regenerations: readRegenerationCount(labels), pr_number: candidate.number, reason: 'topic is already abandoned and waiting on a human' },
+      `PR #${candidate.number} is already abandoned; no new candidate until a human acts.`);
+    return;
+  }
+  if (!names.includes(BLOCKED_LABEL)) {
+    emit({ action: 'wait', generate: 'false', regenerations: readRegenerationCount(labels), pr_number: candidate.number, reason: 'a candidate is still in flight' },
+      `PR #${candidate.number} is still in flight; not opening a second candidate.`);
+    return;
+  }
+
+  const attempts = readRepairAttempt(labels);
+  const regenerations = readRegenerationCount(labels);
+  const decision = nextCandidateAction({
+    attempts, maxRepairs: MAX_REPAIRS, regenerations,
+    healExhausted: !canHeal(readHealAttempt(labels)),
+    blockedAt: candidate.updated_at, now: Date.now(),
+  });
+
+  if (decision.action === 'abandon-topic') {
+    await createLabel(options.repo, ABANDONED_LABEL, '000000', 'Every bounded candidate for this topic failed');
+    await github(`/repos/${options.repo}/issues/${candidate.number}/labels`, { method: 'POST', body: { labels: [ABANDONED_LABEL] } });
+    await postOnce(options.repo, candidate.number, `<!-- automation-candidate:${candidate.head.sha}:abandon-topic -->`, [
+      '## Autonomous candidate policy — topic abandoned', '',
+      `- Decision: **abandon-topic**`,
+      `- Regenerations used: ${regenerations}/${MAX_CANDIDATE_REGENERATIONS}`,
+      `- Reason: ${decision.reason}`, '',
+      'No further candidate will be generated for this topic. Read the gate audit comments above and decide whether it is worth a hand-written post.',
+    ].join('\n'));
+    emit({ action: decision.action, generate: 'false', regenerations, pr_number: candidate.number, reason: decision.reason },
+      `Abandoned the topic behind PR #${candidate.number}: ${decision.reason}.`);
+    return;
+  }
+
+  if (decision.action !== 'close-and-regenerate') {
+    emit({ action: decision.action, generate: 'false', regenerations, pr_number: candidate.number, reason: decision.reason },
+      `Holding: ${decision.reason}.`);
+    return;
+  }
+
+  // N4: the failed candidate is CLOSED. The next cycle generates a fresh grounded
+  // draft through the linter — the rejected draft is never re-pushed.
+  await postOnce(options.repo, candidate.number, `<!-- automation-candidate:${candidate.head.sha}:close-and-regenerate -->`, [
+    '## Autonomous candidate policy — closing and regenerating', '',
+    `- Decision: **close-and-regenerate**`,
+    `- Repair attempts used: ${attempts}/${MAX_REPAIRS}`,
+    `- Regeneration: ${regenerations + 1}/${MAX_CANDIDATE_REGENERATIONS}`,
+    `- Reason: ${decision.reason}`, '',
+    'This draft is not being re-pushed. The next cycle generates a fresh, grounded candidate through the claim linter.',
+  ].join('\n'));
+  await github(`/repos/${options.repo}/pulls/${candidate.number}`, { method: 'PATCH', body: { state: 'closed' } });
+  emit({
+    action: decision.action, generate: 'true', regenerations: regenerations + 1,
+    pr_number: candidate.number, reason: decision.reason,
+  }, `Closed exhausted candidate PR #${candidate.number} and cleared the way for regeneration ${regenerations + 1}/${MAX_CANDIDATE_REGENERATIONS}.`);
+}
+
+// Deduplicated by marker, exactly like the gate audit comment.
+async function postOnce(repo, prNumber, marker, body) {
+  const comments = await paged(`/repos/${repo}/issues/${prNumber}/comments`);
+  if (comments.some((comment) => comment.body?.includes(marker))) return false;
+  await github(`/repos/${repo}/issues/${prNumber}/comments`, { method: 'POST', body: { body: `${marker}\n${body}` } });
+  return true;
+}
+
+// Carries the regeneration budget onto the freshly opened candidate, using the same
+// single-controlled-label discipline as the repair and heal series.
+async function markRegeneration(options) {
+  requireOptions(options, ['repo', 'pr', 'regenerations']);
+  const prNumber = exactPrNumber(options.pr);
+  const count = Number(options.regenerations);
+  if (!Number.isInteger(count) || count < 0 || count > MAX_CANDIDATE_REGENERATIONS) throw new Error(`invalid regeneration count: ${options.regenerations}`);
+  if (count === 0) { console.log('First candidate for this topic; no regeneration label needed.'); return; }
+  for (let n = 1; n <= MAX_CANDIDATE_REGENERATIONS; n += 1) await createLabel(options.repo, regenerationLabel(n), 'd93f0b', `Autonomous candidate regeneration ${n}`);
+  for (let n = 1; n <= MAX_CANDIDATE_REGENERATIONS; n += 1) {
+    if (n === count) continue;
+    try { await github(`/repos/${options.repo}/issues/${prNumber}/labels/${regenerationLabel(n)}`, { method: 'DELETE' }); }
+    catch (error) { if (!error.message.includes('(404)')) throw error; }
+  }
+  await github(`/repos/${options.repo}/issues/${prNumber}/labels`, { method: 'POST', body: { labels: [regenerationLabel(count)] } });
+  console.log(`PR #${prNumber} is regeneration ${count}/${MAX_CANDIDATE_REGENERATIONS} for this topic.`);
 }
 
 async function dispatch(options) {
@@ -442,7 +659,12 @@ async function observeAndPromote(options) {
     }
     await new Promise((resolve) => setTimeout(resolve, 10_000));
   }
-  throw new Error('timed out waiting for native auto-merge into staging');
+  // F11. A passing, auto-merge-armed PR must never be relabelled automation-blocked
+  // just because observation ran out of wall clock. Record the observed timeout as
+  // a handoff and exit 0; the scheduled promotion sweep owns the outcome from here.
+  writeOutput({ observed: 'timeout', promotion_dispatched: 'false', handoff: 'promotion-sweep' });
+  console.log(`Observation window elapsed for PR #${options.pr} at ${options.sha} while auto-merge is still armed.`
+    + ' Handing off to the scheduled promotion sweep and exiting 0 — this is not a block.');
 }
 
 const commands = {
@@ -450,6 +672,7 @@ const commands = {
   status: publishStatus, audit, 'apply-fix': applyFix, 'set-attempt': setAttempt, dispatch,
   'refresh-generator-base': refreshGeneratorBase, 'observe-and-promote': observeAndPromote,
   'heal-generator-base': healGeneratorBase, 'set-heal': setHeal,
+  recover, 'read-attempt': readAttempt, 'plan-candidate': planCandidate, 'mark-regeneration': markRegeneration,
 };
 try {
   const command = process.argv[2];

@@ -49,6 +49,12 @@ jobs:
         with:
           branch: auto/business-discovery-${{ github.run_id }}
           base: staging
+          # Content only: tasks/discovery-runs/ provenance is scored by the gate but
+          # structurally unrepairable by the fixer, so it never enters the PR (F2).
+          add-paths: |
+            data/businesses.json
+            data/discovery-seen.json
+            public/images/businesses/**
           commit-message: "directory: add ${{ steps.discover.outputs.added }} new LV businesses (weekly Maps discovery)"
           title: "directory: ${{ steps.discover.outputs.added }} new Liberty Village businesses (weekly)"
           body: |
