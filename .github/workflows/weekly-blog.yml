@@ -101,6 +101,7 @@ jobs:
           jq -e . /tmp/gsa-credentials.json > /dev/null
 
       - name: Run blog pipeline
+        id: generate
         if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -114,10 +115,12 @@ jobs:
       # F1/F14. The linter runs from the trusted checkout against the generated data,
       # BEFORE any branch, commit or pull request exists. A refusal is a real bounded
       # candidate failure — it costs one regeneration and starts the cooldown — so it
-      # is recorded in the durable ladder before the run fails.
+      # is recorded in the durable ladder before the run fails. It only runs after a
+      # successful generation so a generator throw cannot also be billed as a lint
+      # refusal.
       - name: Refuse ungrounded claims before anything is committed
         id: lint
-        if: ${{ steps.candidate.outputs.generate == 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'success' }}
         continue-on-error: true
         env:
           # L1 rollback lever: LINT_MODE=warn reports without discarding drafts.
@@ -152,6 +155,38 @@ jobs:
           echo "::error::blog-lint refused the draft (DISCARDED_PRE_PR); the bounded candidate ladder recorded it."
           exit 1
 
+      # The generator itself can fail before a PR exists (model/tooling throw).
+      # Same durable ladder as a lint refusal: one regeneration, cooldown, cap.
+      # `if: failure()` keeps the original generate step as the visible failure;
+      # this only records, then re-fails so later PR-opening steps stay skipped.
+      - name: Record the generation failure in the durable candidate ladder
+        id: genfail
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
+            --repo "$GITHUB_REPOSITORY" --kind blog --outcome generation-failed \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --reason "the generator failed before a pull request existed"
+
+      - name: Stop at GENERATION_FAILED_PRE_PR — no pull request is opened
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
+        run: |
+          {
+            echo "## GENERATION_FAILED_PRE_PR"
+            echo
+            echo "The blog generator failed before a pull request existed. No branch, no commit, no PR."
+            echo "- ladder: **${{ steps.genfail.outputs.action }}** (${{ steps.genfail.outputs.regenerations }}/2 regenerations used)"
+            echo "- topic abandoned: ${{ steps.genfail.outputs.abandoned }}"
+            echo "- durable state: issue #${{ steps.genfail.outputs.state_issue }}"
+            echo
+            echo "The next scheduled run regenerates a FRESH grounded draft after the cooldown;"
+            echo "this one is not re-pushed and the gate was not lowered."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::blog generator failed (GENERATION_FAILED_PRE_PR); the bounded candidate ladder recorded it."
+          exit 1
+
       - name: Record provenance in the run summary instead of the pull request
         if: ${{ always() && steps.candidate.outputs.generate == 'true' }}
         run: |
@@ -169,7 +204,7 @@ jobs:
 
       - name: Open non-draft pull request into staging
         id: pr
-        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'success' && steps.lint.outcome == 'success' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

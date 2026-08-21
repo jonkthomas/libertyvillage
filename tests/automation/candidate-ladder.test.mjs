@@ -161,6 +161,93 @@ test('a lint-refused draft costs one regeneration, idempotently, with no pull re
   });
 });
 
+test('a lint refusal after a successful generation is not also counted as a generation failure', async () => {
+  await withHub(async (hub, url) => {
+    const lint = await run(url, [
+      'record-candidate-outcome', '--repo', REPO, '--kind', 'blog',
+      '--outcome', 'lint-discarded', '--key', 'run-1-attempt-1', '--reason', 'ungrounded claim',
+    ]);
+    assert.equal(lint.outputs.recorded, 'true');
+    assert.equal(lint.outputs.regenerations, '1');
+
+    const alsoGenerate = await run(url, [
+      'record-candidate-outcome', '--repo', REPO, '--kind', 'blog',
+      '--outcome', 'generation-failed', '--key', 'run-1-attempt-1', '--reason', 'generator threw',
+    ]);
+    assert.equal(alsoGenerate.status, 0, alsoGenerate.stdout);
+    assert.equal(alsoGenerate.outputs.recorded, 'false',
+      'the same run key must not spend a second regeneration when a later step also fails');
+    assert.equal(ladderState(hub, 'blog').state.regenerations, 1);
+  });
+});
+
+test('scheduled generation failures for blog and SEO each end in a visible ABANDONED_TOPIC', async () => {
+  for (const kind of ['blog', 'seo']) {
+    await withHub(async (hub, url) => {
+      const fail = async (key) => run(url, [
+        'record-candidate-outcome', '--repo', REPO, '--kind', kind,
+        '--outcome', 'generation-failed', '--key', key, '--reason', `${kind} generator failed before a pull request existed`,
+      ]);
+      const plan = async () => run(url, ['plan-candidate', '--repo', REPO, '--kind', kind]);
+
+      assert.equal((await plan()).outputs.generate, 'true', `${kind}: first cycle generates`);
+      assert.equal((await fail('run-1')).outputs.regenerations, '1', `${kind}: first pre-PR failure costs one regeneration`);
+      assert.equal(hub.requests.filter((request) => request.method === 'POST' && /\/pulls$/.test(request.path)).length, 0,
+        `${kind}: a generator failure must not open a content PR`);
+
+      const tooSoon = await plan();
+      assert.equal(tooSoon.outputs.action, 'wait', `${kind}: a failed generation must not hot-loop`);
+      assert.equal(tooSoon.outputs.generate, 'false');
+
+      hub.fastForward(25);
+      const second = await plan();
+      assert.equal(second.outputs.generate, 'true', `${kind}: cooldown elapsed, fresh candidate`);
+      assert.equal((await fail('run-3')).outputs.regenerations, String(MAX_CANDIDATE_REGENERATIONS));
+
+      hub.fastForward(25);
+      const abandoned = await plan();
+      assert.equal(abandoned.status, 0, abandoned.stdout);
+      assert.equal(abandoned.outputs.action, 'abandon-topic', `${kind}: third bounded candidate abandons`);
+      assert.equal(abandoned.outputs.generate, 'false');
+      assertSafeOutputs(abandoned);
+
+      const ladder = ladderState(hub, kind);
+      assert.equal(ladder.state.abandoned, true, `${kind}: abandonment must be durable`);
+      assert.equal(
+        hub.commentsOn(ladder.issue.number).filter((comment) => comment.body.includes('ABANDONED_TOPIC')).length, 1,
+        `${kind}: ABANDONED_TOPIC must be visible exactly once`,
+      );
+
+      const after = await plan();
+      assert.equal(after.outputs.action, 'abandon-topic');
+      assert.equal(
+        hub.commentsOn(ladder.issue.number).filter((comment) => comment.body.includes('ABANDONED_TOPIC')).length, 1,
+        `${kind}: a later tick must not re-announce abandonment`,
+      );
+    });
+  }
+});
+
+test('an SEO pre-PR guard failure uses the same bounded ladder as a generation failure', async () => {
+  await withHub(async (hub, url) => {
+    const first = await run(url, [
+      'record-candidate-outcome', '--repo', REPO, '--kind', 'seo',
+      '--outcome', 'guard-failed', '--key', 'run-guard-1', '--reason', 'forbidden path',
+    ]);
+    assert.equal(first.status, 0, first.stdout);
+    assert.equal(first.outputs.recorded, 'true');
+    assert.equal(first.outputs.regenerations, '1');
+    assert.equal(ladderState(hub, 'seo').state.regenerations, 1);
+
+    const replay = await run(url, [
+      'record-candidate-outcome', '--repo', REPO, '--kind', 'seo',
+      '--outcome', 'guard-failed', '--key', 'run-guard-1', '--reason', 'forbidden path',
+    ]);
+    assert.equal(replay.outputs.recorded, 'false');
+    assert.equal(ladderState(hub, 'seo').state.regenerations, 1);
+  });
+});
+
 test('the lint-discard ladder respects the cooldown and ends in a visible ABANDONED_TOPIC', async () => {
   await withHub(async (hub, url) => {
     const discard = async (key) => run(url, [

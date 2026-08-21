@@ -112,6 +112,25 @@ export function classifyBlockDecision(decision) {
 export const AUDIT_DATA_MARKER = 'automation-audit-data';
 const AUDIT_DATA_PATTERN = new RegExp(`<!--\\s*${AUDIT_DATA_MARKER}:(\\{[\\s\\S]*?\\})\\s*-->`);
 
+// Decisions that carry a genuine Opus gate verdict into the ordered repair history.
+// Heal / validation / lint / error audits are durable coordinator bookkeeping but
+// they are not scored rounds — putting them in the history lets a missing score
+// look like 0 and a harmless heal look like a catastrophic regression.
+const SCORED_GATE_DECISIONS = new Set([
+  'repairing', 'passed', 'blocked', 'exhausted', 'unrepairable', 'reviewing', 'promoted',
+]);
+
+// `Number(null) === 0` and `Number('') === 0`. A missing score must stay missing;
+// a genuine numeric 0 from a scored gate verdict must stay 0.
+function parseFiniteScore(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 export function parseAuditRecord(body) {
   const match = AUDIT_DATA_PATTERN.exec(String(body ?? ''));
   if (!match) return null;
@@ -120,28 +139,36 @@ export function parseAuditRecord(body) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if (!isExactSha(value.sha)) return null;
   const decision = typeof value.decision === 'string' ? value.decision : null;
-  const overall = Number(value.overall);
   const blockingCount = Number(value.blockingCount);
   return {
     sha: value.sha,
     decision,
     attempt: Number.isInteger(value.attempt) ? value.attempt : null,
-    overall: Number.isFinite(overall) ? overall : null,
+    overall: parseFiniteScore(value.overall),
     blockingCount: Number.isFinite(blockingCount) ? blockingCount : 0,
   };
 }
 
+function isScoredGateAudit(record) {
+  return Boolean(
+    record
+    && SCORED_GATE_DECISIONS.has(record.decision)
+    && Number.isFinite(record.overall),
+  );
+}
+
 // F4. Rebuilds the ordered gate history for one candidate from the durable audit
 // comments the coordinator has already posted, oldest first. Only comments written
-// by a trusted author count, and only the FIRST scored record per reviewed SHA, so
-// neither a rerun nor an untrusted commenter can forge convergence.
+// by a trusted author count, and only the FIRST scored gate-verdict record per
+// reviewed SHA, so neither a rerun, an untrusted commenter, nor an unscored
+// heal/validation audit can forge convergence.
 export function buildRepairHistory(comments, { trustedAuthors = TRUSTED_PR_AUTHORS } = {}) {
   const bySha = new Map();
   for (const comment of Array.isArray(comments) ? comments : []) {
     const author = comment?.user?.login;
     if (!trustedAuthors.includes(author)) continue;
     const record = parseAuditRecord(comment?.body);
-    if (!record || record.overall === null || bySha.has(record.sha)) continue;
+    if (!isScoredGateAudit(record) || bySha.has(record.sha)) continue;
     bySha.set(record.sha, record);
   }
   return [...bySha.values()].map((record, index) => ({ ...record, attempt: index }));

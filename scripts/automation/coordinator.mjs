@@ -571,8 +571,11 @@ async function recordCandidateOutcome(options) {
   const { state } = await loadCandidateState(options.repo, kind);
   const ladder = recordCandidateFailure({ regenerations: state.regenerations });
   const reason = `${options.outcome}: ${options.reason || ladder.reason}`;
+  // Idempotent per run key, not per outcome: a lint refusal after a successful
+  // generation and a generation failure in the same workflow attempt share
+  // `$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT` and must not spend two regenerations.
   const recorded = await recordCandidateEvent(options.repo, kind, {
-    key: `${kind}:${options.outcome}:${options.key}`,
+    key: `${kind}:${options.key}`,
     action: ladder.action, at: new Date().toISOString(), reason,
   });
   writeOutput({

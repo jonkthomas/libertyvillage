@@ -102,6 +102,7 @@ jobs:
           jq -e . /tmp/gsa-credentials.json > /dev/null
 
       - name: Run SEO improvement agent
+        id: generate
         if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -120,7 +121,7 @@ jobs:
 
       - name: Guard — forbidden paths & change budget
         id: guard
-        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'success' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           ALL=$(git status --porcelain | sed 's/^...//' | sed 's/.* -> //' | grep -vE '^tasks/seo-(improve-(summary\.md|runs/)|scores\.json)' || true)
           # FORBIDDEN paths -> hard fail (security). Checked on the full set.
@@ -142,9 +143,64 @@ jobs:
       # reader stage can screenshot the live site), so no separate gate here —
       # a build failure fails the agent step and stops the job before any PR.
 
+      # Pre-PR failures (generator throw, or the forbidden-path/budget guard)
+      # are the same bounded candidate as a blog lint refusal: trusted tooling,
+      # one regeneration, cooldown, cap, visible ABANDONED_TOPIC. The original
+      # failing step remains the visible job failure; these steps only record
+      # and re-fail so Open Pull Request stays skipped.
+      - name: Record the generation failure in the durable candidate ladder
+        id: genfail
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
+            --repo "$GITHUB_REPOSITORY" --kind seo --outcome generation-failed \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --reason "the SEO generator failed before a pull request existed"
+
+      - name: Stop at GENERATION_FAILED_PRE_PR — no pull request is opened
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
+        run: |
+          {
+            echo "## GENERATION_FAILED_PRE_PR"
+            echo
+            echo "The SEO generator failed before a pull request existed. No branch, no commit, no PR."
+            echo "- ladder: **${{ steps.genfail.outputs.action }}** (${{ steps.genfail.outputs.regenerations }}/2 regenerations used)"
+            echo "- topic abandoned: ${{ steps.genfail.outputs.abandoned }}"
+            echo "- durable state: issue #${{ steps.genfail.outputs.state_issue }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::SEO generator failed (GENERATION_FAILED_PRE_PR); the bounded candidate ladder recorded it."
+          exit 1
+
+      - name: Record the guard failure in the durable candidate ladder
+        id: guardfail
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.guard.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
+            --repo "$GITHUB_REPOSITORY" --kind seo --outcome guard-failed \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --reason "the SEO pre-PR guard refused the draft before a pull request existed"
+
+      - name: Stop at GUARD_FAILED_PRE_PR — no pull request is opened
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.guard.outcome == 'failure' }}
+        run: |
+          {
+            echo "## GUARD_FAILED_PRE_PR"
+            echo
+            echo "The SEO forbidden-path/change-budget guard refused this draft. No pull request."
+            echo "- ladder: **${{ steps.guardfail.outputs.action }}** (${{ steps.guardfail.outputs.regenerations }}/2 regenerations used)"
+            echo "- topic abandoned: ${{ steps.guardfail.outputs.abandoned }}"
+            echo "- durable state: issue #${{ steps.guardfail.outputs.state_issue }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::SEO guard refused the draft (GUARD_FAILED_PRE_PR); the bounded candidate ladder recorded it."
+          exit 1
+
       - name: Read review scores
         id: scores
-        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'success' && steps.guard.outcome == 'success' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           OVERALL="n/a"; PASSED="true"
           if [ -f tasks/seo-scores.json ]; then
@@ -161,7 +217,7 @@ jobs:
 
       - name: Open Pull Request
         id: cpr
-        if: ${{ steps.candidate.outputs.generate == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'success' && steps.guard.outcome == 'success' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

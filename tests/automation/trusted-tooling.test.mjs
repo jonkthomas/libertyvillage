@@ -60,7 +60,7 @@ test('the blog pipeline lints from trusted tooling before anything is committed'
 });
 
 test('a lint refusal records the durable ladder and then stops the run without a PR', () => {
-  const discardIndex = BLOG_YML.indexOf('record-candidate-outcome');
+  const discardIndex = BLOG_YML.indexOf('--outcome lint-discarded');
   const prIndex = BLOG_YML.indexOf('Open non-draft pull request into staging');
   assert.ok(discardIndex > 0, 'a refused draft must be recorded in the bounded ladder');
   assert.ok(discardIndex < prIndex, 'the ladder must move before the pull-request step is even considered');
@@ -72,6 +72,22 @@ test('a lint refusal records the durable ladder and then stops the run without a
     'the run must still fail after recording, so no pull request is opened for a refused draft');
   assert.match(BLOG_YML, /steps\.candidate\.outputs\.generate == 'true'/,
     'nothing may generate while the ladder says wait or abandon');
+  assert.match(BLOG_YML, /steps\.generate\.outcome == 'success'[\s\S]{0,400}blog-lint\.mjs/,
+    'lint must not run after a failed generation, or a throw would be double-counted as a lint refusal');
+});
+
+test('a blog generation failure before PR creation records the same bounded ladder', () => {
+  const genIndex = BLOG_YML.indexOf('--outcome generation-failed');
+  const prIndex = BLOG_YML.indexOf('Open non-draft pull request into staging');
+  assert.ok(genIndex > 0, 'a generator throw must be recorded in the bounded ladder');
+  assert.ok(genIndex < prIndex, 'the ladder must move before the pull-request step is even considered');
+  assert.match(BLOG_YML, /failure\(\) && steps\.candidate\.outputs\.generate == 'true' && steps\.generate\.outcome == 'failure'/,
+    'the original generate step must remain the visible failure; recording runs on failure()');
+  assert.match(BLOG_YML, /GENERATION_FAILED_PRE_PR/, 'the generator throw must be a named, visible terminal state');
+  assert.match(BLOG_YML, /generation-failed[\s\S]{0,1200}exit 1/,
+    'the run must still fail after recording so no pull request is opened');
+  assert.match(BLOG_YML, /steps\.generate\.outcome == 'success' && steps\.lint\.outcome == 'success'/,
+    'the pull-request step must stay skipped when generate or lint did not succeed');
 });
 
 test('the SEO pipeline runs its own bounded ladder and never borrows the blog kind', () => {
@@ -86,6 +102,27 @@ test('the SEO pipeline runs its own bounded ladder and never borrows the blog ki
     const gate = SEO_YML.slice(index, index + 400);
     assert.match(gate, /steps\.candidate\.outputs\.generate == 'true'/, `${step} must be gated on the candidate policy`);
   }
+});
+
+test('SEO generation and guard failures before PR creation record the bounded ladder', () => {
+  const genIndex = SEO_YML.indexOf('--outcome generation-failed');
+  const guardIndex = SEO_YML.indexOf('--outcome guard-failed');
+  const prIndex = SEO_YML.indexOf('- name: Open Pull Request');
+  assert.ok(genIndex > 0, 'an SEO generator throw must be recorded in the bounded ladder');
+  assert.ok(guardIndex > 0, 'an SEO pre-PR guard refusal must be recorded as its own outcome');
+  assert.ok(genIndex < prIndex && guardIndex < prIndex, 'the ladder must move before the pull-request step');
+  assert.match(SEO_YML, /--kind seo --outcome generation-failed/);
+  assert.match(SEO_YML, /--kind seo --outcome guard-failed/);
+  assert.match(SEO_YML, /--key "\$GITHUB_RUN_ID-\$GITHUB_RUN_ATTEMPT"/,
+    'the SEO ladder event needs the same stable run key as blog');
+  assert.match(SEO_YML, /GENERATION_FAILED_PRE_PR/);
+  assert.match(SEO_YML, /GUARD_FAILED_PRE_PR/);
+  assert.match(SEO_YML, /failure\(\) && steps\.candidate\.outputs\.generate == 'true' && steps\.generate\.outcome == 'failure'/);
+  assert.match(SEO_YML, /failure\(\) && steps\.candidate\.outputs\.generate == 'true' && steps\.guard\.outcome == 'failure'/);
+  assert.match(SEO_YML, /steps\.generate\.outcome == 'success' && steps\.guard\.outcome == 'success'/,
+    'Open Pull Request must stay skipped when generate or guard did not succeed');
+  assert.match(SEO_YML, /node trusted\/scripts\/automation\/coordinator\.mjs record-candidate-outcome/,
+    'SEO pre-PR recording must use trusted main tooling');
 });
 
 test('every privileged coordinator and sweep job still executes tooling from main only', () => {
