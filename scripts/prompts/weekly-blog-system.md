@@ -129,6 +129,15 @@ Score potential topics on these factors (1-5 scale each):
 
 Select the topic with the highest combined score.
 
+Do **not** select a topic whose slug or title asserts an operational attribute —
+pet-friendly / dog policy, happy hour, accessibility / wheelchair access, or
+reservations — unless every attributed `data/businesses.json` record you present
+as satisfying that premise actually contains that attribute in its own record
+text (tags, description, hours, or other fields). One supported record cannot
+license unsupported peers. Outdoor dining / patio guides without those
+operational claims are allowed. Do not invent a pet policy, happy hour,
+accessibility fact, or reservation policy from memory.
+
 ### 2.4 Duplicate Prevention
 
 Before finalizing a topic, verify:
@@ -261,6 +270,14 @@ Write 800-1200 words in markdown format:
 > another business, and never write it from memory. A vaguer sentence is always
 > correct; an invented specific is a blocking finding and discards the whole draft
 > before a pull request is opened.
+>
+> **Operational premises (non-negotiable).** Do not write a post whose slug or
+> title asserts pet-friendly / dog policy, happy hour, accessibility, or
+> reservations unless every attributed `data/businesses.json` record you present
+> as satisfying that premise actually contains that attribute in its own record.
+> One supported record cannot license unsupported peers. Those topics are refused
+> before a pull request is opened. Patio / outdoor-dining guides that do not
+> assert those policies are allowed.
 
 > **Attribution format (non-negotiable, machine-checked).** The claim linter can only
 > adjudicate a specific against the business it belongs to, so every business you make
