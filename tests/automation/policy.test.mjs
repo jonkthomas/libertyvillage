@@ -66,7 +66,20 @@ test('enforces strict verdict schema, score threshold, severity, model, and SHA'
   assert.equal(evaluateVerdict({ ...base, model: 'claude-sonnet-4-5-20250929' }, SHA).ok, false);
   assert.equal(evaluateVerdict({ ...base, commit_sha: 'c'.repeat(40) }, SHA).ok, false);
   assert.equal(evaluateVerdict({ ...base, extra: true }, SHA).ok, false);
-  assert.equal(evaluateVerdict({ ...base, overall: 9, passed: false }, SHA).ok, false);
+});
+
+test('the self-declared `passed` field is tolerated but never authoritative', () => {
+  // Ticket 2e: the gate may not talk its way past the bar in either direction.
+  const base = { overall: 8.4, findings: [], model: GATE_MODEL, commit_sha: SHA };
+  assert.equal(evaluateVerdict({ ...base }, SHA).ok, true, '`passed` must be optional');
+  assert.equal(evaluateVerdict({ ...base }, SHA).passed, true);
+  const lyingDown = evaluateVerdict({ ...base, passed: false }, SHA);
+  assert.equal(lyingDown.ok, true, 'a stale/self-declared `passed` is ignored, not rejected');
+  assert.equal(lyingDown.passed, true);
+  const lyingUp = evaluateVerdict({
+    ...base, overall: 6.1, findings: [{ severity: 'high', path: 'data/posts.json', note: 'x' }], passed: true,
+  }, SHA);
+  assert.equal(lyingUp.passed, false);
 });
 
 test('persists one controlled attempt label and caps repairs across reruns', () => {

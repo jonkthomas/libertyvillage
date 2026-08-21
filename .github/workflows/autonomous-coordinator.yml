@@ -173,6 +173,10 @@ jobs:
       review_ok: ${{ steps.review.outputs.review_ok }}
       passed: ${{ steps.review.outputs.passed }}
       overall: ${{ steps.review.outputs.overall }}
+      repairable: ${{ steps.review.outputs.repairable }}
+      converging: ${{ steps.review.outputs.converging }}
+      progress_reason: ${{ steps.review.outputs.progress_reason }}
+      failure_class: ${{ steps.review.outputs.failure_class }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -222,6 +226,17 @@ jobs:
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state "$STATE" --description "$DESCRIPTION"
 
   generator-fixer:
+    # `repairable != 'false'` is the F5 short-circuit: a verdict whose blocking
+    # findings are all structurally unrepairable skips the fixer entirely rather
+    # than burning 3 rounds x 4 plans on a foregone conclusion.
+    #
+    # `converging != 'false'` is the F4 short-circuit, decided by
+    # recovery.evaluateRepairProgress over the ordered gate history rebuilt from
+    # this PR's durable audit comments: a round that regressed the score (#97
+    # 7.2 -> 6.5, #75 5.0 -> 4.5) or that introduced a blocking finding the previous
+    # round did not have abandons the repair loop here, BEFORE the fixer is
+    # dispatched. block-generator then makes it a visible terminal state and the
+    # bounded candidate ladder closes and regenerates from there.
     needs:
       [
         validate-generator,
@@ -229,7 +244,7 @@ jobs:
         generator-review,
         generator-gate-status,
       ]
-    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed != 'true' && needs.validate-generator.outputs.can_repair == 'true' }}
+    if: ${{ needs.validate-generator.outputs.trusted == 'true' && needs.generator-review.outputs.review_ok == 'true' && needs.generator-review.outputs.passed != 'true' && needs.validate-generator.outputs.can_repair == 'true' && needs.generator-review.outputs.repairable != 'false' && needs.generator-review.outputs.converging != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -237,6 +252,7 @@ jobs:
       pull-requests: read
     outputs:
       fix_ok: ${{ steps.fix.outputs.fix_ok }}
+      failure_class: ${{ steps.fix.outputs.failure_class }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -423,20 +439,66 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gate-verdict-${{ needs.validate-generator.outputs.head_sha }}
+      # F7. Before failing closed, ask whether this failure is a transient 502/429/
+      # model error rather than a policy refusal. If it is, and the bounded retry
+      # budget remains, the budget is consumed here and the same exact SHA is
+      # redispatched after a backoff — a documented third continuation alongside
+      # apply-generator-repair and heal-generator-base.
+      - name: Classify the failure and decide on one bounded transient redispatch
+        id: recover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_OK: ${{ needs.generator-review.outputs.review_ok }}
+          REVIEW_CLASS: ${{ needs.generator-review.outputs.failure_class }}
+          FIX_OK: ${{ needs.generator-fixer.outputs.fix_ok }}
+          FIXER_CLASS: ${{ needs.generator-fixer.outputs.failure_class }}
+        run: |
+          CLASSIFICATION=terminal
+          if [ "$REVIEW_OK" = false ] && [ -n "$REVIEW_CLASS" ]; then CLASSIFICATION="$REVIEW_CLASS"; fi
+          if [ "$FIX_OK" = false ] && [ -n "$FIXER_CLASS" ]; then CLASSIFICATION="$FIXER_CLASS"; fi
+          node scripts/automation/coordinator.mjs recover --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --classification "$CLASSIFICATION"
+      - name: Back off and redispatch the same exact SHA
+        if: ${{ steps.recover.outputs.action == 'retry' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state pending --description "Transient failure; redispatch ${{ steps.recover.outputs.attempt }}/2"
+          sleep "${{ steps.recover.outputs.delay_seconds }}"
+          node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
+      # 3h. The repair budget is read live from the controlled label, not from a
+      # validate-generator output captured before apply-generator-repair bumped it.
+      - name: Read the live repair budget from the controlled label
+        id: budget
+        if: ${{ steps.recover.outputs.action != 'retry' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs read-attempt --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}"
       - name: Fail closed, label, audit, and deduplicate notification
         id: block
+        if: ${{ steps.recover.outputs.action != 'retry' }}
         env:
           GH_TOKEN: ${{ github.token }}
           CI_RESULT: ${{ needs.generator-ci.result }}
           REVIEW_OK: ${{ needs.generator-review.outputs.review_ok }}
-          CAN_REPAIR: ${{ needs.validate-generator.outputs.can_repair }}
+          REPAIRABLE: ${{ needs.generator-review.outputs.repairable }}
+          CAN_REPAIR: ${{ steps.budget.outputs.can_repair }}
+          CONVERGING: ${{ needs.generator-review.outputs.converging }}
+          PROGRESS_REASON: ${{ needs.generator-review.outputs.progress_reason }}
         run: |
           DECISION=error
           if [ "$CI_RESULT" = success ] && [ "$REVIEW_OK" = true ] && [ "$CAN_REPAIR" != true ]; then DECISION=exhausted; fi
+          if [ "$CI_RESULT" = success ] && [ "$REVIEW_OK" = true ] && [ "$REPAIRABLE" = false ]; then DECISION=unrepairable; fi
+          # F4: the repair loop was abandoned early because it was not converging.
+          if [ "$CI_RESULT" = success ] && [ "$REVIEW_OK" = true ] && [ "$CONVERGING" = false ]; then
+            DECISION=exhausted
+            echo "Repair loop abandoned before dispatching the fixer: $PROGRESS_REASON"
+            { echo "## Repair convergence"; echo; echo "- decision: **abandon**"; echo "- reason: $PROGRESS_REASON"; } >> "$GITHUB_STEP_SUMMARY"
+          fi
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state failure --description "Automation blocked: $DECISION"
           VERDICT_ARGS=(); [ -f gate-verdict.json ] && VERDICT_ARGS=(--verdict gate-verdict.json)
-          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision "$DECISION" --attempt "${{ needs.validate-generator.outputs.attempt }}" "${VERDICT_ARGS[@]}" --out blocked-audit.json
-      - uses: actions/upload-artifact@v4
+          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision "$DECISION" --attempt "${{ steps.budget.outputs.attempt }}" "${VERDICT_ARGS[@]}" --out blocked-audit.json
+      - if: ${{ steps.recover.outputs.action != 'retry' }}
+        uses: actions/upload-artifact@v4
         with:
           name: blocked-audit-${{ needs.validate-generator.outputs.head_sha }}
           path: blocked-audit.json
@@ -448,6 +510,47 @@ jobs:
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
           jq -n --arg text "Automation blocked PR #${{ needs.validate-generator.outputs.pr_number }} at ${{ needs.validate-generator.outputs.head_sha }}" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
+          echo "Slack notified."
+
+  # F6. A validation throw used to leave the PR completely invisible: block-generator
+  # is gated on `trusted == 'true'`, which a failed validate-generator never emits, so
+  # nothing labelled, nothing published a status, and nothing commented. This job is
+  # the always() counterpart — mutually exclusive with block-generator by construction,
+  # because the two conditions cannot both hold.
+  validation-failed-generator:
+    needs: [validate-generator]
+    if: ${{ always() && github.event.client_payload.kind != 'promotion' && needs.validate-generator.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Publish a visible terminal state for a refused or errored validation
+        id: block
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "$AUTOMATION_SHA" --context automation/opus-gate --state failure --description "Automation blocked: validation-failed"
+          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "$AUTOMATION_PR" --kind "$AUTOMATION_KIND" --sha "$AUTOMATION_SHA" --decision validation-failed --attempt 0 --out validation-failed-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validation-failed-audit-${{ github.event.client_payload.head_sha }}
+          path: validation-failed-audit.json
+          if-no-files-found: error
+      - name: Notify Slack once when configured
+        if: ${{ steps.block.outputs.comment_created == 'true' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
+          jq -n --arg text "Automation validation failed for PR #$AUTOMATION_PR at $AUTOMATION_SHA — the PR is labelled ${{ '' }}automation-blocked" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
           echo "Slack notified."
 
   validate-promotion:
@@ -712,4 +815,51 @@ jobs:
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
           jq -n --arg text "Cumulative promotion blocked at ${{ needs.validate-promotion-pr.outputs.head_sha }}" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
+          echo "Slack notified."
+
+  # The promotion counterpart. block-promotion is gated on validate-promotion-pr's
+  # trusted output, so a throw anywhere earlier in the promotion chain — the range
+  # validation, the PR preparation, or the PR validation itself — leaves no trace.
+  # `no_changes` is a documented no-op and deliberately does NOT reach here: that
+  # path exits validate-promotion successfully.
+  validation-failed-promotion:
+    needs: [validate-promotion, prepare-promotion, validate-promotion-pr]
+    if: ${{ always() && github.event.client_payload.kind == 'promotion' && (needs.validate-promotion.result != 'success' || needs.prepare-promotion.result == 'failure' || needs.validate-promotion-pr.result == 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Publish a visible terminal state for a refused promotion
+        id: block
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROMOTION_PR: ${{ needs.validate-promotion-pr.outputs.pr_number }}
+        run: |
+          node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "$AUTOMATION_SHA" --context automation/opus-gate --state failure --description "Cumulative promotion blocked: validation-failed"
+          if [ -n "$PROMOTION_PR" ]; then
+            node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "$PROMOTION_PR" --kind promotion --sha "$AUTOMATION_SHA" --decision validation-failed --attempt 0 --out validation-failed-promotion-audit.json
+          else
+            echo '{"decision":"validation-failed","commit_sha":"'"$AUTOMATION_SHA"'","kind":"promotion","note":"no promotion PR existed to comment on"}' > validation-failed-promotion-audit.json
+            echo "No promotion PR exists yet; the failing head status is the terminal record."
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validation-failed-promotion-audit-${{ github.event.client_payload.head_sha }}
+          path: validation-failed-promotion-audit.json
+          if-no-files-found: error
+      - name: Notify Slack once when configured
+        if: ${{ always() }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
+          jq -n --arg text "Cumulative promotion validation failed at $AUTOMATION_SHA" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
           echo "Slack notified."

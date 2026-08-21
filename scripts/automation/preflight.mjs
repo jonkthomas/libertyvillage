@@ -1,58 +1,10 @@
-import { DRAFT_VALIDATION_CONFIG } from '../news-pilot/draft-validate.mjs';
-import { MAX_REPAIRS } from './constants.mjs';
-import { canRepair, evaluateVerdict } from './policy.mjs';
+import { BLOCKING_SEVERITIES, KIND_POLICIES, MAX_REPAIRS } from './constants.mjs';
+import { POSTS_FILE, recordRepairRules } from './record-rules.mjs';
+import { canRepair, evaluateVerdict, validatePaths } from './policy.mjs';
 
-export const IMMUTABLE_POST_FIELDS = Object.freeze([
-  'slug', 'publishedAt', 'updatedAt', 'category', 'image', 'author',
-]);
-
-export const REPAIRABLE_POST_FIELDS = Object.freeze([
-  'title', 'description', 'content', 'answerBlock', 'faqs', 'keyTakeaways',
-  'tags', 'relatedServices', 'relatedTopics', 'relatedPosts',
-]);
-
-export const POSTS_FILE = 'data/posts.json';
-
-// Single source of truth for what an autonomous repair may touch inside each
-// monolithic slug-keyed data file. validateRecordRepair enforces it and the
-// fixer prompt is rendered from it, so the model is told exactly what the
-// validation will reject instead of discovering it through a failed plan.
-export const RECORD_REPAIR_RULES = Object.freeze({
-  [POSTS_FILE]: Object.freeze({
-    label: 'post',
-    immutable: IMMUTABLE_POST_FIELDS,
-    repairable: REPAIRABLE_POST_FIELDS,
-    requiredFields: Object.freeze([...DRAFT_VALIDATION_CONFIG.requiredPostFields]),
-  }),
-  'data/businesses.json': Object.freeze({
-    label: 'business',
-    immutable: Object.freeze([
-      'slug', 'name', 'address', 'phone', 'website', 'image', 'rating', 'reviewCount',
-      'hours', 'priceRange', 'category', 'subcategory', 'categories', 'featured', '_discoveredAt',
-    ]),
-    repairable: Object.freeze(['description', 'answerBlock', 'proTip', 'tags', 'bestFor']),
-    requiredFields: Object.freeze([]),
-  }),
-  'data/topics.json': Object.freeze({
-    label: 'topic',
-    immutable: Object.freeze(['slug', 'category', 'image', 'publishedAt', 'updatedAt', 'lastUpdated']),
-    repairable: Object.freeze([
-      'title', 'description', 'content', 'quickTips', 'faqs', 'relatedTopics',
-      'relatedServices', 'answerSummary', 'keyTakeaways', 'definitions',
-    ]),
-    requiredFields: Object.freeze([]),
-  }),
-});
-
-// Files without an explicit contract still fail closed: the slug is immutable,
-// the top-level key set is frozen, and only appended/modified records may change.
-const DEFAULT_RECORD_RULES = Object.freeze({
-  label: 'record', immutable: Object.freeze(['slug']), repairable: null, requiredFields: Object.freeze([]),
-});
-
-export function recordRepairRules(file) {
-  return RECORD_REPAIR_RULES[file] || DEFAULT_RECORD_RULES;
-}
+export {
+  IMMUTABLE_POST_FIELDS, REPAIRABLE_POST_FIELDS, POSTS_FILE, RECORD_REPAIR_RULES, recordRepairRules,
+} from './record-rules.mjs';
 
 function parsePosts(text, label, errors) {
   try {
@@ -111,9 +63,57 @@ export function validatePostRepair(original, repaired, options = {}) {
   return validateRecordRepair(POSTS_FILE, original, repaired, options);
 }
 
-export function preflightDecision({ verdict, contentSha, attempts, maxRepairs = MAX_REPAIRS }) {
+// F5. A finding is structurally unrepairable when no fixer run could ever clear
+// it: it sits on a path this generator cannot repair, on a file that is not in the
+// PR diff at all, or it is an identity/immutable-field error that the record
+// contract forbids touching. Everything else is repairable — when in doubt the
+// classifier biases towards attempting the repair (PRD 2c).
+const STRUCTURAL_NOTE_PATTERNS = Object.freeze([
+  /\bimmutable\b/i,
+  /\bduplicat\w*\b[\s\S]{0,40}\bslug\b/i,
+  /\bslug\b[\s\S]{0,40}\bduplicat/i,
+  /\bslug\b[\s\S]{0,40}\b(?:collides|conflicts|already exists|is taken)\b/i,
+]);
+
+function repairableKinds(kind) {
+  if (kind && KIND_POLICIES[kind]) return [kind];
+  // No kind in hand (the news content path): a path is repairable only if some
+  // generator could repair it. Nothing can repair what nothing declares.
+  return Object.keys(KIND_POLICIES).filter((name) => name !== 'promotion');
+}
+
+function isRepairablePath(kind, file) {
+  if (typeof file !== 'string' || file.length === 0) return false;
+  return repairableKinds(kind).some((name) => validatePaths(name, [file], { repair: true }).ok);
+}
+
+export function classifyFindings(kind, verdict, { changedFiles } = {}) {
+  const findings = Array.isArray(verdict?.findings) ? verdict.findings : [];
+  const blocking = findings.filter((finding) => BLOCKING_SEVERITIES.includes(finding?.severity));
+  const considered = blocking.length > 0 ? blocking : findings;
+  const inDiff = Array.isArray(changedFiles) ? new Set(changedFiles) : null;
+
+  const repairable = [];
+  const unrepairable = [];
+  for (const finding of considered) {
+    const path = finding?.path;
+    const structural = typeof finding?.note === 'string'
+      && STRUCTURAL_NOTE_PATTERNS.some((pattern) => pattern.test(finding.note));
+    const reachable = isRepairablePath(kind, path) && (!inDiff || inDiff.has(path));
+    (reachable && !structural ? repairable : unrepairable).push(finding);
+  }
+  return {
+    repairable,
+    unrepairable,
+    allUnrepairable: unrepairable.length > 0 && repairable.length === 0,
+  };
+}
+
+export function preflightDecision({ verdict, contentSha, attempts, maxRepairs = MAX_REPAIRS, kind, changedFiles }) {
   const decision = evaluateVerdict(verdict, contentSha);
   if (!decision.ok) return 'block';
   if (decision.passed) return 'go';
+  // Short-circuit a foregone conclusion before it costs 3 rounds x 4 fixer plans.
+  if (classifyFindings(kind, verdict, { changedFiles }).allUnrepairable) return 'unrepairable';
   return attempts < maxRepairs && canRepair(attempts) ? 'repair' : 'block';
 }

@@ -1,0 +1,20 @@
+# Integrity lock for the evaluator-owned eval/spec artifacts of the
+# full autonomous content publishing loop.
+#
+# These files are LOCKED. The builder must not edit, weaken, delete, re-scope,
+# or skip any of them. Maker != checker.
+#
+# Verify (run from the repository root; must print "OK" for every line and exit 0):
+#
+#   shasum -a 256 -c evals/full-autonomous-content-loop.sha256
+#
+# Linux equivalent:
+#
+#   sha256sum -c evals/full-autonomous-content-loop.sha256
+#
+# A FAILED line means an evaluator-owned artifact was modified. That is an
+# automatic FAIL of the acceptance review — re-verify authorship before
+# accepting any implementation work built against the altered file.
+5a726f18518140d9846169848dd9f875796d913151e7aeb7ebaffaa71b30229e  docs/automation/full-autonomous-content-loop-prd.md
+9213aa6bf0ac3410d6713d2eeafe77518d0f66c0bf9844f74fcd25a78644c97b  docs/automation/full-autonomous-content-loop-journey.md
+3b6bdd75a7559ae38dbb4e4024e028ff5df5779adf4e2f6b2d430e92906a135b  tests/automation/full-autonomous-loop.eval.mjs

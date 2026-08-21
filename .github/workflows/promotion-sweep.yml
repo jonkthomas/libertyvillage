@@ -1,0 +1,49 @@
+name: Promotion sweep
+
+# F10/F11 backstop. The ordinary promotion path is fire-and-forget: pass-generator
+# observes the staging merge and dispatches the cumulative promotion. A dropped
+# dispatch, or an observation window that ran out while auto-merge was still armed,
+# leaves `main` stranded behind `staging` with nothing scheduled to notice.
+#
+# This tick notices, and it dispatches at most once: only when main is genuinely
+# behind, the staging head has been sitting for more than 24h, no promotion PR is
+# already open, and nothing else dispatched the coordinator recently. Every tick
+# writes what it observed to its step summary, whether or not it acted.
+#
+# Rollback lever L4: comment out the `schedule:` block below. The fire-and-forget
+# path is unaffected.
+on:
+  schedule:
+    - cron: "20 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: promotion-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # `contents: write` is required only to POST /repos/{repo}/dispatches; the
+      # sweep never pushes, merges, or writes a file.
+      contents: write
+      pull-requests: read
+      actions: read
+    steps:
+      - name: Checkout trusted sweep tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Plan the sweep read-only and record what this tick observed
+        id: sweep
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/promotion-sweep.mjs --repo "$GITHUB_REPOSITORY"
+      - name: Dispatch the cumulative promotion for the exact staging head
+        if: ${{ steps.sweep.outputs.action == 'dispatch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --kind promotion --sha "${{ steps.sweep.outputs.sha }}"
