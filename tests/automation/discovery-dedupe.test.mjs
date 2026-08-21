@@ -190,7 +190,9 @@ test('the seeded registry covers the 86 records PR #8 removed from the directory
 test('the business generator policy allows the registry file it now writes', () => {
   assert.equal(validatePaths('business', [
     'data/businesses.json', 'data/discovery-seen.json',
-    'public/images/businesses/new-cafe.jpg', 'tasks/discovery-runs/2026-08-17.json',
+    'public/images/businesses/new-cafe.jpg',
   ]).ok, true);
   assert.equal(validatePaths('business', ['data/posts.json']).ok, false);
+  // Ticket 1a/1d: provenance the fixer cannot repair stays out of the scored diff.
+  assert.equal(validatePaths('business', ['tasks/discovery-runs/2026-08-17.json']).ok, false);
 });

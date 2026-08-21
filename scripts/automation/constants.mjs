@@ -2,6 +2,9 @@ export const GATE_MODEL = 'claude-opus-5';
 export const FIXER_MODEL = 'claude-sonnet-4-5-20250929';
 export const SCORE_THRESHOLD = 8;
 export const MAX_REPAIRS = 3;
+// Bounded redispatches of one coordinator run after a transient infrastructure or
+// model failure (F7). The third failure ends in a visible block, never a hot loop.
+export const MAX_TRANSIENT_RETRIES = 2;
 // Bounded automatic merges of staging into a conflicted generator branch; the
 // third conflict falls through to block-generator because the content needs eyes.
 export const MAX_HEALS = 2;
@@ -12,6 +15,11 @@ export const STATUS_CONTEXTS = Object.freeze({
 });
 
 export const TRUSTED_PR_AUTHORS = Object.freeze(['github-actions[bot]']);
+
+// Single binding site for the controlled labels the coordinator writes and the
+// sentinel reads. Duplicating either string is how a blocked PR goes invisible.
+export const BLOCKED_LABEL = 'automation-blocked';
+export const ALLOW_RECORD_DELETION_LABEL = 'allow-record-deletion';
 export const BLOCKING_SEVERITIES = Object.freeze(['critical', 'high']);
 export const ALL_SEVERITIES = Object.freeze(['critical', 'high', 'medium', 'low']);
 
@@ -27,7 +35,10 @@ const GENERATOR_POLICIES = {
   blog: {
     base: 'staging',
     headPrefixes: ['blog/auto-'],
-    allowedPaths: ['data/posts.json', 'public/images/blog/', 'tasks/seo-data-latest.json', 'tasks/auto-blog-runs/'],
+    // Content only. Provenance (tasks/seo-data-latest.json, tasks/auto-blog-runs/)
+    // is scored by the gate but structurally unrepairable by the fixer, so it goes
+    // to the run's step summary instead of into the PR (F2, ticket 1a).
+    allowedPaths: ['data/posts.json', 'public/images/blog/'],
     repairablePaths: ['data/posts.json'],
     maxFiles: 20,
     maxRepairBytes: 300_000,
@@ -47,11 +58,13 @@ const GENERATOR_POLICIES = {
     headPrefixes: ['auto/business-discovery'],
     // discovery-seen.json is the append-only registry the generator writes so
     // curated-out records are never re-discovered; it ships in the same PR.
+    // Same invariant as blog: every non-image path in the scored diff must be one
+    // the fixer can repair, so tasks/discovery-runs/ provenance stays out of the PR.
     allowedPaths: [
       'data/businesses.json', 'data/discovery-seen.json',
-      'public/images/businesses/', 'tasks/discovery-runs/',
+      'public/images/businesses/',
     ],
-    repairablePaths: ['data/businesses.json'],
+    repairablePaths: ['data/businesses.json', 'data/discovery-seen.json'],
     maxFiles: 20,
     maxRepairBytes: 300_000,
   },

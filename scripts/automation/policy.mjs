@@ -1,4 +1,6 @@
+import { isRecordFile, readRecordFile } from './record-repair.mjs';
 import {
+  ALLOW_RECORD_DELETION_LABEL,
   ALL_SEVERITIES,
   BLOCKING_SEVERITIES,
   FORBIDDEN_PATH_PREFIXES,
@@ -7,6 +9,7 @@ import {
   KIND_POLICIES,
   MAX_HEALS,
   MAX_REPAIRS,
+  MAX_TRANSIENT_RETRIES,
   SCORE_THRESHOLD,
   TRUSTED_PR_AUTHORS,
 } from './constants.mjs';
@@ -98,7 +101,88 @@ export function canHeal(attempt) {
   return Number.isInteger(attempt) && attempt >= 0 && attempt < MAX_HEALS;
 }
 
-export function validatePullRequest({ repository, kind, expectedSha, pr, files }) {
+// F13. PR #8 silently dropped 85 business records through a whole-file rewrite and
+// nothing refused it. Merge-time guard for every kind: a slug present in the merge
+// base and absent from the head is a hard failure. Appends (#86) and in-place
+// modifications (#92) pass untouched. The only way through is the human-applied
+// `allow-record-deletion` label, and taking it is reported so the audit comment can
+// say loudly that a person overrode the guard.
+export function validateDestructiveDiff({ kind, files, sources, labels } = {}) {
+  const overridden = (Array.isArray(labels) ? labels : [])
+    .some((label) => (typeof label === 'string' ? label : label?.name) === ALLOW_RECORD_DELETION_LABEL);
+  const recordFiles = (Array.isArray(files) ? files : []).filter((file) => isRecordFile(file));
+  const dropped = [];
+  const errors = [];
+  for (const file of recordFiles) {
+    const source = sources?.[file];
+    if (!source) {
+      errors.push(`${kind}: missing trusted base/head content for the destructive-diff guard: ${file}`);
+      continue;
+    }
+    const base = readRecordFile(source.baseText, file, 'base');
+    const head = readRecordFile(source.headText, file, 'head');
+    if (!base.ok || !head.ok) { errors.push(...base.errors, ...head.errors); continue; }
+    const headSlugs = new Set(head.records.map((record) => record.slug));
+    for (const record of base.records) {
+      if (!headSlugs.has(record.slug)) dropped.push(`${file}: diff drops base record and would delete it: ${record.slug}`);
+    }
+  }
+  // The label overrides deletions only. A parse failure or missing evidence still
+  // fails closed: a human cannot wave through something nobody could read.
+  if (overridden) {
+    return { ok: errors.length === 0, errors, overridden: dropped.length > 0, dropped, checkedFiles: recordFiles };
+  }
+  return {
+    ok: errors.length === 0 && dropped.length === 0,
+    errors: [...errors, ...dropped],
+    overridden: false,
+    dropped,
+    checkedFiles: recordFiles,
+  };
+}
+
+export const RETRY_LABEL_PREFIX = 'automation-retry-';
+
+export function retryLabel(attempt) {
+  return `${RETRY_LABEL_PREFIX}${attempt}`;
+}
+
+// Same single-controlled-label lifecycle as the repair and heal series, on its own
+// budget: a rerun cannot buy extra transient redispatches.
+export function readRetryAttempt(labels) {
+  if (!Array.isArray(labels)) throw new Error('labels must be an array');
+  const values = labels
+    .map((label) => (typeof label === 'string' ? label : label?.name))
+    .filter((name) => /^automation-retry-\d+$/.test(name || ''))
+    .map((name) => Number(name.slice(RETRY_LABEL_PREFIX.length)));
+  if (values.length > 1) throw new Error('multiple controlled retry labels found');
+  const attempt = values[0] ?? 0;
+  if (!Number.isInteger(attempt) || attempt < 0 || attempt > MAX_TRANSIENT_RETRIES) throw new Error(`invalid retry attempt: ${attempt}`);
+  return attempt;
+}
+
+export const REGENERATION_LABEL_PREFIX = 'automation-regen-';
+
+export function regenerationLabel(attempt) {
+  return `${REGENERATION_LABEL_PREFIX}${attempt}`;
+}
+
+// How many times this topic has already been regenerated. It rides on the
+// candidate PR as one controlled label, exactly like the repair budget, so the
+// count survives a rerun without buying extra candidates.
+export function readRegenerationCount(labels) {
+  if (!Array.isArray(labels)) throw new Error('labels must be an array');
+  const values = labels
+    .map((label) => (typeof label === 'string' ? label : label?.name))
+    .filter((name) => /^automation-regen-\d+$/.test(name || ''))
+    .map((name) => Number(name.slice(REGENERATION_LABEL_PREFIX.length)));
+  if (values.length > 1) throw new Error('multiple controlled regeneration labels found');
+  const attempt = values[0] ?? 0;
+  if (!Number.isInteger(attempt) || attempt < 0) throw new Error(`invalid regeneration count: ${attempt}`);
+  return attempt;
+}
+
+export function validatePullRequest({ repository, kind, expectedSha, pr, files, sources }) {
   const policy = KIND_POLICIES[kind];
   const errors = [];
   if (!policy) return { ok: false, errors: [`unknown generator kind: ${kind}`] };
@@ -116,21 +200,33 @@ export function validatePullRequest({ repository, kind, expectedSha, pr, files }
   if (pr?.head?.sha !== expectedSha) errors.push('payload SHA does not match current pull request head');
   const pathResult = validatePaths(kind, files);
   errors.push(...pathResult.errors);
+  // Merge-time destructive-diff guard, wired in for every kind. `sources` is the
+  // trusted base/head text the caller fetched; without it the guard reports that it
+  // could not run rather than pretending the diff is safe.
+  const destructive = validateDestructiveDiff({ kind, files, sources, labels: pr?.labels || [] });
+  if (sources) errors.push(...destructive.errors);
   let attempt = 0;
   try { attempt = readRepairAttempt(pr?.labels || []); } catch (error) { errors.push(error.message); }
   let healAttempt = 0;
   try { healAttempt = readHealAttempt(pr?.labels || []); } catch (error) { errors.push(error.message); }
-  return { ok: errors.length === 0, errors, attempt, healAttempt };
+  return {
+    ok: errors.length === 0, errors, attempt, healAttempt,
+    destructiveOverridden: destructive.overridden,
+    destructiveChecked: Boolean(sources),
+  };
 }
 
 export function evaluateVerdict(raw, expectedSha) {
   const errors = [];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, passed: false, errors: ['verdict must be an object'] };
-  const keys = Object.keys(raw).sort();
-  const expectedKeys = ['commit_sha', 'findings', 'model', 'overall', 'passed'];
+  // `passed` is OPTIONAL and IGNORED. The gate may not self-declare its own
+  // outcome (N2); the decision below is recomputed from overall + findings by
+  // trusted code. It stays *tolerated* rather than rejected because the 31 frozen
+  // historical verdicts all carry it and must keep replaying.
+  const keys = Object.keys(raw).filter((key) => key !== 'passed').sort();
+  const expectedKeys = ['commit_sha', 'findings', 'model', 'overall'];
   if (keys.join(',') !== expectedKeys.sort().join(',')) errors.push('verdict has missing or unexpected top-level fields');
   if (typeof raw.overall !== 'number' || !Number.isFinite(raw.overall) || raw.overall < 0 || raw.overall > 10) errors.push('overall must be a number from 0 to 10');
-  if (typeof raw.passed !== 'boolean') errors.push('passed must be boolean');
   if (raw.model !== GATE_MODEL) errors.push(`model must be ${GATE_MODEL}`);
   if (!isExactSha(raw.commit_sha) || raw.commit_sha !== expectedSha) errors.push('commit_sha must match the reviewed exact SHA');
   if (!Array.isArray(raw.findings)) errors.push('findings must be an array');
@@ -145,7 +241,6 @@ export function evaluateVerdict(raw, expectedSha) {
   }
   const hasBlocking = Array.isArray(raw.findings) && raw.findings.some((finding) => BLOCKING_SEVERITIES.includes(finding?.severity));
   const computedPassed = typeof raw.overall === 'number' && raw.overall >= SCORE_THRESHOLD && !hasBlocking;
-  if (raw.passed !== computedPassed) errors.push('passed does not match the enforced score/severity decision');
   return { ok: errors.length === 0, passed: errors.length === 0 && computedPassed, errors, hasBlocking };
 }
 

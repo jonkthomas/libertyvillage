@@ -27,6 +27,9 @@ concurrency:
 
 permissions:
   contents: write
+  # The candidate policy creates the controlled regeneration/abandonment labels and
+  # posts the deduplicated closing comment on an exhausted candidate.
+  issues: write
   pull-requests: write
 
 jobs:
@@ -34,10 +37,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # staging is the GENERATED-DATA worktree and nothing more: the agent writes
+      # data/posts.json and images here. It is never the source of the tooling that
+      # decides anything.
       - uses: actions/checkout@v4
         with:
           ref: staging
           fetch-depth: 0
+
+      # Trusted tooling comes from main, which is protected and which no generated
+      # content PR can reach (scripts/ is a forbidden path for every generator kind).
+      # The candidate policy and the claim linter both run from here, so a mutated
+      # staging checkout cannot rewrite the rules it is about to be judged by.
+      - name: Checkout trusted policy and linter tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+
+      - name: Keep the trusted tooling out of the generated-data worktree
+        run: echo 'trusted/' >> .git/info/exclude
 
       - uses: actions/setup-node@v4
         with:
@@ -45,10 +65,34 @@ jobs:
 
       - run: npm ci
 
+      # F14. Decide whether this topic may have a new candidate at all, before any
+      # model spend. An exhausted candidate is closed and regenerated only after the
+      # cooldown; a third failure abandons the topic to a human. Nothing here can
+      # re-push a rejected draft — regeneration always means a fresh grounded one.
+      - name: Apply the bounded candidate policy before generating anything
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs plan-candidate --repo "$GITHUB_REPOSITORY" --kind blog
+
+      - name: Report the candidate decision
+        run: |
+          {
+            echo "## Candidate policy"
+            echo
+            echo "- decision: **${{ steps.candidate.outputs.action }}**"
+            echo "- reason: ${{ steps.candidate.outputs.reason }}"
+            echo "- generating this cycle: ${{ steps.candidate.outputs.generate }}"
+            echo "- regenerations used: ${{ steps.candidate.outputs.regenerations }}"
+            echo "- durable ladder: issue #${{ steps.candidate.outputs.state_issue }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install Playwright Chromium
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         run: npx playwright install chromium
 
       - name: Write service-account credentials
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -57,6 +101,8 @@ jobs:
           jq -e . /tmp/gsa-credentials.json > /dev/null
 
       - name: Run blog pipeline
+        id: generate
+        if: ${{ steps.candidate.outputs.generate == 'true' }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
@@ -66,9 +112,99 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: node scripts/weekly-blog-agent.js
 
+      # F1/F14. The linter runs from the trusted checkout against the generated data,
+      # BEFORE any branch, commit or pull request exists. A refusal is a real bounded
+      # candidate failure — it costs one regeneration and starts the cooldown — so it
+      # is recorded in the durable ladder before the run fails. It only runs after a
+      # successful generation so a generator throw cannot also be billed as a lint
+      # refusal.
+      - name: Refuse ungrounded claims before anything is committed
+        id: lint
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          # L1 rollback lever: LINT_MODE=warn reports without discarding drafts.
+          LINT_MODE: ${{ vars.LINT_MODE }}
+        run: node trusted/scripts/blog-lint.mjs --posts data/posts.json --businesses data/businesses.json
+
+      - name: Record the lint-refused draft in the durable candidate ladder
+        id: discard
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.lint.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
+            --repo "$GITHUB_REPOSITORY" --kind blog --outcome lint-discarded \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --reason "the claim linter refused the draft before a pull request existed"
+
+      - name: Stop at DISCARDED_PRE_PR — no pull request is opened for a refused draft
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.lint.outcome == 'failure' }}
+        run: |
+          {
+            echo "## DISCARDED_PRE_PR"
+            echo
+            echo "The claim linter refused this draft. No branch, no commit, no pull request."
+            echo "- ladder: **${{ steps.discard.outputs.action }}** (${{ steps.discard.outputs.regenerations }}/2 regenerations used)"
+            echo "- topic abandoned: ${{ steps.discard.outputs.abandoned }}"
+            echo "- durable state: issue #${{ steps.discard.outputs.state_issue }}"
+            echo
+            echo "The next scheduled run regenerates a FRESH grounded draft after the cooldown;"
+            echo "this one is not re-pushed and the gate was not lowered."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::blog-lint refused the draft (DISCARDED_PRE_PR); the bounded candidate ladder recorded it."
+          exit 1
+
+      # The generator itself can fail before a PR exists (model/tooling throw).
+      # Same durable ladder as a lint refusal: one regeneration, cooldown, cap.
+      # `if: failure()` keeps the original generate step as the visible failure;
+      # this only records, then re-fails so later PR-opening steps stay skipped.
+      - name: Record the generation failure in the durable candidate ladder
+        id: genfail
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
+            --repo "$GITHUB_REPOSITORY" --kind blog --outcome generation-failed \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --reason "the generator failed before a pull request existed"
+
+      - name: Stop at GENERATION_FAILED_PRE_PR — no pull request is opened
+        if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
+        run: |
+          {
+            echo "## GENERATION_FAILED_PRE_PR"
+            echo
+            echo "The blog generator failed before a pull request existed. No branch, no commit, no PR."
+            echo "- ladder: **${{ steps.genfail.outputs.action }}** (${{ steps.genfail.outputs.regenerations }}/2 regenerations used)"
+            echo "- topic abandoned: ${{ steps.genfail.outputs.abandoned }}"
+            echo "- durable state: issue #${{ steps.genfail.outputs.state_issue }}"
+            echo
+            echo "The next scheduled run regenerates a FRESH grounded draft after the cooldown;"
+            echo "this one is not re-pushed and the gate was not lowered."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::blog generator failed (GENERATION_FAILED_PRE_PR); the bounded candidate ladder recorded it."
+          exit 1
+
+      - name: Record provenance in the run summary instead of the pull request
+        if: ${{ always() && steps.candidate.outputs.generate == 'true' }}
+        run: |
+          {
+            echo "## Blog run provenance"
+            echo
+            echo "These files stay out of the scored diff (PRD ticket 1a) because the"
+            echo "fixer cannot repair them: a finding on one guarantees exhaustion."
+            echo
+            for f in tasks/seo-data-latest.json tasks/auto-blog-runs/*.json; do
+              [ -f "$f" ] || continue
+              echo "- \`$f\` ($(wc -c < "$f") bytes)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Open non-draft pull request into staging
         id: pr
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'success' && steps.lint.outcome == 'success' && inputs.dry_run != true && inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -76,7 +212,7 @@ jobs:
           git config user.email "noreply@libertyvillage.co"
           BR="blog/auto-$(date +%s)"
           git checkout -b "$BR"
-          git add data/posts.json "public/images/blog/" "tasks/seo-data-latest.json" "tasks/auto-blog-runs/"
+          git add data/posts.json "public/images/blog/"
           if git diff --cached --quiet; then echo "No changes to commit"; echo "created=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           git commit -m "blog: weekly automated post $(date +%Y-%m-%d)"
           git push -u origin "$BR"
@@ -88,11 +224,20 @@ jobs:
           echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "created=true" >> "$GITHUB_OUTPUT"
 
+      # Carries the topic's regeneration budget onto the fresh candidate, using the
+      # same single-controlled-label lifecycle as the repair and heal series, so a
+      # rerun cannot buy a fourth candidate.
+      - name: Carry the regeneration budget onto the fresh candidate
+        if: ${{ steps.pr.outputs.created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs mark-regeneration --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --regenerations "${{ steps.candidate.outputs.regenerations }}"
+
       - name: Explicitly dispatch shared coordinator
         if: ${{ steps.pr.outputs.created == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind blog --sha "${{ steps.pr.outputs.head_sha }}"
+        run: node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind blog --sha "${{ steps.pr.outputs.head_sha }}"
 
       - name: Cleanup credentials
         if: always()

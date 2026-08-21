@@ -72,7 +72,6 @@ Use the Write tool to save this file.
 Generate a brief analysis identifying:
 - **Top performing queries**: Highest impressions/clicks
 - **Content gaps**: Queries with impressions but no dedicated page on the site
-- **Trending topics**: New queries appearing this week vs previous
 - **Underperforming pages**: Pages with high impressions but low CTR (< 2%)
 
 ### 1.5 Fallback: No Data Available
@@ -91,14 +90,21 @@ Select the best blog topic based on SEO data and existing content inventory.
 
 ### 2.1 Load Content Inventory
 
-Read these files to understand existing content:
+These data files total roughly 1.67 MB. Do **not** Read them whole — extract only the
+fields you need with `jq` (or `node -e`) so the inventory fits in context and stays exact:
 
-1. **`data/posts.json`** — All published blog posts (slugs, titles, categories, tags)
-2. **`data/services.json`** — 59 service pages (slugs, titles) for cross-referencing
-3. **`data/topics.json`** — 30 guide topics (slugs, titles) for cross-referencing
-4. **`data/businesses.json`** — 68 business listings (names, slugs, categories) for mentions
+```bash
+jq -c '[.[] | {slug, title, category, tags, publishedAt}]' data/posts.json
+jq -c '[.[] | {slug, title}]' data/services.json
+jq -c '[.[] | {slug, title}]' data/topics.json
+jq -c '[.[] | {slug, name, category, subcategory}]' data/businesses.json
+```
 
-Use the Read tool to load each file.
+Later, when you write about a specific business, pull that one record in full:
+
+```bash
+jq -c '.[] | select(.slug=="<slug>")' data/businesses.json
+```
 
 ### 2.2 Check for Topic Override
 
@@ -108,18 +114,7 @@ If the `TOPIC_OVERRIDE` environment variable is set (non-empty):
 - Generate a title, slug, keywords, and category from the override
 - Proceed directly to Step 3 (Blog Generation)
 
-### 2.3 World Cup Priority (March-July 2026)
-
-During March through July 2026, prioritize World Cup-adjacent topics when they score well on other criteria. These include:
-- Match-specific guides (per-game day guides for each of the 6 Toronto matches)
-- Diaspora fan guides (German, Croatian, Ghanaian, Panamanian, Senegalese fans in Toronto)
-- Pre/post-game logistics updates
-- Fan Festival coverage and updates
-- Liberty Village match-day atmosphere recaps (post-event content)
-
-After the World Cup (August+), return to normal topic selection weighting.
-
-### 2.4 Topic Selection Criteria
+### 2.3 Topic Selection Criteria
 
 Score potential topics on these factors (1-5 scale each):
 
@@ -161,9 +156,6 @@ If no SEO data is available (Step 1 returned no data), select from this evergree
 | Liberty Village coffee shop guide | food-drink | coffee, cafes, work |
 | Nightlife in Liberty Village | food-drink | bars, nightlife, drinks |
 | Liberty Village family guide | community | family, kids, family-friendly |
-| World Cup match day guide (per match) | events | fifa, world cup, game day |
-| German fans guide to Toronto | community | germany, world cup, diaspora |
-| Croatian fans guide to Toronto | community | croatia, world cup, diaspora |
 | Best patios near BMO Field | food-drink | patios, bmo field, outdoor |
 | Liberty Village grocery guide | lifestyle | grocery, freshco, shopping |
 | Liberty Village running routes | lifestyle | running, martin goodman trail |
@@ -261,6 +253,34 @@ Write 800-1200 words in markdown format:
 - Mention **at least 2 real businesses** by bold name (e.g., **Mildred's Temple Kitchen**)
   - Business names MUST exist in `data/businesses.json` — do NOT fabricate
   - Bold business names are auto-linked by the site's rendering system
+
+> **Grounding rule (non-negotiable).** Every named-business fact — address, cross
+> street, opening hours, price, phone, website, rating — must be copied **verbatim**
+> from that business's own `data/businesses.json` record. If the fact is not in that
+> record, **omit it**. Never infer it, never round it, never carry it over from
+> another business, and never write it from memory. A vaguer sentence is always
+> correct; an invented specific is a blocking finding and discards the whole draft
+> before a pull request is opened.
+
+> **Attribution format (non-negotiable, machine-checked).** The claim linter can only
+> adjudicate a specific against the business it belongs to, so every business you make
+> a specific claim about must be *attributable in the text itself*, in one of exactly
+> these forms:
+>
+> 1. `[Name](/directory/<slug>)` — a link to that business's directory page. The slug
+>    must exist in `data/businesses.json`.
+> 2. `**Name**` — the bold name exactly as `data/businesses.json` spells it.
+> 3. The name written out exactly as `data/businesses.json` spells it.
+>
+> Put the business and its specific **in the same sentence**. "Mildred's Temple Kitchen
+> is at 85 Hanna Ave" is checkable; "Mildred's Temple Kitchen is the crown jewel. It is
+> at 85 Hanna Ave" is not, and the second sentence's address will be dropped or flagged.
+>
+> **Location claims are addresses.** A cross street ("on Liberty Street"), an
+> intersection ("where Hanna Ave meets Wellington St W"), and a bearing ("just north of
+> the rail corridor", "a two-minute walk from BMO Field") are all as specific as a civic
+> address and are checked the same way. If the business's own record does not contain
+> that geography, do not write it. Say "in Liberty Village" instead.
 - Natural paragraph flow with subheadings every 150-200 words
 - Include a brief intro paragraph and conclusion
 
@@ -277,14 +297,14 @@ Write a 40-60 word direct answer to the post's core question:
 Generate 4-5 FAQs:
 - Each question should be a real question a Liberty Village resident would ask
 - Each answer must be >20 words and substantive (not generic)
-- Include specific local details (business names, street names, prices)
+- Include specific local details only where a `businesses.json` record supports them (business names, street names)
 - Format: `[{"question": "...", "answer": "..."}]`
 
 #### Key Takeaways (`keyTakeaways` field)
 
 4-6 concise bullet points summarizing the post:
 - Each should be 1 sentence, actionable or informative
-- Include specific details (numbers, names, addresses)
+- Summarize the post; do not introduce a specific that the body has not already grounded
 
 ### 3.4 Cross-Reference Rules
 
@@ -423,7 +443,9 @@ If any check fails: select the next-best topic and re-check. If 3 topics fail, u
 If quality checks fail:
 1. Identify which checks failed
 2. Provide specific feedback and regenerate content
-3. Maximum 2 retries — if still failing, proceed with best attempt and log warnings
+3. Maximum 2 retries — if still failing, **abort and exit with an error**. Never
+   proceed with a best attempt: this matches §6.1, and a discarded draft is a
+   success of the loop, not a failure of it.
 
 ---
 
@@ -511,6 +533,10 @@ Before declaring success, confirm:
 - [ ] Blog post matches BlogPost interface with all required fields
 - [ ] No duplicate slugs in posts.json
 - [ ] No fabricated businesses — all bold names exist in businesses.json
+- [ ] Every business carrying a specific is attributed in the same sentence, as a
+      `/directory/<slug>` link, a bold record name, or the exact record name
+- [ ] No cross street, intersection, or "N minutes from X" geography that the
+      business's own record does not contain verbatim
 - [ ] All cross-reference slugs verified against their data files
 - [ ] Hero image exists at public/images/blog/{slug}.jpg and is >10KB
 - [ ] `node scripts/diagnostic.js` exits 0

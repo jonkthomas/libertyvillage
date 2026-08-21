@@ -1,8 +1,12 @@
 name: Blocked automation PR sentinel
 
-# Read-only daily sweep: any PR the autonomous gate labelled automation-blocked and
-# nobody has touched for more than 24h gets one Slack line. No repository writes,
-# no auto-close — a blocked PR always waits for a human.
+# Read-only daily sweep, two passes. STALE: any PR the autonomous gate labelled
+# automation-blocked and nobody has touched for more than 24h. ORPHAN: any
+# bot-authored PR that reached no terminal state at all — no automation-* label and
+# no automation/* head status after 24h. A non-zero ORPHAN count means the
+# exactly-one-terminal-outcome guarantee has broken somewhere, and it is the
+# highest-priority signal in this system. No repository writes, no auto-close — a
+# blocked PR always waits for a human.
 on:
   schedule:
     - cron: "0 12 * * *"
@@ -26,17 +30,29 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-      - name: List blocked PRs that have gone stale
+      - name: List stale blocked PRs and run the ORPHAN terminal-state pass
         id: scan
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/automation/blocked-sentinel.mjs --repo "$GITHUB_REPOSITORY"
+      - name: Report both passes in the run summary
+        if: always()
+        run: |
+          {
+            echo "## Automation sentinel"
+            echo
+            echo "- stale blocked PRs: ${{ steps.scan.outputs.stale_count }}"
+            echo "- ORPHAN PRs that reached no terminal state: ${{ steps.scan.outputs.orphan_count }}"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Notify Slack once when configured
-        if: ${{ steps.scan.outputs.stale_count != '0' }}
+        if: ${{ steps.scan.outputs.stale_count != '0' || steps.scan.outputs.orphan_count != '0' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_TEXT: ${{ steps.scan.outputs.slack_text }}
+          ORPHAN_TEXT: ${{ steps.scan.outputs.orphan_text }}
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && { echo "No SLACK_WEBHOOK_URL set — skipping alert."; exit 0; }
-          jq -n --arg text "$SLACK_TEXT" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
+          TEXT="$SLACK_TEXT"
+          if [ -n "$TEXT" ] && [ -n "$ORPHAN_TEXT" ]; then TEXT="$TEXT || $ORPHAN_TEXT"; elif [ -z "$TEXT" ]; then TEXT="$ORPHAN_TEXT"; fi
+          jq -n --arg text "$TEXT" '{text:$text}' | curl --fail --silent --show-error -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
           echo "Slack notified."

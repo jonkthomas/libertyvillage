@@ -8,7 +8,8 @@
 // below rebuilds each file while requiring every other record to stay
 // byte-identical.
 import { isTextRepairPath, validatePaths } from './policy.mjs';
-import { RECORD_REPAIR_RULES, POSTS_FILE, recordRepairRules, validateRecordRepair } from './preflight.mjs';
+import { RECORD_REPAIR_RULES, POSTS_FILE, recordRepairRules } from './record-rules.mjs';
+import { validateRecordRepair } from './preflight.mjs';
 
 export { POSTS_FILE };
 export const RECORD_FILES = Object.freeze(Object.keys(RECORD_REPAIR_RULES));
