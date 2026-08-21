@@ -81,9 +81,11 @@ const STRUCTURAL_NOTE_PATTERNS = Object.freeze([
   /\bslug\b[\s\S]{0,40}\b(?:collides|conflicts|already exists|is taken)\b/i,
 ]);
 
-// Gate notes that the immutable identity (slug + image) still names a premise the
-// repairable fields abandoned. Further fixer rewrites cannot change those fields.
-const PREMISE_ABANDONMENT_NOTE = /\bslug\b[\s\S]{0,200}\bimage\b/i;
+// Gate notes that the immutable identity (slug + image) jointly still names a
+// premise the repairable fields abandoned. Further fixer rewrites cannot change
+// those fields. Narrow: "Slug and image filename are 'pet-friendly-...'" is a
+// match; "slug is fine, image alt missing" and "consider a different image" are not.
+const PREMISE_IDENTITY_NOTE = /\bslug\b(?:\s*\/\s*|\s+and\s+)\s*image(?:\s+filename)?\b/i;
 
 export function isUnrepairablePremiseAbandonment(original, repaired) {
   if (!original || typeof original !== 'object' || !repaired || typeof repaired !== 'object') return false;
@@ -98,7 +100,7 @@ export function isUnrepairablePremiseAbandonment(original, repaired) {
 }
 
 function isPremiseAbandonmentFinding(finding) {
-  return typeof finding?.note === 'string' && PREMISE_ABANDONMENT_NOTE.test(finding.note);
+  return typeof finding?.note === 'string' && PREMISE_IDENTITY_NOTE.test(finding.note);
 }
 
 function repairableKinds(kind) {
@@ -121,12 +123,9 @@ export function classifyFindings(kind, verdict, { changedFiles } = {}) {
 
   const repairable = [];
   const unrepairable = [];
-  let premiseAbandoned = false;
   for (const finding of considered) {
     const path = finding?.path;
-    const abandoned = isPremiseAbandonmentFinding(finding);
-    if (abandoned) premiseAbandoned = true;
-    const structural = abandoned
+    const structural = isPremiseAbandonmentFinding(finding)
       || (typeof finding?.note === 'string'
         && STRUCTURAL_NOTE_PATTERNS.some((pattern) => pattern.test(finding.note)));
     const reachable = isRepairablePath(kind, path) && (!inDiff || inDiff.has(path));
@@ -135,17 +134,21 @@ export function classifyFindings(kind, verdict, { changedFiles } = {}) {
   return {
     repairable,
     unrepairable,
-    allUnrepairable: premiseAbandoned || (unrepairable.length > 0 && repairable.length === 0),
+    allUnrepairable: unrepairable.length > 0 && repairable.length === 0,
   };
 }
 
-export function preflightDecision({ verdict, contentSha, attempts, maxRepairs = MAX_REPAIRS, kind, changedFiles }) {
+export function preflightDecision({
+  verdict, contentSha, attempts, maxRepairs = MAX_REPAIRS, kind, changedFiles, original, repaired,
+}) {
   const decision = evaluateVerdict(verdict, contentSha);
   if (decision.ok && decision.passed) return 'go';
-  // Short-circuit a foregone conclusion before it costs 3 rounds x 4 fixer plans.
-  // An identity/premise-abandonment finding is unrepairable even when the verdict
-  // object is a coordinator fixture rather than a fully-keyed gate document.
-  if (classifyFindings(kind, verdict, { changedFiles }).allUnrepairable) return 'unrepairable';
+  // Invalid / missing-model / SHA-mismatched verdicts block before any premise
+  // classifier can return unrepairable. Only a fully valid trusted verdict may
+  // reach classifyFindings.
   if (!decision.ok) return 'block';
+  if (classifyFindings(kind, verdict, { changedFiles, original, repaired }).allUnrepairable) {
+    return 'unrepairable';
+  }
   return attempts < maxRepairs && canRepair(attempts) ? 'repair' : 'block';
 }

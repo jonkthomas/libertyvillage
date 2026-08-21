@@ -15,6 +15,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { comparable, extractReferencedBusinesses, isBusinessMention, lintPost, resolveLintMode } from '../../scripts/blog-lint.mjs';
+import {
+  MAX_REFERENCE_RECORDS, selectReferenceRecords,
+} from '../../scripts/lib/referenced-businesses.mjs';
 
 const BUSINESSES = [
   {
@@ -154,7 +157,7 @@ test('attribution is sentence-scoped, so a business does not adopt the next para
 // The rollback lever stays a lever, not a default.
 // ---------------------------------------------------------------------------
 test('extractReferencedBusinesses is re-exported and finds exact recorded names across serializations', () => {
-  const post = {
+  const sample = {
     slug: 'guide',
     title: 'A guide',
     content: 'Brazen Head Irish Pub at 165 East Liberty St. [Arvo](/directory/arvo-coffee) nearby.',
@@ -167,11 +170,56 @@ test('extractReferencedBusinesses is re-exported and finds exact recorded names 
     { slug: 'unmentioned-cafe', name: 'Unmentioned Cafe' },
   ];
   const slugsOf = (source) => extractReferencedBusinesses(source, businesses).map((row) => row.slug).sort();
-  const fromPost = slugsOf(post);
-  const fromJson = slugsOf(JSON.stringify(post));
+  const fromPost = slugsOf(sample);
+  const fromJson = slugsOf(JSON.stringify(sample));
   assert.deepEqual(fromPost, ['arvo-coffee', 'brazen-head-irish-pub', 'jimmys-coffee-liberty-village']);
   assert.deepEqual(fromPost, fromJson);
-  assert.deepEqual(extractReferencedBusinesses(post, null), []);
+  assert.deepEqual(extractReferencedBusinesses(sample, null), []);
+  assert.deepEqual(
+    selectReferenceRecords(sample, businesses).map((row) => row.slug).sort(),
+    fromPost,
+  );
+});
+
+test('relatedPosts and generic quoted slugs are not business attribution', () => {
+  const businesses = [
+    { slug: 'brazen-head-irish-pub', name: 'Brazen Head Irish Pub' },
+    { slug: 'arvo-coffee', name: 'Arvo Coffee' },
+  ];
+  const quotedOnly = {
+    slug: 'liberty-village-guide',
+    title: 'A Liberty Village guide',
+    content: 'A walkable stretch of East Liberty Street.',
+    relatedPosts: ['brazen-head-irish-pub', 'arvo-coffee'],
+    relatedTopics: ['arvo-coffee'],
+    tags: ['brazen-head-irish-pub'],
+  };
+  assert.deepEqual(extractReferencedBusinesses(quotedOnly, businesses), []);
+  assert.deepEqual(extractReferencedBusinesses(JSON.stringify(quotedOnly), businesses), []);
+  assert.deepEqual(selectReferenceRecords(quotedOnly, businesses), []);
+
+  const named = {
+    ...quotedOnly,
+    content: 'Brazen Head Irish Pub at 165 East Liberty St has a wraparound patio.',
+  };
+  assert.deepEqual(extractReferencedBusinesses(named, businesses).map((row) => row.slug), ['brazen-head-irish-pub']);
+});
+
+test('selectReferenceRecords fails closed instead of truncating above MAX_REFERENCE_RECORDS', () => {
+  const many = Array.from({ length: MAX_REFERENCE_RECORDS + 1 }, (_, index) => ({
+    slug: `synthetic-venue-${String(index + 1).padStart(2, '0')}`,
+    name: `Synthetic Venue ${String(index + 1).padStart(2, '0')} Cafe`,
+  }));
+  const sample = {
+    slug: 'overflow',
+    title: 'Cafe roll call',
+    content: many.map((row) => `**${row.name}** nearby.`).join('\n'),
+  };
+  assert.equal(extractReferencedBusinesses(sample, many).length, many.length);
+  assert.throws(
+    () => selectReferenceRecords(sample, many),
+    (error) => /MAX_REFERENCE_RECORDS/.test(`${error?.name}\n${error?.code}\n${error?.message}`),
+  );
 });
 
 test('an operational slug/title premise fails without record support and passes when a record has it', () => {
@@ -197,6 +245,27 @@ test('an operational slug/title premise fails without record support and passes 
     content: '**Paw Cafe** at 1 Fraser Ave is dog-friendly. Hours are Mon-Sun 8am-6pm.',
   }, { businesses: [cafe] });
   assert.equal(supported.ok, true, JSON.stringify(supported.findings));
+
+  const unsupportedPeer = {
+    slug: 'arvo-coffee',
+    name: 'Arvo Coffee',
+    address: '17 Fraser Ave',
+    hours: 'Mon-Fri 7:30am-4pm, Sat-Sun 8:30am-4pm',
+    tags: ['coffee'],
+    description: 'Australian-style coffee. No pet policy on file.',
+  };
+  const mixed = lintPost({
+    slug: 'pet-friendly-cafes-liberty-village-2026',
+    title: 'Pet-Friendly Cafes in Liberty Village',
+    content: [
+      '**Paw Cafe** at 1 Fraser Ave is dog-friendly. Hours are Mon-Sun 8am-6pm.',
+      '**Arvo Coffee** at 17 Fraser Ave is dog-friendly. Hours are Mon-Fri 7:30am-4pm, Sat-Sun 8:30am-4pm.',
+    ].join('\n'),
+  }, { businesses: [cafe, unsupportedPeer] });
+  assert.equal(mixed.ok, false, 'one supported record must not license unsupported peers');
+  const blob = JSON.stringify(mixed.findings);
+  assert.match(blob, /operational|premise|pet|dog|policy/i);
+  assert.match(blob, /Arvo|arvo-coffee/i);
 });
 
 test('the linter is fail-closed by default and warn is opt-in only', () => {

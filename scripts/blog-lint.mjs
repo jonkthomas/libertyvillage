@@ -12,7 +12,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { unsupportedOperationalPremises } from './lib/referenced-businesses.mjs';
+import {
+  unsupportedOperationalPremises, unsupportedPremiseAttributions,
+} from './lib/referenced-businesses.mjs';
 
 export { extractReferencedBusinesses } from './lib/referenced-businesses.mjs';
 
@@ -407,13 +409,24 @@ export function lintPost(post, { businesses = [], now } = {}) {
   const year = postYear(post, now);
 
   // Operational slug/title premises (pet-friendly, happy hour, accessibility,
-  // reservations) fail closed unless an attributed record actually supports them.
+  // reservations) fail closed unless attributed records actually support them.
+  // Missing/non-array businesses is fail-closed. One supported record cannot
+  // license pet/happy-hour/accessibility/reservation claims for unsupported peers.
   for (const premise of unsupportedOperationalPremises(post, businesses)) {
     add(
       'unsupported-operational-premise',
       premise.label,
       `slug/title asserts the ${premise.label} operational attribute but no attributed record supports that policy`,
       'slug',
+    );
+  }
+  for (const { premise, record } of unsupportedPremiseAttributions(post, businesses)) {
+    const who = record?.name || record?.slug || 'attributed business';
+    add(
+      'unsupported-operational-premise',
+      premise.label,
+      `${who} is attributed as satisfying the ${premise.label} operational attribute but its own record does not support that policy`,
+      record?.slug || 'content',
     );
   }
 

@@ -103,21 +103,101 @@ test('premise abandonment is unrepairable and validatePostRepair refuses it', ()
   assert.equal(validatePostRepair(outdoor, { ...outdoor, content: 'Better patio notes.' }).ok, true);
 
   const sha = 'c'.repeat(40);
-  const verdict = {
+  const identityFinding = {
+    severity: 'high',
+    path: 'data/posts.json',
+    note: "Slug/metadata misrepresents the article. Slug and image filename are 'pet-friendly-restaurants-patios-cafes-liberty-village-2026'.",
+  };
+  const mixed = {
     overall: 3.5,
     findings: [
-      {
-        severity: 'high',
-        path: 'data/posts.json',
-        note: "Slug/metadata misrepresents the article. Slug and image filename are 'pet-friendly-restaurants-patios-cafes-liberty-village-2026'.",
-      },
+      identityFinding,
       { severity: 'high', path: 'data/posts.json', note: 'Unsupported named-business facts for six businesses.' },
     ],
     model: GATE_MODEL,
     commit_sha: sha,
   };
-  assert.equal(classifyFindings('blog', verdict, { changedFiles: ['data/posts.json'] }).allUnrepairable, true);
-  assert.equal(preflightDecision({ verdict, contentSha: sha, attempts: 0, kind: 'blog', changedFiles: ['data/posts.json'] }), 'unrepairable');
+  const mixedClassified = classifyFindings('blog', mixed, {
+    changedFiles: ['data/posts.json'], original, repaired,
+  });
+  assert.equal(mixedClassified.allUnrepairable, false, 'mixed identity + grounding miss is not all-unrepairable');
+  assert.ok(mixedClassified.unrepairable.some((finding) => finding.note === identityFinding.note));
+  assert.ok(mixedClassified.repairable.some((finding) => /six businesses/i.test(finding.note)));
+  assert.equal(
+    preflightDecision({
+      verdict: mixed, contentSha: sha, attempts: 0, kind: 'blog',
+      changedFiles: ['data/posts.json'], original, repaired,
+    }),
+    'repair',
+  );
+
+  const identityOnly = {
+    overall: 3.5,
+    findings: [identityFinding],
+    model: GATE_MODEL,
+    commit_sha: sha,
+  };
+  assert.equal(
+    classifyFindings('blog', identityOnly, { changedFiles: ['data/posts.json'], original, repaired }).allUnrepairable,
+    true,
+  );
+  assert.equal(
+    preflightDecision({
+      verdict: identityOnly, contentSha: sha, attempts: 0, kind: 'blog',
+      changedFiles: ['data/posts.json'], original, repaired,
+    }),
+    'unrepairable',
+  );
+
+  const benign = {
+    overall: 3.5,
+    findings: [{ severity: 'high', path: 'data/posts.json', note: 'slug is fine, image alt missing' }],
+    model: GATE_MODEL,
+    commit_sha: sha,
+  };
+  assert.equal(classifyFindings('blog', benign, { changedFiles: ['data/posts.json'] }).allUnrepairable, false);
+  assert.equal(preflightDecision({
+    verdict: benign, contentSha: sha, attempts: 0, kind: 'blog', changedFiles: ['data/posts.json'],
+  }), 'repair');
+});
+
+test('invalid, missing-model, and SHA-mismatched verdicts block before unrepairable', () => {
+  const sha = 'a'.repeat(40);
+  const identity = [{
+    severity: 'high',
+    path: 'data/posts.json',
+    note: "Slug and image filename are 'pet-friendly-restaurants-patios-cafes-liberty-village-2026'.",
+  }];
+  const opts = { attempts: 0, kind: 'blog', changedFiles: ['data/posts.json'] };
+  assert.equal(
+    preflightDecision({ verdict: { overall: 3.5, findings: identity, commit_sha: sha }, contentSha: sha, ...opts }),
+    'block',
+    'omitted model must block before premise classification',
+  );
+  assert.equal(
+    preflightDecision({
+      verdict: { overall: 3.5, findings: identity, model: '', commit_sha: sha }, contentSha: sha, ...opts,
+    }),
+    'block',
+  );
+  assert.equal(
+    preflightDecision({
+      verdict: { overall: 3.5, findings: identity, model: 'claude-sonnet-4-5-20250929', commit_sha: sha },
+      contentSha: sha, ...opts,
+    }),
+    'block',
+  );
+  assert.equal(
+    preflightDecision({
+      verdict: { overall: 3.5, findings: identity, model: GATE_MODEL, commit_sha: sha },
+      contentSha: 'b'.repeat(40), ...opts,
+    }),
+    'block',
+    'wrong SHA must block before premise classification',
+  );
+  assert.equal(preflightDecision({ verdict: null, contentSha: sha, ...opts }), 'block');
+  assert.equal(preflightDecision({ verdict: 'malformed', contentSha: sha, ...opts }), 'block');
+  assert.equal(preflightDecision({ verdict: { overall: 3.5, findings: identity, model: GATE_MODEL }, contentSha: sha, ...opts }), 'block');
 });
 
 test('preflight decision requires exact content binding and shares the repair budget', () => {
