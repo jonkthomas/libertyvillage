@@ -124,7 +124,10 @@ jobs:
         working-directory: work
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node ../trusted/scripts/automation/coordinator.mjs heal-generator-base --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
+        run: |
+          git config user.name "LV Automation Fixer"
+          git config user.email "noreply@libertyvillage.co"
+          node ../trusted/scripts/automation/coordinator.mjs heal-generator-base --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
       - name: Recheck exact remote head and persist next heal attempt
         env:
           GH_TOKEN: ${{ github.token }}
