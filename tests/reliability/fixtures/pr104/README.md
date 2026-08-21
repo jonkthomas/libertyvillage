@@ -64,6 +64,50 @@ Six records the final gate called missing, all present in `businesses-excerpts.j
 `local-public-eatery-liberty-village`, `school-restaurant`, `arvo-coffee`,
 `jimmys-coffee-liberty-village`.
 
+## Trusted verdict schema (do not omit)
+
+Every fixture verdict used with `preflightDecision` / `classifyFindings` is the
+full trusted gate document:
+
+```js
+{ overall, findings, model: 'claude-opus-5', commit_sha: '<exact content SHA>' }
+```
+
+`passed` is optional and ignored. Invalid, mismatched, or missing `model`, or a
+`commit_sha` that does not equal the reviewed content SHA, **always** returns
+`block` *before* any premise classifier can return `unrepairable`. A locked
+fixture that omitted `model` induced a builder to reorder fail-closed preflight;
+that is an automatic FAIL.
+
+## Premise abandonment (narrow)
+
+`isUnrepairablePremiseAbandonment(original, repaired)` is true only when the
+immutable premise-bearing slug/image encodes a controlled operational premise
+(pet-friendly / dog policy, happy hour, accessibility, reservations) **and** the
+repaired user-visible topic/body materially deletes that premise.
+
+Benign notes such as `slug is fine, image alt missing` or `consider a different
+image` remain repairable. One unrepairable note among other repairable blocking
+findings must **not** set `allUnrepairable=true` unless every blocking finding is
+structurally unrepairable. The live `3850da18` mix (identity mismatch + six
+missing reference records) is mixed: identity is unrepairable, the six-business
+grounding miss is repairable, `preflightDecision` at attempts=0 is `repair`.
+
+## Attribution and operational support
+
+Allowed attribution channels: exact repository business names in factual text,
+`/directory/<slug>` links, explicit `relatedBusinesses` slugs, and bold names.
+`relatedPosts` or any generic quoted slug is **not** business attribution or
+record support.
+
+Operational premise support is per attributed business. One supported
+pet-friendly record cannot license pet-policy claims for unsupported peers.
+
+## Reference overflow
+
+If extracted references exceed `MAX_REFERENCE_RECORDS` (40), reference selection
+fails closed with a named `MAX_REFERENCE_RECORDS` error. Do not drop the tail.
+
 ## Expected RED baseline (current origin/main)
 
 ```bash
@@ -72,18 +116,32 @@ node --test tests/automation/canary104-grounding.eval.mjs
 
 Recorded against `origin/main` at `4684846` (merge of PR #103):
 
-- **4 fail [RED]**, **3 pass [GREEN]**
+- **8 fail [RED]**, **5 pass [GREEN]**
 - RED tests fail because:
   - `scripts/blog-lint.mjs` does not export `extractReferencedBusinesses`
   - `selectReferenceRecords` on the final post / unified-diff / fixer payload
     misses the six unbolded businesses
+  - `relatedPosts` / generic quoted slugs are not yet excluded from attribution
+    (extractor missing)
+  - `selectReferenceRecords` silently truncates at 40 instead of throwing a
+    named `MAX_REFERENCE_RECORDS` error
   - `lintPost` accepts a pet-friendly (and other operational-attribute) premise
     with no supporting record field
+  - one supported pet-friendly record would license pet-policy claims for an
+    unsupported peer
   - `classifyFindings` / `preflightDecision` treat the slug/image identity
     mismatch as repairable; `isUnrepairablePremiseAbandonment` is not exported
-- GREEN tests already hold: fixture integrity, grounded outdoor-dining lint,
-  record-supported pet-friendly lint
+  - `package.json` `test:automation` is `tests/automation/*.test.mjs` and does
+    not invoke this eval, so the live regression can silently disappear from CI
+- GREEN tests already hold: fixture integrity; invalid/missing/mismatched
+  model or SHA returns `block` before premise classification; benign
+  slug/image notes stay repairable; mixed path findings are not
+  `allUnrepairable`; grounded outdoor-dining lint; record-supported
+  pet-friendly lint when every attributed business supports the attribute
 
-Implementation must turn the four RED tests green without weakening GREEN ones.
+Implementation must turn the eight RED tests green without weakening GREEN ones,
+without omitting `model: 'claude-opus-5'` from fixture verdicts, and without
+reordering fail-closed preflight so a premise classifier can return
+`unrepairable` for an invalid verdict.
 Maker != checker: do not edit this directory, the eval, or
 `evals/canary104-grounding.sha256` from the builder worktree.
