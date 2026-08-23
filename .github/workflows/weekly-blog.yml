@@ -65,6 +65,14 @@ jobs:
 
       - run: npm ci
 
+      # Resolve the next eligible topic before spending a model turn. An empty
+      # or fully-abandoned queue returns wait rather than blocking the lane.
+      - name: Resolve the next eligible blog topic
+        id: topic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs resolve-topic --repo "$GITHUB_REPOSITORY" --kind blog
+
       # F14. Decide whether this topic may have a new candidate at all, before any
       # model spend. An exhausted candidate is closed and regenerated only after the
       # cooldown; a third failure abandons the topic to a human. Nothing here can
@@ -73,7 +81,7 @@ jobs:
         id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node trusted/scripts/automation/coordinator.mjs plan-candidate --repo "$GITHUB_REPOSITORY" --kind blog
+        run: node trusted/scripts/automation/coordinator.mjs plan-candidate --repo "$GITHUB_REPOSITORY" --kind blog --topic-key "${{ steps.topic.outputs.topic_key }}"
 
       - name: Report the candidate decision
         run: |
@@ -84,6 +92,8 @@ jobs:
             echo "- reason: ${{ steps.candidate.outputs.reason }}"
             echo "- generating this cycle: ${{ steps.candidate.outputs.generate }}"
             echo "- regenerations used: ${{ steps.candidate.outputs.regenerations }}"
+            echo "- topic key: \`${{ steps.topic.outputs.topic_key }}\`"
+            echo "- topic: ${{ steps.topic.outputs.topic_title }}"
             echo "- durable ladder: issue #${{ steps.candidate.outputs.state_issue }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -108,7 +118,8 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
           GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          TOPIC_OVERRIDE: ${{ inputs.topic_override }}
+          TOPIC_OVERRIDE: ${{ inputs.topic_override || steps.topic.outputs.topic_title }}
+          TOPIC_KEY: ${{ steps.topic.outputs.topic_key }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: node scripts/weekly-blog-agent.js
 
@@ -132,10 +143,11 @@ jobs:
         if: ${{ steps.candidate.outputs.generate == 'true' && steps.lint.outcome == 'failure' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          TOPIC_KEY: ${{ steps.topic.outputs.topic_key }}
         run: |
           node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
             --repo "$GITHUB_REPOSITORY" --kind blog --outcome lint-discarded \
-            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --topic-key "$TOPIC_KEY" \
             --reason "the claim linter refused the draft before a pull request existed"
 
       - name: Stop at DISCARDED_PRE_PR — no pull request is opened for a refused draft
@@ -164,10 +176,11 @@ jobs:
         if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          TOPIC_KEY: ${{ steps.topic.outputs.topic_key }}
         run: |
           node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
             --repo "$GITHUB_REPOSITORY" --kind blog --outcome generation-failed \
-            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --topic-key "$TOPIC_KEY" \
             --reason "the generator failed before a pull request existed"
 
       - name: Stop at GENERATION_FAILED_PRE_PR — no pull request is opened

@@ -219,7 +219,9 @@ test('scheduled generation failures for blog and SEO each end in a visible ABAND
       );
 
       const after = await plan();
-      assert.equal(after.outputs.action, 'abandon-topic');
+      assert.equal(after.outputs.action, 'wait');
+      assert.equal(after.outputs.reason, 'no eligible topics');
+      assert.equal(after.outputs.generate, 'false');
       assert.equal(
         hub.commentsOn(ladder.issue.number).filter((comment) => comment.body.includes('ABANDONED_TOPIC')).length, 1,
         `${kind}: a later tick must not re-announce abandonment`,
@@ -285,9 +287,11 @@ test('the lint-discard ladder respects the cooldown and ends in a visible ABANDO
     const announcements = hub.commentsOn(ladder.issue.number).filter((comment) => comment.body.includes('ABANDONED_TOPIC'));
     assert.equal(announcements.length, 1, 'the topic must be abandoned visibly, exactly once');
 
-    // Scheduled run 5 — still abandoned, still silent, still deduplicated.
+    // Scheduled run 5 — the topic stays abandoned; the kind waits rather than
+    // blocking forever, and the announcement stays deduplicated.
     const after = await plan();
-    assert.equal(after.outputs.action, 'abandon-topic');
+    assert.equal(after.outputs.action, 'wait');
+    assert.equal(after.outputs.reason, 'no eligible topics');
     assert.equal(after.outputs.generate, 'false');
     assert.equal(
       hub.commentsOn(ladder.issue.number).filter((comment) => comment.body.includes('ABANDONED_TOPIC')).length, 1,
@@ -321,7 +325,7 @@ test('the same bounded ladder governs blog and SEO, each through its own kind', 
         `${kind}: the ladder must end in a human-visible abandonment, not another candidate`);
       assert.equal(last.outputs.generate, 'false');
       assertSafeOutputs(last);
-      assert.equal(ladderState(hub, kind).state.regenerations, MAX_CANDIDATE_REGENERATIONS);
+      assert.equal(ladderState(hub, kind).state.abandoned, true);
       assert.ok(outcomes.some((result) => result.outputs.action === 'close-and-regenerate'),
         `${kind}: the ladder must close and regenerate before it abandons`);
 

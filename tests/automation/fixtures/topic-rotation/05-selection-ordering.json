@@ -1,0 +1,104 @@
+{
+  "id": "5-selection-ordering",
+  "expectation": "Selection iterates the kind queue, skips abandoned topics unless the 30-day expiry has elapsed, skips attempts > MAX_QUEUE_ATTEMPTS (3), then picks the lowest-attempts remaining topic. Tie-break is original queue order.",
+  "kind": "blog",
+  "now": "2026-02-01T00:00:00.000Z",
+  "queue": {
+    "version": 1,
+    "topics": [
+      {
+        "key": "k-cap",
+        "kind": "blog",
+        "source": "serpapi",
+        "rationale": "attempts 4 exceeds cap 3",
+        "addedAt": "2026-01-01T00:00:00.000Z",
+        "attempts": 4
+      },
+      {
+        "key": "k-abandoned",
+        "kind": "blog",
+        "source": "gsc",
+        "rationale": "abandoned 2 days ago, not expired",
+        "addedAt": "2026-01-02T00:00:00.000Z",
+        "attempts": 1
+      },
+      {
+        "key": "k-mid",
+        "kind": "blog",
+        "source": "gsc",
+        "rationale": "eligible with attempts 2",
+        "addedAt": "2026-01-03T00:00:00.000Z",
+        "attempts": 2
+      },
+      {
+        "key": "k-fresh",
+        "kind": "blog",
+        "source": "implicit-discovery",
+        "rationale": "eligible with attempts 0 — should win",
+        "addedAt": "2026-01-04T00:00:00.000Z",
+        "attempts": 0
+      },
+      {
+        "key": "k-expired",
+        "kind": "blog",
+        "source": "gsc",
+        "rationale": "abandoned 31 days ago; expiry resets attempts to 0 but loses the queue-order tie to k-fresh",
+        "addedAt": "2026-01-05T00:00:00.000Z",
+        "attempts": 3
+      },
+      {
+        "key": "k-seo",
+        "kind": "seo",
+        "source": "gsc",
+        "rationale": "wrong kind, must be ignored",
+        "addedAt": "2026-01-01T00:00:00.000Z",
+        "attempts": 0
+      }
+    ]
+  },
+  "initialState": {
+    "version": 1,
+    "kind": "blog",
+    "regenerations": 0,
+    "lastFailureAt": "2026-01-30T00:00:00.000Z",
+    "lastReason": "abandoned sibling",
+    "abandoned": false,
+    "topics": {
+      "k-abandoned": {
+        "regenerations": 2,
+        "lastFailureAt": "2026-01-30T00:00:00.000Z",
+        "abandoned": true,
+        "abandonedAt": "2026-01-30T00:00:00.000Z",
+        "reason": "abandoned recently"
+      },
+      "k-expired": {
+        "regenerations": 2,
+        "lastFailureAt": "2025-12-31T00:00:00.000Z",
+        "abandoned": true,
+        "abandonedAt": "2025-12-31T00:00:00.000Z",
+        "reason": "abandoned more than 30 days ago"
+      }
+    },
+    "seen": []
+  },
+  "steps": [
+    { "op": "plan", "now": "2026-02-01T00:00:00.000Z" }
+  ],
+  "expected": [
+    {
+      "action": "generate",
+      "reason": "no candidate is in flight",
+      "generate": true,
+      "topicKey": "k-fresh",
+      "regenerations": 0,
+      "topicRegenerations": 0,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 0,
+      "rollupAbandoned": false,
+      "queueAttempts": 0
+    }
+  ],
+  "skipped": ["k-cap", "k-abandoned", "k-seo"],
+  "eligibleInOrder": ["k-fresh", "k-expired", "k-mid"]
+}

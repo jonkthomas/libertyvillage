@@ -1,0 +1,38 @@
+{
+  "id": "3-empty-queue",
+  "expectation": "topics: [] returns action=wait, reason=no eligible topics, generate=false. The run does NOT mark abandoned (empty queue is not exhaustion).",
+  "kind": "blog",
+  "now": "2026-01-15T12:00:00.000Z",
+  "queue": {
+    "version": 1,
+    "topics": []
+  },
+  "initialState": {
+    "version": 1,
+    "kind": "blog",
+    "regenerations": 0,
+    "lastFailureAt": null,
+    "lastReason": null,
+    "abandoned": false,
+    "topics": {},
+    "seen": []
+  },
+  "steps": [
+    { "op": "plan", "now": "2026-01-15T12:00:00.000Z" }
+  ],
+  "expected": [
+    {
+      "action": "wait",
+      "reason": "no eligible topics",
+      "generate": false,
+      "topicKey": null,
+      "regenerations": 0,
+      "topicRegenerations": 0,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 0,
+      "rollupAbandoned": false,
+      "queueAttempts": null
+    }
+  ]
+}

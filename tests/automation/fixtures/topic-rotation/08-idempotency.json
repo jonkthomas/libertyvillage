@@ -1,0 +1,132 @@
+{
+  "id": "8-idempotency",
+  "expectation": "Replay of the same key/cycle within a kind does not double-spend the topic budget. A second recordTopicFailure with key blog:cycle-1 leaves regenerations at 1, seen length 1, and recorded=false. Replaying the abandon-topic ladder key is also a no-op.",
+  "kind": "blog",
+  "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+  "queue": {
+    "version": 1,
+    "topics": [
+      {
+        "key": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+        "kind": "blog",
+        "source": "gsc",
+        "rationale": "idempotency subject",
+        "addedAt": "2026-01-15T12:00:00.000Z",
+        "attempts": 0
+      }
+    ]
+  },
+  "initialState": {
+    "version": 1,
+    "kind": "blog",
+    "regenerations": 0,
+    "lastFailureAt": null,
+    "lastReason": null,
+    "abandoned": false,
+    "topics": {},
+    "seen": []
+  },
+  "steps": [
+    {
+      "op": "fail",
+      "now": "2026-01-15T12:00:00.000Z",
+      "key": "blog:cycle-1",
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "reason": "lint-discarded: ungrounded claim"
+    },
+    {
+      "op": "fail",
+      "now": "2026-01-15T12:05:00.000Z",
+      "key": "blog:cycle-1",
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "reason": "lint-discarded: ungrounded claim"
+    },
+    {
+      "op": "fail",
+      "now": "2026-01-16T12:01:00.000Z",
+      "key": "blog:cycle-2",
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "reason": "generation-failed: generator failed"
+    },
+    {
+      "op": "plan",
+      "now": "2026-01-17T12:01:00.000Z"
+    },
+    {
+      "op": "plan",
+      "now": "2026-01-17T12:01:00.000Z"
+    }
+  ],
+  "expected": [
+    {
+      "action": "close-and-regenerate",
+      "recorded": true,
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 1,
+      "topicRegenerations": 1,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 1,
+      "rollupAbandoned": false,
+      "queueAttempts": 1,
+      "seenCount": 1
+    },
+    {
+      "action": "close-and-regenerate",
+      "recorded": false,
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 1,
+      "topicRegenerations": 1,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 1,
+      "rollupAbandoned": false,
+      "queueAttempts": 1,
+      "seenCount": 1
+    },
+    {
+      "action": "close-and-regenerate",
+      "recorded": true,
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 2,
+      "topicRegenerations": 2,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 2,
+      "rollupAbandoned": false,
+      "queueAttempts": 2,
+      "seenCount": 2
+    },
+    {
+      "action": "abandon-topic",
+      "reason": "every bounded candidate failed (2/2 regenerations); escalating once to a human",
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 2,
+      "topicRegenerations": 2,
+      "topicAbandoned": true,
+      "topicAbandonedAt": "2026-01-17T12:01:00.000Z",
+      "rollupRegenerations": 0,
+      "rollupAbandoned": true,
+      "queueAttempts": 2,
+      "seenCount": 3
+    },
+    {
+      "action": "wait",
+      "reason": "no eligible topics",
+      "generate": false,
+      "topicKey": null,
+      "regenerations": 0,
+      "topicRegenerations": 0,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 0,
+      "rollupAbandoned": true,
+      "queueAttempts": null,
+      "seenCount": 3
+    }
+  ]
+}

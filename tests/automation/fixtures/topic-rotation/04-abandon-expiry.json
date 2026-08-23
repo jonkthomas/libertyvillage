@@ -1,0 +1,57 @@
+{
+  "id": "4-abandon-expiry",
+  "expectation": "An abandoned topic older than 30 days becomes eligible again. Queue attempts reset to 0 and per-topic regenerations reset to 0 so the 2-regeneration budget is not immediately re-exhausted.",
+  "kind": "blog",
+  "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+  "abandonedAt": "2026-01-17T12:01:00.000Z",
+  "now": "2026-02-16T12:02:00.000Z",
+  "queue": {
+    "version": 1,
+    "topics": [
+      {
+        "key": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+        "kind": "blog",
+        "source": "gsc",
+        "rationale": "expired abandonment must re-enter the queue",
+        "addedAt": "2026-01-15T12:00:00.000Z",
+        "attempts": 3
+      }
+    ]
+  },
+  "initialState": {
+    "version": 1,
+    "kind": "blog",
+    "regenerations": 0,
+    "lastFailureAt": "2026-01-17T12:01:00.000Z",
+    "lastReason": "every bounded candidate failed (2/2 regenerations); escalating once to a human",
+    "abandoned": true,
+    "topics": {
+      "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440": {
+        "regenerations": 2,
+        "lastFailureAt": "2026-01-17T12:01:00.000Z",
+        "abandoned": true,
+        "abandonedAt": "2026-01-17T12:01:00.000Z",
+        "reason": "every bounded candidate failed (2/2 regenerations); escalating once to a human"
+      }
+    },
+    "seen": ["blog:cycle-1", "blog:cycle-2"]
+  },
+  "steps": [
+    { "op": "plan", "now": "2026-02-16T12:02:00.000Z" }
+  ],
+  "expected": [
+    {
+      "action": "generate",
+      "reason": "no candidate is in flight",
+      "generate": true,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 0,
+      "topicRegenerations": 0,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 0,
+      "rollupAbandoned": false,
+      "queueAttempts": 0
+    }
+  ]
+}

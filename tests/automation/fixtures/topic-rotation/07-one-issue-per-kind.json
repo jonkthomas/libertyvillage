@@ -1,0 +1,36 @@
+{
+  "id": "7-one-issue-per-kind",
+  "expectation": "The topical-state issue is still the SAME one GitHub issue per kind. Per-topic entries live inside that one durable ladder; blog and seo keep distinct titles. Rendering still emits exactly one automation-candidate-state marker.",
+  "kind": "blog",
+  "issueTitleBlog": "automation-state: blog candidate ladder",
+  "issueTitleSeo": "automation-state: seo candidate ladder",
+  "label": "automation-state",
+  "marker": "automation-candidate-state",
+  "topicKeyA": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+  "topicKeyB": "aefbafc052e12b74ee5ccdae3a7f379c5dba649f971f0e4bbd3b1f551fc7da0e",
+  "state": {
+    "version": 1,
+    "kind": "blog",
+    "regenerations": 0,
+    "lastFailureAt": "2026-01-17T12:01:00.000Z",
+    "lastReason": "rotated",
+    "abandoned": false,
+    "topics": {
+      "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440": {
+        "regenerations": 2,
+        "lastFailureAt": "2026-01-17T12:01:00.000Z",
+        "abandoned": true,
+        "abandonedAt": "2026-01-17T12:01:00.000Z",
+        "reason": "every bounded candidate failed (2/2 regenerations); escalating once to a human"
+      },
+      "aefbafc052e12b74ee5ccdae3a7f379c5dba649f971f0e4bbd3b1f551fc7da0e": {
+        "regenerations": 0,
+        "lastFailureAt": null,
+        "abandoned": false,
+        "abandonedAt": null,
+        "reason": null
+      }
+    },
+    "seen": ["blog:cycle-1", "blog:cycle-2"]
+  }
+}
