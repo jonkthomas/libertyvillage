@@ -1,0 +1,135 @@
+{
+  "id": "1-single-topic-abandonment",
+  "expectation": "Single topic A: first generate at T0, failure spends one regeneration; T+1h waits on the 24h cooldown; T+24h+1m regenerates with topic regenerations 1; second failure spends the last regeneration; T+48h+1m abandon-topic with topic regenerations 2. topics[A].abandoned=true and abandonedAt set. Rollup abandoned=true ONLY because the queue has no other topic (all topics exhausted).",
+  "kind": "blog",
+  "title": "Pet-Friendly Restaurants in Liberty Village",
+  "branchPrefix": "blog/auto-",
+  "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+  "t0": "2026-01-15T12:00:00.000Z",
+  "t1h": "2026-01-15T13:00:00.000Z",
+  "t24h1m": "2026-01-16T12:01:00.000Z",
+  "t48h1m": "2026-01-17T12:01:00.000Z",
+  "queue": {
+    "version": 1,
+    "topics": [
+      {
+        "key": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+        "kind": "blog",
+        "source": "gsc",
+        "rationale": "seeded from PR #104 canary topic",
+        "addedAt": "2026-01-15T12:00:00.000Z",
+        "attempts": 0
+      }
+    ]
+  },
+  "initialState": {
+    "version": 1,
+    "kind": "blog",
+    "regenerations": 0,
+    "lastFailureAt": null,
+    "lastReason": null,
+    "abandoned": false,
+    "topics": {},
+    "seen": []
+  },
+  "steps": [
+    { "op": "plan", "now": "2026-01-15T12:00:00.000Z" },
+    {
+      "op": "fail",
+      "now": "2026-01-15T12:00:00.000Z",
+      "key": "blog:cycle-1",
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "reason": "lint-discarded: ungrounded claim"
+    },
+    { "op": "plan", "now": "2026-01-15T13:00:00.000Z" },
+    { "op": "plan", "now": "2026-01-16T12:01:00.000Z" },
+    {
+      "op": "fail",
+      "now": "2026-01-16T12:01:00.000Z",
+      "key": "blog:cycle-2",
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "reason": "generation-failed: generator failed"
+    },
+    { "op": "plan", "now": "2026-01-17T12:01:00.000Z" }
+  ],
+  "expected": [
+    {
+      "action": "generate",
+      "reason": "no candidate is in flight",
+      "generate": true,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 0,
+      "topicRegenerations": 0,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 0,
+      "rollupAbandoned": false,
+      "queueAttempts": 0
+    },
+    {
+      "action": "close-and-regenerate",
+      "recorded": true,
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 1,
+      "topicRegenerations": 1,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 1,
+      "rollupAbandoned": false,
+      "queueAttempts": 1
+    },
+    {
+      "action": "wait",
+      "reason": "cooling down: 1.0h of 24h elapsed",
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 1,
+      "topicRegenerations": 1,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 1,
+      "rollupAbandoned": false,
+      "queueAttempts": 1
+    },
+    {
+      "action": "generate",
+      "reason": "cooldown elapsed after a discarded blog candidate; generating regeneration 1/2",
+      "generate": true,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 1,
+      "topicRegenerations": 1,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 1,
+      "rollupAbandoned": false,
+      "queueAttempts": 1
+    },
+    {
+      "action": "close-and-regenerate",
+      "recorded": true,
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 2,
+      "topicRegenerations": 2,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 2,
+      "rollupAbandoned": false,
+      "queueAttempts": 2
+    },
+    {
+      "action": "abandon-topic",
+      "reason": "every bounded candidate failed (2/2 regenerations); escalating once to a human",
+      "generate": false,
+      "topicKey": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "regenerations": 2,
+      "topicRegenerations": 2,
+      "topicAbandoned": true,
+      "topicAbandonedAt": "2026-01-17T12:01:00.000Z",
+      "rollupRegenerations": 0,
+      "rollupAbandoned": true,
+      "queueAttempts": 2
+    }
+  ]
+}

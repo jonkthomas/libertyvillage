@@ -1,0 +1,26 @@
+# Integrity lock for the evaluator-owned eval/spec artifacts of
+# topical rotation on abandonment.
+#
+# These files are LOCKED. The builder must not edit, weaken, delete, re-scope,
+# or skip any of them. Maker != checker.
+#
+# Verify (run from the repository root; must print "OK" for every line and exit 0):
+#
+#   shasum -a 256 -c evals/topic-rotation.sha256
+#
+# Linux equivalent:
+#
+#   sha256sum -c evals/topic-rotation.sha256
+#
+# A FAILED line means an evaluator-owned artifact was modified. That is an
+# automatic FAIL of the acceptance review — re-verify authorship before
+# accepting any implementation work built against the altered file.
+ad0ca0176a9caed7e9c009e650b0d64ad69a4688f1e621cbd50e3a8897b7fc9e  tests/automation/topic-rotation.eval.mjs
+2d5dbe57508b6ab65e1010003d481a2345439b0335eb136ff63c868e79727a3e  tests/automation/fixtures/topic-rotation/01-single-topic-abandonment.json
+b29726b3ab974b16aaabbf3204cf89d7eefc9c14e5c441d719739d921e036bb6  tests/automation/fixtures/topic-rotation/02-multi-topic-rotation.json
+6307226c4e15f01298f54ae2b82fe1004ac0b0453d5c69554ca4750127ea70d3  tests/automation/fixtures/topic-rotation/03-empty-queue.json
+237ed6b3ef0efdda24de9fd5f2ef8001c7338f22ed33ad7453ec6936039f3677  tests/automation/fixtures/topic-rotation/04-abandon-expiry.json
+99afa9272f91afaf69b78219191a91f7147e12755a5900dc8d5267d053aa94b3  tests/automation/fixtures/topic-rotation/05-selection-ordering.json
+63ea0edb3199c7b56d50273f211d6afe5462c46cb9875120e2fc6044dc7de00e  tests/automation/fixtures/topic-rotation/06-legacy-compat.json
+e67f273f79c487b133f62057da5847cc56d3b7095140de67e71fc39002aa4702  tests/automation/fixtures/topic-rotation/07-one-issue-per-kind.json
+b80bbf4fe625581329828e8f2fb0b6c1ba291d2d612d1f971538b96b968d358b  tests/automation/fixtures/topic-rotation/08-idempotency.json
