@@ -1,0 +1,83 @@
+# Weekly topic discovery
+# Mondays 10:00 UTC, before the SEO improvement run at 10:11.
+# Appends GSC / PostHog / SerpApi People-Also-Ask topics to data/topic-queue.json
+# via trusted automation tooling from protected main. Never deletes topics.
+# Credentials stay in env (or a 600-mode tempfile) and are never echoed.
+name: Weekly Topic Discovery
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-topic-discovery
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  discover-topics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+
+      - name: Checkout trusted policy tooling from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+
+      - name: Keep the trusted tooling out of the generated-data worktree
+        run: echo 'trusted/' >> .git/info/exclude
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Write vaulted GSC credentials
+        env:
+          GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          install -m 600 /dev/null /tmp/gsa-credentials.json
+          printf '%s' "$GSA_JSON" > /tmp/gsa-credentials.json
+          jq -e . /tmp/gsa-credentials.json > /dev/null
+          test "$(stat -c '%a' /tmp/gsa-credentials.json)" = 600
+
+      - name: Append discovered topics via trusted tooling
+        id: discover
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
+          POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE: ${{ secrets.POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+        run: node trusted/scripts/automation/topic-queue.mjs discover
+
+      - name: Open pull request for queue updates
+        if: ${{ steps.discover.outputs.added != '' && steps.discover.outputs.added != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "LV Content Bot"
+          git config user.email "noreply@libertyvillage.co"
+          BR="auto/topic-discovery-$(date +%s)"
+          git checkout -b "$BR"
+          git add data/topic-queue.json
+          if git diff --cached --quiet; then echo "No queue changes"; exit 0; fi
+          git commit -m "chore: append discovered topics to the rotation queue"
+          git push -u origin "$BR"
+          gh pr create --base staging --head "$BR" \
+            --title "chore: append discovered topics $(date +%Y-%m-%d)" \
+            --body "Trusted weekly topic discovery. Append-only update to \`data/topic-queue.json\` from GSC, PostHog, and SerpApi People Also Ask. Never deletes topics and does not lower the Opus gate."
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f /tmp/gsa-credentials.json

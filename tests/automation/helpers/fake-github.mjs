@@ -65,7 +65,7 @@ export function createFakeGitHub({ repo = 'owner/repo' } = {}) {
     const shift = (iso) => new Date(Date.parse(iso) - hours * 3600_000).toISOString();
     for (const record of issues.values()) {
       record.updatedAt = shift(record.updatedAt);
-      record.body = record.body.replace(/"lastFailureAt":"([^"]+)"/, (_, value) => `"lastFailureAt":"${shift(value)}"`);
+      record.body = record.body.replace(/"(lastFailureAt|abandonedAt)":"([^"]+)"/g, (_, field, value) => `"${field}":"${shift(value)}"`);
     }
   }
 

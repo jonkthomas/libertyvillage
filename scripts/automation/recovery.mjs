@@ -19,6 +19,8 @@ export const RETRY_BASE_DELAY_SECONDS = 60;
 // a full cycle, and then a single human-visible abandonment.
 export const MAX_CANDIDATE_REGENERATIONS = 2;
 export const REGENERATION_COOLDOWN_HOURS = 24;
+export const ABANDON_EXPIRY_DAYS = 30;
+export const MAX_QUEUE_ATTEMPTS = 3;
 
 // F10. The sweep is the backstop for a lost promotion dispatch, not a second
 // promotion path: one dispatch per tick, and only after the ordinary
@@ -217,6 +219,67 @@ function hoursSince(timestamp, now) {
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
   if (!Number.isFinite(then) || !Number.isFinite(nowMs)) return null;
   return (nowMs - then) / HOUR_MS;
+}
+
+function clockMs(now) {
+  if (now instanceof Date) return now.getTime();
+  if (typeof now === 'number') return now;
+  return Date.parse(String(now));
+}
+
+function emptyTopicState() {
+  return {
+    regenerations: 0,
+    lastFailureAt: null,
+    abandoned: false,
+    abandonedAt: null,
+    reason: null,
+  };
+}
+
+function isExpiredTopic(topic, now) {
+  if (!topic?.abandoned || !topic.abandonedAt) return false;
+  const age = clockMs(now) - Date.parse(topic.abandonedAt);
+  if (!Number.isFinite(age)) return false;
+  return age >= ABANDON_EXPIRY_DAYS * 24 * HOUR_MS;
+}
+
+export function isTopicAbandoned(topic, now) {
+  return topic?.abandoned === true && !isExpiredTopic(topic, now);
+}
+
+export function expireAbandonedTopics(state, now) {
+  const topics = { ...(state?.topics ?? {}) };
+  for (const [key, topic] of Object.entries(topics)) {
+    if (!isExpiredTopic(topic, now)) continue;
+    topics[key] = {
+      ...emptyTopicState(),
+      lastReason: topic.reason ?? topic.lastReason ?? null,
+    };
+  }
+  return { ...state, topics };
+}
+
+function kindQueue(queue, kind) {
+  const list = Array.isArray(queue) ? queue : (Array.isArray(queue?.topics) ? queue.topics : []);
+  return list.filter((entry) => entry?.kind === kind);
+}
+
+export function selectNextTopic(queue, state, now) {
+  const kind = state?.kind;
+  const list = kindQueue(queue, kind);
+  const topics = state?.topics ?? {};
+  const eligible = [];
+  for (let index = 0; index < list.length; index += 1) {
+    const entry = list[index];
+    const topic = topics[entry.key] ?? emptyTopicState();
+    if (isTopicAbandoned(topic, now)) continue;
+    const attempts = isExpiredTopic(topic, now) ? 0 : (Number.isInteger(entry.attempts) ? entry.attempts : 0);
+    if (attempts > MAX_QUEUE_ATTEMPTS) continue;
+    eligible.push({ entry, attempts, index });
+  }
+  eligible.sort((left, right) => left.attempts - right.attempts || left.index - right.index);
+  return eligible[0]?.entry ?? null;
 }
 
 // F14. The ladder movement a just-observed candidate failure causes. It is asked

@@ -18,7 +18,10 @@ import {
   MAX_CANDIDATE_REGENERATIONS, nextCandidateAction, nextRetry, parseAuditRecord,
   recordCandidateFailure, REGENERATION_COOLDOWN_HOURS,
 } from './recovery.mjs';
-import { isGeneratorKind, loadCandidateState, recordCandidateEvent } from './candidate-state.mjs';
+import { isGeneratorKind, loadCandidateState, recordCandidateEvent, saveCandidateState } from './candidate-state.mjs';
+import {
+  hydrateQueue, loadTopicQueue, planTopicCandidate, queueEntryTitle, recordTopicFailure, selectEligibleTopic,
+} from './topic-queue.mjs';
 import { planBaseHeal, resolveAppendUnion } from './heal-base.mjs';
 import {
   applyRecordRepairPlan, isRecordFile, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
@@ -419,12 +422,72 @@ async function latestAuditDecision(repo, prNumber) {
 // The ladder state lives in a controlled state issue rather than only on the open
 // candidate's labels, because the two cases that used to lose it are exactly the
 // two that matter: the PR closing, and a claim-linter refusal that never opened one.
+function labelNames(labels) {
+  return (labels || []).map((label) => (typeof label === 'string' ? label : label?.name));
+}
+
+function isAbandonedPull(pr) {
+  return labelNames(pr?.labels).includes(ABANDONED_LABEL);
+}
+
+async function planFromQueue(options, { kind, state, issue, stateIssue, nowDate, prNumber = '' }) {
+  const queue = hydrateQueue(loadTopicQueue(), state);
+  const planned = planTopicCandidate({ queue, state, kind, now: nowDate });
+  const title = queueEntryTitle(planned.queue, planned.topicKey);
+  if (planned.action === 'abandon-topic' && planned.topicKey) {
+    const recorded = await recordCandidateEvent(options.repo, kind, {
+      key: `${kind}:ladder:${planned.topicKey}:${planned.regenerations}:abandon-topic`,
+      action: 'abandon-topic',
+      at: nowDate.toISOString(),
+      reason: planned.reason,
+      topicKey: planned.topicKey,
+      queue: planned.queue,
+    });
+    writeOutput({
+      kind, state_issue: recorded.issue?.number ?? stateIssue,
+      action: 'abandon-topic', generate: 'false',
+      regenerations: planned.regenerations,
+      topic_key: planned.topicKey ?? '', topic_title: title,
+      pr_number: prNumber, reason: planned.reason,
+    });
+    console.log(`ABANDONED_TOPIC for ${kind} topic ${planned.topicKey}: ${planned.reason}.`);
+    return;
+  }
+  const before = JSON.stringify({
+    topics: state.topics ?? {}, seen: state.seen, abandoned: state.abandoned,
+    regenerations: state.regenerations, lastFailureAt: state.lastFailureAt,
+  });
+  const after = JSON.stringify({
+    topics: planned.state.topics ?? {}, seen: planned.state.seen, abandoned: planned.state.abandoned,
+    regenerations: planned.state.regenerations, lastFailureAt: planned.state.lastFailureAt,
+  });
+  if (before !== after) {
+    await saveCandidateState(options.repo, kind, planned.state, { issue });
+  }
+  writeOutput({
+    kind, state_issue: stateIssue,
+    action: planned.action,
+    generate: planned.generate ? 'true' : 'false',
+    regenerations: planned.regenerations,
+    topic_key: planned.topicKey ?? '',
+    topic_title: title,
+    pr_number: prNumber,
+    reason: planned.reason,
+  });
+  if (planned.generate) {
+    console.log(`No live ${kind} candidate; generating ${planned.topicKey ? `topic ${planned.topicKey}` : 'a fresh one'}: ${planned.reason}.`);
+  } else {
+    console.log(`Holding ${kind}: ${planned.reason}.`);
+  }
+}
+
 async function planCandidate(options) {
   requireOptions(options, ['repo', 'kind']);
   const kind = options.kind;
   if (!isGeneratorKind(kind)) throw new Error(`plan-candidate requires a generator kind: ${kind}`);
   const policy = KIND_POLICIES[kind];
   const now = Date.now();
+  const nowDate = new Date(now);
   // Fail closed: an unreadable ladder never silently restarts the budget at zero.
   const { issue, state } = await loadCandidateState(options.repo, kind);
   const stateIssue = issue?.number ?? '';
@@ -434,60 +497,26 @@ async function planCandidate(options) {
     .filter((pr) => TRUSTED_PR_AUTHORS.includes(pr?.user?.login))
     .filter((pr) => policy.headPrefixes.some((prefix) => pr?.head?.ref === prefix || pr?.head?.ref?.startsWith(prefix)))
     .sort((left, right) => right.number - left.number);
+  const live = candidates.filter((pr) => !isAbandonedPull(pr));
 
   const emit = (values, message) => {
-    writeOutput({ kind, state_issue: stateIssue, ...values });
+    writeOutput({ kind, state_issue: stateIssue, topic_key: values.topic_key ?? '', topic_title: values.topic_title ?? '', ...values });
     console.log(message);
   };
 
-  if (state.abandoned) {
-    emit({ action: 'abandon-topic', generate: 'false', regenerations: state.regenerations, pr_number: candidates[0]?.number ?? '', reason: 'topic is already abandoned and waiting on a human' },
-      `The ${kind} topic is already abandoned in the durable ladder; no new candidate until a human acts.`);
+  // An abandoned open PR no longer owns the kind: the next eligible topic may
+  // generate. A still-live candidate (including PR #104) keeps the existing lane.
+  if (live.length === 0) {
+    await planFromQueue(options, { kind, state, issue, stateIssue, nowDate, prNumber: candidates[0]?.number ?? '' });
     return;
   }
 
-  // No candidate in flight. The ladder is entirely durable here — which is what
-  // makes a pre-PR claim-linter discard count towards the same bounded budget.
-  if (candidates.length === 0) {
-    if (state.lastFailureAt === null) {
-      emit({ action: 'generate', generate: 'true', regenerations: state.regenerations, pr_number: '', reason: 'no candidate is in flight' },
-        `No open ${kind} candidate; generating a fresh one.`);
-      return;
-    }
-    const decision = nextCandidateAction({
-      attempts: MAX_REPAIRS, maxRepairs: MAX_REPAIRS, regenerations: state.regenerations,
-      blockDecision: 'lint-discarded', blockedAt: state.lastFailureAt, now,
-    });
-    if (decision.action === 'abandon-topic') {
-      const recorded = await recordCandidateEvent(options.repo, kind, {
-        key: `${kind}:ladder:${state.regenerations}:abandon-topic`,
-        action: 'abandon-topic', at: new Date(now).toISOString(), reason: decision.reason,
-      });
-      writeOutput({ kind, state_issue: recorded.issue?.number ?? stateIssue, action: 'abandon-topic', generate: 'false', regenerations: recorded.state.regenerations, pr_number: '', reason: decision.reason });
-      console.log(`ABANDONED_TOPIC for ${kind}: ${decision.reason}.`);
-      return;
-    }
-    if (decision.action !== 'close-and-regenerate') {
-      emit({ action: decision.action, generate: 'false', regenerations: state.regenerations, pr_number: '', reason: decision.reason },
-        `Holding: ${decision.reason}.`);
-      return;
-    }
-    emit({ action: 'generate', generate: 'true', regenerations: state.regenerations, pr_number: '', reason: `${decision.reason} (previous candidate: ${state.lastReason ?? 'discarded'})` },
-      `Cooldown elapsed after a discarded ${kind} candidate; generating regeneration ${state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}.`);
-    return;
-  }
-
-  const candidate = candidates[0];
+  const candidate = live[0];
   const labels = candidate.labels || [];
-  const names = labels.map((label) => (typeof label === 'string' ? label : label?.name));
+  const names = labelNames(labels);
   // Neither store may lose budget: the durable ladder and the controlled label on
   // the candidate are reconciled upwards, never downwards.
   const regenerations = Math.max(state.regenerations, readRegenerationCount(labels));
-  if (names.includes(ABANDONED_LABEL)) {
-    emit({ action: 'abandon-topic', generate: 'false', regenerations, pr_number: candidate.number, reason: 'topic is already abandoned and waiting on a human' },
-      `PR #${candidate.number} is already abandoned; no new candidate until a human acts.`);
-    return;
-  }
   if (!names.includes(BLOCKED_LABEL)) {
     emit({ action: 'wait', generate: 'false', regenerations, pr_number: candidate.number, reason: 'a candidate is still in flight' },
       `PR #${candidate.number} is still in flight; not opening a second candidate.`);
@@ -568,25 +597,69 @@ async function recordCandidateOutcome(options) {
   requireOptions(options, ['repo', 'kind', 'outcome', 'key']);
   const kind = options.kind;
   if (!isGeneratorKind(kind)) throw new Error(`record-candidate-outcome requires a generator kind: ${kind}`);
-  const { state } = await loadCandidateState(options.repo, kind);
+  const { issue, state } = await loadCandidateState(options.repo, kind);
+  const queue = hydrateQueue(loadTopicQueue(), state);
+  const topic = options['topic-key'] || options.topicKey
+    || selectEligibleTopic({ queue, state, kind, now: new Date() })?.key
+    || null;
+  const reason = `${options.outcome}: ${options.reason || 'bounded candidate failed before a pull request existed'}`;
+  const eventKey = `${kind}:${options.key}`;
+
+  if (topic) {
+    const preview = recordTopicFailure({
+      queue, state, kind, now: new Date(), key: eventKey, topicKey: topic, reason,
+    });
+    const recorded = await recordCandidateEvent(options.repo, kind, {
+      key: eventKey, action: preview.action, at: new Date().toISOString(), reason,
+      topicKey: topic, queue: preview.queue,
+    });
+    writeOutput({
+      kind, action: preview.action, recorded: recorded.changed ? 'true' : 'false',
+      regenerations: recorded.state.topics?.[topic]?.regenerations ?? recorded.state.regenerations,
+      abandoned: recorded.state.abandoned ? 'true' : 'false',
+      topic_key: topic, state_issue: recorded.issue?.number ?? issue?.number ?? '', reason,
+    });
+    console.log(recorded.changed
+      ? `Recorded ${options.outcome} for ${kind} topic ${topic}: ${preview.action}, ladder now ${recorded.state.topics?.[topic]?.regenerations ?? recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`
+        + `${recorded.state.topics?.[topic]?.abandoned ? ' — ABANDONED_TOPIC' : `, next candidate after ${REGENERATION_COOLDOWN_HOURS}h`}.`
+      : `Outcome ${options.outcome} for ${kind} was already recorded (${recorded.reason}); the ladder is unchanged.`);
+    return;
+  }
+
   const ladder = recordCandidateFailure({ regenerations: state.regenerations });
-  const reason = `${options.outcome}: ${options.reason || ladder.reason}`;
-  // Idempotent per run key, not per outcome: a lint refusal after a successful
-  // generation and a generation failure in the same workflow attempt share
-  // `$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT` and must not spend two regenerations.
   const recorded = await recordCandidateEvent(options.repo, kind, {
-    key: `${kind}:${options.key}`,
-    action: ladder.action, at: new Date().toISOString(), reason,
+    key: eventKey, action: ladder.action, at: new Date().toISOString(), reason,
   });
   writeOutput({
     kind, action: ladder.action, recorded: recorded.changed ? 'true' : 'false',
     regenerations: recorded.state.regenerations, abandoned: recorded.state.abandoned ? 'true' : 'false',
-    state_issue: recorded.issue?.number ?? '', reason,
+    topic_key: '', state_issue: recorded.issue?.number ?? '', reason,
   });
   console.log(recorded.changed
     ? `Recorded ${options.outcome} for ${kind}: ${ladder.action}, ladder now ${recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`
       + `${recorded.state.abandoned ? ' — ABANDONED_TOPIC' : `, next candidate after ${REGENERATION_COOLDOWN_HOURS}h`}.`
     : `Outcome ${options.outcome} for ${kind} was already recorded (${recorded.reason}); the ladder is unchanged.`);
+}
+
+async function resolveTopic(options) {
+  requireOptions(options, ['repo', 'kind']);
+  const kind = options.kind;
+  if (!isGeneratorKind(kind)) throw new Error(`resolve-topic requires a generator kind: ${kind}`);
+  const { state } = await loadCandidateState(options.repo, kind);
+  const queue = hydrateQueue(loadTopicQueue(), state);
+  const planned = planTopicCandidate({ queue, state, kind, now: new Date() });
+  writeOutput({
+    kind,
+    topic_key: planned.topicKey ?? '',
+    topic_title: queueEntryTitle(planned.queue, planned.topicKey),
+    action: planned.action,
+    generate: planned.generate ? 'true' : 'false',
+    regenerations: planned.regenerations,
+    reason: planned.reason,
+  });
+  console.log(planned.topicKey
+    ? `Resolved ${kind} topic ${planned.topicKey}: ${planned.reason}.`
+    : `No eligible ${kind} topic: ${planned.reason}.`);
 }
 
 // Deduplicated by marker, exactly like the gate audit comment.
@@ -812,7 +885,7 @@ const commands = {
   'refresh-generator-base': refreshGeneratorBase, 'observe-and-promote': observeAndPromote,
   'heal-generator-base': healGeneratorBase, 'set-heal': setHeal,
   recover, 'read-attempt': readAttempt, 'plan-candidate': planCandidate, 'mark-regeneration': markRegeneration,
-  'record-candidate-outcome': recordCandidateOutcome,
+  'record-candidate-outcome': recordCandidateOutcome, 'resolve-topic': resolveTopic,
 };
 try {
   const command = process.argv[2];

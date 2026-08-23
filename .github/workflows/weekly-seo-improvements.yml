@@ -65,6 +65,12 @@ jobs:
 
       - run: npm ci
 
+      - name: Resolve the next eligible SEO topic
+        id: topic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs resolve-topic --repo "$GITHUB_REPOSITORY" --kind seo
+
       # F14. The same bounded candidate ladder the blog path uses, on the SEO kind.
       # An exhausted or stranded SEO candidate is closed and regenerated after the
       # cooldown, and the third failure abandons the topic visibly — no hot loop and
@@ -74,7 +80,7 @@ jobs:
         id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node trusted/scripts/automation/coordinator.mjs plan-candidate --repo "$GITHUB_REPOSITORY" --kind seo
+        run: node trusted/scripts/automation/coordinator.mjs plan-candidate --repo "$GITHUB_REPOSITORY" --kind seo --topic-key "${{ steps.topic.outputs.topic_key }}"
 
       - name: Report the candidate decision
         run: |
@@ -85,6 +91,8 @@ jobs:
             echo "- reason: ${{ steps.candidate.outputs.reason }}"
             echo "- generating this cycle: ${{ steps.candidate.outputs.generate }}"
             echo "- regenerations used: ${{ steps.candidate.outputs.regenerations }}"
+            echo "- topic key: \`${{ steps.topic.outputs.topic_key }}\`"
+            echo "- topic: ${{ steps.topic.outputs.topic_title }}"
             echo "- durable ladder: issue #${{ steps.candidate.outputs.state_issue }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -113,6 +121,8 @@ jobs:
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           DRY_RUN: ${{ inputs.dry_run }}
           FORCE_EDIT: ${{ inputs.force_edit }}
+          TOPIC_KEY: ${{ steps.topic.outputs.topic_key }}
+          TOPIC_OVERRIDE: ${{ steps.topic.outputs.topic_title }}
         run: node scripts/seo-improve-agent.js
 
       - name: Show summary (dry run)
@@ -153,10 +163,11 @@ jobs:
         if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.generate.outcome == 'failure' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          TOPIC_KEY: ${{ steps.topic.outputs.topic_key }}
         run: |
           node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
             --repo "$GITHUB_REPOSITORY" --kind seo --outcome generation-failed \
-            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --topic-key "$TOPIC_KEY" \
             --reason "the SEO generator failed before a pull request existed"
 
       - name: Stop at GENERATION_FAILED_PRE_PR — no pull request is opened
@@ -178,10 +189,11 @@ jobs:
         if: ${{ failure() && steps.candidate.outputs.generate == 'true' && steps.guard.outcome == 'failure' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          TOPIC_KEY: ${{ steps.topic.outputs.topic_key }}
         run: |
           node trusted/scripts/automation/coordinator.mjs record-candidate-outcome \
             --repo "$GITHUB_REPOSITORY" --kind seo --outcome guard-failed \
-            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --topic-key "$TOPIC_KEY" \
             --reason "the SEO pre-PR guard refused the draft before a pull request existed"
 
       - name: Stop at GUARD_FAILED_PRE_PR — no pull request is opened

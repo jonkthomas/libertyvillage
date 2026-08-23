@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "topics": [
+    {
+      "key": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "kind": "blog",
+      "title": "Pet-Friendly Restaurants in Liberty Village",
+      "source": "gsc",
+      "rationale": "Active PR #104 canary topic (pet-friendly restaurants / patios / cafes). Seeded so the live blog lane is not an empty-queue wait while that candidate stays in flight.",
+      "addedAt": "2026-08-21T00:00:00.000Z",
+      "attempts": 1,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "60caf594231d56cabe2fd98213d3dff116a6c9f1996a4f5dbceba3afaae743be",
+      "kind": "seo",
+      "title": "Liberty Village TTC and streetcar access",
+      "source": "gsc",
+      "rationale": "Curated SEO seed: transit/streetcar queries are a durable local-intent cluster with existing on-site pages that can absorb FAQ, schema, and internal-link improvements without colliding with PR #104.",
+      "addedAt": "2026-08-23T00:00:00.000Z",
+      "attempts": 0,
+      "branchPrefix": "seo/auto-"
+    }
+  ]
+}
