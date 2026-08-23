@@ -453,16 +453,22 @@ async function planFromQueue(options, { kind, state, issue, stateIssue, nowDate,
     console.log(`ABANDONED_TOPIC for ${kind} topic ${planned.topicKey}: ${planned.reason}.`);
     return;
   }
-  const before = JSON.stringify({
-    topics: state.topics ?? {}, seen: state.seen, abandoned: state.abandoned,
-    regenerations: state.regenerations, lastFailureAt: state.lastFailureAt,
-  });
-  const after = JSON.stringify({
-    topics: planned.state.topics ?? {}, seen: planned.state.seen, abandoned: planned.state.abandoned,
-    regenerations: planned.state.regenerations, lastFailureAt: planned.state.lastFailureAt,
-  });
-  if (before !== after) {
-    await saveCandidateState(options.repo, kind, planned.state, { issue });
+  // Waiting because nothing is eligible is a no-op: the planner may rewrite
+  // in-memory rollups (empty queue is not exhaustion; abandoned topics drop out
+  // of the regen sum) but that must not PATCH the state issue or POST a PR.
+  const idleNoTopics = planned.action === 'wait' && planned.reason === 'no eligible topics';
+  if (!idleNoTopics) {
+    const before = JSON.stringify({
+      topics: state.topics ?? {}, seen: state.seen, abandoned: state.abandoned,
+      regenerations: state.regenerations, lastFailureAt: state.lastFailureAt,
+    });
+    const after = JSON.stringify({
+      topics: planned.state.topics ?? {}, seen: planned.state.seen, abandoned: planned.state.abandoned,
+      regenerations: planned.state.regenerations, lastFailureAt: planned.state.lastFailureAt,
+    });
+    if (before !== after) {
+      await saveCandidateState(options.repo, kind, planned.state, { issue });
+    }
   }
   writeOutput({
     kind, state_issue: stateIssue,
