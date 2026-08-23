@@ -1,0 +1,68 @@
+{
+  "id": "2-multi-topic-rotation",
+  "expectation": "While topic A is abandoned, kind=blog plan-candidate with topics[B] eligible returns action=generate with topicKey=B. B has regenerations=0. Lane rollup abandoned stays false because not every topic is exhausted.",
+  "kind": "blog",
+  "titleA": "Pet-Friendly Restaurants in Liberty Village",
+  "titleB": "Winter Patio Guide for Liberty Village",
+  "branchPrefix": "blog/auto-",
+  "topicKeyA": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+  "topicKeyB": "aefbafc052e12b74ee5ccdae3a7f379c5dba649f971f0e4bbd3b1f551fc7da0e",
+  "now": "2026-01-17T13:00:00.000Z",
+  "queue": {
+    "version": 1,
+    "topics": [
+      {
+        "key": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+        "kind": "blog",
+        "source": "gsc",
+        "rationale": "PR #104 canary topic, already abandoned",
+        "addedAt": "2026-01-15T12:00:00.000Z",
+        "attempts": 2
+      },
+      {
+        "key": "aefbafc052e12b74ee5ccdae3a7f379c5dba649f971f0e4bbd3b1f551fc7da0e",
+        "kind": "blog",
+        "source": "implicit-discovery",
+        "rationale": "next eligible topic in the queue",
+        "addedAt": "2026-01-16T10:00:00.000Z",
+        "attempts": 0
+      }
+    ]
+  },
+  "initialState": {
+    "version": 1,
+    "kind": "blog",
+    "regenerations": 0,
+    "lastFailureAt": "2026-01-17T12:01:00.000Z",
+    "lastReason": "every bounded candidate failed (2/2 regenerations); escalating once to a human",
+    "abandoned": false,
+    "topics": {
+      "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440": {
+        "regenerations": 2,
+        "lastFailureAt": "2026-01-17T12:01:00.000Z",
+        "abandoned": true,
+        "abandonedAt": "2026-01-17T12:01:00.000Z",
+        "reason": "every bounded candidate failed (2/2 regenerations); escalating once to a human"
+      }
+    },
+    "seen": ["blog:cycle-1", "blog:cycle-2", "blog:ladder:0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440:2:abandon-topic"]
+  },
+  "steps": [
+    { "op": "plan", "now": "2026-01-17T13:00:00.000Z" }
+  ],
+  "expected": [
+    {
+      "action": "generate",
+      "reason": "no candidate is in flight",
+      "generate": true,
+      "topicKey": "aefbafc052e12b74ee5ccdae3a7f379c5dba649f971f0e4bbd3b1f551fc7da0e",
+      "regenerations": 0,
+      "topicRegenerations": 0,
+      "topicAbandoned": false,
+      "topicAbandonedAt": null,
+      "rollupRegenerations": 0,
+      "rollupAbandoned": false,
+      "queueAttempts": 0
+    }
+  ]
+}

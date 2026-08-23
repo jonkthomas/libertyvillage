@@ -1,0 +1,20 @@
+{
+  "id": "6-legacy-compat",
+  "expectation": "Legacy automation-candidate-state without a topics block parses without crashing. missing topics defaults to {}. Rollups keep the in-flight lane values (regenerations 1, abandoned false) so PR #104 is not reset to a fresh budget.",
+  "kind": "blog",
+  "body": "<!-- automation-candidate-state:{\"version\":1,\"kind\":\"blog\",\"regenerations\":1,\"lastFailureAt\":\"2026-08-20T15:04:00.000Z\",\"lastReason\":\"lint-discarded: ungrounded claim\",\"abandoned\":false,\"seen\":[\"blog:run-pr104\"]} -->",
+  "expected": {
+    "ok": true,
+    "errors": [],
+    "state": {
+      "version": 1,
+      "kind": "blog",
+      "regenerations": 1,
+      "lastFailureAt": "2026-08-20T15:04:00.000Z",
+      "lastReason": "lint-discarded: ungrounded claim",
+      "abandoned": false,
+      "topics": {},
+      "seen": ["blog:run-pr104"]
+    }
+  }
+}
