@@ -20,6 +20,116 @@
       "addedAt": "2026-08-23T00:00:00.000Z",
       "attempts": 0,
       "branchPrefix": "seo/auto-"
+    },
+    {
+      "key": "663d872e95aa4c5ae474ff63a4b9dc72521218b21b59c99a7dde3b0be0096422",
+      "kind": "blog",
+      "title": "Liberty Village Happy Hour",
+      "source": "gsc",
+      "rationale": "GSC top query (8 clicks, 66 impressions)",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "b4361927bb6620bb801f62665533a3cde8110d1c5654952fe328279a959ce714",
+      "kind": "blog",
+      "title": "Liberty Village Farmers Market",
+      "source": "gsc",
+      "rationale": "GSC top query (5 clicks, 28 impressions)",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "861c8b457690a772e3c8821b2bc8ebba0372faa3999b63e68496e1097822f529",
+      "kind": "blog",
+      "title": "Goodlife Liberty Village",
+      "source": "gsc",
+      "rationale": "GSC top query (4 clicks, 704 impressions)",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "e67e458386ed60e890929d1c57fca262dd925b1223e46662c52ae957bf740ae6",
+      "kind": "blog",
+      "title": "Happy Hour Liberty Village",
+      "source": "gsc",
+      "rationale": "GSC top query (4 clicks, 73 impressions)",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "b71b4b30749bdade380883084fcb446793b8a2690cc43b50ff3495371e4147b4",
+      "kind": "blog",
+      "title": "Jukebox Printing",
+      "source": "gsc",
+      "rationale": "GSC top query (3 clicks, 136 impressions)",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "5d804b0b611417320f811af88dac20631058d013739eb45cf54b87f9d20a478e",
+      "kind": "blog",
+      "title": "Is Liberty Village A Good Area?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village Toronto\"",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "006e240cd821ccb03d05d6189cc64b81a08055c01cd868769cd334e6748193a1",
+      "kind": "blog",
+      "title": "What Is Liberty Village Known For?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village Toronto\"",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "1eab1c19ac5f827d2b064beaf93d6a552b2f321cfc4fc40cc1ac7a082ccf41fe",
+      "kind": "blog",
+      "title": "What To Do In Liberty Village, Toronto?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village Toronto\"",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "8a618ba2f808c5dfc4aed42ad6aef9a84da7e2beb10f442064c6c7f99d7bb04e",
+      "kind": "blog",
+      "title": "What Are Some Fun Things To Do In Liberty Village?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "ae8d0e883e983e8afb7669f822e67ca7cdd2d9f02d1635f11a3fa30d44f6f1b0",
+      "kind": "blog",
+      "title": "Is Liberty Village Worth It?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "18986b6543d7db1b02bf1676a42b5d91dc6189b237b18078859aba1a2d37e5db",
+      "kind": "blog",
+      "title": "What Is The Best Place To Eat In Liberty Village?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village restaurants\"",
+      "addedAt": "2026-08-24T21:10:29.782Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
     }
   ]
 }
