@@ -347,6 +347,42 @@ function titleFromPath(pathValue) {
   return titleFromQuery(slug.replace(/[-_]+/g, ' '));
 }
 
+function appendTitleQualifier(title, qualifier) {
+  const cleaned = String(title ?? '').trim();
+  if (!cleaned) return '';
+  const match = cleaned.match(/([?!.,:;]+)$/);
+  if (!match) return `${cleaned} ${qualifier}`;
+  return `${cleaned.slice(0, -match[1].length).trimEnd()} ${qualifier}${match[1]}`;
+}
+
+function qualifyLibertyVillageToronto(title) {
+  const cleaned = String(title ?? '').trim();
+  if (!cleaned || /\btoronto\b/i.test(cleaned)) return cleaned;
+  return cleaned.replace(/\bliberty village\b/i, (place) => `${place}, Toronto`);
+}
+
+function normalizeDiscovery(discovery) {
+  const title = String(discovery?.title ?? '').trim();
+  if (!title) return discovery;
+  if (discovery.source === 'serpapi') {
+    return { ...discovery, title: qualifyLibertyVillageToronto(title) };
+  }
+  if (discovery.source === 'gsc' && !/\bliberty village\b/i.test(title)) {
+    return { ...discovery, title: appendTitleQualifier(title, 'Liberty Village Toronto') };
+  }
+  return discovery;
+}
+
+function intentFingerprint(title) {
+  const tokens = String(title ?? '').toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const normalized = tokens.join(' ');
+  // Deliberately narrow: these were the overlapping evaluative results in PR #115.
+  if (/^is liberty village(?: toronto)? (?:a good area|worth it)$/.test(normalized)) {
+    return 'is liberty village good area toronto';
+  }
+  return tokens.sort().join(' ');
+}
+
 function neverEcho(name) {
   const value = process.env[name];
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : '';
@@ -423,7 +459,8 @@ export function buildSerpApiPaaEntries(questions, query) {
   return (Array.isArray(questions) ? questions : []).flatMap((item) => {
     const raw = String(item?.question ?? '').replace(/\s+/g, ' ').trim();
     if (!/\bliberty village\b/i.test(raw)) return [];
-    const title = titleFromQuery(raw);
+    const titled = titleFromQuery(raw);
+    const title = qualifyLibertyVillageToronto(titled);
     return title ? [{
       kind: 'blog',
       title,
@@ -468,8 +505,15 @@ export async function discoverTopics({ now = new Date() } = {}) {
 export async function appendDiscoveredTopics(queue, discoveries) {
   let next = queue ?? loadTopicQueue();
   const added = [];
+  const seenIntents = new Set((next.topics ?? []).map((entry) => (
+    `${entry?.kind ?? ''}|${intentFingerprint(entry?.title)}`
+  )));
   for (const discovery of discoveries) {
-    const result = appendTopic(next, discovery);
+    const normalized = normalizeDiscovery(discovery);
+    const fingerprint = `${normalized?.kind ?? ''}|${intentFingerprint(normalized?.title)}`;
+    if (seenIntents.has(fingerprint)) continue;
+    seenIntents.add(fingerprint);
+    const result = appendTopic(next, normalized);
     next = result.queue;
     if (result.added) added.push(result.entry);
   }
