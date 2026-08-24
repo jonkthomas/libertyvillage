@@ -32,7 +32,8 @@ export const MAX_SEEN_EVENT_KEYS = 24;
 const STATE_PATTERN = new RegExp(`<!--\\s*${CANDIDATE_STATE_MARKER}:(\\{[\\s\\S]*?\\})\\s*-->`);
 
 export function isGeneratorKind(kind) {
-  return typeof kind === 'string' && Object.hasOwn(KIND_POLICIES, kind) && kind !== 'promotion';
+  return typeof kind === 'string' && Object.hasOwn(KIND_POLICIES, kind)
+    && kind !== 'promotion' && KIND_POLICIES[kind].candidateLadder !== false;
 }
 
 export function stateIssueTitle(kind) {

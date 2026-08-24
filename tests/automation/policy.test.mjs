@@ -4,6 +4,7 @@ import { GATE_MODEL, MAX_REPAIRS, SCORE_THRESHOLD } from '../../scripts/automati
 import {
   canRepair, evaluateGeneratorBase, evaluateObservedMerge, evaluateVerdict, filterRepairablePaths,
   readRepairAttempt, validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
+  validateTopicQueueAppendOnly,
 } from '../../scripts/automation/policy.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -56,6 +57,60 @@ test('accepts a trusted news autopublish PR touching only posts.json', () => {
     files: ['data/posts.json'],
   });
   assert.equal(result.ok, true);
+});
+
+test('topic discovery accepts only its exact branch family and queue file', () => {
+  const pr = trustedPr({
+    head: { sha: SHA, ref: 'auto/topic-discovery-123', repo: { full_name: 'owner/repo' } },
+  });
+  assert.equal(validatePullRequest({
+    repository: 'owner/repo', kind: 'topic-discovery', expectedSha: SHA, pr,
+    files: ['data/topic-queue.json'],
+  }).ok, true);
+  assert.equal(validatePaths('topic-discovery', ['data/topic-queue.json']).ok, true);
+  assert.equal(validatePaths('topic-discovery', ['data/posts.json']).ok, false);
+  assert.equal(validatePaths('topic-discovery', ['data/topic-queue.json', 'data/posts.json']).ok, false);
+  assert.equal(validatePullRequest({
+    repository: 'owner/repo', kind: 'topic-discovery', expectedSha: SHA,
+    pr: { ...pr, head: { ...pr.head, ref: 'auto/topic-queue-attacker' } },
+    files: ['data/topic-queue.json'],
+  }).ok, false);
+});
+
+test('topic queue validation preserves the complete base prefix exactly and permits only appends', () => {
+  const first = { key: 'first', kind: 'blog', title: 'First', attempts: 0 };
+  const second = { key: 'second', kind: 'seo', title: 'Second', attempts: 0 };
+  const baseText = JSON.stringify({ version: 1, topics: [first, second] });
+  const appended = { key: 'third', kind: 'blog', title: 'Third', attempts: 0 };
+  const validate = (topics) => validateTopicQueueAppendOnly({
+    baseText, headText: JSON.stringify({ version: 1, topics }),
+  });
+
+  assert.deepEqual(validate([first, second, appended]), { ok: true, errors: [], appended: 1 });
+  assert.equal(validate([first]).ok, false, 'deleting a base topic must fail');
+  assert.equal(validate([second, first, appended]).ok, false, 'reordering base topics must fail');
+  assert.equal(validate([{ ...first, attempts: 1 }, second, appended]).ok, false,
+    'mutating even one base field must fail');
+  assert.equal(validate([first, second, { ...appended, key: second.key }]).ok, false,
+    'duplicate appended keys must fail');
+  assert.equal(validateTopicQueueAppendOnly({ baseText, headText: 'not json' }).ok, false);
+});
+
+test('trusted topic-discovery PR validation runs the append-only queue guard', () => {
+  const pr = trustedPr({
+    head: { sha: SHA, ref: 'auto/topic-discovery-123', repo: { full_name: 'owner/repo' } },
+  });
+  const base = { version: 1, topics: [{ key: 'first', kind: 'blog', title: 'First' }] };
+  const changed = { version: 1, topics: [{ key: 'first', kind: 'blog', title: 'Changed' }] };
+  const result = validatePullRequest({
+    repository: 'owner/repo', kind: 'topic-discovery', expectedSha: SHA, pr,
+    files: ['data/topic-queue.json'],
+    sources: {
+      'data/topic-queue.json': { baseText: JSON.stringify(base), headText: JSON.stringify(changed) },
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join('; '), /base entry 0 was changed or reordered/);
 });
 
 test('enforces strict verdict schema, score threshold, severity, model, and SHA', () => {
@@ -167,6 +222,8 @@ test('fixer sees only kind-specific repairable text paths', () => {
     'public/images/blog/post.jpg',
     'tasks/auto-blog-runs/2026-08-05.json',
   ]), ['data/posts.json']);
+  assert.deepEqual(filterRepairablePaths('topic-discovery', ['data/topic-queue.json']), [],
+    'topic queue is not a slug-keyed record file and must not pretend to be repairable');
 });
 
 test('repair plans can only replace existing kind-specific text content within budget', () => {

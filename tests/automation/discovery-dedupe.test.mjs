@@ -13,35 +13,12 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-// The 15 candidates the 2026-08-10 weekly run appended in PR #57, which the
-// Opus gate scored 3.5/10 with "14/15 are duplicates". Names/addresses are
-// verbatim from that PR's data/businesses.json diff.
-const PR57_CANDIDATES = [
-  { name: 'GIOIA Beauty Bar & Spa', address: '20 Joe Shuster Way #4, Toronto, ON M6K 0A3, Canada', reviewCount: 2800 },
-  { name: 'Chiang Mai Liberty', address: '171 E Liberty St Unit 144, Toronto, ON M6K 3K4, Canada', reviewCount: 2264 },
-  { name: 'Kim Nails and Spa', address: '1205 Queen St W #6, Toronto, ON M6K 0B9, Canada', reviewCount: 1865 },
-  { name: 'Kibo Sushi House - Liberty', address: '171 E Liberty St #146, Toronto, ON M6K 3K4, Canada', reviewCount: 1426 },
-  { name: 'KINTON RAMEN LIBERTY VILLAGE', address: '153 Liberty St, Toronto, ON M6K 3G3, Canada', reviewCount: 1031 },
-  { name: 'Liberty Soho', address: '139 E Liberty St, Toronto, ON M6K 3K4, Canada', reviewCount: 1010 },
-  { name: "Balzac's Liberty Village", address: '43 Hanna Ave #123, Toronto, ON M6K 1X1, Canada', reviewCount: 1005 },
-  {
-    name: 'See & Be Seen Eyecare - Liberty Village Optometrists',
-    address: '171 E Liberty St 136 Ste 136, Toronto, ON M6K 3P6, Canada', reviewCount: 877,
-  },
-  {
-    name: 'Village Rehab Team - Liberty Village Location',
-    address: '171 E Liberty St Unit 102, Toronto, ON M6K 3P6, Canada', reviewCount: 875,
-  },
-  { name: 'Caffino', address: '1185 King St W, Toronto, ON M6K 3C5, Canada', reviewCount: 817 },
-  { name: 'NODO Liberty', address: '120 Lynn Williams St, Toronto, ON M6K 3N6, Canada', reviewCount: 796 },
-  { name: 'Liberty Eats', address: '129 Jefferson Ave, Toronto, ON M6K 3E4, Canada', reviewCount: 763 },
-  { name: 'Brodflour', address: '8 Pardee Ave, Toronto, ON M6K 3H1, Canada', reviewCount: 672 },
-  { name: 'Bom Dia Cafe & Bakery', address: '1205 Queen St W #3, Toronto, ON M6K 0B9, Canada', reviewCount: 662 },
-  { name: 'INJapan Japanese Restaurant', address: '124 Atlantic Ave, Toronto, ON M6K 1X9, Canada', reviewCount: 641 },
-];
-
-// The only candidate in that batch that was not already a known business.
-const PR57_GENUINELY_NEW = 'See & Be Seen Eyecare - Liberty Village Optometrists';
+// Frozen historical input: unlike data/businesses.json, a later directory append
+// cannot rewrite the expected outcome of the PR #57 incident replay.
+const PR57 = JSON.parse(fs.readFileSync(
+  path.join(ROOT, 'tests', 'automation', 'fixtures', 'discovery', 'pr57-replay.json'),
+  'utf8',
+));
 
 function business(name, address, overrides = {}) {
   return { slug: slugify(name), name, address, ...overrides };
@@ -145,15 +122,11 @@ test('fetchImage returns the existing image without overwriting it', async () =>
   }
 });
 
-test('PR #57 replay: no duplicate survives the directory + seeded registry', () => {
-  const existing = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'businesses.json'), 'utf8'));
-  const registry = readSeenRegistry(path.join(ROOT, 'data', 'discovery-seen.json'));
-  for (const b of existing) assert.ok(registry[norm(b.name)], `live record missing from registry: ${b.name}`);
-
-  const state = buildDedupeState(existing, registry);
+test('PR #57 frozen replay: 14 historical duplicates are rejected and the new candidate survives', () => {
+  const state = buildDedupeState(PR57.existingBusinesses, PR57.seenRegistry);
   const accepted = [];
   const rejected = [];
-  for (const c of PR57_CANDIDATES) {
+  for (const c of PR57.candidates) {
     const rec = candidate(c);
     if (isDuplicate(state, rec)) {
       rejected.push(rec.name);
@@ -164,13 +137,24 @@ test('PR #57 replay: no duplicate survives the directory + seeded registry', () 
   }
   const batch = selectBatch(accepted, state, 15);
 
-  // >= 14: the 14 known duplicates must be rejected; additional rejections are fine
-  // (a directory PR under review may itself add one of these names to the merged tree).
-  assert.ok(rejected.length >= 14, `expected at least 14 duplicates rejected, got: ${rejected.join(', ')}`);
-  assert.equal(rejected.includes(PR57_GENUINELY_NEW), false);
-  assert.deepEqual(batch.map((b) => b.name), [PR57_GENUINELY_NEW]);
+  assert.equal(rejected.length, 14, `expected exactly 14 duplicates rejected, got: ${rejected.join(', ')}`);
+  assert.equal(rejected.includes(PR57.genuinelyNew), false);
+  assert.deepEqual(batch.map((b) => b.name), [PR57.genuinelyNew]);
   for (const name of ['Brodflour', 'Caffino', 'KINTON RAMEN LIBERTY VILLAGE']) {
     assert.ok(rejected.includes(name), `${name} must be rejected`);
+  }
+});
+
+test('PR #57 historical duplicates remain rejected by the current directory and seen registry', () => {
+  const existing = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'businesses.json'), 'utf8'));
+  const registry = readSeenRegistry(path.join(ROOT, 'data', 'discovery-seen.json'));
+  const state = buildDedupeState(existing, registry);
+  const historicalDuplicates = PR57.candidates.filter((entry) => entry.name !== PR57.genuinelyNew);
+
+  assert.equal(historicalDuplicates.length, 14);
+  for (const entry of historicalDuplicates) {
+    assert.equal(isDuplicate(state, candidate(entry)), true,
+      `${entry.name} escaped current businesses.json + discovery-seen.json dedupe`);
   }
 });
 

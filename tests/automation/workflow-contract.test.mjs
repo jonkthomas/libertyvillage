@@ -1,11 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { KIND_POLICIES } from '../../scripts/automation/constants.mjs';
+import { validatePaths } from '../../scripts/automation/policy.mjs';
 
 const workflow = fs.readFileSync(new URL('../../.github/workflows/autonomous-coordinator.yml', import.meta.url), 'utf8');
 const sentinel = fs.readFileSync(new URL('../../.github/workflows/blocked-sentinel.yml', import.meta.url), 'utf8');
+const sentinelScript = fs.readFileSync(new URL('../../scripts/automation/blocked-sentinel.mjs', import.meta.url), 'utf8');
 const reviewAgent = fs.readFileSync(new URL('../../scripts/automation/review-agent.mjs', import.meta.url), 'utf8');
+const coordinator = fs.readFileSync(new URL('../../scripts/automation/coordinator.mjs', import.meta.url), 'utf8');
 const preflight = fs.readFileSync(new URL('../../scripts/automation/news-preflight.mjs', import.meta.url), 'utf8');
+const WORKFLOWS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.github/workflows');
+
+function hasStagingPrOpener(text) {
+  if (/^\s+[^#\n]*gh pr create --base staging\b/m.test(text)) return true;
+  return text.split(/(?=^      - (?:name:|uses:))/m).some((step) => (
+    /^\s+uses: peter-evans\/create-pull-request@/m.test(step)
+    && /^\s+base: staging\s*$/m.test(step)
+  ));
+}
 
 test('coordinator is dispatch-only and synthetic merge checkouts fetch parent history', () => {
   assert.doesNotMatch(workflow, /workflow_call|inputs\./);
@@ -29,8 +45,62 @@ test('news-pilot safety regressions gate generator and promotion CI', () => {
 });
 
 test('every autonomous generator kind has an independent review lens', () => {
-  for (const kind of ['seo', 'blog', 'news', 'business', 'promotion']) {
-    assert.match(reviewAgent, new RegExp(`\\n  ${kind}: \\[`), `missing ${kind} review lens`);
+  for (const kind of ['seo', 'blog', 'news', 'business', 'topic-discovery', 'promotion']) {
+    assert.match(reviewAgent, new RegExp(`\\n  ['"]?${kind}['"]?: \\[`), `missing ${kind} review lens`);
+  }
+  assert.match(reviewAgent, /Liberty Township/);
+});
+
+test('every workflow that opens a staging PR explicitly dispatches a matching coordinator policy', () => {
+  const contracts = {
+    'discover-businesses.yml': {
+      kind: 'business', prefix: 'auto/business-discovery',
+      paths: ['data/businesses.json', 'data/discovery-seen.json', 'public/images/businesses/example.jpg'],
+      stage: /add-paths: \|\n\s+data\/businesses\.json\n\s+data\/discovery-seen\.json\n\s+public\/images\/businesses\/\*\*/,
+    },
+    'news-autopublish.yml': {
+      kind: 'news', prefix: 'news/auto-', paths: ['data/posts.json'], stage: 'git add data/posts.json',
+    },
+    'weekly-blog.yml': {
+      kind: 'blog', prefix: 'blog/auto-', paths: ['data/posts.json', 'public/images/blog/example.jpg'],
+      stage: 'git add data/posts.json "public/images/blog/"',
+    },
+    'weekly-seo-improvements.yml': {
+      kind: 'seo', prefix: 'seo/auto-',
+      paths: ['app/page.tsx', 'components/Card.tsx', 'data/topics.json', 'lib/schema.ts', 'public/images/example.jpg'],
+      stage: 'git add app components data lib public/images 2>/dev/null || true',
+    },
+    'weekly-topic-discovery.yml': {
+      kind: 'topic-discovery', prefix: 'auto/topic-discovery-', paths: ['data/topic-queue.json'],
+      stage: 'git add data/topic-queue.json',
+    },
+  };
+  const openers = fs.readdirSync(WORKFLOWS).filter((file) => file.endsWith('.yml')).filter((file) => {
+    const text = fs.readFileSync(path.join(WORKFLOWS, file), 'utf8');
+    return hasStagingPrOpener(text);
+  }).sort();
+  assert.deepEqual(openers, Object.keys(contracts).sort(),
+    'a staging PR opener was added or removed without an explicit coordinator contract');
+
+  for (const file of openers) {
+    const text = fs.readFileSync(path.join(WORKFLOWS, file), 'utf8');
+    const contract = contracts[file];
+    const dispatch = text.match(/run: node [^\n]*coordinator\.mjs dispatch[^\n]*/)?.[0] ?? '';
+    assert.match(dispatch, /--pr "\$\{\{ steps\.[^}]+outputs\.[^}]*number[^}]* \}\}"/, `${file}: exact PR output missing`);
+    assert.match(dispatch, /--sha "\$\{\{ steps\.[^}]+outputs\.[^}]*sha[^}]* \}\}"/, `${file}: exact head SHA output missing`);
+    assert.match(dispatch, new RegExp(`--kind ${contract.kind}(?: |$)`), `${file}: wrong or missing coordinator kind`);
+    assert.ok(KIND_POLICIES[contract.kind].headPrefixes.includes(contract.prefix), `${file}: policy prefix mismatch`);
+    assert.ok(text.includes(contract.prefix), `${file}: workflow head does not match policy prefix`);
+    if (contract.stage instanceof RegExp) assert.match(text, contract.stage, `${file}: staged paths drifted`);
+    else {
+      assert.equal((text.match(/git add /g) || []).length, 1, `${file}: staging must have one auditable git add`);
+      assert.ok(text.includes(contract.stage), `${file}: staged paths drifted`);
+    }
+    assert.equal(validatePaths(contract.kind, contract.paths).ok, true, `${file}: workflow paths exceed kind policy`);
+    for (const allowed of KIND_POLICIES[contract.kind].allowedPaths) {
+      assert.ok(contract.paths.some((filePath) => allowed.endsWith('/') ? filePath.startsWith(allowed) : filePath === allowed),
+        `${file}: contract does not exercise allowed path ${allowed}`);
+    }
   }
 });
 
@@ -68,18 +138,23 @@ test('base heal consumes its budget before pushing an unforced merge and redispa
   assert.doesNotMatch(healJob, /--force|\+HEAD/);
   assert.doesNotMatch(healJob, /npm (ci|run)/, 'the heal job never executes PR code');
   assert.match(healJob, /ref: \$\{\{ needs\.validate-generator\.outputs\.head_sha \}\}/);
+  assert.match(healJob, /outputs:\n\s+healed: \$\{\{ steps\.heal\.outputs\.healed \}\}/);
+  assert.equal((healJob.match(/if: \$\{\{ steps\.heal\.outputs\.healed == 'true' \}\}/g) || []).length, 4,
+    'budget, push, redispatch/audit, and artifact steps must run only after a real heal');
+  assert.match(coordinator, /writeOutput\(\{ healed: 'false', reason: 'current-base'/);
+  assert.match(coordinator, /writeOutput\(\{ healed: 'false', reason: 'clean-merge'/);
 });
 
-test('block-generator stands down only when a pass, repair, or heal succeeded', () => {
+test('block-generator stands down only when a pass, repair, or actual heal succeeded', () => {
   const blockJob = workflow.slice(workflow.indexOf('  block-generator:'), workflow.indexOf('  validate-promotion:'));
   assert.match(blockJob, /needs\.pass-generator\.result != 'success'/);
   assert.match(blockJob, /needs\.apply-generator-repair\.result != 'success'/);
-  assert.match(blockJob, /needs\.heal-generator-base\.result != 'success'/);
+  assert.match(blockJob, /\(needs\.heal-generator-base\.result != 'success' \|\| needs\.heal-generator-base\.outputs\.healed != 'true'\)/);
   assert.match(blockJob, /\n\s+heal-generator-base,\n/);
 });
 
-test('the blocked sentinel is a read-only daily sweep that only notifies', () => {
-  assert.match(sentinel, /schedule:\n\s+- cron: "0 12 \* \* \*"/);
+test('the blocked sentinel is a read-only hourly sweep that only notifies', () => {
+  assert.match(sentinel, /schedule:\n\s+- cron: "0 \* \* \* \*"/);
   assert.match(sentinel, /workflow_dispatch:/);
   const permissions = sentinel.slice(sentinel.indexOf('permissions:'), sentinel.indexOf('steps:'));
   assert.match(permissions, /contents: read/);
@@ -89,6 +164,23 @@ test('the blocked sentinel is a read-only daily sweep that only notifies', () =>
   assert.doesNotMatch(sentinel, /gh pr|gh issue|coordinator\.mjs/);
   assert.match(sentinel, /node scripts\/automation\/blocked-sentinel\.mjs/);
   assert.match(sentinel, /SLACK_WEBHOOK_URL/);
+  assert.match(sentinel, /steps\.scan\.outputs\.notify == 'true'/,
+    'Slack must use the scanner\'s deterministic hourly/daily notification gate');
+  assert.match(sentinelScript, /STALE_NOTIFICATION_UTC_HOUR = 12/);
+  assert.match(sentinelScript, /slack_text: staleNotificationDue && stale\.length/,
+    'stale-blocked text must be omitted from the other 23 hourly runs');
+  assert.match(sentinelScript, /const notify = orphans\.length > 0 \|\| \(staleNotificationDue && stale\.length > 0\)/,
+    'orphans notify hourly while stale-only alerts wait for the daily gate');
+  assert.match(coordinator, /GITHUB_SERVER_URL/);
+  assert.match(coordinator, /GITHUB_RUN_ID/);
+  assert.match(coordinator, /GitHub Actions run:/);
+});
+
+test('red CI without an Opus verdict names the blocking CI class in the audit', () => {
+  const blockJob = workflow.slice(workflow.indexOf('  block-generator:'), workflow.indexOf('  validate-promotion:'));
+  assert.match(blockJob, /--failure-class ci --failure-name generator-ci --failure-result "\$CI_RESULT"/);
+  assert.match(coordinator, /No Opus verdict was produced\. Blocking failure:/);
+  assert.match(coordinator, /no Opus verdict; \$\{failure\.class\}\/\$\{failure\.name\}=\$\{failure\.result\}/);
 });
 
 test('generator pass refreshes after audit and skips auto-merge and observation when redispatched', () => {
