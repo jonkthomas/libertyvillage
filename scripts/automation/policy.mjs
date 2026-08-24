@@ -141,6 +141,39 @@ export function validateDestructiveDiff({ kind, files, sources, labels } = {}) {
   };
 }
 
+export function validateTopicQueueAppendOnly({ baseText, headText } = {}) {
+  const errors = [];
+  let base;
+  let head;
+  try { base = JSON.parse(baseText); } catch { errors.push('topic queue base is not valid JSON'); }
+  try { head = JSON.parse(headText); } catch { errors.push('topic queue head is not valid JSON'); }
+  if (errors.length) return { ok: false, errors };
+  for (const [name, queue] of [['base', base], ['head', head]]) {
+    if (!queue || typeof queue !== 'object' || Array.isArray(queue)) errors.push(`topic queue ${name} must be an object`);
+    else {
+      if (queue.version !== 1) errors.push(`topic queue ${name} must use version 1`);
+      if (!Array.isArray(queue.topics)) errors.push(`topic queue ${name} topics must be an array`);
+    }
+  }
+  if (errors.length) return { ok: false, errors };
+  if (head.topics.length < base.topics.length) errors.push('topic queue head drops base entries');
+  for (let index = 0; index < base.topics.length && index < head.topics.length; index += 1) {
+    if (JSON.stringify(head.topics[index]) !== JSON.stringify(base.topics[index])) {
+      errors.push(`topic queue base entry ${index} was changed or reordered`);
+    }
+  }
+  const keys = new Set();
+  for (const [index, entry] of head.topics.entries()) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || typeof entry.key !== 'string' || entry.key.length === 0) {
+      errors.push(`topic queue head entry ${index} has no valid key`);
+      continue;
+    }
+    if (keys.has(entry.key)) errors.push(`topic queue head has duplicate key: ${entry.key}`);
+    keys.add(entry.key);
+  }
+  return { ok: errors.length === 0, errors, appended: Math.max(0, head.topics.length - base.topics.length) };
+}
+
 export const RETRY_LABEL_PREFIX = 'automation-retry-';
 
 export function retryLabel(attempt) {
@@ -205,6 +238,11 @@ export function validatePullRequest({ repository, kind, expectedSha, pr, files, 
   // could not run rather than pretending the diff is safe.
   const destructive = validateDestructiveDiff({ kind, files, sources, labels: pr?.labels || [] });
   if (sources) errors.push(...destructive.errors);
+  if (kind === 'topic-discovery' && sources) {
+    const queueSource = sources['data/topic-queue.json'];
+    if (!queueSource) errors.push('topic-discovery: missing trusted base/head content for append-only validation');
+    else errors.push(...validateTopicQueueAppendOnly(queueSource).errors);
+  }
   let attempt = 0;
   try { attempt = readRepairAttempt(pr?.labels || []); } catch (error) { errors.push(error.message); }
   let healAttempt = 0;

@@ -27,7 +27,7 @@ const SHA = (char) => char.repeat(40);
 const execFileAsync = promisify(execFile);
 
 // Async on purpose: the fake GitHub is served from this process.
-async function runAudit(apiUrl, workDir, { pr, sha, decision, attempt, verdict }) {
+async function runAudit(apiUrl, workDir, { pr, sha, decision, attempt, verdict, failure }) {
   const outputFile = path.join(workDir, `out-${sha.slice(0, 4)}-${attempt}.txt`);
   fs.writeFileSync(outputFile, '');
   const args = [COORDINATOR, 'audit', '--repo', REPO, '--pr', String(pr), '--kind', 'blog',
@@ -38,9 +38,15 @@ async function runAudit(apiUrl, workDir, { pr, sha, decision, attempt, verdict }
     fs.writeFileSync(verdictFile, JSON.stringify(verdict));
     args.push('--verdict', verdictFile);
   }
+  if (failure) {
+    args.push('--failure-class', failure.class, '--failure-name', failure.name, '--failure-result', failure.result);
+  }
   const { stdout } = await execFileAsync(process.execPath, args, {
     encoding: 'utf8',
-    env: { ...process.env, GITHUB_API_URL: apiUrl, GH_TOKEN: 'test-token', GITHUB_OUTPUT: outputFile },
+    env: {
+      ...process.env, GITHUB_API_URL: apiUrl, GH_TOKEN: 'test-token', GITHUB_OUTPUT: outputFile,
+      GITHUB_SERVER_URL: 'https://github.example', GITHUB_RUN_ID: '12345',
+    },
   });
   const outputs = {};
   for (const line of fs.readFileSync(outputFile, 'utf8').split('\n').filter(Boolean)) {
@@ -83,6 +89,22 @@ test('the audit comment carries machine-readable evidence the next round can rep
     assert.equal(record.blockingCount, 1);
     assert.equal(record.decision, 'repairing');
     assert.match(comment.body, /## Autonomous gate audit/, 'the human-readable half must survive too');
+  });
+});
+
+test('a red CI audit without an Opus verdict reports the failing CI class and job', async () => {
+  await withHub(async (hub, url, workDir) => {
+    const pr = hub.addPull({ headRef: 'blog/auto-ci-red', headSha: SHA('c') });
+    await runAudit(url, workDir, {
+      pr: pr.number, sha: SHA('c'), decision: 'error', attempt: 0,
+      failure: { class: 'ci', name: 'generator-ci', result: 'failure' },
+    });
+
+    const [comment] = hub.commentsOn(pr.number);
+    assert.match(comment.body, /Blocking findings: unavailable \(no Opus verdict; ci\/generator-ci=failure\)/);
+    assert.match(comment.body, /Blocking failure: \*\*ci\*\* \/ `generator-ci` \(failure\)/);
+    assert.match(comment.body, /GitHub Actions run: https:\/\/github\.example\/owner\/repo\/actions\/runs\/12345/);
+    assert.doesNotMatch(comment.body, /### Findings\n- none/);
   });
 });
 

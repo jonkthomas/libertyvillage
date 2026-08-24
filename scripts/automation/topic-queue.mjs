@@ -415,6 +415,24 @@ async function discoverFromPosthog() {
   }
 }
 
+// SerpApi's People Also Ask results drift across similarly named places. Keep
+// this source deterministic and conservative: only questions that name the
+// neighbourhood explicitly may enter the queue. GSC and PostHog use their own
+// source paths and are intentionally unaffected by this filter.
+export function buildSerpApiPaaEntries(questions, query) {
+  return (Array.isArray(questions) ? questions : []).flatMap((item) => {
+    const raw = String(item?.question ?? '').replace(/\s+/g, ' ').trim();
+    if (!/\bliberty village\b/i.test(raw)) return [];
+    const title = titleFromQuery(raw);
+    return title ? [{
+      kind: 'blog',
+      title,
+      source: 'serpapi',
+      rationale: `People Also Ask cluster for "${query}"`,
+    }] : [];
+  }).slice(0, 3);
+}
+
 async function discoverFromSerpApi() {
   const key = neverEcho('SERPAPI_API_KEY');
   if (!key) return [];
@@ -429,16 +447,7 @@ async function discoverFromSerpApi() {
       if (!response.ok) continue;
       const payload = await response.json();
       const questions = Array.isArray(payload?.related_questions) ? payload.related_questions : [];
-      for (const item of questions.slice(0, 3)) {
-        const title = titleFromQuery(item?.question);
-        if (!title) continue;
-        found.push({
-          kind: 'blog',
-          title,
-          source: 'serpapi',
-          rationale: `People Also Ask cluster for "${query}"`,
-        });
-      }
+      found.push(...buildSerpApiPaaEntries(questions, query));
     } catch {
       // Source-local failure must not halt the other discovery lanes.
     }

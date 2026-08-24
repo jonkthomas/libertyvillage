@@ -132,7 +132,9 @@ function evaluateExpression(expression, context) {
       const job = parts[1];
       if (parts[2] === 'result') return context.results.get(job) ?? 'skipped';
       if (parts[2] === 'outputs') {
-        if (context.results.get(job) !== 'success') return '';
+        // GitHub may retain step/job outputs from a failed job, but a skipped job
+        // cannot emit any. Conditions must therefore inspect result and output.
+        if (context.results.get(job) === 'skipped') return '';
         return context.outputs?.[job]?.[parts[3]] ?? '';
       }
       return '';
@@ -231,10 +233,11 @@ function simulateRun(jobs, scenario) {
 const TERMINAL_JOB = /^(pass|block|validation-failed)-(generator|promotion)$/;
 const CONTINUATION_JOB = /^(apply-generator-repair|heal-generator-base)$/;
 
-function outcomeOf(results) {
+function outcomeOf(results, outputs = {}) {
   const ran = (name) => results.get(name) !== 'skipped';
   const terminal = [...results.keys()].filter((name) => TERMINAL_JOB.test(name) && ran(name));
-  const continuation = [...results.keys()].filter((name) => CONTINUATION_JOB.test(name) && results.get(name) === 'success');
+  const continuation = [...results.keys()].filter((name) => CONTINUATION_JOB.test(name) && results.get(name) === 'success'
+    && (name !== 'heal-generator-base' || outputs[name]?.healed === 'true'));
   return { terminal, continuation, total: terminal.length + continuation.length };
 }
 
@@ -357,11 +360,18 @@ test('[RED] the linter defaults to fail-closed and runs before the blog PR is co
 // =============================================================================
 // 2. Unrepairable PR-file exclusion
 // =============================================================================
-test('[RED] no generator can ship a scored file its fixer is structurally unable to repair', async () => {
+test('[RED] every repair-capable generator can repair its scored files; explicit no-fixer kinds block honestly', async () => {
   const { KIND_POLICIES } = await loadModule('scripts/automation/constants.mjs');
   const isBinaryAsset = (rule) => /^public\/images\//.test(rule);
   for (const [kind, policy] of Object.entries(KIND_POLICIES)) {
     if (kind === 'promotion') continue; // promotion is never repaired; it is re-cut from staging.
+    if (policy.repairablePaths.length === 0) {
+      assert.equal(policy.candidateLadder, false,
+        `${kind} has no fixer contract and must not enter an article candidate ladder`);
+      assert.equal(policy.noFixer, true,
+        `${kind} has no fixer contract and must explicitly block without invoking one`);
+      continue;
+    }
     for (const rule of policy.allowedPaths) {
       if (isBinaryAsset(rule)) continue;
       assert.ok(
@@ -517,13 +527,28 @@ test('[GREEN] every ordinary generator path already ends in exactly one outcome'
     },
     'base conflict heals and redispatches': {
       payload: { kind: 'blog' },
-      outputs: { 'validate-generator': GENERATOR_OK },
+      outputs: { 'validate-generator': GENERATOR_OK, 'heal-generator-base': { healed: 'true' } },
       forced: { 'generator-ci': 'failure' },
       expect: 'heal-generator-base',
+    },
+    'red CI with no applicable heal blocks': {
+      payload: { kind: 'blog' },
+      outputs: { 'validate-generator': GENERATOR_OK, 'heal-generator-base': { healed: 'false' } },
+      forced: { 'generator-ci': 'failure' },
+      expect: 'block-generator',
     },
     'base conflict with heal budget exhausted': {
       payload: { kind: 'blog' },
       outputs: { 'validate-generator': { ...GENERATOR_OK, can_heal: 'false' } },
+      forced: { 'generator-ci': 'failure' },
+      expect: 'block-generator',
+    },
+    'skipped heal cannot retain a synthetic output': {
+      payload: { kind: 'blog' },
+      outputs: {
+        'validate-generator': { ...GENERATOR_OK, can_heal: 'false' },
+        'heal-generator-base': { healed: 'true' },
+      },
       forced: { 'generator-ci': 'failure' },
       expect: 'block-generator',
     },
@@ -533,10 +558,16 @@ test('[GREEN] every ordinary generator path already ends in exactly one outcome'
       forced: { 'generator-ci': 'failure', 'heal-generator-base': 'failure' },
       expect: 'block-generator',
     },
+    'heal fails after emitting healed true': {
+      payload: { kind: 'blog' },
+      outputs: { 'validate-generator': GENERATOR_OK, 'heal-generator-base': { healed: 'true' } },
+      forced: { 'generator-ci': 'failure', 'heal-generator-base': 'failure' },
+      expect: 'block-generator',
+    },
   };
   for (const [name, scenario] of Object.entries(scenarios)) {
     const results = simulateRun(jobs, scenario);
-    const outcome = outcomeOf(results);
+    const outcome = outcomeOf(results, scenario.outputs);
     assert.equal(outcome.total, 1, `${name}: expected exactly one outcome, got ${JSON.stringify(outcome)}`);
     assert.equal(results.get(scenario.expect), 'success', `${name}: expected ${scenario.expect}`);
   }
@@ -765,15 +796,15 @@ test('[RED] the sentinel detects automation PRs that never reached a terminal st
   const now = Date.parse('2026-09-20T11:00:00.000Z');
   const hoursAgo = (hours) => new Date(now - hours * 3600_000).toISOString();
   const items = [
-    { number: 101, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [], updated_at: hoursAgo(30), statusContexts: [] },
-    { number: 102, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [], updated_at: hoursAgo(30), statusContexts: ['automation/ci'] },
-    { number: 103, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [{ name: 'automation-blocked' }], updated_at: hoursAgo(30), statusContexts: [] },
-    { number: 104, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [], updated_at: hoursAgo(2), statusContexts: [] },
-    { number: 32, state: 'open', pull_request: {}, user: { login: 'jonkthomas' }, labels: [], updated_at: hoursAgo(900), statusContexts: ['Vercel'] },
+    { number: 101, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [], created_at: hoursAgo(30), updated_at: hoursAgo(1), headCommittedAt: hoursAgo(30), statusContexts: [] },
+    { number: 102, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [], created_at: hoursAgo(30), updated_at: hoursAgo(30), headCommittedAt: hoursAgo(30), statusContexts: ['automation/ci'] },
+    { number: 103, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [{ name: 'automation-blocked' }], created_at: hoursAgo(30), updated_at: hoursAgo(30), headCommittedAt: hoursAgo(30), statusContexts: [] },
+    { number: 104, state: 'open', pull_request: {}, user: { login: 'github-actions[bot]' }, labels: [], created_at: hoursAgo(30), updated_at: hoursAgo(1), headCommittedAt: hoursAgo(1), statusContexts: [] },
+    { number: 32, state: 'open', pull_request: {}, user: { login: 'jonkthomas' }, labels: [], created_at: hoursAgo(900), updated_at: hoursAgo(900), headCommittedAt: hoursAgo(900), statusContexts: ['Vercel'] },
   ];
   const orphans = selectOrphanAutomationPrs(items, { now, staleHours: 24 }).map((pr) => pr.number);
   assert.deepEqual(orphans, [101],
-    'only bot-authored PRs with no automation status, no automation label, idle > 24h are orphans');
+    'only old bot-authored PRs with no automation status or terminal label are orphans');
 });
 
 test('[RED] the sentinel workflow actually runs the orphan pass and stays read-only', () => {
@@ -924,12 +955,20 @@ test('[CANARY] main is not stranded behind staging', { skip: !CANARY }, () => {
   assert.equal(comparison.ahead_by, 0, `main is ${comparison.ahead_by} commit(s) behind staging — the sweep should have promoted it`);
 });
 
-test('[CANARY] no bot PR is sitting without a terminal state', { skip: !CANARY }, () => {
+test('[CANARY] no bot PR is sitting without a terminal state', { skip: !CANARY }, async () => {
+  const selectOrphanAutomationPrs = await loadExport('scripts/automation/blocked-sentinel.mjs', 'selectOrphanAutomationPrs');
   const open = gh(`repos/${canaryRepo}/pulls?state=open&per_page=100`);
   const now = Date.now();
-  const orphans = open.filter((pr) => pr.user?.login === 'github-actions[bot]'
-    && (now - Date.parse(pr.updated_at)) > 24 * 3600_000
-    && !(pr.labels || []).some((label) => /^automation-/.test(label.name))
-    && gh(`repos/${canaryRepo}/commits/${pr.head.sha}/status`).statuses.every((status) => !status.context.startsWith('automation/')));
+  const items = open.filter((pr) => pr.user?.login === 'github-actions[bot]').map((pr) => {
+    const headCommit = gh(`repos/${canaryRepo}/commits/${pr.head.sha}`);
+    const status = gh(`repos/${canaryRepo}/commits/${pr.head.sha}/status`);
+    return {
+      ...pr,
+      pull_request: {},
+      headCommittedAt: headCommit?.commit?.committer?.date ?? null,
+      statusContexts: (status?.statuses || []).map((entry) => entry.context),
+    };
+  });
+  const orphans = selectOrphanAutomationPrs(items, { now, staleHours: 24 });
   assert.deepEqual(orphans.map((pr) => pr.number), [], 'every bot PR must reach a visible terminal state');
 });

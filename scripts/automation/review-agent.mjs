@@ -86,6 +86,11 @@ const LENSES = {
     'CONTENT lens: descriptions must be neutral and never imply firsthand review or endorsement.',
     'CODE lens: JSON shape, slugs, categories, images, and required fields must match surrounding data.',
   ],
+  'topic-discovery': [
+    'QUEUE lens: this must be an append-only data/topic-queue.json change; preserve every base entry byte-for-byte, reject duplicate keys/topics, and require the existing queue schema.',
+    'RELEVANCE lens: every appended topic must have clear Liberty Village, Toronto local intent and a credible source/rationale; reject geographically confused People Also Ask contamination such as Liberty Township or unrelated places named Liberty.',
+    'QUALITY lens: titles must be specific, useful candidate topics rather than spam, near-duplicates, malformed queries, or unsupported claims; branchPrefix and kind must route to an existing blog or SEO lane.',
+  ],
   promotion: [
     'DATA lens: cumulative consistency across every changed record in the complete staging range.',
     'CONTENT lens: cross-change contradictions, unsupported claims, low quality, and user-facing regressions.',
@@ -208,8 +213,10 @@ async function review(options) {
   if (!decision.passed && kind !== 'promotion') {
     const changedFiles = (await paged(`/repos/${repo}/pulls/${pr}/files`)).map((file) => file.filename);
     const classified = classifyFindings(kind, raw, { changedFiles });
-    repairable = classified.allUnrepairable ? 'false' : 'true';
-    if (classified.allUnrepairable) {
+    repairable = classified.noFixer || classified.allUnrepairable ? 'false' : 'true';
+    if (classified.noFixer) {
+      console.log(`${kind} has an explicit no-fixer policy; a verdict that needs repair must block honestly.`);
+    } else if (classified.allUnrepairable) {
       console.log(`Every blocking finding is structurally unrepairable: ${classified.unrepairable.map((finding) => `${finding.path} (${finding.note})`).join('; ')}`);
     }
     // F4. #97 went 7.2 -> 6.5 and #75 went 5.0 -> 4.5 while the budget kept paying

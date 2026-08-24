@@ -134,6 +134,7 @@ export function classifyFindings(kind, verdict, { changedFiles } = {}) {
   return {
     repairable,
     unrepairable,
+    noFixer: KIND_POLICIES[kind]?.noFixer === true,
     allUnrepairable: unrepairable.length > 0 && repairable.length === 0,
   };
 }
@@ -147,7 +148,8 @@ export function preflightDecision({
   // classifier can return unrepairable. Only a fully valid trusted verdict may
   // reach classifyFindings.
   if (!decision.ok) return 'block';
-  if (classifyFindings(kind, verdict, { changedFiles, original, repaired }).allUnrepairable) {
+  const classified = classifyFindings(kind, verdict, { changedFiles, original, repaired });
+  if (classified.noFixer || classified.allUnrepairable) {
     return 'unrepairable';
   }
   return attempts < maxRepairs && canRepair(attempts) ? 'repair' : 'block';
