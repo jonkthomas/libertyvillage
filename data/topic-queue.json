@@ -20,6 +20,86 @@
       "addedAt": "2026-08-23T00:00:00.000Z",
       "attempts": 0,
       "branchPrefix": "seo/auto-"
+    },
+    {
+      "key": "663d872e95aa4c5ae474ff63a4b9dc72521218b21b59c99a7dde3b0be0096422",
+      "kind": "blog",
+      "title": "Liberty Village Happy Hour",
+      "source": "gsc",
+      "rationale": "GSC top query (8 clicks, 66 impressions)",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "b4361927bb6620bb801f62665533a3cde8110d1c5654952fe328279a959ce714",
+      "kind": "blog",
+      "title": "Liberty Village Farmers Market",
+      "source": "gsc",
+      "rationale": "GSC top query (5 clicks, 28 impressions)",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "861c8b457690a772e3c8821b2bc8ebba0372faa3999b63e68496e1097822f529",
+      "kind": "blog",
+      "title": "Goodlife Liberty Village",
+      "source": "gsc",
+      "rationale": "GSC top query (4 clicks, 704 impressions)",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "ea0ca5f3139d8b79ac6154d759ecdde8eff5e706b3ff7b4180a8a6055da05af9",
+      "kind": "blog",
+      "title": "Jukebox Printing Liberty Village Toronto",
+      "source": "gsc",
+      "rationale": "GSC top query (3 clicks, 136 impressions)",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "3bbe9037e619ebcfd69ad22550d740bffd410f10ec8956451eced8b88c75e0e5",
+      "kind": "blog",
+      "title": "Is Liberty Village, Toronto A Good Area?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village Toronto\"",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "05522f1896c8b7d4aa3aca8df100551bb5233f519e92c310f1238b7333326545",
+      "kind": "blog",
+      "title": "What Is Liberty Village, Toronto Known For?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village Toronto\"",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "a7567ce60558e98cdaacbdc8145ada7c636da011619e1e68915c262f39e94fe0",
+      "kind": "blog",
+      "title": "How Expensive Is Liberty Village, Toronto?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village Toronto\"",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "ae9ae69dd11659d447cb9a8b856ee5947e728417acc4fcc0c50cf3457b8d0e04",
+      "kind": "blog",
+      "title": "What Are Some Fun Things To Do In Liberty Village, Toronto?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-08-24T22:31:09.308Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
     }
   ]
 }
