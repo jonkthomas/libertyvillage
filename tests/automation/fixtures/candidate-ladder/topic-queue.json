@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "topics": [
+    {
+      "key": "0afc71758d6f76d7a022667e688a99c6f9d376357377b99c8826a86fc684c440",
+      "kind": "blog",
+      "title": "Pet-Friendly Restaurants in Liberty Village",
+      "source": "test-fixture",
+      "rationale": "Frozen single-topic blog queue for bounded candidate-ladder tests.",
+      "addedAt": "2026-08-21T00:00:00.000Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "60caf594231d56cabe2fd98213d3dff116a6c9f1996a4f5dbceba3afaae743be",
+      "kind": "seo",
+      "title": "Liberty Village TTC and streetcar access",
+      "source": "test-fixture",
+      "rationale": "Frozen single-topic SEO queue for bounded candidate-ladder tests.",
+      "addedAt": "2026-08-23T00:00:00.000Z",
+      "attempts": 0,
+      "branchPrefix": "seo/auto-"
+    }
+  ]
+}
