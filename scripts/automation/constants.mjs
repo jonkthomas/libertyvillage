@@ -19,6 +19,8 @@ export const TRUSTED_PR_AUTHORS = Object.freeze(['github-actions[bot]']);
 // Single binding site for the controlled labels the coordinator writes and the
 // sentinel reads. Duplicating either string is how a blocked PR goes invisible.
 export const BLOCKED_LABEL = 'automation-blocked';
+export const ABANDONED_LABEL = 'automation-abandoned';
+export const TERMINAL_LABELS = Object.freeze([BLOCKED_LABEL, ABANDONED_LABEL]);
 export const ALLOW_RECORD_DELETION_LABEL = 'allow-record-deletion';
 export const BLOCKING_SEVERITIES = Object.freeze(['critical', 'high']);
 export const ALL_SEVERITIES = Object.freeze(['critical', 'high', 'medium', 'low']);
@@ -67,6 +69,19 @@ const GENERATOR_POLICIES = {
     repairablePaths: ['data/businesses.json', 'data/discovery-seen.json'],
     maxFiles: 20,
     maxRepairBytes: 300_000,
+  },
+  // Queue maintenance is reviewed and merged through the shared coordinator,
+  // but it is not an article candidate and must never consume or mutate a
+  // blog/SEO candidate ladder.
+  'topic-discovery': {
+    base: 'staging',
+    headPrefixes: ['auto/topic-discovery-'],
+    allowedPaths: ['data/topic-queue.json'],
+    repairablePaths: [],
+    maxFiles: 1,
+    maxRepairBytes: 0,
+    candidateLadder: false,
+    noFixer: true,
   },
 };
 
