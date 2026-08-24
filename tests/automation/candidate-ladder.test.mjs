@@ -27,6 +27,8 @@ import { parseCandidateState, stateIssueTitle } from '../../scripts/automation/c
 
 const REPO = 'owner/repo';
 const COORDINATOR = fileURLToPath(new URL('../../scripts/automation/coordinator.mjs', import.meta.url));
+const TOPIC_QUEUE_FIXTURE = fileURLToPath(new URL('./fixtures/candidate-ladder/topic-queue.json', import.meta.url));
+const FROZEN_TOPIC_QUEUE = JSON.parse(fs.readFileSync(TOPIC_QUEUE_FIXTURE, 'utf8'));
 const SHA = (char) => char.repeat(40);
 
 const execFileAsync = promisify(execFile);
@@ -35,15 +37,22 @@ const execFileAsync = promisify(execFile);
 // the exit code and the log, so a test can assert on what the workflow would see.
 // It must stay ASYNC: the fake GitHub is served from this process, so blocking the
 // event loop on the child would deadlock the request it is waiting for.
-async function run(apiUrl, args) {
+async function run(apiUrl, args, { cwd } = {}) {
   const outputFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lv-ladder-')), 'out.txt');
   fs.writeFileSync(outputFile, '');
   let status = 0;
   let stdout = '';
   try {
     const result = await execFileAsync(process.execPath, [COORDINATOR, ...args], {
+      cwd,
       encoding: 'utf8',
-      env: { ...process.env, GITHUB_API_URL: apiUrl, GH_TOKEN: 'test-token', GITHUB_OUTPUT: outputFile },
+      env: {
+        ...process.env,
+        GITHUB_API_URL: apiUrl,
+        GH_TOKEN: 'test-token',
+        GITHUB_OUTPUT: outputFile,
+        TOPIC_QUEUE_PATH: TOPIC_QUEUE_FIXTURE,
+      },
     });
     stdout = `${result.stdout}${result.stderr}`;
   } catch (error) {
@@ -85,6 +94,52 @@ async function withHub(fn) {
     await hub.close();
   }
 }
+
+test('bounded-ladder scenarios ignore extra topics in the mutable repository queue', async () => {
+  const mutableRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-ladder-live-queue-'));
+  const mutableQueuePath = path.join(mutableRepo, 'data', 'topic-queue.json');
+  fs.mkdirSync(path.dirname(mutableQueuePath), { recursive: true });
+
+  const extraTopics = ['blog', 'seo'].map((kind, index) => ({
+    key: String(index + 8).repeat(64),
+    kind,
+    title: `Mutable live ${kind} topic that must not enter the bounded ladder`,
+    source: 'live-topic-discovery',
+    rationale: 'Regression decoy: this eligible topic would rotate immediately after the fixture topic fails.',
+    addedAt: '2026-08-24T00:00:00.000Z',
+    attempts: 0,
+    branchPrefix: `${kind}/auto-`,
+  }));
+  fs.writeFileSync(mutableQueuePath, `${JSON.stringify({
+    ...FROZEN_TOPIC_QUEUE,
+    topics: [...FROZEN_TOPIC_QUEUE.topics, ...extraTopics],
+  }, null, 2)}\n`);
+
+  for (const kind of ['blog', 'seo']) {
+    const fixtureTopics = FROZEN_TOPIC_QUEUE.topics.filter((topic) => topic.kind === kind);
+    assert.equal(fixtureTopics.length, 1, `${kind}: the bounded-ladder fixture must stay a one-topic queue`);
+
+    await withHub(async (hub, url) => {
+      const first = await run(url, ['plan-candidate', '--repo', REPO, '--kind', kind], { cwd: mutableRepo });
+      assert.equal(first.status, 0, first.stdout);
+      assert.equal(first.outputs.generate, 'true');
+      assert.equal(first.outputs.topic_key, fixtureTopics[0].key);
+
+      const failed = await run(url, [
+        'record-candidate-outcome', '--repo', REPO, '--kind', kind,
+        '--outcome', 'generation-failed', '--key', `${kind}-isolated-run`, '--reason', 'fixture candidate failed',
+      ], { cwd: mutableRepo });
+      assert.equal(failed.status, 0, failed.stdout);
+      assert.equal(failed.outputs.regenerations, '1');
+
+      const tooSoon = await run(url, ['plan-candidate', '--repo', REPO, '--kind', kind], { cwd: mutableRepo });
+      assert.equal(tooSoon.status, 0, tooSoon.stdout);
+      assert.equal(tooSoon.outputs.action, 'wait', `${kind}: an eligible live decoy must not bypass the fixture topic cooldown`);
+      assert.equal(tooSoon.outputs.generate, 'false');
+      assert.equal(tooSoon.outputs.topic_key, fixtureTopics[0].key);
+    });
+  }
+});
 
 test('a blocked candidate with no useful repair work left is not stranded on `repair`', async () => {
   await withHub(async (hub, url) => {
