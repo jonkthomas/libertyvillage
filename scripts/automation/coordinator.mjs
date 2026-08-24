@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  ALLOW_RECORD_DELETION_LABEL, BLOCKED_LABEL, BLOCKING_SEVERITIES, FIXER_MODEL, GATE_MODEL,
+  ABANDONED_LABEL, ALLOW_RECORD_DELETION_LABEL, BLOCKED_LABEL, BLOCKING_SEVERITIES, FIXER_MODEL, GATE_MODEL,
   KIND_POLICIES, MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS, TRUSTED_PR_AUTHORS,
 } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
@@ -64,14 +64,16 @@ async function textAtSha(repo, file, sha) {
   return Buffer.from(response.content, 'base64').toString('utf8');
 }
 
-// Trusted base/head text for every slug-keyed record file in the diff, so the
-// destructive-diff guard adjudicates real content instead of being skipped.
-async function recordSources(repo, pr, files) {
-  const recordFiles = files.filter((file) => isRecordFile(file));
-  if (recordFiles.length === 0) return {};
+// Trusted base/head text for every file with a deterministic content invariant:
+// slug-keyed records use the destructive-diff guard, and topic discovery uses
+// exact append-only queue validation.
+async function validationSources(repo, pr, files, kind) {
+  const sourceFiles = files.filter((file) => isRecordFile(file)
+    || (kind === 'topic-discovery' && file === 'data/topic-queue.json'));
+  if (sourceFiles.length === 0) return {};
   const baseSha = await mergeBaseSha(repo, pr.base.ref, pr.head.sha);
   const sources = {};
-  for (const file of recordFiles) {
+  for (const file of sourceFiles) {
     sources[file] = {
       baseText: await textAtSha(repo, file, baseSha),
       headText: await textAtSha(repo, file, pr.head.sha),
@@ -83,7 +85,7 @@ async function recordSources(repo, pr, files) {
 async function validatePr(options) {
   requireOptions(options, ['repo', 'pr', 'kind', 'sha']);
   const { pr, files } = await prData(options.repo, options.pr);
-  const sources = await recordSources(options.repo, pr, files);
+  const sources = await validationSources(options.repo, pr, files, options.kind);
   const result = validatePullRequest({
     repository: options.repo, kind: options.kind, expectedSha: options.sha, pr, files, sources,
   });
@@ -182,11 +184,19 @@ async function audit(options) {
   if (!Number.isInteger(attempt) || attempt < 0 || attempt > MAX_REPAIRS) throw new Error('invalid audit attempt');
   let verdict = null;
   if (options.verdict && fs.existsSync(options.verdict)) verdict = JSON.parse(fs.readFileSync(options.verdict, 'utf8'));
+  const failure = options['failure-class'] ? {
+    class: String(options['failure-class']),
+    name: String(options['failure-name'] || 'unknown'),
+    result: String(options['failure-result'] || 'failure'),
+  } : null;
+  const runUrl = process.env.GITHUB_SERVER_URL && /^\d+$/.test(process.env.GITHUB_RUN_ID ?? '')
+    ? `${process.env.GITHUB_SERVER_URL.replace(/\/$/, '')}/${options.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`
+    : null;
   const record = {
     commit_sha: options.sha, kind: options.kind, decision: options.decision, attempts: attempt,
     reviewer_model: GATE_MODEL, fixer_model: FIXER_MODEL,
     score: verdict?.overall ?? null, findings: verdict?.findings ?? [], range: verdict?.range ?? options.range ?? null,
-    recorded_at: new Date().toISOString(),
+    failure, run_url: runUrl, recorded_at: new Date().toISOString(),
   };
   fs.writeFileSync(options.out, `${JSON.stringify(record, null, 2)}\n`);
   await setLabels(options.repo, options.pr, options.decision, attempt);
@@ -203,8 +213,15 @@ async function audit(options) {
     console.log('Audit comment already exists; notification remains deduplicated.');
     return;
   }
-  const findings = record.findings.length ? record.findings.map((finding) => `- **${finding.severity}** \`${finding.path}\`: ${finding.note}`).join('\n') : '- none';
+  const findings = record.findings.length
+    ? record.findings.map((finding) => `- **${finding.severity}** \`${finding.path}\`: ${finding.note}`).join('\n')
+    : failure
+      ? `- No Opus verdict was produced. Blocking failure: **${failure.class}** / \`${failure.name}\` (${failure.result}).`
+      : '- none';
   const blockingCount = record.findings.filter((finding) => BLOCKING_SEVERITIES.includes(finding?.severity)).length;
+  const blockingSummary = failure && verdict === null
+    ? `unavailable (no Opus verdict; ${failure.class}/${failure.name}=${failure.result})`
+    : String(blockingCount);
   // The machine-readable half of the same evidence: what `recovery.buildRepairHistory`
   // replays on the next round to decide whether the repairs are converging at all.
   const data = `<!-- automation-audit-data:${JSON.stringify({
@@ -216,8 +233,9 @@ async function audit(options) {
     `- Decision: **${record.decision}**`, `- Commit: \`${record.commit_sha}\``,
     `- Reviewer: \`${record.reviewer_model}\``, `- Fixer: \`${record.fixer_model}\``,
     `- Score: ${record.score ?? 'unavailable'}`, `- Repair attempts: ${record.attempts}/${MAX_REPAIRS}`,
-    `- Blocking findings: ${blockingCount}`,
+    `- Blocking findings: ${blockingSummary}`,
     `- Range: \`${record.range ?? `PR #${options.pr} @ ${record.commit_sha}`}\``,
+    ...(runUrl ? [`- GitHub Actions run: ${runUrl}`] : []),
     ...(overridden ? [
       '',
       `> [!CAUTION]`,
@@ -394,8 +412,6 @@ async function setHeal(options) {
   await setHealLabels(options.repo, options.pr, attempt);
   console.log(`Consumed base heal ${attempt}/${MAX_HEALS} on PR #${options.pr}.`);
 }
-
-const ABANDONED_LABEL = 'automation-abandoned';
 
 // The latest durable coordinator decision on this candidate, read back from the
 // audit comments the coordinator itself posted. Untrusted commenters are ignored,
@@ -784,8 +800,9 @@ function conflictStage(file, stage) {
 
 // Merges the current staging head into the validated PR head inside a checkout
 // that is never executed, resolving only both-appended record-file conflicts.
-// Anything else — a clean merge, an unknown conflict, a raced head — throws, and
-// block-generator keeps its existing fail-closed behaviour.
+// A current base or clean merge proves that the red job was not caused by a base
+// conflict. Those are successful no-ops (healed=false), while block-generator
+// still fails closed. Unknown conflicts and raced heads remain hard errors.
 async function healGeneratorBase(options) {
   requireOptions(options, ['repo', 'pr', 'kind', 'sha']);
   const current = git(['rev-parse', 'HEAD']).trim();
@@ -807,7 +824,11 @@ async function healGeneratorBase(options) {
   let containsStaging = true;
   try { git(['merge-base', '--is-ancestor', stagingSha, options.sha], { stdio: 'ignore' }); }
   catch { containsStaging = false; }
-  if (containsStaging) throw new Error('PR already contains the current staging head; nothing to heal');
+  if (containsStaging) {
+    writeOutput({ healed: 'false', reason: 'current-base', staging_sha: stagingSha });
+    console.log(`PR #${pr.number} already contains current staging ${stagingSha}; no base heal applies.`);
+    return;
+  }
 
   let conflicted = [];
   let mergeError = null;
@@ -820,7 +841,9 @@ async function healGeneratorBase(options) {
   if (conflicted.length === 0) {
     try { git(['merge', '--abort'], { stdio: 'ignore' }); } catch { /* nothing staged to abort */ }
     if (mergeError) throw new Error(`merge failed without a resolvable conflict: ${String(mergeError.stderr || mergeError.message).trim().slice(0, 200)}`);
-    throw new Error('staging merges cleanly into this PR; the failure is not a base conflict');
+    writeOutput({ healed: 'false', reason: 'clean-merge', staging_sha: stagingSha });
+    console.log(`Staging ${stagingSha} merges cleanly into PR #${pr.number}; no base heal applies.`);
+    return;
   }
 
   const plan = planBaseHeal(options.kind, conflicted);

@@ -1,15 +1,15 @@
 name: Blocked automation PR sentinel
 
-# Read-only daily sweep, two passes. STALE: any PR the autonomous gate labelled
+# Read-only hourly sweep, two passes. STALE: any PR the autonomous gate labelled
 # automation-blocked and nobody has touched for more than 24h. ORPHAN: any
-# bot-authored PR that reached no terminal state at all — no automation-* label and
-# no automation/* head status after 24h. A non-zero ORPHAN count means the
+# bot-authored PR that reached no terminal state at all — no terminal label and
+# no automation/* head status after roughly 2h. A non-zero ORPHAN count means the
 # exactly-one-terminal-outcome guarantee has broken somewhere, and it is the
 # highest-priority signal in this system. No repository writes, no auto-close — a
 # blocked PR always waits for a human.
 on:
   schedule:
-    - cron: "0 12 * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -45,7 +45,7 @@ jobs:
             echo "- ORPHAN PRs that reached no terminal state: ${{ steps.scan.outputs.orphan_count }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Notify Slack once when configured
-        if: ${{ steps.scan.outputs.stale_count != '0' || steps.scan.outputs.orphan_count != '0' }}
+        if: ${{ steps.scan.outputs.notify == 'true' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_TEXT: ${{ steps.scan.outputs.slack_text }}

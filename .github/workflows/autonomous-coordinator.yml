@@ -106,6 +106,8 @@ jobs:
       contents: write
       issues: write
       pull-requests: read
+    outputs:
+      healed: ${{ steps.heal.outputs.healed }}
     steps:
       - name: Checkout trusted coordinator tooling from main
         uses: actions/checkout@v4
@@ -129,6 +131,7 @@ jobs:
           git config user.email "noreply@libertyvillage.co"
           node ../trusted/scripts/automation/coordinator.mjs heal-generator-base --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}"
       - name: Recheck exact remote head and persist next heal attempt
+        if: ${{ steps.heal.outputs.healed == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ needs.validate-generator.outputs.head_ref }}
@@ -139,6 +142,7 @@ jobs:
           [ "$REMOTE_SHA" = "$EXPECTED_SHA" ] || { echo "::error::PR head raced; refusing heal"; exit 1; }
           node trusted/scripts/automation/coordinator.mjs set-heal --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --heal "$NEXT_HEAL"
       - name: Recheck exact remote head and push the merge without force
+        if: ${{ steps.heal.outputs.healed == 'true' }}
         working-directory: work
         env:
           HEAD_REF: ${{ needs.validate-generator.outputs.head_ref }}
@@ -148,6 +152,7 @@ jobs:
           [ "$REMOTE_SHA" = "$EXPECTED_SHA" ] || { echo "::error::PR head raced; refusing push"; exit 1; }
           git push origin "HEAD:$HEAD_REF"
       - name: Audit heal and explicitly redispatch exact new SHA
+        if: ${{ steps.heal.outputs.healed == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           NEW_SHA: ${{ steps.heal.outputs.new_sha }}
@@ -156,6 +161,7 @@ jobs:
           node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "$NEW_SHA"
           node trusted/scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision healing --attempt "${{ needs.validate-generator.outputs.attempt }}" --out trusted/heal-audit.json
       - uses: actions/upload-artifact@v4
+        if: ${{ steps.heal.outputs.healed == 'true' }}
         with:
           name: heal-audit-${{ needs.validate-generator.outputs.head_sha }}
           path: trusted/heal-audit.json
@@ -422,7 +428,7 @@ jobs:
         apply-generator-repair,
         pass-generator,
       ]
-    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.pass-generator.result != 'success' && needs.apply-generator-repair.result != 'success' && needs.heal-generator-base.result != 'success' }}
+    if: ${{ always() && needs.validate-generator.outputs.trusted == 'true' && needs.pass-generator.result != 'success' && needs.apply-generator-repair.result != 'success' && (needs.heal-generator-base.result != 'success' || needs.heal-generator-base.outputs.healed != 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -496,7 +502,9 @@ jobs:
           fi
           node scripts/automation/coordinator.mjs status --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-generator.outputs.head_sha }}" --context automation/opus-gate --state failure --description "Automation blocked: $DECISION"
           VERDICT_ARGS=(); [ -f gate-verdict.json ] && VERDICT_ARGS=(--verdict gate-verdict.json)
-          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision "$DECISION" --attempt "${{ steps.budget.outputs.attempt }}" "${VERDICT_ARGS[@]}" --out blocked-audit.json
+          FAILURE_ARGS=()
+          if [ "$CI_RESULT" != success ]; then FAILURE_ARGS=(--failure-class ci --failure-name generator-ci --failure-result "$CI_RESULT"); fi
+          node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --kind "$AUTOMATION_KIND" --sha "${{ needs.validate-generator.outputs.head_sha }}" --decision "$DECISION" --attempt "${{ steps.budget.outputs.attempt }}" "${VERDICT_ARGS[@]}" "${FAILURE_ARGS[@]}" --out blocked-audit.json
       - if: ${{ steps.recover.outputs.action != 'retry' }}
         uses: actions/upload-artifact@v4
         with:
