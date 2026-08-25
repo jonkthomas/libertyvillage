@@ -16,7 +16,7 @@ fi
 git -C "$repo_dir" fetch --no-tags origin main staging
 for required_branch in main staging; do
   branch_ready=true
-  for required_path in scripts/supervisor/cli.mjs scripts/supervisor/host-run.mjs scripts/automation/promotion-control.mjs ops/exedev-supervisor/refresh-seo.sh; do
+  for required_path in scripts/supervisor/cli.mjs scripts/supervisor/host-run.mjs scripts/automation/promotion-control.mjs scripts/automation/weekly-owner.mjs ops/exedev-supervisor/owner.txt ops/exedev-supervisor/refresh-seo.sh; do
     git -C "$repo_dir" cat-file -e "origin/$required_branch:$required_path" || branch_ready=false
   done
   if [[ "$branch_ready" != true ]] || ! git -C "$repo_dir" show "origin/$required_branch:package.json" | grep -q '"test:supervisor"'; then

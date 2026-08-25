@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { github } from '../automation/github.mjs';
 import { acquireAtomicLock, leaseIsLive, newLease, pidAlive, releaseAtomicLock } from './lease.mjs';
 import { readLedger, repairLedger, terminalizeRun, updateLedger } from './ledger.mjs';
-import { cleanupDataBranch, recordSupervisorOutcome, runBlogSupervisor } from './host-run.mjs';
+import { cleanupDataBranch, recordSupervisorOutcome, resolveHostWeeklyOwner, runBlogSupervisor } from './host-run.mjs';
 import { smokePiSession } from './pi-session.mjs';
 import { activeOwnedRuns, evaluateSentinel } from './sentinel.mjs';
 import { finalizeSupervisorTerminal } from './terminal-pr.mjs';
@@ -83,6 +83,10 @@ export function resolveSmokeAgentDir(args, fallback) {
 }
 
 async function run(dryRun) {
+  if (resolveHostWeeklyOwner(REPO_ROOT) !== 'exedev') {
+    console.log('SKIPPED_OWNER: trusted remote weekly owner is gha');
+    return;
+  }
   fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
   const now = new Date();
   const runId = `blog-${now.toISOString().replace(/[.:]/g, '-')}`;

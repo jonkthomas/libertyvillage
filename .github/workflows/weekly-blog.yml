@@ -21,7 +21,7 @@ on:
         type: boolean
         default: false
       force_gha:
-        description: 'Explicitly run GHA generation even when LV_WEEKLY_OWNER=exedev'
+        description: 'Explicitly run GHA generation even when owner.txt is exedev'
         required: false
         type: boolean
         default: false
@@ -38,11 +38,28 @@ permissions:
   pull-requests: write
 
 jobs:
+  resolve-owner:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      owner: ${{ steps.owner.outputs.owner }}
+    steps:
+      - name: Checkout trusted owner control from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - name: Resolve the canonical weekly owner
+        id: owner
+        run: node trusted/scripts/automation/weekly-owner.mjs --github-output
+
   generate-blog:
-    # Default ownership is GHA. During the pilot the repository variable is set to
-    # exedev, which disables scheduled GHA generation; only this explicit manual
-    # override may bypass the switch.
-    if: ${{ vars.LV_WEEKLY_OWNER != 'exedev' || (github.event_name == 'workflow_dispatch' && inputs.force_gha == true) }}
+    needs: resolve-owner
+    # Only the protected main owner file may enable scheduled GHA generation. A
+    # valid exedev owner can be bypassed only by this explicit manual override.
+    if: ${{ needs.resolve-owner.outputs.owner == 'gha' || (github.event_name == 'workflow_dispatch' && inputs.force_gha == true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
