@@ -26,6 +26,17 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   const smokeUnit = read('systemd/lv-supervisor-smoke.service');
   assert.match(read('install-node22.sh'), /NODE_VERSION=22\.23\.2/);
   assert.match(read('install-node22.sh'), /NODE_SHA256=[0-9a-f]{64}/);
+  assert.match(read('install.sh'), /pi_sdk_version=0\.84\.2/);
+  assert.match(read('install.sh'), /pi_sdk_path=\$pi_sdk_prefix\/lib\/node_modules\/@earendil-works\/pi-coding-agent/);
+  assert.match(read('install.sh'), /\/usr\/local\/bin\/pi --version/);
+  assert.match(read('install.sh'), /npm install --global --prefix "\$pi_sdk_prefix".*--ignore-scripts.*@earendil-works\/pi-coding-agent@\$pi_sdk_version/);
+  assert.match(read('install.sh'), /test -f "\$pi_sdk_path\/node_modules\/typebox\/build\/index\.mjs"/);
+  assert.match(read('install.sh'), /Pinned pi SDK install is missing TypeBox/);
+  assert.match(read('install.sh'), /sdk\.VERSION !== '\$pi_sdk_version'/);
+  assert.match(read('install.sh'), /sed -i .*\^PI_SDK_PATH=.*PI_SDK_PATH=\$pi_sdk_path/);
+  assert.match(read('install.sh'), /printf '\\nPI_SDK_PATH=%s\\n'/);
+  assert.match(read('install.sh'), /tee -a \/etc\/lv-supervisor\.env/);
+  assert.match(read('lv-supervisor.env.example'), /PI_SDK_PATH=\/opt\/lv-supervisor-sdk\/lib\/node_modules\/@earendil-works\/pi-coding-agent/);
   assert.match(read('systemd/lv-supervisor.timer'), /OnCalendar=Sun,Wed/);
   assert.match(read('systemd/lv-supervisor-sentinel.timer'), /OnCalendar=hourly/);
   assert.match(supervisorUnit, /TimeoutStartSec=21600/);

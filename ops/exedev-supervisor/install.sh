@@ -10,6 +10,14 @@ repo_url=${LV_REPO_URL:-https://github.int.exe.xyz/jonkthomas/libertyvillage.git
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 "$script_dir/install-node22.sh"
+pi_sdk_version=0.84.2
+pi_sdk_prefix=/opt/lv-supervisor-sdk
+pi_sdk_path=$pi_sdk_prefix/lib/node_modules/@earendil-works/pi-coding-agent
+[[ "$(/usr/local/bin/pi --version)" == "$pi_sdk_version" ]] || { echo "Preinstalled pi binary must be $pi_sdk_version" >&2; exit 1; }
+sudo /usr/local/bin/npm install --global --prefix "$pi_sdk_prefix" --no-audit --no-fund --ignore-scripts "@earendil-works/pi-coding-agent@$pi_sdk_version"
+sudo test -f "$pi_sdk_path/node_modules/typebox/build/index.mjs" \
+  || { echo "Pinned pi SDK install is missing TypeBox" >&2; exit 1; }
+sudo /usr/local/bin/node --input-type=module -e "const sdk=await import('$pi_sdk_path/dist/index.js'); if(sdk.VERSION !== '$pi_sdk_version') throw new Error('pi SDK version mismatch: '+String(sdk.VERSION))"
 if [[ ! -d "$repo_dir/.git" ]]; then
   git clone "$repo_url" "$repo_dir"
 fi
@@ -43,6 +51,11 @@ if [[ ! -f /etc/lv-supervisor.env ]]; then
 else
   sudo chown root:exedev /etc/lv-supervisor.env
   sudo chmod 0640 /etc/lv-supervisor.env
+fi
+if sudo grep -q '^PI_SDK_PATH=' /etc/lv-supervisor.env; then
+  sudo sed -i "s#^PI_SDK_PATH=.*#PI_SDK_PATH=$pi_sdk_path#" /etc/lv-supervisor.env
+else
+  printf '\nPI_SDK_PATH=%s\n' "$pi_sdk_path" | sudo tee -a /etc/lv-supervisor.env >/dev/null
 fi
 sudo systemctl daemon-reload
 sudo systemctl enable --now lv-supervisor.timer lv-supervisor-sentinel.timer
