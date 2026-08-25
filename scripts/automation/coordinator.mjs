@@ -26,6 +26,7 @@ import { planBaseHeal, resolveAppendUnion } from './heal-base.mjs';
 import {
   applyRecordRepairPlan, isRecordFile, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
 } from './record-repair.mjs';
+import { promotionEnabled } from './promotion-control.mjs';
 
 function parseArgs() {
   const values = {};
@@ -105,6 +106,11 @@ async function validatePr(options) {
 
 async function validatePromotion(options) {
   requireOptions(options, ['repo', 'sha']);
+  if (!promotionEnabled()) {
+    writeOutput({ trusted: 'false', no_changes: 'true' });
+    console.log('Promotion validation skipped because promotion is disabled for the supervisor pilot.');
+    return;
+  }
   if (!isExactSha(options.sha)) throw new Error('promotion payload SHA is invalid');
   const [staging, main, comparison] = await Promise.all([
     github(`/repos/${options.repo}/branches/staging`),
@@ -886,6 +892,11 @@ async function healGeneratorBase(options) {
 
 async function observeAndPromote(options) {
   requireOptions(options, ['repo', 'pr', 'sha']);
+  if (!promotionEnabled()) {
+    writeOutput({ observed: 'pilot-no-promote', promotion_dispatched: 'false' });
+    console.log('Staging merge observation completed with promotion disabled for the supervisor pilot.');
+    return;
+  }
   for (let poll = 0; poll < 72; poll += 1) {
     const pr = await github(`/repos/${options.repo}/pulls/${options.pr}`);
     const staging = pr.merged ? await github(`/repos/${options.repo}/branches/staging`) : null;

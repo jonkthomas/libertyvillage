@@ -1,0 +1,215 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { github, paged } from '../automation/github.mjs';
+import { isExactSha } from '../automation/policy.mjs';
+import { validateIngestDiff, repositoryDispatchBody } from './ingest-contract.mjs';
+import { generateWithPi, writeCandidateArtifact } from './pi-session.mjs';
+import { fetchObservation } from './github-monitor.mjs';
+import { lostDispatchRetry, mayRepin, MONITOR_LIMIT_MS, terminalFromObservation } from './sha-monitor.mjs';
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function command(file, args, options = {}) {
+  return execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim();
+}
+
+export function coordinator(repoRoot, args, { repo }) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-supervisor-output-'));
+  const output = path.join(directory, 'output');
+  try {
+    command(process.execPath, [path.join(repoRoot, 'scripts/automation/coordinator.mjs'), ...args, '--repo', repo], {
+      cwd: repoRoot, env: { ...process.env, GITHUB_OUTPUT: output },
+    });
+    return Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map((line) => {
+      const split = line.indexOf('='); return [line.slice(0, split), line.slice(split + 1)];
+    }));
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+}
+
+export function resolveWeeklyOwner(env = process.env) {
+  const owner = env.LV_WEEKLY_OWNER?.trim() || 'gha';
+  if (!['gha', 'exedev'].includes(owner)) throw new Error(`invalid LV_WEEKLY_OWNER: ${owner}`);
+  return owner;
+}
+
+export function resolveCandidateReadOnly({ dryRun, resolve, plan }) {
+  const topic = resolve();
+  if (dryRun) return { topic, candidate: null, terminal: 'DRY_RUN' };
+  return { topic, candidate: plan(topic) };
+}
+
+export function recordSupervisorOutcome({ repoRoot, repo, runId, topicKey, terminal, reason }, coordinatorFn = coordinator) {
+  if (!runId || !topicKey) throw new Error('candidate outcome requires exact run and topic keys');
+  return coordinatorFn(repoRoot, [
+    'record-candidate-outcome', '--kind', 'blog', '--outcome', terminal,
+    '--key', runId, '--topic-key', topicKey, '--reason', reason || terminal,
+  ], { repo });
+}
+
+export function assertFreshSeoSnapshot(file, { now = Date.now(), maxAgeHours = Number(process.env.LV_SEO_MAX_AGE_HOURS || 48) } = {}) {
+  if (!fs.existsSync(file)) throw new Error(`trusted SEO context is missing: ${file}`);
+  const ageMs = now - fs.statSync(file).mtimeMs;
+  if (!Number.isFinite(maxAgeHours) || maxAgeHours <= 0 || ageMs < 0 || ageMs > maxAgeHours * 60 * 60 * 1000) {
+    throw new Error(`trusted SEO context is stale: ${file}`);
+  }
+}
+
+export function cleanupDataBranch(repoRoot, branch) {
+  if (!/^supervisor\/blog-data-[0-9]+$/.test(branch || '')) throw new Error(`refused non-owned data branch cleanup: ${String(branch)}`);
+  const remote = command('git', ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`], { cwd: repoRoot });
+  if (!remote) return false;
+  command('git', ['push', 'origin', '--delete', branch], { cwd: repoRoot });
+  return true;
+}
+
+export async function boundedCandidateFlow({ generate, lint, publish }) {
+  const candidate = await generate();
+  await lint(candidate);
+  const result = await publish(candidate);
+  return { published: true, result };
+}
+
+async function findIngestPr(repo, dataSha, { timeoutMs = 25 * 60 * 1000 } = {}) {
+  const owner = repo.split('/')[0];
+  const branch = `blog/auto-supervisor-${dataSha.slice(0, 12)}`;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const prs = await paged(`/repos/${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${branch}`)}`);
+    if (prs.length === 1) return prs[0];
+    if (prs.length > 1) throw new Error('ingest produced multiple owned pull requests');
+    await sleep(15_000);
+  }
+  throw new Error('timed out waiting for trusted ingest pull request');
+}
+
+async function monitorOwnedPr({ repoRoot, repo, prNumber, initialSha, onUpdate, startedAt = Date.now() }) {
+  let sha = initialSha;
+  let missingSince = null;
+  let redispatches = 0;
+  while (Date.now() - startedAt < MONITOR_LIMIT_MS) {
+    const observation = await fetchObservation(repo, prNumber, sha);
+    if (observation.pr?.head?.sha !== sha && observation.pr?.state === 'open') {
+      const commit = await github(`/repos/${repo}/commits/${observation.pr.head.sha}`);
+      const parents = (commit?.parents || []).map((parent) => parent.sha);
+      if (!mayRepin({ oldSha: sha, newSha: observation.pr.head.sha, parents })) {
+        throw new Error('refused unrelated pull request head drift');
+      }
+      sha = observation.pr.head.sha;
+      missingSince = null;
+      await onUpdate({ head_sha: sha, sha_reason: observation.audit?.decision === 'healing' ? 'heal' : 'repair', redispatches });
+      continue;
+    }
+    const terminal = terminalFromObservation({
+      pr: observation.pr, sha, auditDecision: observation.audit?.decision,
+    });
+    if (terminal.terminal) return { terminal: terminal.terminal, prState: observation.pr?.state, sha };
+    const missing = observation.statuses.ci === 'missing' && observation.statuses.gate === 'missing';
+    missingSince = missing ? (missingSince ?? Date.now()) : null;
+    const retry = lostDispatchRetry({ attempts: redispatches, missingSince });
+    if (retry.action === 'retry') {
+      coordinator(repoRoot, ['dispatch', '--pr', String(prNumber), '--kind', 'blog', '--sha', sha], { repo });
+      redispatches += 1; missingSince = Date.now();
+      await onUpdate({ head_sha: sha, sha_reason: 'redispatch', redispatches });
+    } else if (retry.action === 'block') return { terminal: 'MONITOR_TIMEOUT', prState: observation.pr?.state, sha };
+    await sleep(30_000);
+  }
+  return { terminal: 'MONITOR_TIMEOUT', prState: 'open', sha };
+}
+
+export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun = false, onUpdate = async () => {} }) {
+  if (resolveWeeklyOwner() !== 'exedev') return { terminal: 'SKIPPED_OWNER' };
+  command('git', ['fetch', '--no-tags', 'origin', 'main', 'staging'], { cwd: repoRoot });
+  const trustedStagingSha = command('git', ['rev-parse', 'origin/staging'], { cwd: repoRoot });
+  if (!isExactSha(trustedStagingSha)) throw new Error('origin/staging did not resolve to an exact SHA');
+  const workDir = path.join(stateDir, 'work', run.run_id);
+  fs.mkdirSync(path.dirname(workDir), { recursive: true, mode: 0o700 });
+  command('git', ['worktree', 'add', '--detach', workDir, 'origin/staging'], { cwd: repoRoot });
+  let dataBranch = null;
+  try {
+    await onUpdate({ state: 'BASELINE_CI', trusted_staging_sha: trustedStagingSha });
+    command('npm', ['ci'], { cwd: workDir });
+    command('npm', ['run', 'lint:automation'], { cwd: workDir });
+    command('npm', ['run', 'lint:supervisor'], { cwd: workDir });
+    command('npm', ['run', 'test:automation'], { cwd: workDir });
+    command('npm', ['run', 'test:supervisor'], { cwd: workDir });
+
+    const seoFile = process.env.LV_SEO_CONTEXT || path.join(workDir, 'tasks/seo-data-latest.json');
+    const seoPrefetch = process.env.LV_SEO_PREFETCH_COMMAND?.trim();
+    if (!seoPrefetch) throw new Error('LV_SEO_PREFETCH_COMMAND is required for every active supervisor run');
+    command('/bin/sh', ['-c', seoPrefetch], { cwd: workDir });
+    assertFreshSeoSnapshot(seoFile);
+
+    const resolved = resolveCandidateReadOnly({
+      dryRun,
+      resolve: () => coordinator(repoRoot, ['resolve-topic', '--kind', 'blog'], { repo }),
+      plan: (topic) => coordinator(repoRoot, ['plan-candidate', '--kind', 'blog', '--topic-key', topic.topic_key], { repo }),
+    });
+    const { topic, candidate } = resolved;
+    await onUpdate({ state: dryRun ? 'TERMINAL' : 'PLAN_CANDIDATE', topic_key: topic.topic_key });
+    if (dryRun) return { terminal: 'DRY_RUN', topic_key: topic.topic_key };
+    if (candidate.generate !== 'true') return { terminal: candidate.action === 'abandon-topic' ? 'ABANDONED_TOPIC' : 'SKIPPED_CANDIDATE', topic_key: topic.topic_key };
+    const sessionContextDir = path.join(workDir, '.supervisor-context');
+    const sessionSeoFile = path.join(sessionContextDir, 'seo-data-latest.json');
+    fs.mkdirSync(sessionContextDir, { recursive: true, mode: 0o700 });
+    fs.copyFileSync(seoFile, sessionSeoFile);
+    fs.chmodSync(sessionSeoFile, 0o600);
+    await onUpdate({ state: 'GENERATE' });
+    const generation = await boundedCandidateFlow({
+      generate: async () => generateWithPi({
+        cwd: workDir, agentDir: path.join(stateDir, 'pi-runtime'), sessionsDir: path.join(stateDir, 'pi-sessions'),
+        topic: { key: topic.topic_key, title: topic.topic_title }, seoFile: path.relative(workDir, sessionSeoFile),
+        contextFiles: ['data/businesses.json', 'data/posts.json', 'scripts/prompts/sections/03-blog-generation.md'],
+        provider: process.env.PI_PROVIDER || 'openai', modelId: process.env.PI_MODEL || 'gpt-5.6-sol',
+        baseUrl: process.env.PI_BASE_URL || 'https://llm.int.exe.xyz/v1',
+      }),
+      lint: async ({ post, sessionFile }) => {
+        const imagePath = path.resolve(path.join(workDir, 'public'), `.${post.image}`);
+        if (!imagePath.startsWith(`${path.join(workDir, 'public')}${path.sep}`) || !fs.existsSync(imagePath)) {
+          throw new Error(`candidate image does not exist in the staging worktree: ${post.image}`);
+        }
+        writeCandidateArtifact({ postsFile: path.join(workDir, 'data/posts.json'), post });
+        await onUpdate({ state: 'LINT', pi_session_file: sessionFile });
+        command(process.execPath, [path.join(repoRoot, 'scripts/blog-lint.mjs'), '--posts', path.join(workDir, 'data/posts.json'), '--businesses', path.join(workDir, 'data/businesses.json')], { cwd: repoRoot });
+      },
+      publish: async () => {
+        await onUpdate({ state: 'PUSH_DATA_BRANCH' });
+        dataBranch = `supervisor/blog-data-${Date.now()}`;
+        command('git', ['checkout', '-b', dataBranch], { cwd: workDir });
+        command('git', ['add', '--', 'data/posts.json'], { cwd: workDir });
+        command('git', ['-c', 'user.name=exe.dev supervisor', '-c', 'user.email=supervisor@exe.dev', 'commit', '-m', 'blog: supervised candidate data'], { cwd: workDir });
+        const dataSha = command('git', ['rev-parse', 'HEAD'], { cwd: workDir });
+        const files = command('git', ['diff', '--name-only', 'origin/staging...HEAD'], { cwd: workDir }).split('\n').filter(Boolean);
+        const paths = validateIngestDiff(files);
+        if (!paths.ok) throw new Error(`candidate escaped blog policy: ${paths.errors.join('; ')}`);
+        command('git', ['push', 'origin', `HEAD:${dataBranch}`], { cwd: workDir });
+        await onUpdate({ state: 'WAIT_INGEST', data_branch: dataBranch, data_sha: dataSha });
+        const payload = { kind: 'blog', data_sha: dataSha, data_branch: dataBranch, topic_key: topic.topic_key, regenerations: Number(candidate.regenerations) };
+        await github(`/repos/${repo}/dispatches`, { method: 'POST', body: repositoryDispatchBody(payload) });
+        return { dataBranch, dataSha };
+      },
+    });
+    let pr;
+    try {
+      pr = await findIngestPr(repo, generation.result.dataSha);
+    } catch (error) {
+      if (!String(error.message).includes('timed out waiting for trusted ingest')) throw error;
+      cleanupDataBranch(repoRoot, generation.result.dataBranch);
+      try {
+        pr = await findIngestPr(repo, generation.result.dataSha, { timeoutMs: 2 * 60 * 1000 });
+      } catch (lateError) {
+        if (!String(lateError.message).includes('timed out waiting for trusted ingest')) throw lateError;
+        throw error;
+      }
+    }
+    if (!isExactSha(pr?.head?.sha)) throw new Error('ingest PR has no exact head SHA');
+    await onUpdate({ state: 'MONITORING_CI', data_branch: generation.result.dataBranch, data_sha: generation.result.dataSha, pr_number: pr.number, head_sha: pr.head.sha, sha_reason: 'ingest' });
+    return { ...(await monitorOwnedPr({ repoRoot, repo, prNumber: pr.number, initialSha: pr.head.sha, onUpdate })), topic_key: topic.topic_key };
+  } finally {
+    if (dataBranch) {
+      try { cleanupDataBranch(repoRoot, dataBranch); } catch (error) { console.error(`data branch cleanup failed for ${dataBranch}: ${error.message}`); }
+    }
+    try { command('git', ['worktree', 'remove', '--force', workDir], { cwd: repoRoot }); } catch {}
+  }
+}

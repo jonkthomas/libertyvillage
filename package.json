@@ -8,8 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "lint:automation": "eslint scripts/automation tests/automation",
+    "lint:supervisor": "eslint scripts/supervisor tests/supervisor",
     "lint:changed": "node scripts/automation/lint-changed.mjs",
     "test:automation": "node --import tsx --test tests/automation/*.test.mjs tests/automation/*.eval.mjs",
+    "test:supervisor": "node --test tests/supervisor/*.test.mjs",
+    "supervisor:smoke": "node scripts/supervisor/cli.mjs smoke",
     "test:news-pilot": "node --import tsx --test tests/news-pilot/*.test.mjs",
     "test:e2e": "playwright test",
     "report:growth": "node scripts/generate-weekly-growth-report.mjs"

@@ -1,20 +1,36 @@
 import fs from 'node:fs';
 import { isExactSha } from './policy.mjs';
 
-const API = process.env.GITHUB_API_URL || 'https://api.github.com';
+const DEFAULT_API = 'https://api.github.com';
+export const EXE_GITHUB_PROXY_HOST = 'github.int.exe.xyz';
 
-function token() {
-  const value = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!value) throw new Error('GH_TOKEN is required');
-  return value;
+export function githubRequestAuth(env = process.env) {
+  const api = env.GITHUB_API_URL || DEFAULT_API;
+  let parsed;
+  try {
+    parsed = new URL(api);
+  } catch {
+    throw new Error(`invalid GITHUB_API_URL: ${api}`);
+  }
+  const proxyAuth = env.LV_EXE_GITHUB_PROXY_AUTH === 'true';
+  if (proxyAuth) {
+    if (parsed.protocol !== 'https:' || parsed.host !== EXE_GITHUB_PROXY_HOST) {
+      throw new Error(`LV_EXE_GITHUB_PROXY_AUTH is restricted to https://${EXE_GITHUB_PROXY_HOST}`);
+    }
+    return { api, authorization: null };
+  }
+  const token = env.GH_TOKEN || env.GITHUB_TOKEN;
+  if (!token) throw new Error('GH_TOKEN is required');
+  return { api, authorization: `Bearer ${token}` };
 }
 
 export async function github(path, { method = 'GET', body, accept = 'application/vnd.github+json' } = {}) {
-  const response = await fetch(`${API}${path}`, {
+  const { api, authorization } = githubRequestAuth();
+  const response = await fetch(`${api}${path}`, {
     method,
     headers: {
       Accept: accept,
-      Authorization: `Bearer ${token()}`,
+      ...(authorization ? { Authorization: authorization } : {}),
       'X-GitHub-Api-Version': '2022-11-28',
       'User-Agent': 'liberty-village-automation-coordinator',
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),

@@ -1,0 +1,20 @@
+[Unit]
+Description=Reconcile Liberty Village supervisor ledger and owned PRs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=exedev
+WorkingDirectory=/home/exedev/libertyvillage
+EnvironmentFile=/etc/lv-supervisor.env
+Environment=GIT_CONFIG_GLOBAL=/dev/null
+Environment=GIT_CONFIG_NOSYSTEM=1
+TimeoutStartSec=120
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+InaccessiblePaths=-/home/exedev/.config/gh
+ReadWritePaths=/var/lib/lv-supervisor /home/exedev/libertyvillage
+ExecStart=/usr/local/bin/node scripts/supervisor/cli.mjs sentinel

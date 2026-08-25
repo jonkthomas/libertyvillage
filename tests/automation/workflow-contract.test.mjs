@@ -65,6 +65,10 @@ test('every workflow that opens a staging PR explicitly dispatches a matching co
       kind: 'blog', prefix: 'blog/auto-', paths: ['data/posts.json', 'public/images/blog/example.jpg'],
       stage: 'git add data/posts.json "public/images/blog/"',
     },
+    'supervisor-ingest.yml': {
+      kind: 'blog', prefix: 'blog/auto-', paths: ['data/posts.json', 'public/images/blog/example.jpg'],
+      stage: 'git add data/posts.json public/images/blog/',
+    },
     'weekly-seo-improvements.yml': {
       kind: 'seo', prefix: 'seo/auto-',
       paths: ['app/page.tsx', 'components/Card.tsx', 'data/topics.json', 'lib/schema.ts', 'public/images/example.jpg'],

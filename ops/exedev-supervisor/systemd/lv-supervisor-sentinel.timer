@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Liberty Village supervisor sentinel
+
+[Timer]
+OnCalendar=hourly
+AccuracySec=1min
+Persistent=true
+Unit=lv-supervisor-sentinel.service
+
+[Install]
+WantedBy=timers.target

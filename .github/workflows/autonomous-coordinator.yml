@@ -65,9 +65,11 @@ jobs:
         run: test "$(git rev-parse HEAD^2)" = "$EXPECTED_SHA"
       - run: npm ci
       - run: npm run lint:automation
+      - run: npm run lint:supervisor
       - run: npm run lint:changed
       - run: npm run build
       - run: npm run test:automation
+      - run: npm run test:supervisor
       - run: npm run test:news-pilot
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
@@ -413,6 +415,8 @@ jobs:
         if: ${{ steps.refresh.outputs.refreshed != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
+          LV_WEEKLY_OWNER: ${{ vars.LV_WEEKLY_OWNER }}
         run: node scripts/automation/coordinator.mjs observe-and-promote --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
 
   block-generator:
@@ -580,6 +584,8 @@ jobs:
       - id: validate
         env:
           GH_TOKEN: ${{ github.token }}
+          LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
+          LV_WEEKLY_OWNER: ${{ vars.LV_WEEKLY_OWNER }}
         run: node scripts/automation/coordinator.mjs validate-promotion --repo "$GITHUB_REPOSITORY" --sha "$AUTOMATION_SHA"
 
   prepare-promotion:

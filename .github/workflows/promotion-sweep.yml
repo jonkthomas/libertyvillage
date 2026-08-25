@@ -41,6 +41,8 @@ jobs:
         id: sweep
         env:
           GH_TOKEN: ${{ github.token }}
+          LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
+          LV_WEEKLY_OWNER: ${{ vars.LV_WEEKLY_OWNER }}
         run: node scripts/automation/promotion-sweep.mjs --repo "$GITHUB_REPOSITORY"
       - name: Dispatch the cumulative promotion for the exact staging head
         if: ${{ steps.sweep.outputs.action == 'dispatch' }}
