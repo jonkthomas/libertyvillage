@@ -1,0 +1,99 @@
+name: Supervisor blog ingest
+
+on:
+  repository_dispatch:
+    types: [supervisor-ingest-blog]
+
+concurrency:
+  group: supervisor-ingest-blog
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  ingest:
+    if: ${{ vars.LV_WEEKLY_OWNER == 'exedev' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate bounded dispatch payload
+        id: payload
+        env:
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { validateIngestPayload } from './trusted/scripts/supervisor/ingest-contract.mjs';
+          const payload = JSON.parse(process.env.PAYLOAD);
+          const result = validateIngestPayload(payload);
+          if (!result.ok) throw new Error(result.errors.join('; '));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `data_sha=${payload.data_sha}\ndata_branch=${payload.data_branch}\ntopic_key=${payload.topic_key}\nregenerations=${payload.regenerations}\n`);
+          NODE
+
+      - name: Fetch and verify exact untrusted data commit
+        env:
+          DATA_SHA: ${{ steps.payload.outputs.data_sha }}
+          DATA_BRANCH: ${{ steps.payload.outputs.data_branch }}
+        run: |
+          git -C trusted fetch --no-tags origin "$DATA_BRANCH"
+          test "$(git -C trusted rev-parse FETCH_HEAD)" = "$DATA_SHA"
+          git -C trusted fetch --no-tags origin staging
+          git -C trusted diff --name-only "origin/staging...$DATA_SHA" > /tmp/supervisor-files.txt
+          FILES_JSON=$(jq -Rsc 'split("\n") | map(select(length > 0))' /tmp/supervisor-files.txt)
+          FILES_JSON="$FILES_JSON" node --input-type=module <<'NODE'
+          import { validateIngestDiff } from './trusted/scripts/supervisor/ingest-contract.mjs';
+          const result = validateIngestDiff(JSON.parse(process.env.FILES_JSON));
+          if (!result.ok) throw new Error(result.errors.join('; '));
+          NODE
+
+      - name: Create trusted actions-authored staging candidate
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATA_SHA: ${{ steps.payload.outputs.data_sha }}
+          DATA_BRANCH: ${{ steps.payload.outputs.data_branch }}
+        working-directory: trusted
+        run: |
+          git checkout -B "blog/auto-supervisor-${DATA_SHA:0:12}" origin/staging
+          git checkout "$DATA_SHA" -- data/posts.json
+          while IFS= read -r file; do
+            case "$file" in public/images/blog/*) git checkout "$DATA_SHA" -- "$file" ;; esac
+          done < /tmp/supervisor-files.txt
+          node scripts/blog-lint.mjs --posts data/posts.json --businesses data/businesses.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/posts.json public/images/blog/
+          git diff --cached --quiet && { echo "No candidate changes" >&2; exit 1; }
+          git commit -m "blog: ingest supervised weekly candidate"
+          test "$(git ls-remote origin "refs/heads/$DATA_BRANCH" | cut -f1)" = "$DATA_SHA" || { echo "Supervisor data branch is no longer owned" >&2; exit 1; }
+          git push origin "HEAD:blog/auto-supervisor-${DATA_SHA:0:12}"
+          URL=$(gh pr create --base staging --head "blog/auto-supervisor-${DATA_SHA:0:12}" --title "blog: supervised weekly candidate" --body "Staging-only exe.dev supervisor pilot candidate. GitHub Actions CI and the Opus gate remain authoritative.")
+          PR=$(gh pr view "$URL" --json number --jq .number)
+          SHA=$(git rev-parse HEAD)
+          echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Carry canonical regeneration budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs mark-regeneration --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --regenerations "${{ steps.payload.outputs.regenerations }}"
+
+      - name: Explicitly dispatch the existing coordinator at the exact SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind blog --sha "${{ steps.pr.outputs.head_sha }}"

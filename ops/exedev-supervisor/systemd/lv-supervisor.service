@@ -1,0 +1,23 @@
+[Unit]
+Description=Liberty Village staging blog supervisor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=exedev
+WorkingDirectory=/home/exedev/libertyvillage
+EnvironmentFile=/etc/lv-supervisor.env
+Environment=NPM_CONFIG_CACHE=/var/lib/lv-supervisor/npm-cache
+Environment=GIT_CONFIG_GLOBAL=/dev/null
+Environment=GIT_CONFIG_NOSYSTEM=1
+TimeoutStartSec=21600
+Nice=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+# Pi is contained by the custom-tool path boundary; its writable runtime must remain accessible.
+InaccessiblePaths=-/home/exedev/.config/gh
+ReadWritePaths=/var/lib/lv-supervisor /home/exedev/libertyvillage
+ExecStart=/usr/bin/flock --exclusive --nonblock /var/lib/lv-supervisor/run.flock /usr/local/bin/node scripts/supervisor/cli.mjs run

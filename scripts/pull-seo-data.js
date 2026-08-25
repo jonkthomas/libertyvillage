@@ -9,13 +9,13 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 
-const CREDS_PATH = path.join(__dirname, '..', 'gcp-credentials.json');
-const OUTPUT_PATH = path.join(__dirname, '..', 'tasks', 'seo-data-latest.json');
+const CREDS_PATH = process.env.LV_GCP_CREDENTIALS_PATH || path.join(__dirname, '..', 'gcp-credentials.json');
+const OUTPUT_PATH = process.env.LV_SEO_OUTPUT_PATH || path.join(__dirname, '..', 'tasks', 'seo-data-latest.json');
 const GSC_SITE = 'sc-domain:libertyvillage.co';
 const GA4_PROPERTY = 'properties/523614078';
 
 // Date helpers
-const today = new Date('2026-02-28');
+const today = new Date();
 const fmt = (d) => d.toISOString().split('T')[0];
 const daysAgo = (n) => {
   const d = new Date(today);
@@ -23,10 +23,10 @@ const daysAgo = (n) => {
   return d;
 };
 
-const thisWeekStart = fmt(daysAgo(7));  // Feb 21
-const thisWeekEnd = fmt(daysAgo(1));    // Feb 27
-const lastWeekStart = fmt(daysAgo(14)); // Feb 14
-const lastWeekEnd = fmt(daysAgo(8));    // Feb 20
+const thisWeekStart = fmt(daysAgo(7));
+const thisWeekEnd = fmt(daysAgo(1));
+const lastWeekStart = fmt(daysAgo(14));
+const lastWeekEnd = fmt(daysAgo(8));
 
 async function main() {
   const creds = JSON.parse(fs.readFileSync(CREDS_PATH, 'utf-8'));
@@ -225,4 +225,7 @@ async function main() {
   console.log(`\nData written to ${OUTPUT_PATH}`);
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
