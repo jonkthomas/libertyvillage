@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: false
+      force_gha:
+        description: 'Explicitly run GHA generation even when LV_WEEKLY_OWNER=exedev'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: weekly-blog
@@ -34,6 +39,10 @@ permissions:
 
 jobs:
   generate-blog:
+    # Default ownership is GHA. During the pilot the repository variable is set to
+    # exedev, which disables scheduled GHA generation; only this explicit manual
+    # override may bypass the switch.
+    if: ${{ vars.LV_WEEKLY_OWNER != 'exedev' || (github.event_name == 'workflow_dispatch' && inputs.force_gha == true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

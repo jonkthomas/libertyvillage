@@ -1,0 +1,17 @@
+[Unit]
+Description=Smoke-test the Liberty Village supervisor inside its service sandbox
+
+[Service]
+Type=oneshot
+User=exedev
+WorkingDirectory=/home/exedev/libertyvillage
+EnvironmentFile=/etc/lv-supervisor.env
+Environment=NPM_CONFIG_CACHE=/var/lib/lv-supervisor/npm-cache
+TimeoutStartSec=120
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+InaccessiblePaths=-/home/exedev/.config/gh
+ReadWritePaths=/var/lib/lv-supervisor /home/exedev/libertyvillage
+ExecStart=/usr/local/bin/node scripts/supervisor/cli.mjs smoke --agent-dir /var/lib/lv-supervisor/pi-runtime

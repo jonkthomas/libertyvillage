@@ -13,6 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { github, paged, writeOutput } from './github.mjs';
+import { promotionEnabled } from './promotion-control.mjs';
 import {
   isPromotionCoordinatorRun, planPromotionSweep, PROMOTION_STALE_HOURS,
   selectRecentDispatchRuns, SWEEP_MIN_DISPATCH_INTERVAL_HOURS,
@@ -62,6 +63,13 @@ function writeSummary(lines) {
 async function main() {
   const repo = process.argv.includes('--repo') ? process.argv[process.argv.indexOf('--repo') + 1] : process.env.GITHUB_REPOSITORY;
   if (!repo) throw new Error('missing --repo');
+  if (!promotionEnabled()) {
+    const reason = 'promotion disabled for the supervisor pilot';
+    writeOutput({ action: 'skip', sha: '', reason });
+    writeSummary(['## Promotion sweep', '', '- decision: **skip**', `- reason: ${reason}`, '', 'No dispatch this tick.']);
+    console.log(`Promotion sweep: skip — ${reason}`);
+    return;
+  }
   const owner = repo.split('/')[0];
 
   const now = Date.now();
