@@ -26,25 +26,26 @@ raw_scope=$("${service_env[@]}" curl --fail --silent --show-error "$GITHUB_API_U
 [[ "$raw_scope" == "$LV_GITHUB_REPOSITORY" ]] || { echo "raw API scope mismatch: $raw_scope" >&2; exit 1; }
 api_scope=$("${service_env[@]}" gh api --hostname "$GH_HOST" "repos/$LV_GITHUB_REPOSITORY" --jq .full_name)
 [[ "$api_scope" == "$LV_GITHUB_REPOSITORY" ]] || { echo "gh API scope mismatch: $api_scope" >&2; exit 1; }
-if ! remote_owner=$("${service_env[@]}" gh variable get LV_WEEKLY_OWNER --repo "$LV_GITHUB_REPOSITORY" --json value --jq .value); then
-  echo "LV_WEEKLY_OWNER is unreadable through the exe.dev proxy; refusing to infer gha" >&2
-  exit 1
-fi
-remote_owner=${remote_owner:-gha}
-vm_owner=${LV_WEEKLY_OWNER:-gha}
-[[ "$remote_owner" == "$vm_owner" ]] || { echo "LV_WEEKLY_OWNER mismatch: GitHub=$remote_owner VM=$vm_owner" >&2; exit 1; }
 origin_url=$(git -C "$repo_dir" remote get-url origin)
 [[ "$origin_url" == "$repo_url" ]] || { echo "origin must be the exact internal repository URL: $repo_url" >&2; exit 1; }
 "${service_env[@]}" git ls-remote "$repo_url" HEAD >/dev/null
 "${service_env[@]}" git -C "$repo_dir" fetch --no-tags origin main staging
+vm_owner=${LV_WEEKLY_OWNER-}
+[[ "$vm_owner" == gha || "$vm_owner" == exedev ]] || { echo "LV_WEEKLY_OWNER must be exactly gha or exedev" >&2; exit 1; }
+branch_owners=()
 for required_branch in main staging; do
-  for required_path in scripts/supervisor/cli.mjs scripts/supervisor/host-run.mjs scripts/automation/promotion-control.mjs ops/exedev-supervisor/refresh-seo.sh; do
+  for required_path in scripts/supervisor/cli.mjs scripts/supervisor/host-run.mjs scripts/automation/promotion-control.mjs scripts/automation/weekly-owner.mjs ops/exedev-supervisor/owner.txt ops/exedev-supervisor/refresh-seo.sh; do
     "${service_env[@]}" git -C "$repo_dir" cat-file -e "origin/$required_branch:$required_path" \
       || { echo "Cutover refused: $required_path is missing from origin/$required_branch" >&2; exit 1; }
   done
+  branch_owner=$("${service_env[@]}" git -C "$repo_dir" show "origin/$required_branch:ops/exedev-supervisor/owner.txt" \
+    | "${service_env[@]}" /usr/local/bin/node "$repo_dir/scripts/automation/weekly-owner.mjs" --stdin)
+  branch_owners+=("$branch_owner")
   "${service_env[@]}" git -C "$repo_dir" show "origin/$required_branch:package.json" | grep -q '"test:supervisor"' \
     || { echo "Cutover refused: test:supervisor is missing from origin/$required_branch" >&2; exit 1; }
 done
+[[ "${branch_owners[0]}" == "${branch_owners[1]}" ]] || { echo "weekly owner mismatch: main=${branch_owners[0]} staging=${branch_owners[1]}" >&2; exit 1; }
+[[ "${branch_owners[0]}" == "$vm_owner" ]] || { echo "weekly owner mismatch: committed=${branch_owners[0]} VM=$vm_owner" >&2; exit 1; }
 [[ -n "${LV_SEO_PREFETCH_COMMAND:-}" ]] || { echo "LV_SEO_PREFETCH_COMMAND is required" >&2; exit 1; }
 [[ -f "$LV_GCP_CREDENTIALS_PATH" && ! -L "$LV_GCP_CREDENTIALS_PATH" ]] || { echo "GCP credential must be a regular, non-symlink file: $LV_GCP_CREDENTIALS_PATH" >&2; exit 1; }
 [[ "$(file_mode "$LV_GCP_CREDENTIALS_PATH")" == 600 ]] || { echo "GCP credential must have mode 0600: $LV_GCP_CREDENTIALS_PATH" >&2; exit 1; }
@@ -57,4 +58,4 @@ seo_age_seconds=$(( $(date +%s) - $(stat -c %Y "$LV_SEO_CONTEXT") ))
 sudo systemctl start lv-supervisor-smoke.service
 /usr/local/bin/node "$repo_dir/scripts/supervisor/cli.mjs" status >/dev/null
 unset service_env
-echo "health/smoke passed; tokenless exe.dev proxy auth, exact repo scope over gh/raw API and git, owner, both branch prerequisites, automatic fresh SEO context, and sandboxed real-agentDir SDK tool boundary verified"
+echo "health/smoke passed; tokenless exe.dev proxy auth, exact repo scope over gh/raw API and git, identical committed branch owner plus VM match, automatic fresh SEO context, and sandboxed real-agentDir SDK tool boundary verified"

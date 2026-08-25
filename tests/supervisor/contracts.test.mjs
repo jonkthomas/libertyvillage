@@ -5,9 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validateIngestDiff, validateIngestPayload } from '../../scripts/supervisor/ingest-contract.mjs';
-import { boundedCandidateFlow, recordSupervisorOutcome, resolveCandidateReadOnly, resolveWeeklyOwner } from '../../scripts/supervisor/host-run.mjs';
+import {
+  boundedCandidateFlow, recordSupervisorOutcome, resolveCandidateReadOnly, resolveHostWeeklyOwner, resolveWeeklyOwner,
+} from '../../scripts/supervisor/host-run.mjs';
 import { createConstrainedTools, PI_SDK_VERSION, PI_TOOL_ALLOWLIST, piSessionOptions, validateSubmittedPost } from '../../scripts/supervisor/pi-session.mjs';
 import { promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
+import { parseWeeklyOwnerFile, readWeeklyOwner } from '../../scripts/automation/weekly-owner.mjs';
 import { finalizeOwnedPr, finalizeSupervisorTerminal } from '../../scripts/supervisor/terminal-pr.mjs';
 import { latestAuditForSha } from '../../scripts/supervisor/github-monitor.mjs';
 import { MAX_RECOVERY_ATTEMPTS, recoverUnfinishedRows, resolveSmokeAgentDir } from '../../scripts/supervisor/cli.mjs';
@@ -31,7 +34,9 @@ test('ingest accepts only bounded metadata and canonical blog paths', () => {
 
 test('ingest is repository_dispatch-only and keeps PR authorship in Actions', () => {
   assert.match(workflow, /repository_dispatch:/);
-  assert.match(workflow, /vars\.LV_WEEKLY_OWNER == 'exedev'/);
+  assert.match(workflow, /Checkout trusted owner control from main/);
+  assert.match(workflow, /needs\.resolve-owner\.outputs\.owner == 'exedev'/);
+  assert.doesNotMatch(workflow, /vars\.LV_WEEKLY_OWNER/);
   assert.doesNotMatch(workflow, /workflow_dispatch:|schedule:/);
   assert.match(workflow, /github-actions\[bot\]/);
   assert.match(workflow, /coordinator\.mjs dispatch/);
@@ -41,6 +46,10 @@ test('ingest is repository_dispatch-only and keeps PR authorship in Actions', ()
 });
 
 test('supervisor baseline is staging-based and data branches are bounded and cleaned', () => {
+  assert.ok(host.indexOf("command('git', ['fetch'") < host.indexOf("readRemoteOwner('main')"),
+    'the VM owner check must begin with a read-only fetch before reading remote owner files');
+  assert.ok(host.indexOf("readRemoteOwner('staging')") < host.indexOf("command('npm', ['ci']"),
+    'both trusted remote branches must agree before work starts');
   assert.match(host, /worktree.*origin\/staging/s);
   assert.match(host, /npm.*lint:supervisor/s);
   assert.match(host, /npm.*test:supervisor/s);
@@ -55,34 +64,96 @@ test('supervisor baseline is staging-based and data branches are bounded and cle
   assert.doesNotMatch(host, /trusted_main_sha/);
 });
 
-test('weekly ownership defaults to GHA and manual bypass is explicit', () => {
-  assert.equal(resolveWeeklyOwner({}), 'gha');
-  assert.equal(resolveWeeklyOwner({ LV_WEEKLY_OWNER: 'exedev' }), 'exedev');
-  assert.match(weekly, /vars\.LV_WEEKLY_OWNER != 'exedev'/);
-  assert.match(weekly, /inputs\.force_gha == true/);
+test('host ownership ignores a stale local file after fetching trusted branches and fails closed remotely', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-host-owner-'));
+  const remote = path.join(directory, 'remote.git');
+  const source = path.join(directory, 'source');
+  const vm = path.join(directory, 'vm');
+  const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  git(directory, ['init', '--bare', remote]);
+  fs.mkdirSync(path.join(source, 'ops/exedev-supervisor'), { recursive: true });
+  git(source, ['init', '--initial-branch=main']);
+  git(source, ['config', 'user.name', 'Owner Test']);
+  git(source, ['config', 'user.email', 'owner@example.test']);
+  fs.writeFileSync(path.join(source, 'ops/exedev-supervisor/owner.txt'), 'gha\n');
+  git(source, ['add', 'ops/exedev-supervisor/owner.txt']);
+  git(source, ['commit', '-m', 'owner gha']);
+  git(source, ['remote', 'add', 'origin', remote]);
+  git(source, ['push', 'origin', 'main', 'HEAD:staging']);
+  git(directory, ['clone', '--branch', 'main', remote, vm]);
+
+  fs.writeFileSync(path.join(source, 'ops/exedev-supervisor/owner.txt'), 'exedev\n');
+  git(source, ['commit', '-am', 'owner exedev']);
+  git(source, ['push', 'origin', 'main', 'HEAD:staging']);
+  assert.equal(fs.readFileSync(path.join(vm, 'ops/exedev-supervisor/owner.txt'), 'utf8'), 'gha\n');
+  assert.equal(resolveHostWeeklyOwner(vm, { LV_WEEKLY_OWNER: 'exedev' }), 'exedev');
+
+  fs.writeFileSync(path.join(source, 'ops/exedev-supervisor/owner.txt'), 'gha\n');
+  git(source, ['commit', '-am', 'mismatch staging']);
+  git(source, ['push', 'origin', 'HEAD:staging']);
+  assert.throws(() => resolveHostWeeklyOwner(vm, { LV_WEEKLY_OWNER: 'exedev' }), /weekly owner mismatch: main=exedev staging=gha/);
+
+  fs.writeFileSync(path.join(source, 'ops/exedev-supervisor/owner.txt'), 'invalid\n');
+  git(source, ['commit', '-am', 'invalid main']);
+  git(source, ['push', 'origin', 'HEAD:main']);
+  assert.throws(() => resolveHostWeeklyOwner(vm, { LV_WEEKLY_OWNER: 'exedev' }), /must contain exactly/);
 });
 
-test('promotion is coupled to the weekly owner and preserves GHA defaults', () => {
-  assert.equal(promotionEnabled({}), true);
-  assert.equal(promotionEnabled({ LV_PROMOTION_ENABLED: 'true' }), true);
-  assert.equal(promotionEnabled({ LV_PROMOTION_ENABLED: 'false' }), false);
-  assert.equal(promotionEnabled({ LV_PROMOTION_ENABLED: ' False ' }), false);
-  assert.equal(promotionEnabled({ LV_WEEKLY_OWNER: 'exedev' }), false);
-  assert.equal(promotionEnabled({ LV_WEEKLY_OWNER: 'exedev', LV_PROMOTION_ENABLED: 'true' }), false);
+test('weekly ownership defaults to GHA and manual bypass is explicit', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-weekly-owner-'));
+  const ghaOwner = path.join(directory, 'gha-owner.txt');
+  const exedevOwner = path.join(directory, 'owner.txt');
+  fs.writeFileSync(ghaOwner, 'gha\n');
+  fs.writeFileSync(exedevOwner, 'exedev\n');
+  assert.equal(resolveWeeklyOwner({}, ghaOwner), 'gha');
+  assert.equal(resolveWeeklyOwner({}, exedevOwner), 'exedev');
+  assert.equal(resolveWeeklyOwner({ LV_WEEKLY_OWNER: 'exedev' }, exedevOwner), 'exedev');
+  assert.throws(() => resolveWeeklyOwner({ LV_WEEKLY_OWNER: 'gha' }, exedevOwner), /weekly owner mismatch/);
+  assert.match(weekly, /Checkout trusted owner control from main/);
+  assert.match(weekly, /needs\.resolve-owner\.outputs\.owner == 'gha'/);
+  assert.match(weekly, /inputs\.force_gha == true/);
+  assert.doesNotMatch(weekly, /vars\.LV_WEEKLY_OWNER/);
+});
+
+test('owner files are strict and missing, invalid, or VM-mismatched ownership fails closed', () => {
+  assert.ok(['gha', 'exedev'].includes(readWeeklyOwner()), 'the committed canonical owner must always parse strictly');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-owner-invalid-'));
+  const ownerFile = path.join(directory, 'owner.txt');
+  assert.throws(() => readWeeklyOwner(ownerFile), /cannot read canonical weekly owner file/);
+  for (const value of ['gha', 'gha\n\n', ' GHA\n', 'invalid\n', 'exedev \n']) {
+    fs.writeFileSync(ownerFile, value);
+    assert.throws(() => readWeeklyOwner(ownerFile), /must contain exactly/);
+  }
+  assert.equal(parseWeeklyOwnerFile('gha\n'), 'gha');
+  assert.equal(parseWeeklyOwnerFile('exedev\n'), 'exedev');
+});
+
+test('promotion is coupled to the committed weekly owner and preserves GHA defaults', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-promotion-owner-'));
+  const ghaOwner = path.join(directory, 'gha-owner.txt');
+  const exedevOwner = path.join(directory, 'owner.txt');
+  fs.writeFileSync(ghaOwner, 'gha\n');
+  fs.writeFileSync(exedevOwner, 'exedev\n');
+  assert.equal(promotionEnabled({}, { ownerFile: ghaOwner }), true);
+  assert.equal(promotionEnabled({ LV_PROMOTION_ENABLED: 'true' }, { ownerFile: ghaOwner }), true);
+  assert.equal(promotionEnabled({ LV_PROMOTION_ENABLED: 'false' }, { ownerFile: ghaOwner }), false);
+  assert.equal(promotionEnabled({ LV_PROMOTION_ENABLED: ' False ' }, { ownerFile: ghaOwner }), false);
+  assert.equal(promotionEnabled({}, { ownerFile: exedevOwner }), false);
+  assert.equal(promotionEnabled({ LV_WEEKLY_OWNER: 'exedev', LV_PROMOTION_ENABLED: 'true' }, { ownerFile: exedevOwner }), false);
+  assert.throws(() => promotionEnabled({ LV_WEEKLY_OWNER: 'gha' }, { ownerFile: exedevOwner }), /weekly owner mismatch/);
   const observeStep = coordinatorWorkflow.slice(
     coordinatorWorkflow.indexOf('- name: Observe staging merge and explicitly dispatch cumulative promotion'),
     coordinatorWorkflow.indexOf('\n\n  block-generator:'),
   );
   assert.match(observeStep, /LV_PROMOTION_ENABLED: \$\{\{ vars\.LV_PROMOTION_ENABLED \}\}/);
-  assert.match(observeStep, /LV_WEEKLY_OWNER: \$\{\{ vars\.LV_WEEKLY_OWNER \}\}/);
   assert.match(observeStep, /coordinator\.mjs observe-and-promote/);
   const validateStep = coordinatorWorkflow.slice(coordinatorWorkflow.indexOf('  validate-promotion:'), coordinatorWorkflow.indexOf('  prepare-promotion:'));
   assert.match(validateStep, /LV_PROMOTION_ENABLED: \$\{\{ vars\.LV_PROMOTION_ENABLED \}\}/);
-  assert.match(validateStep, /LV_WEEKLY_OWNER: \$\{\{ vars\.LV_WEEKLY_OWNER \}\}/);
-  assert.equal((coordinatorWorkflow.match(/LV_PROMOTION_ENABLED:/g) || []).length, 2,
-    'both promotion coordinator entry points must receive the pilot gate');
+  assert.doesNotMatch(coordinatorWorkflow, /vars\.LV_WEEKLY_OWNER/);
+  assert.match(coordinatorWorkflow, /node scripts\/automation\/promotion-control\.mjs/,
+    'the final merge path must hard-stop when ownership changes during a run');
   assert.match(promotionSweep, /LV_PROMOTION_ENABLED: \$\{\{ vars\.LV_PROMOTION_ENABLED \}\}/);
-  assert.match(promotionSweep, /LV_WEEKLY_OWNER: \$\{\{ vars\.LV_WEEKLY_OWNER \}\}/);
+  assert.doesNotMatch(promotionSweep, /vars\.LV_WEEKLY_OWNER/);
   assert.match(promotionSweep, /steps\.sweep\.outputs\.action == 'dispatch'/);
 });
 
@@ -90,7 +161,7 @@ test('pilot promotion gates exit before API access or dispatch', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-promotion-gate-'));
   const sha = 'a'.repeat(40);
   const common = {
-    ...process.env, LV_WEEKLY_OWNER: 'exedev', LV_PROMOTION_ENABLED: 'true',
+    ...process.env, LV_PROMOTION_ENABLED: 'false',
     GITHUB_API_URL: 'http://127.0.0.1:9/api/v3', GITHUB_OUTPUT: path.join(directory, 'coordinator-output'),
   };
   execFileSync(process.execPath, ['scripts/automation/coordinator.mjs', 'validate-promotion', '--repo', 'owner/repo', '--sha', sha], { env: common });

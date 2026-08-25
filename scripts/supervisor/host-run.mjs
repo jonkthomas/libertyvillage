@@ -4,6 +4,9 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { github, paged } from '../automation/github.mjs';
 import { isExactSha } from '../automation/policy.mjs';
+import {
+  matchWeeklyOwnerEnv, parseWeeklyOwnerFile, resolveWeeklyOwner as resolveCanonicalWeeklyOwner,
+} from '../automation/weekly-owner.mjs';
 import { validateIngestDiff, repositoryDispatchBody } from './ingest-contract.mjs';
 import { generateWithPi, writeCandidateArtifact } from './pi-session.mjs';
 import { fetchObservation } from './github-monitor.mjs';
@@ -28,10 +31,27 @@ export function coordinator(repoRoot, args, { repo }) {
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 }
 
-export function resolveWeeklyOwner(env = process.env) {
-  const owner = env.LV_WEEKLY_OWNER?.trim() || 'gha';
-  if (!['gha', 'exedev'].includes(owner)) throw new Error(`invalid LV_WEEKLY_OWNER: ${owner}`);
-  return owner;
+export function resolveWeeklyOwner(env = process.env, ownerFile) {
+  return resolveCanonicalWeeklyOwner(env, ownerFile ? { ownerFile } : undefined);
+}
+
+export function resolveHostWeeklyOwner(repoRoot, env = process.env) {
+  command('git', ['fetch', '--no-tags', 'origin', 'main', 'staging'], { cwd: repoRoot });
+  const readRemoteOwner = (branch) => {
+    let value;
+    try {
+      value = execFileSync('git', ['show', `origin/${branch}:ops/exedev-supervisor/owner.txt`], {
+        cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (error) {
+      throw new Error(`cannot read canonical weekly owner from origin/${branch}: ${error.stderr?.trim() || error.message}`);
+    }
+    return parseWeeklyOwnerFile(value, `origin/${branch}:ops/exedev-supervisor/owner.txt`);
+  };
+  const mainOwner = readRemoteOwner('main');
+  const stagingOwner = readRemoteOwner('staging');
+  if (mainOwner !== stagingOwner) throw new Error(`weekly owner mismatch: main=${mainOwner} staging=${stagingOwner}`);
+  return matchWeeklyOwnerEnv(mainOwner, env);
 }
 
 export function resolveCandidateReadOnly({ dryRun, resolve, plan }) {
@@ -119,8 +139,7 @@ async function monitorOwnedPr({ repoRoot, repo, prNumber, initialSha, onUpdate, 
 }
 
 export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun = false, onUpdate = async () => {} }) {
-  if (resolveWeeklyOwner() !== 'exedev') return { terminal: 'SKIPPED_OWNER' };
-  command('git', ['fetch', '--no-tags', 'origin', 'main', 'staging'], { cwd: repoRoot });
+  if (resolveHostWeeklyOwner(repoRoot) !== 'exedev') return { terminal: 'SKIPPED_OWNER' };
   const trustedStagingSha = command('git', ['rev-parse', 'origin/staging'], { cwd: repoRoot });
   if (!isExactSha(trustedStagingSha)) throw new Error('origin/staging did not resolve to an exact SHA');
   const workDir = path.join(stateDir, 'work', run.run_id);

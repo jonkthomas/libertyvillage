@@ -93,6 +93,7 @@ export const KIND_POLICIES = Object.freeze({
     headPrefixes: ['staging'],
     allowedPaths: [
       'app/', 'components/', 'data/', 'lib/', 'public/',
+      'ops/exedev-supervisor/owner.txt',
       'tasks/seo-data-latest.json', 'tasks/auto-blog-runs/', 'tasks/discovery-runs/',
     ],
     repairablePaths: [],

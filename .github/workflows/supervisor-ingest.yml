@@ -15,8 +15,26 @@ permissions:
   actions: write
 
 jobs:
+  resolve-owner:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      owner: ${{ steps.owner.outputs.owner }}
+    steps:
+      - name: Checkout trusted owner control from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - name: Resolve the canonical weekly owner
+        id: owner
+        run: node trusted/scripts/automation/weekly-owner.mjs --github-output
+
   ingest:
-    if: ${{ vars.LV_WEEKLY_OWNER == 'exedev' }}
+    needs: resolve-owner
+    if: ${{ needs.resolve-owner.outputs.owner == 'exedev' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
