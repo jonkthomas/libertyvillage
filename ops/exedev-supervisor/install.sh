@@ -39,7 +39,10 @@ sudo install -m 0644 "$script_dir/systemd/lv-supervisor-sentinel.service" /etc/s
 sudo install -m 0644 "$script_dir/systemd/lv-supervisor-sentinel.timer" /etc/systemd/system/lv-supervisor-sentinel.timer
 sudo install -m 0644 "$script_dir/systemd/lv-supervisor-smoke.service" /etc/systemd/system/lv-supervisor-smoke.service
 if [[ ! -f /etc/lv-supervisor.env ]]; then
-  sudo install -m 0600 "$script_dir/lv-supervisor.env.example" /etc/lv-supervisor.env
+  sudo install -o root -g exedev -m 0640 "$script_dir/lv-supervisor.env.example" /etc/lv-supervisor.env
+else
+  sudo chown root:exedev /etc/lv-supervisor.env
+  sudo chmod 0640 /etc/lv-supervisor.env
 fi
 sudo systemctl daemon-reload
 sudo systemctl enable --now lv-supervisor.timer lv-supervisor-sentinel.timer
