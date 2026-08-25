@@ -16,7 +16,7 @@ fi
 git -C "$repo_dir" fetch --no-tags origin main staging
 for required_branch in main staging; do
   branch_ready=true
-  for required_path in scripts/supervisor/cli.mjs scripts/supervisor/host-run.mjs scripts/automation/promotion-control.mjs scripts/automation/weekly-owner.mjs ops/exedev-supervisor/owner.txt ops/exedev-supervisor/refresh-seo.sh; do
+  for required_path in scripts/supervisor/cli.mjs scripts/supervisor/host-run.mjs scripts/automation/promotion-control.mjs scripts/automation/weekly-owner.mjs ops/exedev-supervisor/owner.txt data/topic-queue.json scripts/prompts/sections/03-blog-generation.md; do
     git -C "$repo_dir" cat-file -e "origin/$required_branch:$required_path" || branch_ready=false
   done
   if [[ "$branch_ready" != true ]] || ! git -C "$repo_dir" show "origin/$required_branch:package.json" | grep -q '"test:supervisor"'; then
@@ -26,7 +26,7 @@ for required_branch in main staging; do
 done
 git -C "$repo_dir" checkout -B supervisor-local origin/main
 (cd "$repo_dir" && /usr/local/bin/npm ci)
-sudo install -d -o exedev -g exedev -m 0700 /var/lib/lv-supervisor /var/lib/lv-supervisor/pi-runtime /var/lib/lv-supervisor/pi-sessions /var/lib/lv-supervisor/work /var/lib/lv-supervisor/context /var/lib/lv-supervisor/npm-cache
+sudo install -d -o exedev -g exedev -m 0700 /var/lib/lv-supervisor /var/lib/lv-supervisor/pi-runtime /var/lib/lv-supervisor/pi-sessions /var/lib/lv-supervisor/work /var/lib/lv-supervisor/npm-cache
 if [[ ! -f /var/lib/lv-supervisor/ledger.json ]]; then
   printf '%s\n' '{"schema_version":1,"lease":null,"runs":[]}' | sudo tee /var/lib/lv-supervisor/ledger.json >/dev/null
   sudo chown exedev:exedev /var/lib/lv-supervisor/ledger.json

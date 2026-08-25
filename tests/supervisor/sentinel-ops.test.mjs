@@ -1,10 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { evaluateSentinel } from '../../scripts/supervisor/sentinel.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -64,8 +60,10 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   assert.match(read('health-smoke.sh'), /"\$\{service_env\[@\]\}" git -C "\$repo_dir" fetch --no-tags origin main staging/);
   assert.match(read('health-smoke.sh'), /LV_EXE_GITHUB_PROXY_AUTH/);
   assert.doesNotMatch(read('health-smoke.sh'), /GH_TOKEN|GITHUB_TOKEN|credential_file|token-refresh/);
-  assert.match(read('health-smoke.sh'), /LV_SEO_PREFETCH_COMMAND is required/);
-  assert.match(read('health-smoke.sh'), /SEO snapshot stale/);
+  assert.match(read('health-smoke.sh'), /origin\/\$required_branch:data\/topic-queue\.json/);
+  assert.match(read('health-smoke.sh'), /queue\?\.version !== 1/);
+  assert.match(read('health-smoke.sh'), /\["key", "kind", "title", "source", "rationale", "addedAt", "branchPrefix"\]/);
+  assert.match(read('health-smoke.sh'), /entry\?\.kind === "blog"/);
   assert.doesNotMatch(read('install.sh'), /GH_CONFIG_DIR|gh auth setup-git|github-token|token-refresh/);
   assert.doesNotMatch(read('install.sh'), /\/dev\/stdin/);
   assert.match(read('install.sh'), /complete supervisor change must land on both main and staging/);
@@ -73,41 +71,22 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   assert.match(read('install.sh'), /scripts\/automation\/weekly-owner\.mjs/);
   assert.match(read('install.sh'), /ops\/exedev-supervisor\/owner\.txt/);
   assert.match(read('health-smoke.sh'), /scripts\/automation\/promotion-control\.mjs/);
-  assert.match(read('install.sh'), /lv-supervisor\/context/);
+  assert.doesNotMatch(read('install.sh'), /lv-supervisor\/context/);
   assert.match(read('install.sh'), /install -o root -g exedev -m 0640 .*lv-supervisor\.env\.example/);
   assert.match(read('install.sh'), /chown root:exedev \/etc\/lv-supervisor\.env/);
   assert.match(read('install.sh'), /chmod 0640 \/etc\/lv-supervisor\.env/);
   assert.match(read('README.md'), /merged to both `main` and `staging` before installation or cutover/);
-  assert.match(read('refresh-seo.sh'), /scripts\/pull-seo-data\.js/);
-  assert.match(read('refresh-seo.sh'), /successful current GSC data/);
   assert.doesNotMatch(read('lv-supervisor.env.example'), /(?:sk-|ghp_|github_pat_)[A-Za-z0-9]/);
   assert.match(read('lv-supervisor.env.example'), /LV_EXE_GITHUB_PROXY_AUTH=true/);
   assert.match(read('lv-supervisor.env.example'), /exe\.dev-only/);
   assert.doesNotMatch(read('lv-supervisor.env.example'), /GH_CONFIG_DIR|TOKEN_MAX_AGE/);
-  assert.match(read('lv-supervisor.env.example'), /LV_GCP_CREDENTIALS_PATH=\/home\/exedev\/libertyvillage\/gcp-credentials\.json/);
+  const supervisorOps = [
+    read('health-smoke.sh'), read('install.sh'), read('lv-supervisor.env.example'), read('README.md'),
+    supervisorUnit, sentinelUnit, smokeUnit,
+  ].join('\n');
+  assert.doesNotMatch(supervisorOps, /LV_SEO_CONTEXT|LV_SEO_PREFETCH_COMMAND|LV_GCP_CREDENTIALS_PATH|refresh-seo|seo-data-latest/);
   assert.match(read('disable-rollback.sh'), /systemctl disable --now/);
   assert.doesNotMatch(read('disable-rollback.sh'), /gh variable set/);
   assert.match(read('disable-rollback.sh'), /owner\.txt PR/);
   assert.match(read('disable-rollback.sh'), /no-run gap/);
-});
-
-test('trusted SEO wrapper atomically installs fresh output from the existing pull script', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-seo-refresh-'));
-  const repo = path.join(directory, 'repo');
-  const contextDir = path.join(directory, 'context');
-  fs.mkdirSync(path.join(repo, 'scripts'), { recursive: true });
-  fs.mkdirSync(contextDir);
-  fs.writeFileSync(path.join(repo, 'scripts', 'pull-seo-data.js'), '// trusted script fixture\n');
-  const credential = path.join(repo, 'gcp-credentials.json');
-  fs.writeFileSync(credential, '{}\n', { mode: 0o600 });
-  fs.chmodSync(credential, 0o600);
-  const nodeStub = path.join(directory, 'node-stub');
-  fs.writeFileSync(nodeStub, '#!/usr/bin/env bash\nset -euo pipefail\nif [[ "$1" == "-e" ]]; then exit 0; fi\nprintf \'{"collectedAt":"2026-08-24T12:00:00Z","gsc":{"thisWeek":{"rows":[]}},"ga4":{"totals":{"rows":[]}}}\\n\' > "$LV_SEO_OUTPUT_PATH"\n', { mode: 0o700 });
-  const context = path.join(contextDir, 'seo-data-latest.json');
-  execFileSync(fileURLToPath(new URL('../../ops/exedev-supervisor/refresh-seo.sh', import.meta.url)), [], {
-    env: { ...process.env, LV_REPO_DIR: repo, LV_SEO_CONTEXT: context, LV_NODE_BINARY: nodeStub, LV_GCP_CREDENTIALS_PATH: credential },
-  });
-  assert.equal(JSON.parse(fs.readFileSync(context, 'utf8')).collectedAt, '2026-08-24T12:00:00Z');
-  assert.equal(fs.statSync(context).mode & 0o777, 0o600);
-  assert.deepEqual(fs.readdirSync(contextDir), ['seo-data-latest.json']);
 });
