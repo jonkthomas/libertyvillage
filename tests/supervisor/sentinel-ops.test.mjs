@@ -70,6 +70,9 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   assert.match(read('install.sh'), /scripts\/automation\/promotion-control\.mjs/);
   assert.match(read('health-smoke.sh'), /scripts\/automation\/promotion-control\.mjs/);
   assert.match(read('install.sh'), /lv-supervisor\/context/);
+  assert.match(read('install.sh'), /install -o root -g exedev -m 0640 .*lv-supervisor\.env\.example/);
+  assert.match(read('install.sh'), /chown root:exedev \/etc\/lv-supervisor\.env/);
+  assert.match(read('install.sh'), /chmod 0640 \/etc\/lv-supervisor\.env/);
   assert.match(read('README.md'), /merged to both `main` and `staging` before installation or cutover/);
   assert.match(read('refresh-seo.sh'), /scripts\/pull-seo-data\.js/);
   assert.match(read('refresh-seo.sh'), /successful current GSC data/);
