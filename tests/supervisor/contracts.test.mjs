@@ -6,8 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validateIngestDiff, validateIngestPayload } from '../../scripts/supervisor/ingest-contract.mjs';
 import {
-  boundedCandidateFlow, readSelectedTopic, recordSupervisorOutcome, resolveCandidateReadOnly, resolveHostWeeklyOwner,
-  resolveWeeklyOwner,
+  boundedCandidateFlow, COMMAND_OUTPUT_LIMIT, readSelectedTopic, recordSupervisorOutcome, resolveCandidateReadOnly,
+  resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
 } from '../../scripts/supervisor/host-run.mjs';
 import {
   buildGeneratorPrompt, createConstrainedTools, PI_SDK_VERSION, PI_TOOL_ALLOWLIST, piSessionOptions,
@@ -67,6 +67,22 @@ test('supervisor baseline is staging-based and data branches are bounded and cle
     'generation must receive the trusted queue and canonical local context');
   assert.doesNotMatch(host, /LV_SEO_CONTEXT|LV_SEO_PREFETCH_COMMAND|LV_GCP_CREDENTIALS_PATH|seo-data-latest|refresh-seo/);
   assert.doesNotMatch(host, /trusted_main_sha/);
+});
+
+test('supervisor command failures preserve bounded stdout and stderr diagnostics', () => {
+  assert.throws(() => runCommand(process.execPath, ['-e', [
+    `process.stdout.write('x'.repeat(${COMMAND_OUTPUT_LIMIT + 100}) + 'STDOUT_TAIL')`,
+    `process.stderr.write('x'.repeat(${COMMAND_OUTPUT_LIMIT + 100}) + 'STDERR_TAIL')`,
+    'process.exit(7)',
+  ].join(';')]), (error) => {
+    assert.match(error.message, /supervisor command failed \(exit 7\)/);
+    assert.match(error.message, /stdout:\n<\d+ characters omitted; showing tail>/);
+    assert.match(error.message, /STDOUT_TAIL/);
+    assert.match(error.message, /stderr:\n<\d+ characters omitted; showing tail>/);
+    assert.match(error.message, /STDERR_TAIL/);
+    assert.ok(error.message.length < (2 * COMMAND_OUTPUT_LIMIT) + 1_000);
+    return true;
+  });
 });
 
 test('host ownership ignores a stale local file after fetching trusted branches and fails closed remotely', () => {

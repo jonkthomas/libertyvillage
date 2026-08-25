@@ -21,7 +21,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { createFakeGitHub } from './helpers/fake-github.mjs';
+import { createFakeGitHub, fakeGithubEnv } from './helpers/fake-github.mjs';
 import { MAX_CANDIDATE_REGENERATIONS } from '../../scripts/automation/recovery.mjs';
 import { parseCandidateState, stateIssueTitle } from '../../scripts/automation/candidate-state.mjs';
 
@@ -46,13 +46,10 @@ async function run(apiUrl, args, { cwd } = {}) {
     const result = await execFileAsync(process.execPath, [COORDINATOR, ...args], {
       cwd,
       encoding: 'utf8',
-      env: {
-        ...process.env,
-        GITHUB_API_URL: apiUrl,
-        GH_TOKEN: 'test-token',
+      env: fakeGithubEnv(apiUrl, {
         GITHUB_OUTPUT: outputFile,
         TOPIC_QUEUE_PATH: TOPIC_QUEUE_FIXTURE,
-      },
+      }),
     });
     stdout = `${result.stdout}${result.stderr}`;
   } catch (error) {
