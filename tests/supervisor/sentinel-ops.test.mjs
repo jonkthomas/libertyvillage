@@ -51,7 +51,10 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   assert.match(smokeUnit, /ReadWritePaths=\/var\/lib\/lv-supervisor \/home\/exedev\/libertyvillage/);
   assert.match(smokeUnit, /cli\.mjs smoke --agent-dir \/var\/lib\/lv-supervisor\/pi-runtime/);
   assert.match(read('health-smoke.sh'), /systemctl start lv-supervisor-smoke\.service/);
-  assert.match(read('health-smoke.sh'), /gh variable get LV_WEEKLY_OWNER/);
+  assert.doesNotMatch(read('health-smoke.sh'), /gh variable (?:get|set) LV_WEEKLY_OWNER/);
+  assert.match(read('health-smoke.sh'), /origin\/\$required_branch:ops\/exedev-supervisor\/owner\.txt/);
+  assert.match(read('health-smoke.sh'), /branch_owners\[0\].*branch_owners\[1\]/s);
+  assert.match(read('health-smoke.sh'), /committed=.*VM=/);
   assert.match(read('health-smoke.sh'), /env -i HOME=\/var\/empty/);
   assert.match(read('health-smoke.sh'), /GIT_CONFIG_GLOBAL=\/dev\/null GIT_CONFIG_NOSYSTEM=1/);
   assert.match(read('health-smoke.sh'), /gh repo view "\$LV_GITHUB_REPOSITORY" --json nameWithOwner/);
@@ -59,7 +62,6 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   assert.match(read('health-smoke.sh'), /gh api --hostname "\$GH_HOST" "repos\/\$LV_GITHUB_REPOSITORY"/);
   assert.match(read('health-smoke.sh'), /git ls-remote "\$repo_url" HEAD/);
   assert.match(read('health-smoke.sh'), /"\$\{service_env\[@\]\}" git -C "\$repo_dir" fetch --no-tags origin main staging/);
-  assert.match(read('health-smoke.sh'), /refusing to infer gha/);
   assert.match(read('health-smoke.sh'), /LV_EXE_GITHUB_PROXY_AUTH/);
   assert.doesNotMatch(read('health-smoke.sh'), /GH_TOKEN|GITHUB_TOKEN|credential_file|token-refresh/);
   assert.match(read('health-smoke.sh'), /LV_SEO_PREFETCH_COMMAND is required/);
@@ -68,6 +70,8 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   assert.doesNotMatch(read('install.sh'), /\/dev\/stdin/);
   assert.match(read('install.sh'), /complete supervisor change must land on both main and staging/);
   assert.match(read('install.sh'), /scripts\/automation\/promotion-control\.mjs/);
+  assert.match(read('install.sh'), /scripts\/automation\/weekly-owner\.mjs/);
+  assert.match(read('install.sh'), /ops\/exedev-supervisor\/owner\.txt/);
   assert.match(read('health-smoke.sh'), /scripts\/automation\/promotion-control\.mjs/);
   assert.match(read('install.sh'), /lv-supervisor\/context/);
   assert.match(read('install.sh'), /install -o root -g exedev -m 0640 .*lv-supervisor\.env\.example/);
@@ -83,6 +87,8 @@ test('systemd, checksum, smoke, environment, and rollback artifacts are bounded'
   assert.match(read('lv-supervisor.env.example'), /LV_GCP_CREDENTIALS_PATH=\/home\/exedev\/libertyvillage\/gcp-credentials\.json/);
   assert.match(read('disable-rollback.sh'), /systemctl disable --now/);
   assert.doesNotMatch(read('disable-rollback.sh'), /gh variable set/);
+  assert.match(read('disable-rollback.sh'), /owner\.txt PR/);
+  assert.match(read('disable-rollback.sh'), /no-run gap/);
 });
 
 test('trusted SEO wrapper atomically installs fresh output from the existing pull script', () => {

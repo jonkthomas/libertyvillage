@@ -416,7 +416,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
-          LV_WEEKLY_OWNER: ${{ vars.LV_WEEKLY_OWNER }}
         run: node scripts/automation/coordinator.mjs observe-and-promote --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
 
   block-generator:
@@ -585,7 +584,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
-          LV_WEEKLY_OWNER: ${{ vars.LV_WEEKLY_OWNER }}
         run: node scripts/automation/coordinator.mjs validate-promotion --repo "$GITHUB_REPOSITORY" --sha "$AUTOMATION_SHA"
 
   prepare-promotion:
@@ -771,7 +769,9 @@ jobs:
       - id: audit
         env:
           GH_TOKEN: ${{ github.token }}
+          LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
         run: |
+          node scripts/automation/promotion-control.mjs
           node scripts/automation/coordinator.mjs validate-promotion --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --main-sha "${{ needs.validate-promotion.outputs.main_sha }}"
           node scripts/automation/coordinator.mjs validate-pr --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}"
           node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --decision promoted --attempt 0 --range "${{ needs.validate-promotion.outputs.range }}" --verdict promotion-verdict.json --out promotion-audit.json

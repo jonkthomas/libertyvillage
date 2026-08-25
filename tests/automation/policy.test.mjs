@@ -169,13 +169,14 @@ test('allows ordinary cumulative promotion paths while sensitive infrastructure 
   const ordinary = [
     'app/page.tsx', 'components/Card.tsx', 'data/businesses.json', 'lib/schema.ts',
     'public/images/hero.jpg', 'public/fonts/site.woff2',
+    'ops/exedev-supervisor/owner.txt',
     'tasks/seo-data-latest.json', 'tasks/auto-blog-runs/2026-08-05.json',
     'tasks/discovery-runs/2026-08-05.json',
   ];
   assert.equal(validatePaths('promotion', ordinary).ok, true);
   for (const file of [
     '.github/workflows/deploy.yml', 'scripts/automation/coordinator.mjs', 'docs/rubric.md',
-    'package.json', 'tasks/arbitrary.json', 'tasks/discovery-runs.json',
+    'package.json', 'ops/exedev-supervisor/health-smoke.sh', 'tasks/arbitrary.json', 'tasks/discovery-runs.json',
   ]) {
     assert.equal(validatePaths('promotion', [file]).ok, false, file);
   }
