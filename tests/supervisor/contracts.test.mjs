@@ -6,9 +6,13 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validateIngestDiff, validateIngestPayload } from '../../scripts/supervisor/ingest-contract.mjs';
 import {
-  boundedCandidateFlow, recordSupervisorOutcome, resolveCandidateReadOnly, resolveHostWeeklyOwner, resolveWeeklyOwner,
+  boundedCandidateFlow, readSelectedTopic, recordSupervisorOutcome, resolveCandidateReadOnly, resolveHostWeeklyOwner,
+  resolveWeeklyOwner,
 } from '../../scripts/supervisor/host-run.mjs';
-import { createConstrainedTools, PI_SDK_VERSION, PI_TOOL_ALLOWLIST, piSessionOptions, validateSubmittedPost } from '../../scripts/supervisor/pi-session.mjs';
+import {
+  buildGeneratorPrompt, createConstrainedTools, PI_SDK_VERSION, PI_TOOL_ALLOWLIST, piSessionOptions,
+  validateSubmittedPost,
+} from '../../scripts/supervisor/pi-session.mjs';
 import { promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
 import { parseWeeklyOwnerFile, readWeeklyOwner } from '../../scripts/automation/weekly-owner.mjs';
 import { finalizeOwnedPr, finalizeSupervisorTerminal } from '../../scripts/supervisor/terminal-pr.mjs';
@@ -59,8 +63,9 @@ test('supervisor baseline is staging-based and data branches are bounded and cle
   assert.match(coordinatorWorkflow, /npm run test:supervisor/);
   assert.match(host, /timeoutMs = 25 \* 60 \* 1000/);
   assert.match(host, /cleanupDataBranch\(repoRoot, dataBranch\)/);
-  assert.ok(host.indexOf('LV_SEO_PREFETCH_COMMAND is required') < host.indexOf('const resolved = resolveCandidateReadOnly({'),
-    'trusted SEO refresh must succeed before every active run plans a candidate');
+  assert.match(host, /contextFiles:\s*\[\s*'data\/topic-queue\.json',\s*'data\/businesses\.json',\s*'data\/posts\.json',\s*'scripts\/prompts\/sections\/03-blog-generation\.md'/,
+    'generation must receive the trusted queue and canonical local context');
+  assert.doesNotMatch(host, /LV_SEO_CONTEXT|LV_SEO_PREFETCH_COMMAND|LV_GCP_CREDENTIALS_PATH|seo-data-latest|refresh-seo/);
   assert.doesNotMatch(host, /trusted_main_sha/);
 });
 
@@ -184,6 +189,39 @@ test('pi tool boundary contains no shell, mutation, or GitHub tool and uses veri
   for (const token of ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN']) {
     assert.match(piSession, new RegExp(`'${token}'`));
   }
+});
+
+test('pi prompt grounds the selected topic in its trusted queue evidence and canonical local context', () => {
+  const contextFiles = [
+    'data/topic-queue.json', 'data/businesses.json', 'data/posts.json',
+    'scripts/prompts/sections/03-blog-generation.md',
+  ];
+  const prompt = buildGeneratorPrompt({
+    topic: { key: 'topic-key', title: 'Topic title', source: 'gsc', rationale: 'GSC top query (8 clicks)' },
+    contextFiles,
+  });
+  for (const file of contextFiles) assert.match(prompt, new RegExp(file.replaceAll('.', '\\.')));
+  assert.match(prompt, /locate the selected entry by the exact topic key/i);
+  assert.match(prompt, /entry's source and rationale/i);
+  assert.match(prompt, /Topic source: gsc/);
+  assert.match(prompt, /Topic rationale: GSC top query \(8 clicks\)/);
+  assert.doesNotMatch(prompt, /SEO evidence|seo-data-latest|missing SEO/i);
+});
+
+test('staging grounding resolves the exact selected queue entry and rejects missing evidence', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-topic-grounding-'));
+  const queueFile = path.join(directory, 'topic-queue.json');
+  const topic = {
+    key: 'topic-key', kind: 'blog', title: 'Topic title', source: 'gsc', rationale: 'GSC top query',
+    addedAt: '2026-08-24T00:00:00Z', attempts: 0, branchPrefix: 'blog/auto-',
+  };
+  fs.writeFileSync(queueFile, JSON.stringify({ version: 1, topics: [topic] }));
+  assert.deepEqual(readSelectedTopic(queueFile, topic.key), {
+    key: topic.key, title: topic.title, source: topic.source, rationale: topic.rationale,
+  });
+  assert.throws(() => readSelectedTopic(queueFile, 'missing'), /missing from the staging topic queue/);
+  fs.writeFileSync(queueFile, JSON.stringify({ version: 1, topics: [{ ...topic, rationale: '' }] }));
+  assert.throws(() => readSelectedTopic(queueFile, topic.key), /lacks rationale/);
 });
 
 test('pi context tools reject absolute and parent traversal outside the session cwd', async () => {

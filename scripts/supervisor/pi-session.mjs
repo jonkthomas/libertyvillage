@@ -65,13 +65,16 @@ export function writeCandidateArtifact({ postsFile, post }) {
   fs.renameSync(temporary, postsFile);
 }
 
-export function buildGeneratorPrompt({ topic, seoFile, contextFiles = [] }) {
+export function buildGeneratorPrompt({ topic, contextFiles = [] }) {
   return [
     'Generate exactly one grounded Liberty Village blog post for the eligible topic below.',
     `Topic key: ${topic.key}`,
     `Topic title: ${topic.title}`,
-    `Trusted SEO evidence: ${seoFile}`,
+    `Topic source: ${topic.source || 'read from the selected entry in data/topic-queue.json'}`,
+    `Topic rationale: ${topic.rationale || 'read from the selected entry in data/topic-queue.json'}`,
     `Trusted local context: ${contextFiles.join(', ') || 'data/businesses.json and existing data/posts.json'}`,
+    'Read data/topic-queue.json, locate the selected entry by the exact topic key, confirm the source and rationale above match it, and use that entry\'s source and rationale as the grounding for why this topic was selected. Do not substitute a different topic or claim evidence beyond that rationale.',
+    'Ground local claims in data/businesses.json and data/posts.json, and follow the canonical blog prompt at scripts/prompts/sections/03-blog-generation.md.',
     'Use context_read, context_grep, and context_find only inside the supplied working tree. Do not invent current facts, prices, hours, addresses, or business claims.',
     'Return the complete post by calling submit_candidate exactly once. Pass the eligible topic key in the tool topic_key parameter.',
     'Follow the trusted BlogPost interface file exactly and select an image path that already exists under public/.',
@@ -178,7 +181,7 @@ export async function smokePiSession({ cwd, agentDir }) {
   } finally { session.dispose(); }
 }
 
-export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, seoFile, contextFiles, provider, modelId, baseUrl }) {
+export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, contextFiles, provider, modelId, baseUrl }) {
   const hiddenCredentials = new Map();
   for (const name of ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN']) {
     if (process.env[name] !== undefined) hiddenCredentials.set(name, process.env[name]);
@@ -214,7 +217,7 @@ export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, seoFil
     sessionManager: sdk.SessionManager.create(sessionsDir),
   }));
   try {
-    await session.prompt(buildGeneratorPrompt({ topic, seoFile, contextFiles }));
+    await session.prompt(buildGeneratorPrompt({ topic, contextFiles }));
     if (!submitted) throw new Error('pi session ended without submit_candidate');
     return { post: submitted, sessionFile: session.sessionFile };
   } finally {

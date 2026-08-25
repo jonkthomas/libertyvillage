@@ -60,20 +60,24 @@ export function resolveCandidateReadOnly({ dryRun, resolve, plan }) {
   return { topic, candidate: plan(topic) };
 }
 
+export function readSelectedTopic(queueFile, topicKey) {
+  const queue = JSON.parse(fs.readFileSync(queueFile, 'utf8'));
+  if (queue?.version !== 1 || !Array.isArray(queue.topics)) throw new Error('trusted topic queue must use schema version 1');
+  const topic = queue.topics.find((entry) => entry?.key === topicKey);
+  if (!topic) throw new Error(`selected topic is missing from the staging topic queue: ${topicKey}`);
+  for (const field of ['key', 'title', 'source', 'rationale']) {
+    if (typeof topic[field] !== 'string' || !topic[field].trim()) throw new Error(`selected topic lacks ${field}: ${topicKey}`);
+  }
+  if (topic.kind !== 'blog') throw new Error(`selected topic is not a blog topic: ${topicKey}`);
+  return { key: topic.key, title: topic.title, source: topic.source, rationale: topic.rationale };
+}
+
 export function recordSupervisorOutcome({ repoRoot, repo, runId, topicKey, terminal, reason }, coordinatorFn = coordinator) {
   if (!runId || !topicKey) throw new Error('candidate outcome requires exact run and topic keys');
   return coordinatorFn(repoRoot, [
     'record-candidate-outcome', '--kind', 'blog', '--outcome', terminal,
     '--key', runId, '--topic-key', topicKey, '--reason', reason || terminal,
   ], { repo });
-}
-
-export function assertFreshSeoSnapshot(file, { now = Date.now(), maxAgeHours = Number(process.env.LV_SEO_MAX_AGE_HOURS || 48) } = {}) {
-  if (!fs.existsSync(file)) throw new Error(`trusted SEO context is missing: ${file}`);
-  const ageMs = now - fs.statSync(file).mtimeMs;
-  if (!Number.isFinite(maxAgeHours) || maxAgeHours <= 0 || ageMs < 0 || ageMs > maxAgeHours * 60 * 60 * 1000) {
-    throw new Error(`trusted SEO context is stale: ${file}`);
-  }
 }
 
 export function cleanupDataBranch(repoRoot, branch) {
@@ -154,12 +158,6 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     command('npm', ['run', 'test:automation'], { cwd: workDir });
     command('npm', ['run', 'test:supervisor'], { cwd: workDir });
 
-    const seoFile = process.env.LV_SEO_CONTEXT || path.join(workDir, 'tasks/seo-data-latest.json');
-    const seoPrefetch = process.env.LV_SEO_PREFETCH_COMMAND?.trim();
-    if (!seoPrefetch) throw new Error('LV_SEO_PREFETCH_COMMAND is required for every active supervisor run');
-    command('/bin/sh', ['-c', seoPrefetch], { cwd: workDir });
-    assertFreshSeoSnapshot(seoFile);
-
     const resolved = resolveCandidateReadOnly({
       dryRun,
       resolve: () => coordinator(repoRoot, ['resolve-topic', '--kind', 'blog'], { repo }),
@@ -169,17 +167,17 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     await onUpdate({ state: dryRun ? 'TERMINAL' : 'PLAN_CANDIDATE', topic_key: topic.topic_key });
     if (dryRun) return { terminal: 'DRY_RUN', topic_key: topic.topic_key };
     if (candidate.generate !== 'true') return { terminal: candidate.action === 'abandon-topic' ? 'ABANDONED_TOPIC' : 'SKIPPED_CANDIDATE', topic_key: topic.topic_key };
-    const sessionContextDir = path.join(workDir, '.supervisor-context');
-    const sessionSeoFile = path.join(sessionContextDir, 'seo-data-latest.json');
-    fs.mkdirSync(sessionContextDir, { recursive: true, mode: 0o700 });
-    fs.copyFileSync(seoFile, sessionSeoFile);
-    fs.chmodSync(sessionSeoFile, 0o600);
+    const selectedTopic = readSelectedTopic(path.join(workDir, 'data/topic-queue.json'), topic.topic_key);
+    if (selectedTopic.title !== topic.topic_title) throw new Error(`selected topic title differs from the staging topic queue: ${topic.topic_key}`);
     await onUpdate({ state: 'GENERATE' });
     const generation = await boundedCandidateFlow({
       generate: async () => generateWithPi({
         cwd: workDir, agentDir: path.join(stateDir, 'pi-runtime'), sessionsDir: path.join(stateDir, 'pi-sessions'),
-        topic: { key: topic.topic_key, title: topic.topic_title }, seoFile: path.relative(workDir, sessionSeoFile),
-        contextFiles: ['data/businesses.json', 'data/posts.json', 'scripts/prompts/sections/03-blog-generation.md'],
+        topic: selectedTopic,
+        contextFiles: [
+          'data/topic-queue.json', 'data/businesses.json', 'data/posts.json',
+          'scripts/prompts/sections/03-blog-generation.md',
+        ],
         provider: process.env.PI_PROVIDER || 'openai', modelId: process.env.PI_MODEL || 'gpt-5.6-sol',
         baseUrl: process.env.PI_BASE_URL || 'https://llm.int.exe.xyz/v1',
       }),
