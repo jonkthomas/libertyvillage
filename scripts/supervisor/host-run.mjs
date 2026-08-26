@@ -259,7 +259,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     if (candidate.generate !== 'true') return { terminal: candidate.action === 'abandon-topic' ? 'ABANDONED_TOPIC' : 'SKIPPED_CANDIDATE', topic_key: topic.topic_key };
     const selectedTopic = readSelectedTopic(path.join(workDir, 'data/topic-queue.json'), topic.topic_key);
     if (selectedTopic.title !== topic.topic_title) throw new Error(`selected topic title differs from the staging topic queue: ${topic.topic_key}`);
-    await onUpdate({ state: 'GENERATE' });
+    await onUpdate({ state: 'GENERATE', topic_key: topic.topic_key });
     const generation = await boundedCandidateFlow({
       generate: async () => generateWithPi({
         cwd: workDir, agentDir: path.join(stateDir, 'pi-runtime'), sessionsDir: path.join(stateDir, 'pi-sessions'),

@@ -41,6 +41,9 @@ test('generation prompt binds publishedAt and updatedAt to the exact UTC run dat
   assert.match(prompt, /exact UTC run date 2026-08-26/);
   assert.match(prompt, /must equal 2026-08-26/);
   assert.doesNotMatch(prompt, /2026-08-25|2026-08-27/);
+  assert.match(prompt, /exact unique slug/);
+  assert.match(prompt, /Do not write clock ranges/);
+  assert.match(prompt, /Cibo Wine Bar/);
 });
 
 test('content ship is on only for exedev and fails closed on the emergency override', () => {

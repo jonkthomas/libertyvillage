@@ -279,6 +279,8 @@ test('pi prompt grounds the selected topic in its trusted queue evidence and can
   assert.match(prompt, /entry's source and rationale/i);
   assert.match(prompt, /Topic source: gsc/);
   assert.match(prompt, /Topic rationale: GSC top query \(8 clicks\)/);
+  assert.match(prompt, /\/directory\/<slug>/);
+  assert.match(prompt, /Do not write clock ranges/);
   assert.doesNotMatch(prompt, /SEO evidence|seo-data-latest|missing SEO/i);
 });
 
