@@ -2,9 +2,9 @@
 // Local live-model supervisor acceptance gate — serial orchestrator.
 // Eval-owned; FROZEN by evals/local-supervisor-acceptance.sha256. Spec:
 // /tmp/lv-supervisor-local-acceptance-spec.md (sha256 3ed29573…).
-// Fourth eval-owner freeze: bounded ASYNC external children (the evaluator may
-// never block the event loop that serves its own loopback double) plus canonical
-// cross-process path containment. Phase order: manifest → parser probes →
+// Fifth eval-owner freeze: bounded ASYNC external children — written directly AND
+// reached through a production wrapper that defaults to a sync spawn (the evaluator
+// may never block the loop serving its own double). Phase order: manifest → parser probes →
 // deadlock probes → Design C static contracts → environment preflight →
 // live/negative/mutation/hitchhiker/RED scenarios. Everything before the
 // environment phase runs with no credential and no network, so on a pre-Design-C

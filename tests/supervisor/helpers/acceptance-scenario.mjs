@@ -19,6 +19,7 @@ import {
   writeModelsJson, writeSpawnLogger,
 } from './acceptance-evidence.mjs';
 import { parsePiSessionTools, sessionModelMetadata, stableStringify } from './acceptance-live-proof.mjs';
+import { asyncCoordinatorSeam } from './acceptance-exec.mjs';
 
 export const REPO = 'acceptance/libertyvillage';
 
@@ -203,6 +204,49 @@ export async function withSimEnv(scenario, fn) {
   try { return await fn(); } finally {
     for (const [key, value] of saved) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }
+}
+
+// FIFTH eval-owner correction — INDIRECT sync child through a production
+// wrapper. `recordSupervisorOutcome(payload, coordinatorFn = coordinator)`
+// defaults to a wrapper that launches coordinator.mjs with execFileSync. The
+// evaluator HOSTS the loopback double in this process, so taking that default
+// deadlocks the checker through production code (observed >3m at 0% CPU on
+// C-N13's `record-candidate-outcome --outcome MONITOR_TIMEOUT`). We inject the
+// bounded async seam production ALREADY accepts — no production change — and
+// still assert production's own argument mapping, the terminal outcome it
+// forwards, the durable ladder issue, and that no child survived.
+export async function recordOutcomeThroughSeam(scenario, { runId, topicKey, terminal, reason, label = 'C-N13-outcome' }) {
+  const { prod, fixture, sim } = scenario;
+  const seam = asyncCoordinatorSeam({ env: scenario.env, label });
+  const outputs = await withSimEnv(scenario, async () => prod.recordSupervisorOutcome({
+    repoRoot: fixture.clone, repo: REPO, runId, topicKey, terminal, reason,
+  }, seam.fn));
+  assertTrue(seam.calls.length === 1, `production drove ${seam.calls.length} coordinator invocations, expected exactly 1`);
+  const [call] = seam.calls;
+  assertTrue(samePath(String(call.repoRoot), fixture.clone), `production passed repoRoot ${call.repoRoot}, not the scenario clone`);
+  assertTrue(call.options?.repo === REPO, `production passed options.repo ${JSON.stringify(call.options?.repo)}, not ${REPO}`);
+  assertTrue(call.argv[0] === 'record-candidate-outcome', `production drove subcommand ${call.argv[0]}`);
+  const flags = {};
+  for (let index = 1; index < call.argv.length; index += 1) {
+    if (String(call.argv[index]).startsWith('--')) flags[call.argv[index]] = call.argv[index + 1];
+  }
+  for (const [flag, expected] of [
+    ['--kind', 'blog'], ['--outcome', terminal], ['--key', runId], ['--topic-key', topicKey],
+    ['--reason', prod.boundedOutcomeReason(reason || terminal)], ['--repo', REPO],
+  ]) {
+    assertTrue(flags[flag] === expected, `production mapped ${flag} to ${JSON.stringify(flags[flag] ?? null)}, expected ${JSON.stringify(expected)}`);
+  }
+  assertTrue(call.result.code === 0, `coordinator exited ${call.result.code}: ${(call.result.stderr || '').slice(-300)}`);
+  assertTrue(outputs?.recorded === 'true', `coordinator did not record a durable outcome: ${JSON.stringify(outputs)}`);
+  assertTrue(outputs?.topic_key === topicKey, `coordinator recorded topic_key ${JSON.stringify(outputs?.topic_key ?? null)}`);
+  const issue = [...sim.issues.values()].find((entry) => entry.title === 'automation-state: blog candidate ladder');
+  assertTrue(issue && issue.body.includes(terminal), `the durable candidate-state issue does not carry the ${terminal} outcome`);
+  const orphans = seam.orphans();
+  assertTrue(orphans.length === 0, `coordinator child processes survived the bounded seam: ${orphans.join(', ')}`);
+  return {
+    argv: call.argv.join(' '), exitCode: call.result.code, durationMs: call.result.durationMs,
+    recorded: outputs.recorded, action: outputs.action ?? null,
+  };
 }
 
 export function firstBlogImage(repoRoot) {

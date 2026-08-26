@@ -9,9 +9,10 @@
 // now/sleep seam plus sentinel and durable outcome (no non-terminal child is
 // killed); C-N14 pushes genuinely-moving commits and requires the observed
 // hook rejection, nonempty protection log, and unchanged SHAs. Every external
-// child here is launched ASYNC and bounded (helpers/acceptance-exec.mjs): the
-// loopback double lives in THIS process, so a synchronous child that talks to
-// it deadlocks the checker against its own server.
+// child here is launched ASYNC and bounded (helpers/acceptance-exec.mjs), and
+// C-N13-outcome drives production recordSupervisorOutcome through its EXISTING
+// coordinatorFn seam: the loopback double lives in THIS process, so a synchronous
+// child — even one reached through a production default — deadlocks the checker.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -19,7 +20,7 @@ import { sentinelPost } from './helpers/local-git-fixture.mjs';
 import { Checks, assertTrue, httpClient } from './helpers/acceptance-evidence.mjs';
 import { CONTROL_TIMEOUT_MS, assertSettled, runCoordinator, runExternal } from './helpers/acceptance-exec.mjs';
 import {
-  REPO, expectIngestRefusal, prepareScenario, shimPost, firstBlogImage, withSimEnv,
+  REPO, expectIngestRefusal, firstBlogImage, prepareScenario, recordOutcomeThroughSeam, shimPost, withSimEnv,
 } from './helpers/acceptance-scenario.mjs';
 
 const cleanPost = (context, slug) => ({ ...shimPost({ dirty: false, image: firstBlogImage(context.repoRoot) }), slug, publishedAt: '2026-01-01', updatedAt: '2026-01-01' });
@@ -266,6 +267,10 @@ export async function run(context) {
       assertTrue(fixture.isAncestor(pr.merge_commit_sha, fixture.rev('staging')), 'staging does not contain the merge');
       assertTrue(sim.statusesFor(pr.headSha).some((status) => status.context === 'Vercel' && status.state === 'success'), 'preview Vercel is not green');
       assertTrue(!sim.statusesFor(pr.merge_commit_sha).some((status) => status.context === 'Vercel'), 'a production Vercel status exists (control broken)');
+      // Indirect-sync-spawn audit: monitorOwnedPr redispatches through the SYNCHRONOUS production
+      // coordinator() only when ci AND gate are both missing past LOST_STATUS_MS; both are posted here.
+      const contexts = sim.statusesFor(pr.headSha).map((status) => status.context);
+      assertTrue(contexts.includes('automation/ci') && contexts.includes('automation/opus-gate'), `ci/gate missing at the pinned head (${contexts.join(', ')}): monitorOwnedPr would reach its synchronous coordinator redispatch and deadlock the checker`);
       return null;
     });
     await ch.checkAsync('C-N13', 'exported production monitor with injected now/sleep polls non-terminally past MONITOR_LIMIT_MS and returns MONITOR_TIMEOUT — never PUBLISHED_MAIN (primary preview≠live proof)', async () => {
@@ -319,17 +324,11 @@ export async function run(context) {
         'sentinel produced no finding for a run merged to main but non-terminal past the bound (production has the post; the sentinel must scream)');
       return { findings: findings.map((finding) => finding.key) };
     });
-    await ch.checkAsync('C-N13-outcome', 'MONITOR_TIMEOUT records a durable candidate outcome via the real coordinator', async () => {
-      const { prod } = scenario;
-      assertTrue(prod.terminalRequiresCandidateOutcome({ terminal: 'MONITOR_TIMEOUT', topicKey: 'acceptance-control-topic' }) === true,
-        'production says MONITOR_TIMEOUT requires no durable outcome');
-      await withSimEnv(scenario, async () => prod.recordSupervisorOutcome({
-        repoRoot: scenario.fixture.clone, repo: REPO, runId: 'cn13-run', topicKey: 'acceptance-control-topic',
-        terminal: 'MONITOR_TIMEOUT', reason: 'production Vercel never landed on merge_commit_sha',
-      }));
-      const issue = [...scenario.sim.issues.values()].find((entry) => entry.title === 'automation-state: blog candidate ladder');
-      assertTrue(issue && issue.body.includes('MONITOR_TIMEOUT'), 'the durable candidate-state issue does not carry the MONITOR_TIMEOUT outcome');
-      return null;
+    await ch.checkAsync('C-N13-outcome', 'MONITOR_TIMEOUT records a durable candidate outcome via the real coordinator — production recordSupervisorOutcome driven through its EXISTING coordinatorFn seam (bounded async child; the evaluator keeps serving its own loopback double), with production argument mapping, exit 0, durable issue and no orphan asserted', async () => {
+      assertTrue(scenario.prod.terminalRequiresCandidateOutcome({ terminal: 'MONITOR_TIMEOUT', topicKey: 'acceptance-control-topic' }) === true, 'production says MONITOR_TIMEOUT requires no durable outcome');
+      return recordOutcomeThroughSeam(scenario, {
+        runId: 'cn13-run', topicKey: 'acceptance-control-topic', terminal: 'MONITOR_TIMEOUT', reason: 'production Vercel never landed on merge_commit_sha',
+      });
     });
     await ch.checkAsync('C-N13b', 'finalizeOwnedPr refuses PUBLISHED_MAIN while production Vercel is missing', async () => {
       const client = httpClient(scenario.apiUrl);
