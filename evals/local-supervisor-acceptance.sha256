@@ -1,0 +1,25 @@
+# Integrity lock for the evaluator-owned files of the LOCAL LIVE-MODEL
+# SUPERVISOR ACCEPTANCE GATE (spec: /tmp/lv-supervisor-local-acceptance-spec.md,
+# sha256 3ed295730058e053a001d831dc5ed937e860d0fca6dae2ae7b3311ac80de337a;
+# architecture: /tmp/lv-autonomous-live-content-architecture.md, sha256
+# 4704227a99b84089a7fead2ed39b2b605b884edf903d9d65261c930f78071758).
+#
+# These files are FROZEN. The implementation builder must not edit, weaken,
+# delete, re-scope, or restage any of them. Maker != checker: any change to an
+# eval-owned path is a spec/eval-owner change and an automatic FAIL of the
+# acceptance review until the eval owner re-freezes.
+#
+# Verify (from the repository root; every line must print OK and exit 0):
+#
+#   shasum -a 256 -c evals/local-supervisor-acceptance.sha256
+#
+# Linux equivalent: sha256sum -c evals/local-supervisor-acceptance.sha256
+eaadd109aa9d2473c1477e50e84577b4683b690f4176cc6c7b11b34a2fa57370  tests/supervisor/local-acceptance.eval.mjs
+856d0926ed728a1e65ab93956486e0d6dbe678545e01944f18ccfd39d1dc8ae3  tests/supervisor/local-acceptance-happy.eval.mjs
+3f7affd9494b2a707ed62a36f9021dfa83596e370951cd8508ed235eb8077002  tests/supervisor/local-acceptance-mutations.eval.mjs
+41030b0bc0b5d182d1537a8a84a0d349b61a443b489bdf6ca371b44bcc86b1f0  tests/supervisor/local-acceptance-negatives.eval.mjs
+a7121c13a75bb493d9de04280b04f5718ed8516ad6f0de54f5e50812ff84c48c  tests/supervisor/local-acceptance-red.eval.mjs
+34437a569f67e18c7c336bb6c953cd3425a9211fbb446cb7c09c3ac48b4fd65a  tests/supervisor/local-acceptance-live-ship.eval.mjs
+e2de10d5317f955b3201dd6aa353c5009c58e2c65d2e1df5059cd2636ca8420f  tests/supervisor/helpers/fake-supervisor-github.mjs
+f3abc4dba8858b30fa6f5e82ce3223c40f464681fb88d22ed86b22732b8140ef  tests/supervisor/helpers/local-git-fixture.mjs
+10ad622abd21918f04ccc258499a14adfac4d70e7062f9b049386904a6bebdac  tests/supervisor/helpers/acceptance-evidence.mjs
