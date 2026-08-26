@@ -21,13 +21,21 @@ async function compareContained(repo, fromSha, toRef) {
   }
 }
 
+async function optionalBranch(repo, name) {
+  try {
+    return await github(`/repos/${repo}/branches/${name}`);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchObservation(repo, prNumber, sha) {
   const [pr, combined, comments, staging, main] = await Promise.all([
     github(`/repos/${repo}/pulls/${prNumber}`),
     github(`/repos/${repo}/commits/${sha}/status`),
     paged(`/repos/${repo}/issues/${prNumber}/comments`),
-    github(`/repos/${repo}/branches/staging`),
-    github(`/repos/${repo}/branches/main`).catch(() => null),
+    optionalBranch(repo, 'staging'),
+    optionalBranch(repo, 'main'),
   ]);
   const statuses = statusForExactSha(combined, sha);
   let productionVercel = 'missing';

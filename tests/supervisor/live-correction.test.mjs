@@ -43,6 +43,13 @@ test('resolved session evidence carries provider, model, API, and baseUrl togeth
   assert.throws(() => resolvedModelRoute({ provider: 'openai', id: 'model', api: '' }, 'https://approved.example/v1'), /lacks api/);
 });
 
+test('owned-PR observation fails soft when staging or main branch lookup is missing', () => {
+  const source = fs.readFileSync(new URL('../../scripts/supervisor/github-monitor.mjs', import.meta.url), 'utf8');
+  assert.match(source, /optionalBranch\(repo, 'staging'\)/);
+  assert.match(source, /optionalBranch\(repo, 'main'\)/);
+  assert.doesNotMatch(source, /github\(`\/repos\/\$\{repo\}\/branches\/staging`\),/);
+});
+
 test('published terminal rejects a Vercel status authored by the coordinator creator login', async () => {
   const sha = 'a'.repeat(40);
   const mergeSha = 'b'.repeat(40);
