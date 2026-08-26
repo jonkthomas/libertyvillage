@@ -487,6 +487,18 @@ export function formatFindings(findings) {
   return findings.map((finding) => `- **${finding.rule}** \`${String(finding.claim).slice(0, 120)}\` — ${finding.detail}`).join('\n');
 }
 
+export function formatCliFinding(post, finding) {
+  const context = ['content', 'intro', 'proTip', 'conclusion']
+    .map((field) => typeof post?.[field] === 'string' ? post[field] : '')
+    .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 360);
+  return [
+    `  [${finding.rule}] ${finding.claim} — ${finding.detail}`,
+    `    Evidence: post slug=${JSON.stringify(post?.slug ?? 'unknown')}; title=${JSON.stringify(post?.title ?? 'untitled')}; offending context=${JSON.stringify(context || '<empty>')}.`,
+    '    Remediation: remove or rewrite the unsupported claim. A business claim must use the exact /directory/<slug> link and must match the current data/businesses.json record for that same slug. Do not infer or add a price, clock time, opening hour, civic address, reservation policy, accessibility policy, pet policy, or happy-hour policy that the record does not contain.',
+    '    Verification: rerun scripts/blog-lint.mjs against the staging worktree and confirm the finding disappears without changing the trusted business record or weakening lint mode.',
+  ].join('\n');
+}
+
 // ---------------------------------------------------------------------------
 // CLI: lint a single post file, or every post this working tree added/changed in
 // data/posts.json relative to HEAD. Runs before the blog PR is committed.
@@ -536,7 +548,7 @@ async function main() {
     total += findings.length;
     lines.push(`### blog-lint \`${post?.slug ?? 'unknown'}\` — ${ok ? 'clean' : `${findings.length} finding(s)`}`, '', formatFindings(findings), '');
     console.log(`blog-lint ${post?.slug ?? 'unknown'}: ${ok ? 'clean' : `${findings.length} finding(s)`}`);
-    for (const finding of findings) console.log(`  [${finding.rule}] ${finding.claim} — ${finding.detail}`);
+    for (const finding of findings) console.log(formatCliFinding(post, finding));
   }
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${['## Blog claim linter', '', `Mode: \`${mode}\``, '', ...lines].join('\n')}\n`);

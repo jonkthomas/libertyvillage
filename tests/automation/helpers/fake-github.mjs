@@ -26,7 +26,17 @@ export function createFakeGitHub({ repo = 'owner/repo' } = {}) {
   const requests = [];
   const files = new Map();
   let nextNumber = 100;
-  let compare = { merge_base_commit: { sha: 'b'.repeat(40) }, ahead_by: 1, diff: 'diff --git a/data/posts.json b/data/posts.json\n+one line\n' };
+  let compare = {
+    merge_base_commit: { sha: 'b'.repeat(40) }, ahead_by: 1, behind_by: 0, status: 'ahead',
+    files: [{ filename: 'data/posts.json' }],
+    diff: 'diff --git a/data/posts.json b/data/posts.json\n+one line\n',
+  };
+  const branches = new Map([
+    ['main', 'a'.repeat(40)],
+    ['staging', 'b'.repeat(40)],
+  ]);
+  const statuses = new Map();
+  const PROTECTED = new Set(['main', 'staging']);
 
   const asIssue = (record) => ({
     number: record.number,
@@ -44,10 +54,12 @@ export function createFakeGitHub({ repo = 'owner/repo' } = {}) {
     title: record.title,
     state: record.state,
     draft: false,
+    merged: record.merged === true,
+    merge_commit_sha: record.merge_commit_sha ?? null,
     user: { login: record.author },
     labels: [...record.labels].map((name) => ({ name })),
     updated_at: record.updatedAt,
-    head: { ref: record.headRef, sha: record.headSha, repo: { full_name: repo } },
+    head: { ref: record.headRef, sha: record.headSha, repo: { full_name: repo, fork: false } },
     base: { ref: record.baseRef, repo: { full_name: repo } },
   });
 
@@ -103,7 +115,48 @@ export function createFakeGitHub({ repo = 'owner/repo' } = {}) {
           response.writeHead(200, { 'Content-Type': 'text/plain' });
           return response.end(compare.diff);
         }
-        return json(response, 200, { merge_base_commit: compare.merge_base_commit, ahead_by: compare.ahead_by });
+        return json(response, 200, {
+          merge_base_commit: compare.merge_base_commit, ahead_by: compare.ahead_by,
+          behind_by: compare.behind_by ?? 0, status: compare.status ?? 'ahead',
+          files: compare.files ?? [],
+        });
+      }
+
+      if (request.method === 'GET' && tail[0] === 'branches' && tail[1]) {
+        const sha = branches.get(tail[1]);
+        if (!sha) return json(response, 404, { message: 'no such branch' });
+        return json(response, 200, { name: tail[1], commit: { sha } });
+      }
+
+      if (request.method === 'GET' && tail[0] === 'commits' && tail[2] === 'status') {
+        const list = statuses.get(tail[1]) || [];
+        return json(response, 200, { sha: tail[1], statuses: list, state: 'pending' });
+      }
+
+      if (request.method === 'POST' && tail[0] === 'statuses' && tail[1]) {
+        const context = body?.context;
+        if (context === 'Vercel') return json(response, 422, { message: 'Vercel is not a coordinator publish context' });
+        const list = statuses.get(tail[1]) || [];
+        list.push({ context, state: body?.state, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        statuses.set(tail[1], list);
+        return json(response, 201, { context, state: body?.state });
+      }
+
+      if (request.method === 'POST' && tail[0] === 'merges') {
+        if (PROTECTED.has(body?.base)) {
+          return json(response, 403, { message: 'GH006: protected branch require a pull request' });
+        }
+        return json(response, 201, { sha: 'c'.repeat(40), merged: true });
+      }
+
+      if (tail[0] === 'git' && tail[1] === 'refs') {
+        const ref = body?.ref || tail.slice(2).join('/');
+        const name = String(ref || '').replace(/^refs\/heads\//, '');
+        if (PROTECTED.has(name) && (request.method === 'POST' || request.method === 'PATCH' || request.method === 'DELETE')) {
+          return json(response, 403, { message: 'GH006: protected branch require a pull request' });
+        }
+        if (request.method === 'POST') return json(response, 201, { ref: body?.ref, object: { sha: body?.sha } });
+        if (request.method === 'DELETE') return json(response, 204);
       }
 
       // GET /contents/{path}?ref=sha — the repository-controlled reference data.
@@ -188,11 +241,27 @@ export function createFakeGitHub({ repo = 'owner/repo' } = {}) {
       }
 
       // /pulls/{n}
-      if (tail[0] === 'pulls' && tail.length === 2) {
+      if (tail[0] === 'pulls' && tail.length >= 2) {
         const record = issues.get(Number(tail[1]));
         if (!record?.pull) return json(response, 404, { message: 'no such pull' });
-        if (request.method === 'GET') return json(response, 200, asPull(record));
-        if (request.method === 'PATCH') {
+        if (tail[2] === 'files' && request.method === 'GET') {
+          const page = Number(url.searchParams.get('page') || '1');
+          return json(response, 200, page > 1 ? [] : (record.files || []).map((filename) => ({ filename })));
+        }
+        if (tail[2] === 'merge' && request.method === 'PUT') {
+          if (PROTECTED.has(record.baseRef) && record.state !== 'open') {
+            return json(response, 403, { message: 'GH006: protected branch require a pull request' });
+          }
+          if (body?.merge_method && body.merge_method !== 'merge') {
+            return json(response, 422, { message: 'squash/rebase merges are forbidden' });
+          }
+          record.merged = true;
+          record.state = 'closed';
+          record.merge_commit_sha = record.headSha;
+          return json(response, 200, { merged: true, sha: record.headSha });
+        }
+        if (request.method === 'GET' && tail.length === 2) return json(response, 200, asPull(record));
+        if (request.method === 'PATCH' && tail.length === 2) {
           if (typeof body?.state === 'string') record.state = body.state;
           record.updatedAt = new Date().toISOString();
           return json(response, 200, asPull(record));
@@ -212,6 +281,7 @@ export function createFakeGitHub({ repo = 'owner/repo' } = {}) {
     fastForward,
     setFile: (file, ref, contents) => files.set(`${file}@${ref}`, contents),
     setCompare: (next) => { compare = { ...compare, ...next }; },
+    setBranch: (name, sha) => branches.set(name, sha),
     issueByTitle: (title) => [...issues.values()].find((record) => record.title === title) ?? null,
     commentsOn: (number) => comments.get(number) ?? [],
     pull: (number) => issues.get(number),

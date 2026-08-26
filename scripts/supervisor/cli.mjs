@@ -7,8 +7,10 @@ import { github } from '../automation/github.mjs';
 import { acquireAtomicLock, leaseIsLive, newLease, pidAlive, releaseAtomicLock } from './lease.mjs';
 import { readLedger, repairLedger, terminalizeRun, updateLedger } from './ledger.mjs';
 import { cleanupDataBranch, recordSupervisorOutcome, resolveHostWeeklyOwner, runBlogSupervisor } from './host-run.mjs';
+import { fetchObservation } from './github-monitor.mjs';
 import { smokePiSession } from './pi-session.mjs';
 import { activeOwnedRuns, evaluateSentinel } from './sentinel.mjs';
+import { terminalFromObservation } from './sha-monitor.mjs';
 import { finalizeSupervisorTerminal } from './terminal-pr.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -37,6 +39,7 @@ function persistRun(runId, changes) {
 async function settleTerminal(runRow, terminal, expectedSha, reason) {
   return finalizeSupervisorTerminal({
     repo: REPO, run: runRow, terminal, expectedSha, reason,
+    expectedBase: terminal === 'MERGED_STAGING' ? 'staging' : 'main',
     recordOutcome: ({ terminal: outcome, topicKey, reason: outcomeReason }) => recordSupervisorOutcome({
       repoRoot: REPO_ROOT, repo: REPO, runId: runRow.run_id, topicKey, terminal: outcome, reason: outcomeReason,
     }),
@@ -102,7 +105,22 @@ async function run(dryRun) {
       let recoveryTerminal = 'MONITOR_TIMEOUT';
       if (staleRun.pr_number) {
         const pr = await github(`/repos/${REPO}/pulls/${staleRun.pr_number}`);
-        if (pr?.merged === true && /^[0-9a-f]{40}$/.test(pr.merge_commit_sha || '')) recoveryTerminal = 'MERGED_STAGING';
+        if (pr?.merged === true && /^[0-9a-f]{40}$/.test(pr.merge_commit_sha || '')) {
+          if (pr.base?.ref === 'main') {
+            const observation = await fetchObservation(REPO, staleRun.pr_number, staleRun.head_sha || pr.head?.sha);
+            recoveryTerminal = terminalFromObservation({
+              pr: observation.pr, sha: staleRun.head_sha || pr.head?.sha,
+              base: 'main',
+              auditDecision: observation.audit?.decision,
+              stagingContained: observation.stagingContained,
+              mainContained: observation.mainContained,
+              productionVercel: observation.productionVercel,
+              contentContainedInMain: observation.contentContainedInMain,
+            }).terminal || 'MONITOR_TIMEOUT';
+          } else {
+            recoveryTerminal = 'MERGED_STAGING';
+          }
+        }
       }
       const finalized = await settleTerminal(staleRun, recoveryTerminal, staleRun.head_sha, 'reconciled unfinished supervisor run');
       if (staleRun.data_branch) cleanupDataBranch(REPO_ROOT, staleRun.data_branch);
@@ -162,7 +180,7 @@ async function run(dryRun) {
       latest.lease = null; return latest;
     });
     console.log(`${result.terminal}: ${runId}`);
-    if (!['MERGED_STAGING', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE', 'DISCARDED_PRE_PR', 'DRY_RUN'].includes(result.terminal)) process.exitCode = 1;
+    if (!['PUBLISHED_MAIN', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE', 'DISCARDED_PRE_PR', 'DRY_RUN'].includes(result.terminal)) process.exitCode = 1;
   } catch (error) {
     const snapshot = readLedger(LEDGER_FILE);
     const current = snapshot.runs.find((entry) => entry.run_id === runId);

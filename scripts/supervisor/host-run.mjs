@@ -10,11 +10,21 @@ import {
 import { validateIngestDiff, repositoryDispatchBody } from './ingest-contract.mjs';
 import { generateWithPi, writeCandidateArtifact } from './pi-session.mjs';
 import { fetchObservation } from './github-monitor.mjs';
+import { contentShipEnabled } from '../automation/promotion-control.mjs';
+import { KIND_POLICIES } from '../automation/constants.mjs';
 import { lostDispatchRetry, mayRepin, MONITOR_LIMIT_MS, terminalFromObservation } from './sha-monitor.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const COMMAND_OUTPUT_LIMIT = 8 * 1024;
 export const OUTCOME_REASON_LIMIT = 512;
+
+function numberedCommandOutput(value, label) {
+  return boundedCommandOutput(value).split('\n')
+    .map((line, index) => /^<\d+ characters omitted; showing tail>$/.test(line)
+      ? line
+      : `${label} line ${index + 1}: ${line}`)
+    .join('\n');
+}
 
 function boundedCommandOutput(value) {
   const output = Buffer.isBuffer(value) ? value.toString('utf8') : String(value ?? '');
@@ -42,13 +52,35 @@ export function runCommand(file, args, options = {}) {
     const invocation = [file, ...args].map((part) => JSON.stringify(String(part))).join(' ');
     throw new Error([
       `supervisor command failed (${status}): ${invocation}`,
-      `stdout:\n${boundedCommandOutput(error.stdout)}`,
-      `stderr:\n${boundedCommandOutput(error.stderr)}`,
-    ].join('\n'), { cause: error });
+      options.cwd ? `cwd: ${options.cwd}` : null,
+      `stdout:\n${numberedCommandOutput(error.stdout, 'stdout')}`,
+      `stderr:\n${numberedCommandOutput(error.stderr, 'stderr')}`,
+    ].filter(Boolean).join('\n'), { cause: error });
   }
 }
 
-const command = runCommand;
+export function command(file, args, options = {}) {
+  return runCommand(file, args, options);
+}
+
+let cachedNpmCli = undefined;
+function npmCliJs() {
+  if (cachedNpmCli !== undefined) return cachedNpmCli;
+  try {
+    const globalRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
+    const cli = path.join(globalRoot, 'npm/bin/npm-cli.js');
+    cachedNpmCli = fs.existsSync(cli) ? cli : null;
+  } catch {
+    cachedNpmCli = null;
+  }
+  return cachedNpmCli;
+}
+
+function npm(args, options) {
+  const cli = npmCliJs();
+  if (cli) return command(process.execPath, [cli, ...args], options);
+  return command('npm', args, options);
+}
 
 export function coordinator(repoRoot, args, { repo }) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-supervisor-output-'));
@@ -140,12 +172,19 @@ async function findIngestPr(repo, dataSha, { timeoutMs = 25 * 60 * 1000 } = {}) 
   throw new Error('timed out waiting for trusted ingest pull request');
 }
 
-async function monitorOwnedPr({ repoRoot, repo, prNumber, initialSha, onUpdate, startedAt = Date.now() }) {
+export async function monitorOwnedPr({
+  repoRoot, repo, prNumber, initialSha, onUpdate = async () => {}, startedAt,
+  now = Date.now, sleep: sleepFn = sleep, kind = 'blog-live', coordinatorFn = coordinator,
+  fetchObservationFn = fetchObservation,
+} = {}) {
+  const clock = typeof now === 'function' ? now : () => now;
+  const origin = Number.isFinite(startedAt) ? startedAt : clock();
   let sha = initialSha;
   let missingSince = null;
   let redispatches = 0;
-  while (Date.now() - startedAt < MONITOR_LIMIT_MS) {
-    const observation = await fetchObservation(repo, prNumber, sha);
+  let syncAttempts = 0;
+  while (clock() - origin < MONITOR_LIMIT_MS) {
+    const observation = await fetchObservationFn(repo, prNumber, sha);
     if (observation.pr?.head?.sha !== sha && observation.pr?.state === 'open') {
       const commit = await github(`/repos/${repo}/commits/${observation.pr.head.sha}`);
       const parents = (commit?.parents || []).map((parent) => parent.sha);
@@ -158,24 +197,46 @@ async function monitorOwnedPr({ repoRoot, repo, prNumber, initialSha, onUpdate, 
       continue;
     }
     const terminal = terminalFromObservation({
-      pr: observation.pr, sha, auditDecision: observation.audit?.decision,
+      pr: observation.pr, sha, auditDecision: observation.audit?.decision, base: KIND_POLICIES[kind]?.base,
+      stagingContained: observation.stagingContained,
+      mainContained: observation.mainContained,
+      productionVercel: observation.productionVercel,
+      contentContainedInMain: observation.contentContainedInMain,
     });
     if (terminal.terminal) return { terminal: terminal.terminal, prState: observation.pr?.state, sha };
+    const exactHeadGreen = observation.statuses.ci === 'success'
+      && observation.statuses.gate === 'success' && observation.statuses.vercel === 'success';
+    if (observation.pr?.merged === true && observation.pr?.base?.ref === 'main'
+      && !observation.stagingContained && exactHeadGreen && syncAttempts < 3) {
+      syncAttempts += 1;
+      try {
+        await coordinatorFn(repoRoot, [
+          'observe-and-sync-staging', '--pr', String(prNumber), '--sha', sha,
+        ], { repo });
+        await onUpdate({ head_sha: sha, sync_attempts: syncAttempts });
+      } catch (error) {
+        await onUpdate({ head_sha: sha, sync_attempts: syncAttempts, sync_error: error.message });
+        if (syncAttempts >= 3) return { terminal: 'MONITOR_TIMEOUT', prState: observation.pr?.state, sha };
+      }
+      await sleepFn(30_000);
+      continue;
+    }
     const missing = observation.statuses.ci === 'missing' && observation.statuses.gate === 'missing';
-    missingSince = missing ? (missingSince ?? Date.now()) : null;
-    const retry = lostDispatchRetry({ attempts: redispatches, missingSince });
+    missingSince = missing ? (missingSince ?? clock()) : null;
+    const retry = lostDispatchRetry({ attempts: redispatches, missingSince, now: clock() });
     if (retry.action === 'retry') {
-      coordinator(repoRoot, ['dispatch', '--pr', String(prNumber), '--kind', 'blog', '--sha', sha], { repo });
-      redispatches += 1; missingSince = Date.now();
+      coordinator(repoRoot, ['dispatch', '--pr', String(prNumber), '--kind', kind, '--sha', sha], { repo });
+      redispatches += 1; missingSince = clock();
       await onUpdate({ head_sha: sha, sha_reason: 'redispatch', redispatches });
     } else if (retry.action === 'block') return { terminal: 'MONITOR_TIMEOUT', prState: observation.pr?.state, sha };
-    await sleep(30_000);
+    await sleepFn(30_000);
   }
   return { terminal: 'MONITOR_TIMEOUT', prState: 'open', sha };
 }
 
 export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun = false, onUpdate = async () => {} }) {
   if (resolveHostWeeklyOwner(repoRoot) !== 'exedev') return { terminal: 'SKIPPED_OWNER' };
+  if (!contentShipEnabled()) throw new Error('contentShipEnabled is false; refusing autonomous writes to protected branches');
   const trustedStagingSha = command('git', ['rev-parse', 'origin/staging'], { cwd: repoRoot });
   if (!isExactSha(trustedStagingSha)) throw new Error('origin/staging did not resolve to an exact SHA');
   const workDir = path.join(stateDir, 'work', run.run_id);
@@ -184,11 +245,11 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
   let dataBranch = null;
   try {
     await onUpdate({ state: 'BASELINE_CI', trusted_staging_sha: trustedStagingSha });
-    command('npm', ['ci'], { cwd: workDir });
-    command('npm', ['run', 'lint:automation'], { cwd: workDir });
-    command('npm', ['run', 'lint:supervisor'], { cwd: workDir });
-    command('npm', ['run', 'test:automation'], { cwd: workDir });
-    command('npm', ['run', 'test:supervisor'], { cwd: workDir });
+    npm(['ci'], { cwd: workDir });
+    npm(['run', 'lint:automation'], { cwd: workDir });
+    npm(['run', 'lint:supervisor'], { cwd: workDir });
+    npm(['run', 'test:automation'], { cwd: workDir });
+    npm(['run', 'test:supervisor'], { cwd: workDir });
 
     const resolved = resolveCandidateReadOnly({
       dryRun,
@@ -201,7 +262,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     if (candidate.generate !== 'true') return { terminal: candidate.action === 'abandon-topic' ? 'ABANDONED_TOPIC' : 'SKIPPED_CANDIDATE', topic_key: topic.topic_key };
     const selectedTopic = readSelectedTopic(path.join(workDir, 'data/topic-queue.json'), topic.topic_key);
     if (selectedTopic.title !== topic.topic_title) throw new Error(`selected topic title differs from the staging topic queue: ${topic.topic_key}`);
-    await onUpdate({ state: 'GENERATE' });
+    await onUpdate({ state: 'GENERATE', topic_key: topic.topic_key });
     const generation = await boundedCandidateFlow({
       generate: async () => generateWithPi({
         cwd: workDir, agentDir: path.join(stateDir, 'pi-runtime'), sessionsDir: path.join(stateDir, 'pi-sessions'),
@@ -254,7 +315,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     }
     if (!isExactSha(pr?.head?.sha)) throw new Error('ingest PR has no exact head SHA');
     await onUpdate({ state: 'MONITORING_CI', data_branch: generation.result.dataBranch, data_sha: generation.result.dataSha, pr_number: pr.number, head_sha: pr.head.sha, sha_reason: 'ingest' });
-    return { ...(await monitorOwnedPr({ repoRoot, repo, prNumber: pr.number, initialSha: pr.head.sha, onUpdate })), topic_key: topic.topic_key };
+    return { ...(await monitorOwnedPr({ repoRoot, repo, prNumber: pr.number, initialSha: pr.head.sha, onUpdate, kind: 'blog-live' })), topic_key: topic.topic_key };
   } finally {
     if (dataBranch) {
       try { cleanupDataBranch(repoRoot, dataBranch); } catch (error) { console.error(`data branch cleanup failed for ${dataBranch}: ${error.message}`); }

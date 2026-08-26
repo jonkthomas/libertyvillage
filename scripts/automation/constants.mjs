@@ -9,9 +9,17 @@ export const MAX_TRANSIENT_RETRIES = 2;
 // third conflict falls through to block-generator because the content needs eyes.
 export const MAX_HEALS = 2;
 
-export const STATUS_CONTEXTS = Object.freeze({
+const PUBLISH_STATUS_CONTEXTS = Object.freeze({
   ci: 'automation/ci',
   gate: 'automation/opus-gate',
+});
+
+export const STATUS_CONTEXTS = Object.freeze({
+  publish: PUBLISH_STATUS_CONTEXTS,
+  wait: Object.freeze({
+    ...PUBLISH_STATUS_CONTEXTS,
+    vercel: 'Vercel',
+  }),
 });
 
 export const TRUSTED_PR_AUTHORS = Object.freeze(['github-actions[bot]']);
@@ -40,6 +48,16 @@ const GENERATOR_POLICIES = {
     // Content only. Provenance (tasks/seo-data-latest.json, tasks/auto-blog-runs/)
     // is scored by the gate but structurally unrepairable by the fixer, so it goes
     // to the run's step summary instead of into the PR (F2, ticket 1a).
+    allowedPaths: ['data/posts.json', 'public/images/blog/'],
+    repairablePaths: ['data/posts.json'],
+    maxFiles: 20,
+    maxRepairBytes: 300_000,
+  },
+  // Content-only ship onto main after staging-context generation/lint.
+  // Do not mutate `blog` (GHA rollback) or `promotion` (human/G9, off under exedev).
+  'blog-live': {
+    base: 'main',
+    headPrefixes: ['blog/auto-'],
     allowedPaths: ['data/posts.json', 'public/images/blog/'],
     repairablePaths: ['data/posts.json'],
     maxFiles: 20,

@@ -13,6 +13,10 @@ import {
   buildGeneratorPrompt, createConstrainedTools, createPersistentSessionManager, PI_SDK_VERSION, PI_TOOL_ALLOWLIST,
   piSessionOptions, sessionFileForReport, validateSubmittedPost,
 } from '../../scripts/supervisor/pi-session.mjs';
+import {
+  appendResolvedRouteRecord, LIVE_ROUTE_CUSTOM_TYPE, persistResolvedRouteRecord, policyEvidenceForTopic,
+} from '../../scripts/supervisor/pi-session.mjs';
+import { sessionModelMetadata } from './helpers/acceptance-live-proof.mjs';
 import { promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
 import { parseWeeklyOwnerFile, readWeeklyOwner } from '../../scripts/automation/weekly-owner.mjs';
 import { finalizeOwnedPr, finalizeSupervisorTerminal } from '../../scripts/supervisor/terminal-pr.mjs';
@@ -52,7 +56,7 @@ test('ingest is repository_dispatch-only and keeps PR authorship in Actions', ()
 test('supervisor baseline is staging-based and data branches are bounded and cleaned', () => {
   assert.ok(host.indexOf("command('git', ['fetch'") < host.indexOf("readRemoteOwner('main')"),
     'the VM owner check must begin with a read-only fetch before reading remote owner files');
-  assert.ok(host.indexOf("readRemoteOwner('staging')") < host.indexOf("command('npm', ['ci']"),
+  assert.ok(host.indexOf("readRemoteOwner('staging')") < host.indexOf("npm(['ci']"),
     'both trusted remote branches must agree before work starts');
   assert.match(host, /worktree.*origin\/staging/s);
   assert.match(host, /npm.*lint:supervisor/s);
@@ -279,7 +283,66 @@ test('pi prompt grounds the selected topic in its trusted queue evidence and can
   assert.match(prompt, /entry's source and rationale/i);
   assert.match(prompt, /Topic source: gsc/);
   assert.match(prompt, /Topic rationale: GSC top query \(8 clicks\)/);
+  assert.match(prompt, /\/directory\//);
+  assert.match(prompt, /Write zero clock ranges/);
+  assert.match(prompt, /Ban unsupported hours, prices, civic addresses/);
   assert.doesNotMatch(prompt, /SEO evidence|seo-data-latest|missing SEO/i);
+});
+
+test('policy topics with ambiguous evidence require zero business names and no hardcoded slugs', () => {
+  const businesses = JSON.parse(fs.readFileSync(new URL('../../data/businesses.json', import.meta.url), 'utf8'));
+  const pet = buildGeneratorPrompt({
+    topic: { key: 'pet-key', title: 'Pet-Friendly Restaurants in Liberty Village', source: 'gsc', rationale: 'canary' },
+    businesses,
+  });
+  assert.equal(policyEvidenceForTopic({ title: 'Pet-Friendly Restaurants in Liberty Village' }, businesses).ambiguous, true);
+  assert.match(pet, /zero business names/);
+  assert.match(pet, /Do not put/);
+  assert.match(pet, /title, slug, description, content, answerBlock, FAQs, and keyTakeaways/);
+  assert.doesNotMatch(pet, /the only safe Liberty Village slugs/);
+
+  const happy = buildGeneratorPrompt({
+    topic: { key: 'happy-key', title: 'Liberty Village Happy Hour', source: 'gsc', rationale: 'GSC top query' },
+    businesses,
+  });
+  assert.equal(policyEvidenceForTopic({ title: 'Liberty Village Happy Hour' }, businesses).ambiguous, true);
+  assert.match(happy, /zero business names/);
+  assert.match(happy, /zero \/directory\/ links/);
+  assert.doesNotMatch(happy, /the only safe Liberty Village slugs/);
+
+  const unique = buildGeneratorPrompt({
+    topic: { key: 'unique-key', title: 'Pet-friendly patio lunch', source: 'gsc', rationale: 'unique support' },
+    businesses: [{ slug: 'unique-patio', name: 'Unique Patio Cafe', description: 'A pet-friendly patio with dogs welcome.' }],
+  });
+  assert.equal(policyEvidenceForTopic({ title: 'Pet-friendly patio lunch' }, [{
+    slug: 'unique-patio', name: 'Unique Patio Cafe', description: 'A pet-friendly patio with dogs welcome.',
+  }]).ambiguous, false);
+  assert.match(unique, /\/directory\/unique-patio/);
+  assert.doesNotMatch(unique, /zero business names/);
+});
+
+test('resolved live route record is a non-secret JSONL custom entry the frozen parser can read', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-live-route-'));
+  const sessionFile = path.join(directory, 'session.jsonl');
+  const route = {
+    provider: 'lv-openai-acceptance', id: 'openai/gpt-5.6-sol',
+    api: 'openai-responses', baseUrl: 'https://approved.example/v1',
+  };
+  fs.writeFileSync(sessionFile, `${JSON.stringify({
+    type: 'message', message: {
+      role: 'assistant', provider: route.provider, model: route.id, api: route.api,
+      content: [{ type: 'text', text: 'done' }],
+    },
+  })}\n`);
+  persistResolvedRouteRecord({ session: { sessionManager: { appendCustomEntry() { throw new Error('sdk refused'); } } }, sessionFile, route });
+  const raw = fs.readFileSync(sessionFile, 'utf8');
+  assert.match(raw, new RegExp(LIVE_ROUTE_CUSTOM_TYPE));
+  assert.doesNotMatch(raw, /PI_API_KEY|sk-|github_pat_|BEGIN [A-Z ]*PRIVATE KEY/);
+  const meta = sessionModelMetadata(sessionFile);
+  assert.deepEqual({ provider: meta.provider, id: meta.id, api: meta.api, baseUrl: meta.baseUrl }, route);
+  appendResolvedRouteRecord(sessionFile, route);
+  const again = sessionModelMetadata(sessionFile);
+  assert.equal(again.baseUrl, route.baseUrl);
 });
 
 test('staging grounding resolves the exact selected queue entry and rejects missing evidence', () => {

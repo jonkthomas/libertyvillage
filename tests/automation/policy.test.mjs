@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { GATE_MODEL, MAX_REPAIRS, SCORE_THRESHOLD } from '../../scripts/automation/constants.mjs';
 import {
   canRepair, evaluateGeneratorBase, evaluateObservedMerge, evaluateVerdict, filterRepairablePaths,
-  readRepairAttempt, validatePaths, validatePromotionRange, validatePullRequest, validateRepairPlan,
-  validateTopicQueueAppendOnly,
+  readRepairAttempt, validateContentTreeParity, validatePaths, validatePromotionRange, validatePullRequest,
+  validateRepairPlan, validateSyncDelta, validateTopicQueueAppendOnly,
 } from '../../scripts/automation/policy.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -43,6 +43,28 @@ test('fails closed for fork, stale SHA, draft, actor, branch, and forbidden path
   assert.equal(validatePaths('news', ['data/posts.json']).ok, true);
   assert.equal(validatePaths('news', ['public/images/blog/x.jpg']).ok, false);
   assert.equal(validatePaths('news', ['.github/workflows/news-autopublish.yml']).ok, false);
+});
+
+test('blog-live accepts content-only PRs onto main and refuses staging or hitchhikers', () => {
+  const live = trustedPr({
+    head: { sha: SHA, ref: 'blog/auto-supervisor-abc', repo: { full_name: 'owner/repo' } },
+    base: { ref: 'main', repo: { full_name: 'owner/repo' } },
+  });
+  assert.equal(validatePullRequest({
+    repository: 'owner/repo', kind: 'blog-live', expectedSha: SHA, pr: live, files: ['data/posts.json'],
+  }).ok, true);
+  assert.equal(validatePullRequest({
+    repository: 'owner/repo', kind: 'blog-live', expectedSha: SHA,
+    pr: { ...live, base: { ref: 'staging', repo: { full_name: 'owner/repo' } } },
+    files: ['data/posts.json'],
+  }).ok, false);
+  assert.equal(validatePaths('blog-live', ['data/posts.json', 'public/images/blog/x.jpg']).ok, true);
+  assert.equal(validatePaths('blog-live', ['.github/workflows/x.yml']).ok, false);
+  assert.equal(validatePaths('blog-live', ['scripts/automation/coordinator.mjs']).ok, false);
+  assert.equal(validateContentTreeParity([]).ok, true);
+  assert.equal(validateContentTreeParity(['data/posts.json']).ok, false);
+  assert.equal(validateSyncDelta(['data/posts.json']).ok, true);
+  assert.equal(validateSyncDelta(['scripts/evil.mjs']).ok, false);
 });
 
 test('accepts a trusted news autopublish PR touching only posts.json', () => {

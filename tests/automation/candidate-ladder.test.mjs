@@ -183,6 +183,25 @@ test('a genuinely repairable, still-in-flight candidate keeps its repair budget'
   });
 });
 
+test('record-candidate-outcome stores MONITOR_TIMEOUT separately from the exact reason', async () => {
+  await withHub(async (hub, url) => {
+    const reason = 'production Vercel never landed on merge_commit_sha';
+    const result = await run(url, [
+      'record-candidate-outcome', '--repo', REPO, '--kind', 'blog',
+      '--outcome', 'MONITOR_TIMEOUT', '--key', 'cn13-run', '--topic-key', 'acceptance-control-topic',
+      '--reason', reason,
+    ]);
+    assert.equal(result.status, 0, result.stdout);
+    assert.equal(result.outputs.recorded, 'true');
+    const ladder = ladderState(hub, 'blog');
+    assert.equal(ladder.state.lastReason, reason);
+    assert.equal(ladder.state.lastOutcome, 'MONITOR_TIMEOUT');
+    assert.equal(ladder.state.topics['acceptance-control-topic'].reason, reason);
+    assert.match(ladder.issue.body, /MONITOR_TIMEOUT/);
+    assert.equal(ladder.issue.body.includes(`MONITOR_TIMEOUT: ${reason}`), false);
+  });
+});
+
 test('a lint-refused draft costs one regeneration, idempotently, with no pull request', async () => {
   await withHub(async (hub, url) => {
     const first = await run(url, ['plan-candidate', '--repo', REPO, '--kind', 'blog']);

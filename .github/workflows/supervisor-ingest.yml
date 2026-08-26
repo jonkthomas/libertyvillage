@@ -63,6 +63,12 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `data_sha=${payload.data_sha}\ndata_branch=${payload.data_branch}\ntopic_key=${payload.topic_key}\nregenerations=${payload.regenerations}\n`);
           NODE
 
+      - name: Require content-ship enablement
+        working-directory: trusted
+        env:
+          LV_CONTENT_SHIP_ENABLED: ${{ vars.LV_CONTENT_SHIP_ENABLED }}
+        run: node scripts/automation/promotion-control.mjs --content-ship
+
       - name: Fetch and verify exact untrusted data commit
         env:
           DATA_SHA: ${{ steps.payload.outputs.data_sha }}
@@ -71,6 +77,11 @@ jobs:
           git -C trusted fetch --no-tags origin "$DATA_BRANCH"
           test "$(git -C trusted rev-parse FETCH_HEAD)" = "$DATA_SHA"
           git -C trusted fetch --no-tags origin staging
+          git -C trusted fetch --no-tags origin main
+          git -C trusted merge-base --is-ancestor origin/main origin/staging \
+            || { echo "enablement tripwire: origin/main is not an ancestor of origin/staging" >&2; exit 1; }
+          PARITY=$(git -C trusted diff --name-only origin/main origin/staging -- data/posts.json public/images/blog/)
+          test -z "$PARITY" || { echo "enablement tripwire: two-dot blog-path diff is non-empty: $PARITY" >&2; exit 1; }
           git -C trusted diff --name-only "origin/staging...$DATA_SHA" > /tmp/supervisor-files.txt
           FILES_JSON=$(jq -Rsc 'split("\n") | map(select(length > 0))' /tmp/supervisor-files.txt)
           FILES_JSON="$FILES_JSON" node --input-type=module <<'NODE'
@@ -79,7 +90,7 @@ jobs:
           if (!result.ok) throw new Error(result.errors.join('; '));
           NODE
 
-      - name: Create trusted actions-authored staging candidate
+      - name: Create trusted actions-authored main candidate
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
@@ -87,7 +98,7 @@ jobs:
           DATA_BRANCH: ${{ steps.payload.outputs.data_branch }}
         working-directory: trusted
         run: |
-          git checkout -B "blog/auto-supervisor-${DATA_SHA:0:12}" origin/staging
+          git checkout -B "blog/auto-supervisor-${DATA_SHA:0:12}" origin/main
           git checkout "$DATA_SHA" -- data/posts.json
           while IFS= read -r file; do
             case "$file" in public/images/blog/*) git checkout "$DATA_SHA" -- "$file" ;; esac
@@ -98,9 +109,18 @@ jobs:
           git add data/posts.json public/images/blog/
           git diff --cached --quiet && { echo "No candidate changes" >&2; exit 1; }
           git commit -m "blog: ingest supervised weekly candidate"
+          git diff --name-only origin/main...HEAD > /tmp/supervisor-post-commit-files.txt
+          cmp -s /tmp/supervisor-files.txt /tmp/supervisor-post-commit-files.txt \
+            || { echo "Post-commit files differ from the validated ingest list" >&2; exit 1; }
+          FILES_JSON=$(jq -Rsc 'split("\n") | map(select(length > 0))' /tmp/supervisor-post-commit-files.txt)
+          FILES_JSON="$FILES_JSON" node --input-type=module <<'NODE'
+          import { validatePaths } from './scripts/automation/policy.mjs';
+          const result = validatePaths('blog-live', JSON.parse(process.env.FILES_JSON));
+          if (!result.ok) throw new Error(result.errors.join('; '));
+          NODE
           test "$(git ls-remote origin "refs/heads/$DATA_BRANCH" | cut -f1)" = "$DATA_SHA" || { echo "Supervisor data branch is no longer owned" >&2; exit 1; }
           git push origin "HEAD:blog/auto-supervisor-${DATA_SHA:0:12}"
-          URL=$(gh pr create --base staging --head "blog/auto-supervisor-${DATA_SHA:0:12}" --title "blog: supervised weekly candidate" --body "Staging-only exe.dev supervisor pilot candidate. GitHub Actions CI and the Opus gate remain authoritative.")
+          URL=$(gh pr create --base main --head "blog/auto-supervisor-${DATA_SHA:0:12}" --title "blog: supervised weekly candidate" --body "Content-only exe.dev supervisor candidate onto main. GitHub Actions CI and the Opus gate remain authoritative. Merge with --merge only.")
           PR=$(gh pr view "$URL" --json number --jq .number)
           SHA=$(git rev-parse HEAD)
           echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
@@ -114,4 +134,4 @@ jobs:
       - name: Explicitly dispatch the existing coordinator at the exact SHA
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind blog --sha "${{ steps.pr.outputs.head_sha }}"
+        run: node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind blog-live --sha "${{ steps.pr.outputs.head_sha }}"
