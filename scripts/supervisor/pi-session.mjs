@@ -423,11 +423,10 @@ export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, contex
   }));
   try {
     await session.prompt(buildGeneratorPrompt({ topic, contextFiles }));
-    const sessionFile = sessionFileForReport(session, sessionsDir);
-    persistResolvedRouteRecord({ session, sessionFile, route: resolvedRoute });
     if (!submitted) throw new Error('pi session ended without submit_candidate');
-    return { post: submitted, sessionFile };
+    return { post: submitted, sessionFile: sessionFileForReport(session, sessionsDir) };
   } finally {
+    try { persistResolvedRouteRecord({ session, sessionFile: session.sessionFile, route: resolvedRoute }); } catch { /* prompt may not have created a session file */ }
     session.dispose();
   }
   } finally {

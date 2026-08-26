@@ -10,9 +10,11 @@ import {
   resolveCandidateReadOnly, resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
 } from '../../scripts/supervisor/host-run.mjs';
 import {
-  appendResolvedRouteRecord, buildGeneratorPrompt, createConstrainedTools, createPersistentSessionManager,
-  LIVE_ROUTE_CUSTOM_TYPE, persistResolvedRouteRecord, PI_SDK_VERSION, PI_TOOL_ALLOWLIST,
-  piSessionOptions, policyEvidenceForTopic, sessionFileForReport, validateSubmittedPost,
+  buildGeneratorPrompt, createConstrainedTools, createPersistentSessionManager, PI_SDK_VERSION, PI_TOOL_ALLOWLIST,
+  piSessionOptions, sessionFileForReport, validateSubmittedPost,
+} from '../../scripts/supervisor/pi-session.mjs';
+import {
+  appendResolvedRouteRecord, LIVE_ROUTE_CUSTOM_TYPE, persistResolvedRouteRecord, policyEvidenceForTopic,
 } from '../../scripts/supervisor/pi-session.mjs';
 import { sessionModelMetadata } from './helpers/acceptance-live-proof.mjs';
 import { promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
