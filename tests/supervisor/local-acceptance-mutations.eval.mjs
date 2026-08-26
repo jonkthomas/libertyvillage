@@ -17,7 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  Checks, assertTrue, readSpawnLog, spawnEntriesFor,
+  Checks, assertTrue, readSpawnLog, samePath, spawnEntriesFor,
 } from './helpers/acceptance-evidence.mjs';
 import { prepareScenario, writeGenerateShim, shimPost, firstBlogImage } from './helpers/acceptance-scenario.mjs';
 
@@ -202,7 +202,7 @@ async function runM138(context) {
       const lint = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'scripts/blog-lint.mjs').at(-1);
       assertTrue(lint, 'no lint invocation observed');
       const postsArg = lint.argv[lint.argv.indexOf('--posts') + 1];
-      const regressed = path.isAbsolute(String(postsArg)) || lint.cwd === scenario.fixture.clone;
+      const regressed = path.isAbsolute(String(postsArg)) || samePath(lint.cwd, scenario.fixture.clone);
       assertTrue(regressed, `invocation looks fixed, not reverted: cwd=${lint.cwd} posts=${postsArg}`);
       return { cwd: lint.cwd, postsArg };
     });

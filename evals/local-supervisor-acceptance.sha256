@@ -4,16 +4,44 @@
 # architecture: /tmp/lv-autonomous-live-content-architecture.md, sha256
 # 4704227a99b84089a7fead2ed39b2b605b884edf903d9d65261c930f78071758).
 #
-# THIRD EVAL-OWNER FREEZE: re-frozen after resolving the two mandatory BLOCKs
-# of the independent (Codex) re-gate: (1) the live-proof parser now reads the
-# SDK's documented v3 session shape (role "toolResult" host results correlated
-# by toolCallId; arguments.post_json decoded to the candidate) with anchored,
-# never-bare acceptance; (2) liveGenerationChecks requires ALL FOUR resolved
-# provider/id/api/baseUrl fields present and exactly the approved route, bound
-# to child session evidence, and the report's production-dialect wording is
-# emitted only after that same proof. The file set grew by
-# local-acceptance-probes.eval.mjs (deterministic documented-shape parser
-# probes, positive and negative). Every file below is eval-owned and FROZEN.
+# FOURTH EVAL-OWNER FREEZE: re-frozen after a real full live run on a separate
+# builder commit exposed two CHECKER defects (no production change could fix
+# either).
+#
+# (1) SAME-PROCESS LOOPBACK + SYNCHRONOUS EXTERNAL CHILD. The evaluator hosts
+#     the loopback GitHub double in its own process, yet N4-replay and C-N5
+#     launched an external coordinator with execFileSync. The blocked event loop
+#     could never answer the child, which connected over TCP and then waited
+#     forever at 0% CPU (N4 `coordinator.mjs record-candidate-outcome --reason
+#     replay` >3m; C-N5 `coordinator.mjs heal-generator-base` >2m; both had to
+#     be terminated). Every external child that can reach the double now runs
+#     through the new eval-owned helpers/acceptance-exec.mjs: async, detached
+#     into its own process group, bounded by a short per-call timeout, swept by
+#     a process-group SIGKILL, and asserted to have COMPLETED or been REJECTED —
+#     never merely "did not hang". New eval-owned
+#     local-acceptance-deadlock.eval.mjs adds deterministic no-network probes
+#     DL1-DL5, including a discriminating negative control that reproduces the
+#     defect under its own bound, and a static scan (DL4) that fails if any
+#     frozen path reintroduces a synchronous child carrying the double.
+#
+# (2) LEXICAL CROSS-PROCESS PATH CONTAINMENT. N3-shape compared a child's
+#     `process.cwd()` against a lexically built `<state>/work` prefix; on macOS
+#     the child reports `/private/var/...` for the evaluator's `/var/...`
+#     directory, so a lint invocation that provably occurred was reported as
+#     none. Both sides are now canonicalized (fs.realpathSync.native) before
+#     comparison, and containment is TIGHTENED to a real path-segment boundary.
+#     The exact repoRoot-script and relative data-path assertions are unchanged.
+#     New deterministic probes PC1-PC3 (in local-acceptance-probes.eval.mjs)
+#     reproduce the divergence with a symlinked parent on any POSIX platform and
+#     fail if lexical containment, or a loosened one, returns.
+#
+# Also: N4 now rejects an absent/null runRow.topic_key at the preceding required
+# boundary (N4-topic-key) and refuses to pass a literal null into the
+# coordinator, so a missing early topic persistence fails promptly by name.
+#
+# The file set grew by helpers/acceptance-exec.mjs and
+# local-acceptance-deadlock.eval.mjs (13 -> 15). Every file below is eval-owned
+# and FROZEN.
 #
 # These files are FROZEN. The implementation builder must not edit, weaken,
 # delete, re-scope, or restage any of them. Maker != checker: any change to an
@@ -25,16 +53,18 @@
 #   shasum -a 256 -c evals/local-supervisor-acceptance.sha256
 #
 # Linux equivalent: sha256sum -c evals/local-supervisor-acceptance.sha256
-8f680e404314b94e1e78ebfd288eec2f04ac5df6f4e2ddcda72d8c1da08a9c1a  tests/supervisor/local-acceptance.eval.mjs
-3b769455c8b4be73f022392acffbda1c6482230c7baaeabc695d04b90ae6b17e  tests/supervisor/local-acceptance-happy.eval.mjs
-3e5634cb3cc132ca81657f4f57550ecd4ac547b08e47c4b82e764771957ac98c  tests/supervisor/local-acceptance-mutations.eval.mjs
-2497cd6b8e7b904c41c68c32e12cbef03cbb0eab18899f5a90b76396faa8bb68  tests/supervisor/local-acceptance-negatives.eval.mjs
+67e4a1fd2f9f4dda9406d295f453d71aa25a66cb60f70aea30fc833c137c1b25  tests/supervisor/local-acceptance.eval.mjs
+09b3296023e052b53bc1c6c4870eb04cfc029fca1611412eae95b6ce760a66a5  tests/supervisor/local-acceptance-happy.eval.mjs
+6201cb9b2828846b78920eee89405e4392d7b4801c46a0a6df2be0e45578d5ce  tests/supervisor/local-acceptance-mutations.eval.mjs
+2da9ccdcbc0f2721381a2f43bf7e48f632055979bbd2836873eff2b3cd24bcbd  tests/supervisor/local-acceptance-negatives.eval.mjs
 05a397d82a1cb2896d54b7d6911e82eac86932fa7a14a410e1c4c05165941ce7  tests/supervisor/local-acceptance-red.eval.mjs
-3d65dc05a93bd32a2701d6912d091d084f9ed283d8b30131ddeabbb0b6487d91  tests/supervisor/local-acceptance-live-ship.eval.mjs
-f19c739a3a588ade4c30fbd800cd4494304a0576c04a6a4c028f487a1ae2bf04  tests/supervisor/local-acceptance-probes.eval.mjs
+ad3de992bd7a943c85500181b939d8aa99aac9fe36a0e0a59a413ed7ccefc571  tests/supervisor/local-acceptance-live-ship.eval.mjs
+aa39e9c30ded74d4ac6174e96dd7c3c997f5ac63c504db5079a34c18b94dcefb  tests/supervisor/local-acceptance-probes.eval.mjs
+d71d277ce19a99de994ccdbedfbd4e60c8e5d80cd10582f40914a8b77273e266  tests/supervisor/local-acceptance-deadlock.eval.mjs
 3b8a823051e5c3030f813272e9f9793ebbf2061ed6f9eab0d0bd164b654ea16a  tests/supervisor/helpers/fake-supervisor-github.mjs
 0551d756af55aa928ce5e871f6f77f1fca0e2386f7ff88f0ebfcc08665c65e18  tests/supervisor/helpers/fake-supervisor-protection.mjs
 b70ccd95ccd4a5514be2ee300b22f69243802287175462cb1a7fd2e3b371d51d  tests/supervisor/helpers/local-git-fixture.mjs
-483aacb667bf4ba8ecdb391267e824f4aec6cdbe8ffdad32b5c599e870b7b82f  tests/supervisor/helpers/acceptance-evidence.mjs
-604aed6a4abbca31f21d95d8aa539111c981e69763428d2006a2b03df8fa8a5e  tests/supervisor/helpers/acceptance-scenario.mjs
+3e4e3cc8bf7bd49bd6edf47f628f282096c0995a775bde8e06525e860eaf47c0  tests/supervisor/helpers/acceptance-evidence.mjs
+6ae0c3f8f916af5def56b8bdb2d296e74dbda72ed32d3b3d0be50db407d2bc59  tests/supervisor/helpers/acceptance-scenario.mjs
 b3168088694ff18d464c327cbb5f51f1a81fa656ad3c2e0537d6f81cd16ab3ce  tests/supervisor/helpers/acceptance-live-proof.mjs
+0d9183cfe3a33bc0e71016a86ea02174ed1955bcfc3bebea4635d6ff19b5cd2f  tests/supervisor/helpers/acceptance-exec.mjs

@@ -7,11 +7,12 @@
 // last live-generation scenario; N1–N4 never touch the live model.
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import {
-  Checks, assertTrue, readSpawnLog, spawnEntriesFor,
+  Checks, assertLintShape, assertTrue, lintInvocation, pathContains,
+  readSpawnLog, samePath, spawnEntriesFor,
 } from './helpers/acceptance-evidence.mjs';
-import { prepareScenario, writeGenerateShim, shimPost, firstBlogImage, liveGenerationChecks } from './helpers/acceptance-scenario.mjs';
+import { assertSettled, runCoordinator } from './helpers/acceptance-exec.mjs';
+import { REPO, prepareScenario, writeGenerateShim, shimPost, firstBlogImage, liveGenerationChecks } from './helpers/acceptance-scenario.mjs';
 
 const noBaselineArtifacts = (scenario, ch, id) => {
   ch.check(`${id}-clean`, 'no data branch, dispatch, PR, or candidate-state write escaped the failure', () => {
@@ -90,7 +91,7 @@ async function runN1(context) {
         assertTrue(observed.indexOf(step) >= 0, `baseline step never ran: ${step}`);
         if (index > 0) assertTrue(observed.indexOf(step) > observed.indexOf(expected[index - 1]), `baseline order broke at ${step}`);
       }
-      assertTrue(!spawnEntriesFor(entries, 'coordinator.mjs').some((entry) => entry.cwd === scenario.fixture.clone),
+      assertTrue(!spawnEntriesFor(entries, 'coordinator.mjs').some((entry) => samePath(entry.cwd, scenario.fixture.clone)),
         'a host coordinator subprocess ran after the failing baseline');
       assertTrue(scenario.sessionFiles().length === 0, 'a Pi session exists');
       return observed;
@@ -162,7 +163,7 @@ async function runN3N4(context) {
     ch.check('N3-terminal', "real CLI mapped LINT → DISCARDED_PRE_PR (cli.mjs catch boundary), nonzero exit", () => {
       assertTrue(result.code !== 0 && !result.deadlineHit, `exit ${result.code} deadline=${result.deadlineHit}`);
       assertTrue(runRow?.terminal === 'DISCARDED_PRE_PR', `terminal ${runRow?.terminal}`);
-      assertTrue(runRow?.pi_session_file && runRow.pi_session_file.startsWith(path.join(scenario.stateDir, 'pi-sessions')),
+      assertTrue(runRow?.pi_session_file && pathContains(path.join(scenario.stateDir, 'pi-sessions'), runRow.pi_session_file),
         'LINT state was never persisted with a session file');
       return null;
     });
@@ -171,14 +172,14 @@ async function runN3N4(context) {
         'ledger error does not carry the linter rejection');
       return null;
     });
-    ch.check('N3-shape', 'trusted linter invocation shape: repoRoot script, cwd=workDir, relative data paths', () => {
-      const lint = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'scripts/blog-lint.mjs')
-        .find((entry) => entry.cwd.startsWith(path.join(scenario.stateDir, 'work')));
-      assertTrue(lint, 'no lint invocation from the staging worktree was observed');
-      assertTrue(lint.argv[1] === path.join(scenario.fixture.clone, 'scripts/blog-lint.mjs'), `script path ${lint.argv[1]}`);
-      assertTrue(lint.argv[lint.argv.indexOf('--posts') + 1] === 'data/posts.json'
-        && lint.argv[lint.argv.indexOf('--businesses') + 1] === 'data/businesses.json', 'data paths are not relative');
-      return null;
+    // The child reports the CANONICAL cwd (`/private/var/...`) of the very
+    // directory the evaluator created lexically (`/var/...`); both sides are
+    // canonicalized before containment, so a real lint invocation can never be
+    // reported as "none observed". Containment is tightened, not weakened.
+    ch.check('N3-shape', 'trusted linter invocation shape: repoRoot script, cwd contained in <state>/work (canonical), relative data paths', () => {
+      const lint = lintInvocation(readSpawnLog(scenario.spawnLog), path.join(scenario.stateDir, 'work'));
+      assertLintShape(lint, path.join(scenario.fixture.clone, 'scripts/blog-lint.mjs'));
+      return { cwd: lint.cwd, argv: lint.argv.slice(1) };
     });
     ch.check('N3-lint-mode', 'unset/invalid LINT_MODE still resolves to fail; warn is not used by acceptance', () => {
       assertTrue(scenario.prod.resolveLintMode({}) === 'fail' && scenario.prod.resolveLintMode({ LINT_MODE: 'nonsense' }) === 'fail',
@@ -217,23 +218,35 @@ async function runN3N4(context) {
         'no durable candidate-state value equals the bounded reason');
       return null;
     });
-    await ch.checkAsync('N4-replay', 'replaying the same run/topic outcome key moves the ladder zero times', async () => {
+    // REQUIRED BOUNDARY, checked BEFORE the replay: the ladder key is the
+    // (run_id, topic_key) pair, so an absent/null topic_key must fail here,
+    // promptly and by name. It is never passed on to the coordinator as the
+    // literal string "null" — that produced a mislabelled hang, not a verdict.
+    ch.check('N4-topic-key', 'the terminal run row persisted a usable topic_key before any ladder replay may be driven', () => {
+      const key = runRow?.topic_key;
+      assertTrue(typeof key === 'string' && key.trim().length > 0,
+        `run row carries no persisted topic_key (observed ${JSON.stringify(key ?? null)}) — early topic persistence is missing, so the ladder key is unformable`);
+      assertTrue(key === key.trim() && !/[\s\p{Cc}\p{Zl}\p{Zp}]/u.test(key), `persisted topic_key is not a single bare token: ${JSON.stringify(key)}`);
+      return { topicKey: key };
+    });
+    await ch.checkAsync('N4-replay', 'replaying the same run/topic outcome key moves the ladder zero times (bounded async child; the evaluator keeps serving its own loopback double)', async () => {
+      const topicKey = runRow?.topic_key;
+      assertTrue(typeof topicKey === 'string' && topicKey.trim().length > 0,
+        `REFUSED: replay will not pass a null/absent topic_key into the coordinator (observed ${JSON.stringify(topicKey ?? null)}); see N4-topic-key`);
       const issue = [...scenario.sim.issues.values()].find((entry) => entry.title === 'automation-state: blog candidate ladder');
       const before = issue.body;
       const outputFile = path.join(scenario.root, 'replay-output.txt');
       fs.writeFileSync(outputFile, '');
-      execFileSync(process.execPath, [
-        path.join(scenario.fixture.clone, 'scripts/automation/coordinator.mjs'), 'record-candidate-outcome',
-        '--repo', 'acceptance/libertyvillage', '--kind', 'blog', '--outcome', 'DISCARDED_PRE_PR',
-        '--key', runRow.run_id, '--topic-key', runRow.topic_key, '--reason', 'replay',
-      ], {
-        cwd: scenario.fixture.clone, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...scenario.env, GITHUB_OUTPUT: outputFile, NODE_OPTIONS: '', LV_ACCEPT_SPAWN_LOG: '' },
-      });
+      const replay = await runCoordinator(scenario.fixture.clone, [
+        'record-candidate-outcome', '--repo', REPO, '--kind', 'blog', '--outcome', 'DISCARDED_PRE_PR',
+        '--key', runRow.run_id, '--topic-key', topicKey, '--reason', 'replay',
+      ], { cwd: scenario.fixture.clone, env: scenario.env, extraEnv: { GITHUB_OUTPUT: outputFile }, label: 'N4-replay' });
+      assertSettled(replay, 'N4-replay record-candidate-outcome');
+      assertTrue(replay.code === 0, `replay coordinator exited ${replay.code}: ${replay.stderr.slice(-400)}`);
       const output = fs.readFileSync(outputFile, 'utf8');
       assertTrue(/recorded=false/.test(output), `replay recorded a second ladder movement: ${output}`);
       assertTrue(issue.body === before, 'replay changed the durable ladder body');
-      return null;
+      return { exitCode: replay.code, durationMs: replay.durationMs };
     });
     cleanupAsserts(scenario, ch, 'N3', runRow);
   } catch (error) {
