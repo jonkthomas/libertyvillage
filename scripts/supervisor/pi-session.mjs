@@ -148,6 +148,25 @@ export function piSessionOptions({ cwd, agentDir, model, modelRuntime, resourceL
   };
 }
 
+export function createPersistentSessionManager({ sdk, cwd, sessionsDir }) {
+  if (!path.isAbsolute(sessionsDir)) throw new Error(`pi sessions directory must be absolute: ${sessionsDir}`);
+  const expectedDir = path.resolve(sessionsDir);
+  const sessionManager = sdk.SessionManager.create(cwd, expectedDir);
+  if (path.resolve(sessionManager.getSessionDir()) !== expectedDir) {
+    throw new Error(`pi SDK refused the supervisor sessions directory: ${sessionManager.getSessionDir()}`);
+  }
+  return sessionManager;
+}
+
+export function sessionFileForReport(session, sessionsDir) {
+  const sessionFile = session.sessionFile && path.resolve(session.sessionFile);
+  const expectedDir = path.resolve(sessionsDir);
+  if (!sessionFile || path.dirname(sessionFile) !== expectedDir) {
+    throw new Error(`pi session file escaped the supervisor sessions directory: ${sessionFile || 'missing'}`);
+  }
+  return sessionFile;
+}
+
 function constrainedResourceLoader(sdk) {
   return {
     getExtensions: () => ({ extensions: [], errors: [], runtime: sdk.createExtensionRuntime() }),
@@ -214,12 +233,12 @@ export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, contex
   const resourceLoader = constrainedResourceLoader(sdk);
   const { session } = await sdk.createAgentSession(piSessionOptions({
     cwd, agentDir, model, modelRuntime, resourceLoader, customTools: constrainedTools, settingsManager,
-    sessionManager: sdk.SessionManager.create(sessionsDir),
+    sessionManager: createPersistentSessionManager({ sdk, cwd, sessionsDir }),
   }));
   try {
     await session.prompt(buildGeneratorPrompt({ topic, contextFiles }));
     if (!submitted) throw new Error('pi session ended without submit_candidate');
-    return { post: submitted, sessionFile: session.sessionFile };
+    return { post: submitted, sessionFile: sessionFileForReport(session, sessionsDir) };
   } finally {
     session.dispose();
   }

@@ -10,8 +10,8 @@ import {
   resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
 } from '../../scripts/supervisor/host-run.mjs';
 import {
-  buildGeneratorPrompt, createConstrainedTools, PI_SDK_VERSION, PI_TOOL_ALLOWLIST, piSessionOptions,
-  validateSubmittedPost,
+  buildGeneratorPrompt, createConstrainedTools, createPersistentSessionManager, PI_SDK_VERSION, PI_TOOL_ALLOWLIST,
+  piSessionOptions, sessionFileForReport, validateSubmittedPost,
 } from '../../scripts/supervisor/pi-session.mjs';
 import { promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
 import { parseWeeklyOwnerFile, readWeeklyOwner } from '../../scripts/automation/weekly-owner.mjs';
@@ -205,6 +205,28 @@ test('pi tool boundary contains no shell, mutation, or GitHub tool and uses veri
   for (const token of ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN']) {
     assert.match(piSession, new RegExp(`'${token}'`));
   }
+});
+
+test('persistent pi sessions preserve the worktree cwd and exact supervisor state root', () => {
+  const cwd = '/var/lib/lv-supervisor/work/run-one';
+  const sessionsDir = '/var/lib/lv-supervisor/pi-sessions';
+  const sessionFile = path.join(sessionsDir, 'session.jsonl');
+  const calls = [];
+  const sdk = { SessionManager: { create: (...args) => {
+    calls.push(args);
+    return { getSessionDir: () => args[1] };
+  } } };
+  const sessionManager = createPersistentSessionManager({ sdk, cwd, sessionsDir });
+  assert.deepEqual(calls, [[cwd, sessionsDir]]);
+  assert.equal(sessionManager.getSessionDir(), sessionsDir);
+  assert.equal(sessionFileForReport({ sessionFile }, sessionsDir), sessionFile);
+
+  const homeDerivedSdk = { SessionManager: { create: () => ({
+    getSessionDir: () => '/home/exedev/.pi/agent/sessions/--var-lib-lv-supervisor-pi-sessions--',
+  }) } };
+  assert.throws(() => createPersistentSessionManager({ sdk: homeDerivedSdk, cwd, sessionsDir }), /refused the supervisor sessions directory/);
+  assert.throws(() => sessionFileForReport({ sessionFile: path.join(sessionsDir, '--var-lib-lv-supervisor-pi-sessions--', 'session.jsonl') }, sessionsDir), /escaped the supervisor sessions directory/);
+  assert.doesNotMatch(piSession, /SessionManager\.create\(sessionsDir\)/);
 });
 
 test('pi prompt grounds the selected topic in its trusted queue evidence and canonical local context', () => {
