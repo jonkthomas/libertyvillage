@@ -9,6 +9,14 @@
 // no model token, touch no network, and run in the orchestrator BEFORE any
 // credential use — so a parser that cannot read the real SDK shape (or that
 // accepts a bare substring) fails the gate even on a baseline RED run.
+//
+// SIXTH eval-owner correction: PS1–PS5 are the deterministic regression for
+// SELECTOR AMBIGUITY over the SHARED spawn log. They replay the exact
+// baseline-noise shapes a real run produced (fifteen fixture
+// record-candidate-outcome children ahead of the run's own record; fixture
+// blog-lint children, one with absolute data paths) and prove, in both
+// directions, that the naive first/last selectors pick fixture noise while the
+// exact selectors pick the run's own child or fail by name.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,6 +25,7 @@ import {
   Checks, assertEqual, assertLintShape, assertTrue, lintInvocation, pathContains, samePath,
 } from './helpers/acceptance-evidence.mjs';
 import { runExternal } from './helpers/acceptance-exec.mjs';
+import { candidateOutcomeRecord, coordinatorFlags, supervisorLintInvocation } from './helpers/acceptance-selectors.mjs';
 import { parsePiSessionTools, sessionModelMetadata, stableStringify } from './helpers/acceptance-live-proof.mjs';
 
 const ALLOWLIST = Object.freeze(['context_read', 'context_grep', 'context_find', 'submit_candidate']);
@@ -191,6 +200,115 @@ export async function parserProbePhase() {
       const absolute = [{ cwd: reportedCwd, argv: [process.execPath, linked, '--posts', path.join(real, 'data/posts.json'), '--businesses', 'data/businesses.json'] }];
       try { assertLintShape(lintInvocation(absolute, lexicalWork), script); } catch { refusedAbsolute = true; }
       assertTrue(refusedAbsolute, 'an ABSOLUTE --posts path was accepted');
+      return null;
+    });
+    // ---- PS1-PS5: exact spawn-log selection under baseline noise ----------
+    // The decoys are the shapes actually observed in a real N3 run: fixture
+    // records carrying `--repo owner/repo` BEFORE the subcommand flags, short
+    // reasons, and (mostly) no --topic-key at all. RUN_ID/TOPIC_KEY/REASON are
+    // the exact values that run produced, including the 511-character reason
+    // ending in the literal truncation marker.
+    const RUN_ID = 'blog-2026-08-26T19-44-43-337Z';
+    const TOPIC_KEY = '663d872e95aa4c5ae474ff63a4b9dc72521218b21b59c99a7dde3b0be0096422';
+    const REASON = `${'d'.repeat(498)} …[truncated]`;
+    const coordinatorEntry = (script, tail) => ({ cwd: '/probe/cwd', argv: [process.execPath, script, 'record-candidate-outcome', ...tail] });
+    const FIXTURE_COORDINATOR = '/probe/state/work/blog-2026-08-26T19-44-43-337Z/scripts/automation/coordinator.mjs';
+    const HOST_COORDINATOR = '/probe/clone/scripts/automation/coordinator.mjs';
+    const decoys = [
+      ['--repo', 'owner/repo', '--kind', 'blog', '--outcome', 'generation-failed', '--key', 'blog-isolated-run', '--reason', 'fixture candidate failed'],
+      ['--repo', 'owner/repo', '--kind', 'seo', '--outcome', 'generation-failed', '--key', 'seo-isolated-run', '--reason', 'fixture candidate failed'],
+      ['--repo', 'owner/repo', '--kind', 'blog', '--outcome', 'MONITOR_TIMEOUT', '--key', 'cn13-run', '--topic-key', 'acceptance-control-topic', '--reason', 'fixture monitor timeout'],
+      ['--repo', 'owner/repo', '--kind', 'blog', '--outcome', 'lint-discarded', '--key', 'run-1-attempt-1', '--reason', 'ungrounded claim'],
+      ['--repo', 'owner/repo', '--kind', 'blog', '--outcome', 'lint-discarded', '--key', RUN_ID, '--topic-key', 'a-different-topic', '--reason', 'same run key, other topic'],
+      ['--repo', 'owner/repo', '--kind', 'blog', '--outcome', 'lint-discarded', '--key', 'another-run', '--topic-key', TOPIC_KEY, '--reason', 'same topic key, other run'],
+    ].map((tail) => coordinatorEntry(FIXTURE_COORDINATOR, tail));
+    const exact = coordinatorEntry(HOST_COORDINATOR, [
+      '--kind', 'blog', '--outcome', 'DISCARDED_PRE_PR', '--key', RUN_ID, '--topic-key', TOPIC_KEY,
+      '--reason', REASON, '--repo', 'acceptance/libertyvillage',
+    ]);
+    const select = (entries, overrides = {}) => candidateOutcomeRecord(entries, {
+      runId: RUN_ID, topicKey: TOPIC_KEY, outcome: 'DISCARDED_PRE_PR', label: 'PS', ...overrides,
+    });
+    ch.check('PS1', 'baseline noise: the naive first-match selector takes a FIXTURE record; the exact (key, topic-key, outcome) selector takes the run\'s own record', () => {
+      const entries = [...decoys, exact];
+      const naive = entries.find((entry) => entry.argv.includes('record-candidate-outcome'));
+      assertTrue(naive.argv[naive.argv.indexOf('--reason') + 1] === 'fixture candidate failed',
+        'control broken: the naive selector did not select a fixture decoy, so this probe cannot discriminate the defect');
+      const record = select(entries);
+      assertTrue(record.entry === exact, 'the exact selector did not select the run\'s own record');
+      assertTrue(record.reason === REASON && [...record.reason].length === 511 && record.reason.endsWith('…[truncated]'),
+        `selected reason drifted: ${[...String(record.reason)].length} chars`);
+      assertEqual({ key: record.flags.key, topic: record.flags['topic-key'], outcome: record.flags.outcome },
+        { key: RUN_ID, topic: TOPIC_KEY, outcome: 'DISCARDED_PRE_PR' }, 'selected flags');
+      assertTrue(record.flags.repo === 'acceptance/libertyvillage', 'the appended --repo was not parsed');
+      return { candidates: decoys.length + 1, reasonChars: [...record.reason].length };
+    });
+    ch.check('PS2', 'no-match fails by name: a wrong run key, a wrong topic key, a wrong outcome, and an absent topic key are each refused, never silently substituted', () => {
+      for (const [label, overrides] of [
+        ['run key', { runId: 'some-other-run' }],
+        ['topic key', { topicKey: 'f'.repeat(64) }],
+        ['outcome', { outcome: 'PUBLISHED_MAIN' }],
+        ['absent topic key', { topicKey: null }],
+      ]) {
+        let refused = null;
+        try { select([...decoys, exact], overrides); } catch (error) { refused = error.message; }
+        assertTrue(refused, `a mismatched ${label} still selected a record`);
+        assertTrue(/no record-candidate-outcome child|no topic_key to select on/.test(refused), `refusal for ${label} is not the named one: ${refused}`);
+      }
+      let noneRefused = null;
+      try { select(decoys); } catch (error) { noneRefused = error.message; }
+      assertTrue(noneRefused && noneRefused.includes('observed 6 candidate(s)'), `a log of pure fixture noise was not refused with its inventory: ${noneRefused}`);
+      return null;
+    });
+    ch.check('PS3', 'duplicate match fails by name: two children sharing the run/topic/outcome key are ambiguous, not "the first one"', () => {
+      let refused = null;
+      try { select([...decoys, exact, { ...exact, argv: [...exact.argv] }]); } catch (error) { refused = error.message; }
+      assertTrue(refused && refused.includes('ambiguous'), `a duplicated record was not refused: ${refused}`);
+      return null;
+    });
+    ch.check('PS4', 'argv parse is positional and pairwise: a --reason VALUE spelled like a flag is consumed, and an entry that only MENTIONS the subcommand is not a candidate', () => {
+      const tricky = coordinatorEntry(HOST_COORDINATOR, [
+        '--kind', 'blog', '--outcome', 'DISCARDED_PRE_PR', '--key', RUN_ID, '--topic-key', TOPIC_KEY,
+        '--reason', '--key', 'decoy-run-id', '--repo', 'acceptance/libertyvillage',
+      ]);
+      assertTrue(tricky.argv.lastIndexOf('--key') > tricky.argv.indexOf(RUN_ID),
+        'control broken: the flag-shaped reason value does not sit AFTER the real --key, so a re-reading parse would not be caught');
+      const flags = coordinatorFlags(tricky.argv);
+      assertTrue(flags.reason === '--key', `the flag-shaped reason value was not consumed as a value: ${JSON.stringify(flags.reason)}`);
+      assertTrue(flags.key === RUN_ID, `a value spelled like a flag was re-read as a flag and overwrote the run key: ${JSON.stringify(flags.key)}`);
+      assertTrue(flags.repo === 'acceptance/libertyvillage', `the trailing --repo was lost: ${JSON.stringify(flags.repo)}`);
+      assertTrue(select([tricky]).entry === tricky, 'the record was not selectable once a flag-shaped reason value was present');
+      const mention = { cwd: '/probe/cwd', argv: [process.execPath, HOST_COORDINATOR, 'heal-generator-base', '--key', RUN_ID, '--topic-key', TOPIC_KEY, '--outcome', 'DISCARDED_PRE_PR', '--reason', 'record-candidate-outcome'] };
+      assertTrue(mention.argv.includes('record-candidate-outcome') && mention.argv[2] !== 'record-candidate-outcome',
+        'control broken: the decoy does not carry the subcommand as a non-positional argv element');
+      let refused = null;
+      try { select([mention]); } catch (error) { refused = error.message; }
+      assertTrue(refused && refused.includes('observed 0 candidate(s)'), `a --reason spelled exactly like the subcommand was treated as a record: ${refused}`);
+      return null;
+    });
+    ch.check('PS5', 'the run\'s own trusted lint is selected by exact script identity; a log of FIXTURE linters only (absolute --posts) is refused instead of passing as the pre-#138 shape', () => {
+      const cloneScript = path.join(dir, 'clone-scripts', 'blog-lint.mjs');
+      const worktreeScript = path.join(dir, 'worktree-scripts', 'blog-lint.mjs');
+      for (const file of [cloneScript, worktreeScript]) {
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, '// probe fixture linter\n');
+      }
+      const fixtureLints = [
+        { cwd: path.join(dir, 'home-tmp'), argv: [process.execPath, worktreeScript, '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'] },
+        { cwd: path.join(dir, 'home-tmp'), argv: [process.execPath, worktreeScript, '--posts', path.join(dir, 'home-tmp', 'data/posts.json'), '--businesses', path.join(dir, 'home-tmp', 'data/businesses.json')] },
+      ];
+      const naive = fixtureLints.at(-1);
+      assertTrue(path.isAbsolute(String(naive.argv[naive.argv.indexOf('--posts') + 1])),
+        'control broken: the last fixture linter does not carry an absolute --posts, so it cannot masquerade as the pre-#138 shape');
+      let refused = null;
+      try { supervisorLintInvocation(fixtureLints, { script: cloneScript, label: 'PS5' }); } catch (error) { refused = error.message; }
+      assertTrue(refused && refused.includes('no blog-lint child ran the trusted script'), `fixture-only lint noise was not refused: ${refused}`);
+      const own = { cwd: path.join(dir, 'clone'), argv: [process.execPath, cloneScript, '--posts', path.join(dir, 'work/run-1', 'data/posts.json'), '--businesses', 'data/businesses.json'] };
+      const selected = supervisorLintInvocation([...fixtureLints, own], { script: cloneScript, label: 'PS5' });
+      assertTrue(selected === own, 'the trusted-script selector did not select the run\'s own lint');
+      let ambiguous = null;
+      try { supervisorLintInvocation([own, { ...own, argv: [...own.argv] }], { script: cloneScript, label: 'PS5' }); } catch (error) { ambiguous = error.message; }
+      assertTrue(ambiguous && ambiguous.includes('ambiguous'), `two trusted-script linters were not refused as ambiguous: ${ambiguous}`);
       return null;
     });
   } finally {

@@ -17,8 +17,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  Checks, assertTrue, readSpawnLog, samePath, spawnEntriesFor,
+  Checks, assertTrue, readSpawnLog, samePath,
 } from './helpers/acceptance-evidence.mjs';
+import { supervisorLintInvocation } from './helpers/acceptance-selectors.mjs';
 import { prepareScenario, writeGenerateShim, shimPost, firstBlogImage } from './helpers/acceptance-scenario.mjs';
 
 const FIX_134 = '9f24eeca64aac1cfc2b671ab57865164995cff3d';
@@ -198,9 +199,19 @@ async function runM138(context) {
         'the wrong-baseline lint did not refuse (mutation was not caught)');
       return { error: String(runRow?.error || '').slice(0, 240) };
     });
+    // SIXTH eval-owner correction. `.at(-1)` over every blog-lint child took
+    // whatever the SHARED spawn log ended with. `npm run test:supervisor`
+    // drives fixture linters (tests/supervisor/contracts.test.mjs), one of them
+    // with ABSOLUTE --posts/--businesses, so on the GENERATION_FAILED_PRE_PR
+    // terminal M138-red also accepts — where the supervisor never lints at all
+    // — the last entry is fixture noise that satisfies "pre-#138 shape". That
+    // is a false GREEN. The run's own lint is now selected by the exact trusted
+    // repoRoot script the host invokes (identical before and after #138, which
+    // moved only the cwd and the data paths), and zero/multiple both fail.
     ch.check('M138-shape', 'observed invocation is the pre-#138 shape (absolute data paths and/or clone cwd)', () => {
-      const lint = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'scripts/blog-lint.mjs').at(-1);
-      assertTrue(lint, 'no lint invocation observed');
+      const lint = supervisorLintInvocation(readSpawnLog(scenario.spawnLog), {
+        script: path.join(scenario.fixture.clone, 'scripts/blog-lint.mjs'), label: 'M138 supervisor lint',
+      });
       const postsArg = lint.argv[lint.argv.indexOf('--posts') + 1];
       const regressed = path.isAbsolute(String(postsArg)) || samePath(lint.cwd, scenario.fixture.clone);
       assertTrue(regressed, `invocation looks fixed, not reverted: cwd=${lint.cwd} posts=${postsArg}`);

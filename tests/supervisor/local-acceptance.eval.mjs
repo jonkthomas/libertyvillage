@@ -2,9 +2,9 @@
 // Local live-model supervisor acceptance gate — serial orchestrator.
 // Eval-owned; FROZEN by evals/local-supervisor-acceptance.sha256. Spec:
 // /tmp/lv-supervisor-local-acceptance-spec.md (sha256 3ed29573…).
-// Fifth eval-owner freeze: bounded ASYNC external children — written directly AND
-// reached through a production wrapper that defaults to a sync spawn (the evaluator
-// may never block the loop serving its own double). Phase order: manifest → parser probes →
+// Sixth eval-owner freeze: EXACT spawn-log selectors (the log is SHARED with the
+// baseline suites, which drive fixture children of the very same shape) on top of
+// the fifth freeze's bounded ASYNC children. Phase order: manifest → parser probes →
 // deadlock probes → Design C static contracts → environment preflight →
 // live/negative/mutation/hitchhiker/RED scenarios. Everything before the
 // environment phase runs with no credential and no network, so on a pre-Design-C
@@ -40,8 +40,8 @@ export const EVAL_OWNED_PATHS = Object.freeze([
   'tests/supervisor/helpers/local-git-fixture.mjs',
   'tests/supervisor/helpers/acceptance-evidence.mjs',
   'tests/supervisor/helpers/acceptance-scenario.mjs',
-  'tests/supervisor/helpers/acceptance-live-proof.mjs',
-  'tests/supervisor/helpers/acceptance-exec.mjs',
+  'tests/supervisor/helpers/acceptance-live-proof.mjs', 'tests/supervisor/helpers/acceptance-exec.mjs',
+  'tests/supervisor/helpers/acceptance-selectors.mjs',
 ]);
 
 const read = (relative) => fs.readFileSync(path.join(REPO_ROOT, relative), 'utf8');
