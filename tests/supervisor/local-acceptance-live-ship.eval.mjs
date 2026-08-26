@@ -8,12 +8,16 @@
 // C-N13 proves EVENTUAL MONITOR_TIMEOUT via the spec-sanctioned injected
 // now/sleep seam plus sentinel and durable outcome (no non-terminal child is
 // killed); C-N14 pushes genuinely-moving commits and requires the observed
-// hook rejection, nonempty protection log, and unchanged SHAs.
+// hook rejection, nonempty protection log, and unchanged SHAs. Every external
+// child here is launched ASYNC and bounded (helpers/acceptance-exec.mjs): the
+// loopback double lives in THIS process, so a synchronous child that talks to
+// it deadlocks the checker against its own server.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { sentinelPost } from './helpers/local-git-fixture.mjs';
 import { Checks, assertTrue, httpClient } from './helpers/acceptance-evidence.mjs';
+import { CONTROL_TIMEOUT_MS, assertSettled, runCoordinator, runExternal } from './helpers/acceptance-exec.mjs';
 import {
   REPO, expectIngestRefusal, prepareScenario, shimPost, firstBlogImage, withSimEnv,
 } from './helpers/acceptance-scenario.mjs';
@@ -69,12 +73,15 @@ export async function run(context) {
     await scenario.cleanup();
   }
   // C-N4 — cumulative promotion stays off under exedev.
-  await ch.checkAsync('C-N4', 'kind=promotion is disabled under exedev even with LV_PROMOTION_ENABLED=true', async () => {
-    const output = execFileSync(process.execPath, [path.join(context.repoRoot, 'scripts/automation/promotion-control.mjs')], {
-      encoding: 'utf8', env: { ...process.env, LV_WEEKLY_OWNER: 'exedev', LV_PROMOTION_ENABLED: 'true' },
+  await ch.checkAsync('C-N4', 'kind=promotion is disabled under exedev even with LV_PROMOTION_ENABLED=true (child COMPLETED, exit 0)', async () => {
+    const promo = await runExternal(process.execPath, [path.join(context.repoRoot, 'scripts/automation/promotion-control.mjs')], {
+      env: { ...process.env, LV_WEEKLY_OWNER: 'exedev', LV_PROMOTION_ENABLED: 'true' },
+      timeoutMs: CONTROL_TIMEOUT_MS, label: 'C-N4-promotion-control',
     });
-    assertTrue(/skipped/.test(output), `promotion-control CLI did not skip: ${output}`);
-    return { output: output.trim() };
+    assertSettled(promo, 'C-N4 promotion-control');
+    assertTrue(promo.code === 0, `promotion-control exited ${promo.code}: ${promo.stderr.slice(-400)}`);
+    assertTrue(/skipped/.test(promo.stdout), `promotion-control CLI did not skip: ${promo.stdout}`);
+    return { output: promo.stdout.trim() };
   });
   // C-N5 — EXECUTE the production heal on a blog-live PR: a staging merge must
   // hard-fail (or be a base-keyed no-op) without any head movement.
@@ -110,18 +117,14 @@ export async function run(context) {
     execFileSync('git', ['-C', healDir, 'checkout', '--detach', headSha], { stdio: 'pipe' });
     const outFile = path.join(scenario.root, 'cn5-output.txt');
     fs.writeFileSync(outFile, '');
-    let exitCode = 0;
-    let stderr = '';
-    try {
-      execFileSync(process.execPath, [
-        path.join(fixture.clone, 'scripts/automation/coordinator.mjs'), 'heal-generator-base',
-        '--repo', REPO, '--pr', String(pr.number), '--kind', 'blog-live', '--sha', headSha,
-      ], {
-        cwd: healDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...scenario.env, GITHUB_OUTPUT: outFile, NODE_OPTIONS: '', LV_ACCEPT_SPAWN_LOG: '' },
-      });
-    } catch (error) { exitCode = error.status ?? 1; stderr = String(error.stderr || error.message); }
-    ch.check('C-N5', 'production heal-generator-base on a blog-live PR never merges origin/staging: head unmoved (or hard error), no staging ancestry, refs unchanged', () => {
+    // The heal talks to the in-process double, so it MUST be async+bounded.
+    const heal = await runCoordinator(fixture.clone,
+      ['heal-generator-base', '--repo', REPO, '--pr', String(pr.number), '--kind', 'blog-live', '--sha', headSha],
+      { cwd: healDir, env: scenario.env, extraEnv: { GITHUB_OUTPUT: outFile }, label: 'C-N5-heal' });
+    const exitCode = heal.code ?? 1;
+    const stderr = heal.stderr;
+    ch.check('C-N5', 'production heal-generator-base on a blog-live PR SETTLES (completed or hard-errored, never hung) and never merges origin/staging: head unmoved, no staging ancestry, refs unchanged', () => {
+      assertSettled(heal, 'C-N5 heal-generator-base');
       const headAfter = execFileSync('git', ['-C', healDir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
       let stagingMergedIn = true;
       try { execFileSync('git', ['-C', healDir, 'merge-base', '--is-ancestor', stagingSha, headAfter], { stdio: 'pipe' }); }
@@ -180,18 +183,15 @@ export async function run(context) {
   // C-N8 — coordinator cannot POST the Vercel context.
   {
     const scenario = await prepareScenario(context, { name: 'cn8', controls: { drive: 'immediate' } });
-    ch.check('C-N8', 'real `coordinator status --context Vercel` throws; the double refuses the POST as well', () => {
+    await ch.checkAsync('C-N8', 'real `coordinator status --context Vercel` is REJECTED (settled, nonzero exit); the double refuses the POST as well', async () => {
       const sha = scenario.fixture.rev('main');
-      let failed = false;
-      try {
-        execFileSync(process.execPath, [
-          path.join(scenario.fixture.clone, 'scripts/automation/coordinator.mjs'), 'status',
-          '--repo', REPO, '--sha', sha, '--context', 'Vercel', '--state', 'success', '--description', 'forged',
-        ], { cwd: scenario.fixture.clone, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...scenario.env, NODE_OPTIONS: '', LV_ACCEPT_SPAWN_LOG: '' } });
-      } catch { failed = true; }
-      assertTrue(failed, 'publishStatus accepted the Vercel context');
+      const forged = await runCoordinator(scenario.fixture.clone,
+        ['status', '--repo', REPO, '--sha', sha, '--context', 'Vercel', '--state', 'success', '--description', 'forged'],
+        { cwd: scenario.fixture.clone, env: scenario.env, label: 'C-N8-status' });
+      assertSettled(forged, 'C-N8 coordinator status');
+      assertTrue(forged.code !== 0, 'publishStatus accepted the Vercel context');
       assertTrue(!scenario.sim.statusesFor(sha).some((status) => status.context === 'Vercel'), 'a forged Vercel status was stored');
-      return null;
+      return { exitCode: forged.code };
     });
     await scenario.cleanup();
   }

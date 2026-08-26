@@ -96,6 +96,39 @@ export function writeSpawnLogger(dir) {
   return { loggerPath, spawnLog: path.join(dir, 'spawn.log.jsonl') };
 }
 
+// Native path canonicalization for containment/equality comparisons over paths
+// that CROSS a process boundary. The evaluator's own paths are lexical
+// (`/var/folders/...` from mkdtemp) while a child's `process.cwd()` reports the
+// resolved form of the SAME directory (`/private/var/folders/...` on macOS).
+// Comparing the two lexically silently reports "no invocation observed" for an
+// invocation that provably occurred. Both sides are canonicalized before every
+// comparison; nothing is loosened — an unresolvable path stays as its absolute
+// self, and containment still requires a real path-segment boundary.
+export function canonicalPath(value) {
+  if (typeof value !== 'string' || value === '') return null;
+  const absolute = path.resolve(value);
+  try { return (fs.realpathSync.native ?? fs.realpathSync)(absolute); }
+  catch { /* not on disk (removed worktree, cleaned root): fall through */ }
+  try { return fs.realpathSync(absolute); } catch { return absolute; }
+}
+
+// Exact same-path identity across the boundary (canonical, not lexical).
+export function samePath(left, right) {
+  const a = canonicalPath(left);
+  const b = canonicalPath(right);
+  return a !== null && b !== null && a === b;
+}
+
+// Containment that is STRICTER than the lexical startsWith it replaces: the
+// child must be the parent itself or sit below a real separator boundary, so a
+// sibling such as `<state>/work-evil` can never satisfy `<state>/work`.
+export function pathContains(parent, child) {
+  const base = canonicalPath(parent);
+  const inner = canonicalPath(child);
+  if (base === null || inner === null) return false;
+  return inner === base || inner.startsWith(base.endsWith(path.sep) ? base : `${base}${path.sep}`);
+}
+
 export function readSpawnLog(file) {
   if (!fs.existsSync(file)) return [];
   return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => {
@@ -105,6 +138,25 @@ export function readSpawnLog(file) {
 
 export function spawnEntriesFor(entries, scriptSuffix) {
   return entries.filter((entry) => typeof entry?.argv?.[1] === 'string' && entry.argv[1].endsWith(scriptSuffix));
+}
+
+// The trusted-linter invocation the child made FROM its detached staging
+// worktree, located by canonical containment (the child reports the resolved
+// `/private/var/...` form of the evaluator's `/var/...` state root).
+export function lintInvocation(entries, workRoot) {
+  return spawnEntriesFor(entries, 'scripts/blog-lint.mjs').find((entry) => pathContains(workRoot, entry.cwd)) || null;
+}
+
+// The spec's fixed invocation shape (spec "Required:" triple): the script is
+// the trusted repoRoot copy (canonical identity, still exact), and --posts /
+// --businesses are the RELATIVE strings, never absolute paths.
+export function assertLintShape(lint, repoRootScript) {
+  assertTrue(lint, 'no blog-lint invocation from the staging worktree was observed');
+  assertTrue(String(lint.argv[1]).endsWith('scripts/blog-lint.mjs') && samePath(lint.argv[1], repoRootScript),
+    `lint script path ${lint.argv[1]} is not the trusted ${repoRootScript}`);
+  assertTrue(lint.argv[lint.argv.indexOf('--posts') + 1] === 'data/posts.json'
+    && lint.argv[lint.argv.indexOf('--businesses') + 1] === 'data/businesses.json', 'lint data paths are not relative');
+  return lint;
 }
 
 export function npmRunOrder(entries) {

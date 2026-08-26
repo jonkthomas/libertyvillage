@@ -14,8 +14,8 @@ import path from 'node:path';
 import { assertContainedOrigin, createFixture } from './local-git-fixture.mjs';
 import { createSupervisorGithub } from './fake-supervisor-github.mjs';
 import {
-  APPROVED_LIVE_ROUTE, assertEqual, assertTrue, childEnv, loadProd,
-  readSpawnLog, runChildCli, scanForLiteral, shredFile, spawnEntriesFor,
+  APPROVED_LIVE_ROUTE, assertEqual, assertLintShape, assertTrue, childEnv, loadProd,
+  lintInvocation, readSpawnLog, runChildCli, samePath, scanForLiteral, shredFile,
   writeModelsJson, writeSpawnLogger,
 } from './acceptance-evidence.mjs';
 import { parsePiSessionTools, sessionModelMetadata, stableStringify } from './acceptance-live-proof.mjs';
@@ -224,7 +224,8 @@ export function liveGenerationChecks({ scenario, runRow, stagingBefore, ch, pref
   ch.check(`${prefix}1`, 'live Pi session JSONL exists under the scenario state root and matches the ledger', () => {
     const sessions = scenario.sessionFiles();
     assertTrue(sessions.length >= 1, 'no session JSONL under <state>/pi-sessions');
-    assertTrue(runRow?.pi_session_file && sessions.includes(runRow.pi_session_file), 'ledger session path is not under the scenario state root');
+    assertTrue(runRow?.pi_session_file && sessions.some((file) => samePath(file, runRow.pi_session_file)),
+      'ledger session path is not under the scenario state root');
     return { sessionFile: runRow.pi_session_file, bytes: fs.statSync(runRow.pi_session_file).size };
   });
   ch.check(`${prefix}2`, 'structural JSONL tool proof: allowlist subset, ID-correlated accepted submit_candidate, context tool', () => {
@@ -265,13 +266,9 @@ export function liveGenerationChecks({ scenario, runRow, stagingBefore, ch, pref
       `accepted JSONL submission differs from the shipped candidate (${parsed.acceptedPost?.slug} vs ${candidate.slug})`);
     return { slug: candidate.slug };
   });
-  ch.check(`${prefix}5`, 'real trusted lint ran with the fixed invocation shape from the staging worktree', () => {
-    const lint = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'scripts/blog-lint.mjs')
-      .find((entry) => entry.cwd.startsWith(path.join(scenario.stateDir, 'work')));
-    assertTrue(lint, 'no observed blog-lint invocation from the staging worktree');
-    assertTrue(lint.argv[1] === path.join(fixture.clone, 'scripts/blog-lint.mjs'), `lint script path was ${lint.argv[1]}`);
-    assertTrue(lint.argv[lint.argv.indexOf('--posts') + 1] === 'data/posts.json'
-      && lint.argv[lint.argv.indexOf('--businesses') + 1] === 'data/businesses.json', 'lint data paths are not relative');
+  ch.check(`${prefix}5`, 'real trusted lint ran with the fixed invocation shape from the staging worktree (canonical cwd containment, exact repoRoot script, relative data paths)', () => {
+    const lint = lintInvocation(readSpawnLog(scenario.spawnLog), path.join(scenario.stateDir, 'work'));
+    assertLintShape(lint, path.join(fixture.clone, 'scripts/blog-lint.mjs'));
     return { argv: lint.argv.slice(1), cwd: lint.cwd };
   });
   return () => parsed;

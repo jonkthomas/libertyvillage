@@ -2,15 +2,15 @@
 // Local live-model supervisor acceptance gate — serial orchestrator.
 // Eval-owned; FROZEN by evals/local-supervisor-acceptance.sha256. Spec:
 // /tmp/lv-supervisor-local-acceptance-spec.md (sha256 3ed29573…).
-// Third eval-owner freeze: documented-v3 structural parser probes plus the
-// mandatory four-field live-route binding (Codex re-gate corrections).
-// Phase order: manifest → deterministic parser probes → Design C static
-// contracts → environment preflight → live/negative/mutation/hitchhiker/RED
-// scenarios. Manifest/probe/static phases run BEFORE any credential or
-// network use, so on a pre-Design-C tree (710ea82) this
-// evaluator is RED — missing PUBLISHED_MAIN terminal, blog-live kind (C-N1
-// lane), production Vercel wait (C-N13), PR-shaped sync (C-N14) — without
-// spending a model token. Success requires every phase to pass.
+// Fourth eval-owner freeze: bounded ASYNC external children (the evaluator may
+// never block the event loop that serves its own loopback double) plus canonical
+// cross-process path containment. Phase order: manifest → parser probes →
+// deadlock probes → Design C static contracts → environment preflight →
+// live/negative/mutation/hitchhiker/RED scenarios. Everything before the
+// environment phase runs with no credential and no network, so on a pre-Design-C
+// tree (710ea82) this evaluator is RED — missing PUBLISHED_MAIN terminal,
+// blog-live kind (C-N1 lane), production Vercel wait (C-N13), PR-shaped sync
+// (C-N14) — without spending a model token. Every phase must pass to be GREEN.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -22,6 +22,7 @@ import {
   scanForLiteral, shredFile,
 } from './helpers/acceptance-evidence.mjs';
 import { parserProbePhase } from './local-acceptance-probes.eval.mjs';
+import { deadlockProbePhase } from './local-acceptance-deadlock.eval.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MANIFEST = path.join(REPO_ROOT, 'evals/local-supervisor-acceptance.sha256');
@@ -33,12 +34,14 @@ export const EVAL_OWNED_PATHS = Object.freeze([
   'tests/supervisor/local-acceptance-red.eval.mjs',
   'tests/supervisor/local-acceptance-live-ship.eval.mjs',
   'tests/supervisor/local-acceptance-probes.eval.mjs',
+  'tests/supervisor/local-acceptance-deadlock.eval.mjs',
   'tests/supervisor/helpers/fake-supervisor-github.mjs',
   'tests/supervisor/helpers/fake-supervisor-protection.mjs',
   'tests/supervisor/helpers/local-git-fixture.mjs',
   'tests/supervisor/helpers/acceptance-evidence.mjs',
   'tests/supervisor/helpers/acceptance-scenario.mjs',
   'tests/supervisor/helpers/acceptance-live-proof.mjs',
+  'tests/supervisor/helpers/acceptance-exec.mjs',
 ]);
 
 const read = (relative) => fs.readFileSync(path.join(REPO_ROOT, relative), 'utf8');
@@ -72,11 +75,7 @@ function manifestPhase() {
 // missing kind/terminal/switch fails at a real function boundary, not prose.
 async function staticPhase() {
   const ch = new Checks('design-c-static');
-  let constants = null;
-  let promotion = null;
-  let ledger = null;
-  let piSession = null;
-  let policy = null;
+  let constants = null; let promotion = null; let ledger = null; let piSession = null; let policy = null;
   await ch.checkAsync('S0', 'production automation/supervisor modules import', async () => {
     constants = await importProd('scripts/automation/constants.mjs');
     promotion = await importProd('scripts/automation/promotion-control.mjs');
@@ -320,7 +319,8 @@ async function main() {
   // Top-level fail-closed finally: crashes never leave roots/servers/children.
   try {
     ok = push(manifestPhase());
-    ok = push(parserProbePhase()) && ok;
+    ok = push(await parserProbePhase()) && ok;
+    ok = push(await deadlockProbePhase()) && ok;
     const staticOk = push(await staticPhase());
     ok = ok && staticOk;
     if (!staticOk) {

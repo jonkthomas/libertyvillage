@@ -13,7 +13,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Checks, assertEqual, assertTrue } from './helpers/acceptance-evidence.mjs';
+import {
+  Checks, assertEqual, assertLintShape, assertTrue, lintInvocation, pathContains, samePath,
+} from './helpers/acceptance-evidence.mjs';
+import { runExternal } from './helpers/acceptance-exec.mjs';
 import { parsePiSessionTools, sessionModelMetadata, stableStringify } from './helpers/acceptance-live-proof.mjs';
 
 const ALLOWLIST = Object.freeze(['context_read', 'context_grep', 'context_find', 'submit_candidate']);
@@ -67,8 +70,8 @@ function writeSession(dir, name, lines) {
   return file;
 }
 
-export function parserProbePhase() {
-  const ch = new Checks('parser-probes');
+export async function parserProbePhase() {
+  const ch = new Checks('parser-and-path-probes');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-accept-parser-probes-'));
   try {
     ch.check('PP1', 'documented v3 positive: toolResult-role acceptance is ID-correlated and arguments.post_json decodes to the exact candidate bytes', () => {
@@ -143,6 +146,53 @@ export function parserProbePhase() {
       assertTrue(meta.baseUrl !== ROUTE.baseUrl, 'a loopback session claimed the approved route');
       return null;
     });
+    // PC1-PC3 reproduce the SECOND live-run checker defect deterministically on
+    // any POSIX platform: a symlinked parent gives the evaluator's lexical
+    // spelling and the child's canonical `process.cwd()` exactly the divergence
+    // macOS creates between /var/... and /private/var/... .
+    const real = path.join(dir, 'real', 'work', 'run-1');
+    fs.mkdirSync(real, { recursive: true });
+    fs.symlinkSync(path.join(dir, 'real'), path.join(dir, 'link'));
+    const lexicalWork = path.join(dir, 'link', 'work');
+    const lexicalRun = path.join(lexicalWork, 'run-1');
+    let reportedCwd = null;
+    await ch.checkAsync('PC1', 'cross-process containment: a child launched in a symlinked work dir reports the CANONICAL cwd, which lexical startsWith misses and canonical containment catches', async () => {
+      const probe = await runExternal(process.execPath, ['-e', 'process.stdout.write(process.cwd())'], { cwd: lexicalRun, timeoutMs: 15_000, label: 'PC1-cwd' });
+      assertTrue(probe.code === 0 && !probe.timedOut, `cwd probe child did not complete: exit ${probe.code} timedOut=${probe.timedOut}`);
+      reportedCwd = probe.stdout.trim();
+      assertTrue(!reportedCwd.startsWith(lexicalWork),
+        'control broken: the child reported the lexical spelling, so this probe cannot discriminate the defect');
+      assertTrue(pathContains(lexicalWork, reportedCwd), `canonical containment failed for the child cwd ${reportedCwd}`);
+      return { lexicalWork, reportedCwd };
+    });
+    ch.check('PC2', 'containment is TIGHTENED, not weakened: a sibling that shares the prefix as a substring is refused, and an outside path is refused', () => {
+      const sibling = path.join(dir, 'real', 'work-evil');
+      fs.mkdirSync(sibling, { recursive: true });
+      assertTrue(sibling.startsWith(path.join(dir, 'real', 'work')), 'control broken: the sibling does not share the lexical prefix');
+      assertTrue(!pathContains(path.join(dir, 'real', 'work'), sibling), 'a sibling directory satisfied containment');
+      assertTrue(!pathContains(lexicalWork, dir), 'an ancestor satisfied containment');
+      assertTrue(pathContains(lexicalWork, lexicalWork), 'a directory does not contain itself');
+      return null;
+    });
+    ch.check('PC3', 'the lint invocation is located by canonical cwd and still asserted EXACTLY: repoRoot script identity plus relative data paths', () => {
+      const script = path.join(dir, 'real', 'scripts', 'blog-lint.mjs');
+      fs.mkdirSync(path.dirname(script), { recursive: true });
+      fs.writeFileSync(script, '// probe fixture linter\n');
+      const linked = path.join(dir, 'link', 'scripts', 'blog-lint.mjs');
+      const entries = [{ cwd: reportedCwd, argv: [process.execPath, linked, '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'] }];
+      const lint = lintInvocation(entries, lexicalWork);
+      assertTrue(lint, 'canonical containment failed to locate the lint invocation');
+      assertTrue(samePath(linked, script) && linked !== script, 'control broken: the two script spellings are not divergent aliases of one file');
+      assertLintShape(lint, script);
+      let refusedScript = false;
+      try { assertLintShape(lint, path.join(dir, 'real', 'scripts', 'other-lint.mjs')); } catch { refusedScript = true; }
+      assertTrue(refusedScript, 'a DIFFERENT script path was accepted as the trusted linter');
+      let refusedAbsolute = false;
+      const absolute = [{ cwd: reportedCwd, argv: [process.execPath, linked, '--posts', path.join(real, 'data/posts.json'), '--businesses', 'data/businesses.json'] }];
+      try { assertLintShape(lintInvocation(absolute, lexicalWork), script); } catch { refusedAbsolute = true; }
+      assertTrue(refusedAbsolute, 'an ABSOLUTE --posts path was accepted');
+      return null;
+    });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -150,9 +200,9 @@ export function parserProbePhase() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const ch = parserProbePhase();
+  const ch = await parserProbePhase();
   for (const result of ch.results) {
-    console.log(`${result.ok ? 'PASS' : 'FAIL'} [parser-probes] ${result.id}: ${result.description}${result.ok ? '' : ` — ${result.error}`}`);
+    console.log(`${result.ok ? 'PASS' : 'FAIL'} [${ch.scope}] ${result.id}: ${result.description}${result.ok ? '' : ` — ${result.error}`}`);
   }
   process.exitCode = ch.ok ? 0 : 1;
 }

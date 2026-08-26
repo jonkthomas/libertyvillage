@@ -18,7 +18,7 @@ import path from 'node:path';
 import { assertContainedOrigin } from './helpers/local-git-fixture.mjs';
 import {
   APPROVED_LIVE_ROUTE, Checks, REPORT_LANGUAGE, assertLiveRoute, assertTrue,
-  readSpawnLog, spawnEntriesFor,
+  lintInvocation, pathContains, readSpawnLog,
 } from './helpers/acceptance-evidence.mjs';
 import { REPO, liveGenerationChecks, prepareScenario } from './helpers/acceptance-scenario.mjs';
 
@@ -159,7 +159,7 @@ export function verifyHappyEvidence(scenario, ev, ch) {
     assertTrue(runRow.trusted_staging_sha === ev.stagingBefore, `trusted_staging_sha ${runRow.trusted_staging_sha} != fixture staging ${ev.stagingBefore}`);
     assertTrue(runRow.pr_number === ev.contentPr.number, `ledger pr_number ${runRow.pr_number} != ${ev.contentPr.number}`);
     assertTrue(runRow.head_sha === ev.contentPr.headSha, `ledger head_sha ${runRow.head_sha} != ${ev.contentPr.headSha}`);
-    assertTrue(String(runRow.pi_session_file || '').startsWith(path.join(scenario.stateDir, 'pi-sessions')), 'ledger session path is outside the scenario state root');
+    assertTrue(pathContains(path.join(scenario.stateDir, 'pi-sessions'), runRow.pi_session_file), 'ledger session path is outside the scenario state root');
     assertTrue(ev.ledger.lease === null || ev.ledger.lease === undefined, 'ledger lease was not released');
     assertTrue(!fs.existsSync(path.join(scenario.stateDir, 'run.owner')), 'run.owner lock remains');
     assertTrue(!fs.existsSync(path.join(scenario.stateDir, 'ledger.json.write-lock')), 'ledger write lock remains');
@@ -308,7 +308,7 @@ export async function run(context) {
         assertTrue(observed.indexOf(step) >= 0, `baseline step never ran: ${step}`);
         if (index > 0) assertTrue(observed.indexOf(step) > observed.indexOf(seen[index - 1]), `baseline order broke at ${step}`);
       }
-      const lint = spawnEntriesFor(entries, 'scripts/blog-lint.mjs').find((entry) => entry.cwd.startsWith(path.join(scenario.stateDir, 'work')));
+      const lint = lintInvocation(entries, path.join(scenario.stateDir, 'work'));
       assertTrue(lint && lint.cwd.includes(path.join('state', 'work')), 'lint cwd was not the staging worktree');
       return { observed };
     });
