@@ -36,11 +36,10 @@ function boundedCommandOutput(value) {
 }
 
 export function boundedOutcomeReason(value) {
-  const raw = String(value ?? '');
-  const singleLine = raw.replace(/\p{C}+/gu, ' ').replace(/\s+/gu, ' ').trim();
+  const singleLine = String(value ?? '').replace(/\p{C}+/gu, ' ').replace(/\s+/gu, ' ').trim();
   if (!singleLine) return '<empty>';
   const characters = [...singleLine];
-  if (characters.length <= OUTCOME_REASON_LIMIT && [...raw].length <= OUTCOME_REASON_LIMIT) return singleLine;
+  if (characters.length <= OUTCOME_REASON_LIMIT) return singleLine;
   const suffix = ' …[truncated]';
   return `${characters.slice(0, OUTCOME_REASON_LIMIT - [...suffix].length).join('').trimEnd()}${suffix}`;
 }

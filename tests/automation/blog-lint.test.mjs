@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { comparable, extractReferencedBusinesses, isBusinessMention, lintPost, resolveLintMode } from '../../scripts/blog-lint.mjs';
+import { comparable, extractReferencedBusinesses, formatCliFinding, isBusinessMention, lintPost, resolveLintMode } from '../../scripts/blog-lint.mjs';
 import {
   MAX_REFERENCE_RECORDS, selectReferenceRecords,
 } from '../../scripts/lib/referenced-businesses.mjs';
@@ -50,10 +50,17 @@ const rules = (over) => lint(over).findings.map((finding) => finding.rule);
 // The #97 class: geography that is not a street number.
 // ---------------------------------------------------------------------------
 test('an intersection a record does not support is refused (the #97 reproducer)', () => {
-  const result = lint({ content: "**Balzac's Coffee Roasters** sits where Hanna Ave meets Wellington St W." });
+  const draft = post({ content: "**Balzac's Coffee Roasters** sits where Hanna Ave meets Wellington St W." });
+  const result = lintPost(draft, { businesses: BUSINESSES });
   assert.equal(result.ok, false, 'the linter must not return ok:true for fabricated intersection geography');
   assert.ok(result.findings.some((finding) => finding.rule === 'unsupported-address'));
   assert.match(result.findings[0].claim, /Hanna Ave/);
+  const diagnostic = formatCliFinding(draft, result.findings[0]);
+  const normalized = diagnostic.replace(/\p{C}+/gu, ' ').replace(/\s+/gu, ' ').trim();
+  assert.ok([...normalized].length > 512, 'one real finding must retain enough actionable evidence for bounded durable diagnostics');
+  assert.match(diagnostic, /Evidence:/);
+  assert.match(diagnostic, /Remediation:/);
+  assert.match(diagnostic, /Verification:/);
 });
 
 test('every unsupported geography shape a business can be given is refused', () => {
