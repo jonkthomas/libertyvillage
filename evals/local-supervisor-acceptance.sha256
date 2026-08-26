@@ -4,81 +4,83 @@
 # architecture: /tmp/lv-autonomous-live-content-architecture.md, sha256
 # 4704227a99b84089a7fead2ed39b2b605b884edf903d9d65261c930f78071758).
 #
-# FIFTH EVAL-OWNER FREEZE: re-frozen after a full live execution proved one
-# remaining CHECKER deadlock — the same same-process loopback defect, reached
-# INDIRECTLY through an imported production wrapper. No production change could
-# fix it, and none is required.
+# SIXTH EVAL-OWNER FREEZE: re-frozen after a focused live reproduction proved a
+# CHECKER SELECTOR defect. Production was correct and unchanged; two frozen
+# checks were reading the wrong child out of a SHARED evidence log.
 #
-# THE DEFECT. `local-acceptance-live-ship.eval.mjs` C-N13-outcome called
-# `prod.recordSupervisorOutcome(payload)` and supplied no coordinatorFn.
-# Production `recordSupervisorOutcome({...}, coordinatorFn = coordinator)` then
-# defaulted to `coordinator()`, whose body launches
-# `scripts/automation/coordinator.mjs` through the synchronous
-# `command`/`execFileSync` path. Because the fake GitHub double is hosted in the
-# EVALUATOR's own Node event loop, that child completed its loopback TCP connect
-# and then waited forever for a response the blocked host could never write:
-# observed >3 minutes at 0% CPU on `record-candidate-outcome --outcome
-# MONITOR_TIMEOUT`. A frozen path therefore does not have to WRITE a synchronous
-# spawn to deadlock the checker — calling a production wrapper that DEFAULTS to
-# one is the identical defect one level down.
+# THE DEFECT — SELECTOR AMBIGUITY UNDER BASELINE NOISE. The parent-owned spawn
+# log records every node child the run tree starts, and the five baseline gates
+# run the repository's OWN suites. `npm run test:automation` alone drives
+# fifteen fixture `record-candidate-outcome` coordinator children
+# (tests/automation/*.eval.mjs) long before the supervisor writes its own
+# outcome. `local-acceptance-negatives.eval.mjs` selected that record twice with
+# `.find(entry => entry.argv.includes('record-candidate-outcome'))`, so N4-reason
+# and N4-durable both inspected record 0 — `--reason "fixture candidate failed"`,
+# 24 characters, no `--topic-key` — and reported RED. The run's OWN record was
+# record 15: `--key` equal to the ledger `run_id`, `--topic-key` equal to the
+# ledger `topic_key`, `--outcome DISCARDED_PRE_PR`, a reason at the 512-character
+# bound ending in the literal `…[truncated]`, and `--repo` appended last. The
+# durable candidate-state issue stored exactly that reason and `Last outcome
+# DISCARDED_PRE_PR`. Reported scratch N3 run: `runRow.error` 5258 characters,
+# reason 511, 16 record-candidate-outcome entries in the shared log. The eval
+# owner's own re-run against production e8e4b32 reproduced it exactly (error
+# 5262, reason 512, 16 entries, naive first-match = fixture record 0
+# `blog-isolated-run` / 24 characters, exact selector = record 15).
 #
 # THE EVALUATOR-ONLY FIX.
 #
-# (1) C-N13-outcome now injects the eval-owned bounded async
-#     `asyncCoordinatorSeam().fn` through the coordinatorFn seam production
-#     ALREADY exposes (helpers/acceptance-exec.mjs). The seam mirrors the
-#     production wrapper exactly — private GITHUB_OUTPUT file, appended `--repo`,
-#     key=value parse, throw on a nonzero exit — but launches the child async,
-#     detached into its own process group, under a short per-call bound with a
-#     process-group SIGKILL sweep. No production wrapper becomes async and no
-#     approved behavior changes. The check still proves everything it did
-#     before and MORE: production's own argument mapping (subcommand, --kind,
-#     --outcome, --key, --topic-key, --reason after boundedOutcomeReason, and
-#     the appended --repo), the terminal outcome it forwards, exit 0,
-#     `recorded=true`, the durable `automation-state: blog candidate ladder`
-#     issue carrying MONITOR_TIMEOUT, and that no child process survived
-#     (helpers/acceptance-scenario.mjs `recordOutcomeThroughSeam`).
+# (1) NEW eval-owned helper `helpers/acceptance-selectors.mjs` (the manifest set
+#     grows to 16; `local-acceptance.eval.mjs` stays within its 400-line budget,
+#     which is why the selectors are a split rather than more of
+#     acceptance-evidence.mjs). `candidateOutcomeRecord()` selects THE record
+#     whose `--key` equals the run row's run_id AND whose `--topic-key` equals
+#     the run row's topic_key AND whose `--outcome` is the terminal under test,
+#     and FAILS BY NAME on zero matches and on more than one. The subcommand is
+#     read positionally (argv[2]), so an entry that merely carries the string in
+#     a `--reason` is not a candidate, and flags are parsed pairwise so a value
+#     spelled like a flag is consumed as a value, never re-read as one (a bare
+#     indexOf would let a decoy overwrite the run key). N4-reason and N4-durable
+#     now share ONE memoized selection, so the bounded reason and the durable
+#     ladder value are provably read off the same child.
 #
-# (2) FULL INDIRECT AUDIT of every frozen eval call into an imported production
-#     function while the in-process double is listening. Only two production
-#     surfaces reachable from a frozen path can spawn synchronously:
-#     `recordSupervisorOutcome` (fixed above, via its coordinatorFn seam) and
-#     `monitorOwnedPr`, which redispatches through the synchronous
-#     `coordinator()` only when BOTH automation/ci and automation/opus-gate are
-#     missing past LOST_STATUS_MS. C-N13-setup now ASSERTS both contexts are
-#     posted at the pinned head, so that branch is provably unreachable in the
-#     one place the monitor is driven in-process. Everything else the evaluator
-#     calls in-process (validatePaths, validatePullRequest, validateIngest*,
-#     terminalFromObservation, statusForExactSha, latestAuditForSha,
-#     finalizeOwnedPr, evaluateSentinel, readLedger, candidate-state renderers,
-#     resolveLintMode, boundedOutcomeReason, terminalRequiresCandidateOutcome)
-#     reaches no child process at all. The remaining execFileSync calls in the
-#     frozen set are local git/CLI work that never contacts the double
-#     (local-git-fixture, fake-supervisor-protection, the orchestrator's
-#     git/pi/npm `run`, and the double's own scrubbed-env blog-lint), and
-#     loadPiSdk's `npm root --global` runs in the environment phase before any
-#     double exists.
+# (2) AUDIT of every other spawn-log selector for the same baseline-noise
+#     ambiguity, tightening only where a selector could actually read fixture
+#     noise. `local-acceptance-mutations.eval.mjs` M138-shape took `.at(-1)` over
+#     every blog-lint child; `npm run test:supervisor` drives fixture linters
+#     (tests/supervisor/contracts.test.mjs), one of them with ABSOLUTE
+#     `--posts`/`--businesses`, so on the GENERATION_FAILED_PRE_PR terminal
+#     M138-red also accepts — where the supervisor never lints — the last entry
+#     is fixture noise that satisfies "pre-#138 shape". That direction is a false
+#     GREEN, and it is now `supervisorLintInvocation()`: the run's own lint is
+#     selected by the exact trusted repoRoot script the host invokes (identical
+#     before and after #138, which moved only the cwd and the data paths), with
+#     zero and multiple both failing. Selectors left UNCHANGED, with cause:
+#     `lintInvocation()` (N3-shape, C2, N5-live5, PC3) discriminates on canonical
+#     containment in `<state>/work`, and every fixture linter runs from `$TMPDIR`
+#     or the double's own `<root>/ingest-wt-*`, so noise is excluded — and the
+#     assertLintShape that follows asserts exact script identity, so noise could
+#     only fail loudly, never pass; N1-order already discriminates host from
+#     fixture coordinators on `samePath(cwd, clone)`; `baselineSteps`/`C2` read an
+#     ORDERED npm-step projection where fixture children contribute no npm run
+#     steps; `recordOutcomeThroughSeam` parses argv the evaluator's own seam
+#     captured from production, not the shared log.
 #
-# (3) local-acceptance-deadlock.eval.mjs regression EXTENDED to both shapes and
-#     re-proven discriminating. DL4 now scans every manifest-listed file for a
-#     DIRECT synchronous child carrying the double AND for an INDIRECT call into
-#     a registered production sync-spawn wrapper with no injected async seam
-#     (PRODUCTION_SYNC_SPAWN_WRAPPERS / ASYNC_SEAM_MARKERS in
-#     helpers/acceptance-exec.mjs). Comments are stripped and calls SPELLED
-#     inside string literals are ignored, so prose and registry entries are never
-#     mistaken for calls. New DL4b proves the scan still discriminates in four
-#     directions on synthetic sources (seamless wrapper call flagged; the same
-#     call with the seam not flagged; a wrapper named only in prose not flagged;
-#     a direct sync child carrying the double flagged). New DL6 is a bounded
-#     DYNAMIC reproduction of the exact C-N13-outcome shape against the REAL
-#     production wrapper with a stub coordinator planted at the exact path
-#     production resolves: DL6-negative proves the SYNCHRONOUS default is served
-#     nothing by the server it blocks, and DL6 proves the seam-injected call
-#     completes, is served, maps every argument, leaves a durable
-#     MONITOR_TIMEOUT record, and leaves no orphan process.
+# (3) DETERMINISTIC REGRESSION PS1–PS5 in local-acceptance-probes.eval.mjs — no
+#     model token, no network, before any credential use, so it runs even on a
+#     baseline RED tree. It replays the observed noise (fixture records ahead of
+#     the run's own, including one sharing the run key with a different topic and
+#     one sharing the topic key with a different run) and proves: the naive
+#     first-match selector really does take a decoy (control), the exact selector
+#     takes record 15 with its 511-character truncated reason and appended
+#     `--repo`; a wrong run key, wrong topic key, wrong outcome, and an absent
+#     topic key are each refused BY NAME; a duplicate is refused as ambiguous;
+#     the pairwise/positional parse survives a `--reason` spelled `--key` and a
+#     `--reason` spelled exactly like the subcommand; and a log of fixture
+#     linters only is refused instead of passing as the pre-#138 shape. Each
+#     direction was proven discriminating by mutating the selector back to the
+#     naive form and observing the matching probe fail.
 #
-# The file set is UNCHANGED at 15 eval-owned files. Every file below is
-# eval-owned and FROZEN.
+# The file set is 16 eval-owned files. Every file below is eval-owned and FROZEN.
 #
 # These files are FROZEN. The implementation builder must not edit, weaken,
 # delete, re-scope, or restage any of them. Maker != checker: any change to an
@@ -90,13 +92,13 @@
 #   shasum -a 256 -c evals/local-supervisor-acceptance.sha256
 #
 # Linux equivalent: sha256sum -c evals/local-supervisor-acceptance.sha256
-ef0c2eb0345a1b26ea3bbecc81cc14b0eb3cedd666b740097e5130980a31a609  tests/supervisor/local-acceptance.eval.mjs
+3f3b0e1680eb4121be73adceb5db2991a715d22d081503d72db7c93ecac575b8  tests/supervisor/local-acceptance.eval.mjs
 09b3296023e052b53bc1c6c4870eb04cfc029fca1611412eae95b6ce760a66a5  tests/supervisor/local-acceptance-happy.eval.mjs
-6201cb9b2828846b78920eee89405e4392d7b4801c46a0a6df2be0e45578d5ce  tests/supervisor/local-acceptance-mutations.eval.mjs
-2da9ccdcbc0f2721381a2f43bf7e48f632055979bbd2836873eff2b3cd24bcbd  tests/supervisor/local-acceptance-negatives.eval.mjs
+7f88b37eb1e0661b30fc700c72a8262ddb42a62f66c01b45ee38ea826591b39b  tests/supervisor/local-acceptance-mutations.eval.mjs
+1e6bf10bd344b36ba82deaae0dc695a80bcac24057f17e0761058e84ddffb8c4  tests/supervisor/local-acceptance-negatives.eval.mjs
 05a397d82a1cb2896d54b7d6911e82eac86932fa7a14a410e1c4c05165941ce7  tests/supervisor/local-acceptance-red.eval.mjs
 248a54accf02e9b3b8016407d3f85a2218b92bcc5b18b82334a6989ddaac984e  tests/supervisor/local-acceptance-live-ship.eval.mjs
-aa39e9c30ded74d4ac6174e96dd7c3c997f5ac63c504db5079a34c18b94dcefb  tests/supervisor/local-acceptance-probes.eval.mjs
+a888fe7fda362741cdcfa588e46bedc3048b726674d5b2ce779ed2e9dbc9781a  tests/supervisor/local-acceptance-probes.eval.mjs
 caae327a7ab5b81c3b806c3943b213dcc56c1c4c778ad722d2b568b19c93b2ad  tests/supervisor/local-acceptance-deadlock.eval.mjs
 3b8a823051e5c3030f813272e9f9793ebbf2061ed6f9eab0d0bd164b654ea16a  tests/supervisor/helpers/fake-supervisor-github.mjs
 0551d756af55aa928ce5e871f6f77f1fca0e2386f7ff88f0ebfcc08665c65e18  tests/supervisor/helpers/fake-supervisor-protection.mjs
@@ -105,3 +107,4 @@ b70ccd95ccd4a5514be2ee300b22f69243802287175462cb1a7fd2e3b371d51d  tests/supervis
 c35174d4d655c37c491db0661718b0af8f47692fdedb9e4a94fba9ff4f0d6954  tests/supervisor/helpers/acceptance-scenario.mjs
 b3168088694ff18d464c327cbb5f51f1a81fa656ad3c2e0537d6f81cd16ab3ce  tests/supervisor/helpers/acceptance-live-proof.mjs
 ff35f5cba517780c642b01ac68e0999ad1dd1090e4dca72221fd1d4cb98fdc25  tests/supervisor/helpers/acceptance-exec.mjs
+bf176b7e8f6a4903963333d4250739284cbb6ea7ec8590feaa203349d9add30b  tests/supervisor/helpers/acceptance-selectors.mjs

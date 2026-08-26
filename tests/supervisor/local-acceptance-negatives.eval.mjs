@@ -12,6 +12,7 @@ import {
   readSpawnLog, samePath, spawnEntriesFor,
 } from './helpers/acceptance-evidence.mjs';
 import { assertSettled, runCoordinator } from './helpers/acceptance-exec.mjs';
+import { candidateOutcomeRecord } from './helpers/acceptance-selectors.mjs';
 import { REPO, prepareScenario, writeGenerateShim, shimPost, firstBlogImage, liveGenerationChecks } from './helpers/acceptance-scenario.mjs';
 
 const noBaselineArtifacts = (scenario, ch, id) => {
@@ -160,6 +161,7 @@ async function runN3N4(context) {
     const result = await scenario.runChild(15 * 60_000);
     const rows = scenario.ledgerRows();
     const runRow = rows.at(-1);
+    let outcomeRecord = null;
     ch.check('N3-terminal', "real CLI mapped LINT → DISCARDED_PRE_PR (cli.mjs catch boundary), nonzero exit", () => {
       assertTrue(result.code !== 0 && !result.deadlineHit, `exit ${result.code} deadline=${result.deadlineHit}`);
       assertTrue(runRow?.terminal === 'DISCARDED_PRE_PR', `terminal ${runRow?.terminal}`);
@@ -194,11 +196,26 @@ async function runN3N4(context) {
       assertTrue(error.includes('stdout:'), 'bounded stdout section missing');
       return null;
     });
+    // SIXTH eval-owner correction. The five baseline gates run the repository's
+    // own suites, and `npm run test:automation` alone drives fifteen FIXTURE
+    // record-candidate-outcome children into this shared spawn log before the
+    // run reaches its own terminal. The previous `.find(argv.includes(...))`
+    // therefore selected fixture record 0 (`--reason "fixture candidate
+    // failed"`, 24 chars, no --topic-key) and reported production RED for a
+    // record production never wrote. Both N4 checks now select THE run's own
+    // entry by exact (--key = run_id, --topic-key = topic_key, --outcome) and
+    // fail on zero or on more than one match; they share the one selection, so
+    // the reason and the durable ladder are provably the same record.
+    const selectOutcomeRecord = () => {
+      if (!outcomeRecord) {
+        outcomeRecord = candidateOutcomeRecord(readSpawnLog(scenario.spawnLog), {
+          runId: runRow?.run_id, topicKey: runRow?.topic_key, outcome: 'DISCARDED_PRE_PR', label: 'N4 candidate outcome',
+        });
+      }
+      return outcomeRecord;
+    };
     ch.check('N4-reason', 'coordinator --reason is one bounded line: ≤512 chars, no Unicode control/separator chars, literal …[truncated], equal to boundedOutcomeReason', () => {
-      const record = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'coordinator.mjs')
-        .find((entry) => entry.argv.includes('record-candidate-outcome'));
-      assertTrue(record, 'record-candidate-outcome never ran');
-      const reason = record.argv[record.argv.indexOf('--reason') + 1];
+      const reason = selectOutcomeRecord().reason;
       assertTrue(typeof reason === 'string' && reason === reason.trim() && [...reason].length <= 512, 'reason is not a bounded trimmed line');
       assertTrue(!/[\p{Cc}\p{Zl}\p{Zp}]/u.test(reason), 'reason contains Unicode control or separator characters');
       assertTrue([...String(runRow.error)].length > 512, 'control error: the raw diagnostic is not longer than the bound, so truncation cannot be proven');
@@ -209,9 +226,7 @@ async function runN3N4(context) {
     ch.check('N4-durable', 'durable candidate-state issue content carries the exact bounded reason', () => {
       const issue = [...scenario.sim.issues.values()].find((entry) => entry.title === 'automation-state: blog candidate ladder');
       assertTrue(issue, 'candidate-state issue is missing');
-      const record = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'coordinator.mjs')
-        .find((entry) => entry.argv.includes('record-candidate-outcome'));
-      const reason = record.argv[record.argv.indexOf('--reason') + 1];
+      const reason = selectOutcomeRecord().reason;
       const values = candidateStateStrings(issue.body);
       assertTrue(Array.isArray(values), 'candidate-state issue body has no parseable machine payload');
       assertTrue(values.some((value) => value === reason || value.endsWith(reason)),
