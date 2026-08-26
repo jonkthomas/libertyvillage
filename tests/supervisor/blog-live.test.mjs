@@ -45,6 +45,7 @@ test('generation prompt binds publishedAt and updatedAt to the exact UTC run dat
   assert.match(prompt, /Write zero clock ranges/);
   assert.match(prompt, /Current trusted phrase-to-route index/);
   assert.match(prompt, /Duplicate display names require an exact linked route/);
+  assert.match(prompt, /Ban unsupported hours, prices, civic addresses/);
   assert.doesNotMatch(prompt, /the only safe Liberty Village slugs/);
 });
 

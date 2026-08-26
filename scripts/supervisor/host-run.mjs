@@ -35,13 +35,28 @@ function boundedCommandOutput(value) {
   return `<${omitted} characters omitted; showing tail>\n${trimmed.slice(-COMMAND_OUTPUT_LIMIT)}`;
 }
 
+const OUTCOME_REASON_SUFFIX = ' …[truncated]';
+
+function collapseOutcomeReason(value) {
+  return String(value ?? '').replace(/\p{C}+/gu, ' ').replace(/\s+/gu, ' ').trim();
+}
+
+function truncateOutcomeReason(singleLine) {
+  const suffixLength = [...OUTCOME_REASON_SUFFIX].length;
+  const budget = Math.max(0, OUTCOME_REASON_LIMIT - suffixLength);
+  const head = [...singleLine].slice(0, budget).join('').trimEnd();
+  const result = `${head}${OUTCOME_REASON_SUFFIX}`;
+  if ([...result].length <= OUTCOME_REASON_LIMIT) return result;
+  return `${[...result].slice(0, budget).join('').trimEnd()}${OUTCOME_REASON_SUFFIX}`;
+}
+
 export function boundedOutcomeReason(value) {
-  const singleLine = String(value ?? '').replace(/\p{C}+/gu, ' ').replace(/\s+/gu, ' ').trim();
-  if (!singleLine) return '<empty>';
-  const characters = [...singleLine];
-  if (characters.length <= OUTCOME_REASON_LIMIT) return singleLine;
-  const suffix = ' …[truncated]';
-  return `${characters.slice(0, OUTCOME_REASON_LIMIT - [...suffix].length).join('').trimEnd()}${suffix}`;
+  const raw = String(value ?? '');
+  const rawLost = [...raw].length > OUTCOME_REASON_LIMIT;
+  const singleLine = collapseOutcomeReason(raw);
+  if (!singleLine) return rawLost ? truncateOutcomeReason('<empty>') : '<empty>';
+  if (!rawLost && [...singleLine].length <= OUTCOME_REASON_LIMIT) return singleLine;
+  return truncateOutcomeReason(singleLine);
 }
 
 export function runCommand(file, args, options = {}) {

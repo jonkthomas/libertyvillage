@@ -634,7 +634,7 @@ async function recordCandidateOutcome(options) {
     });
     const recorded = await recordCandidateEvent(options.repo, kind, {
       key: eventKey, action: preview.action, at: new Date().toISOString(), reason,
-      topicKey: topic, queue: preview.queue,
+      topicKey: topic, queue: preview.queue, outcome: options.outcome,
     });
     writeOutput({
       kind, action: preview.action, recorded: recorded.changed ? 'true' : 'false',
@@ -652,6 +652,7 @@ async function recordCandidateOutcome(options) {
   const ladder = recordCandidateFailure({ regenerations: state.regenerations });
   const recorded = await recordCandidateEvent(options.repo, kind, {
     key: eventKey, action: ladder.action, at: new Date().toISOString(), reason,
+    outcome: options.outcome,
   });
   writeOutput({
     kind, action: ladder.action, recorded: recorded.changed ? 'true' : 'false',

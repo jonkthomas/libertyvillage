@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { OPERATIONAL_PREMISES } from '../lib/referenced-businesses.mjs';
 
 export const PI_TOOL_ALLOWLIST = Object.freeze(['context_read', 'context_grep', 'context_find', 'submit_candidate']);
 export const PI_SDK_VERSION = '0.84.2';
@@ -69,6 +70,81 @@ export function resolvedModelRoute(model, fallbackBaseUrl) {
   return route;
 }
 
+export const LIVE_ROUTE_CUSTOM_TYPE = 'lv-supervisor-live-route';
+
+export function publicResolvedRoute(route) {
+  const data = {
+    provider: route?.provider,
+    id: route?.id,
+    api: route?.api,
+    baseUrl: route?.baseUrl,
+  };
+  for (const field of ['provider', 'id', 'api', 'baseUrl']) {
+    if (typeof data[field] !== 'string' || !data[field]) throw new Error(`resolved Pi route lacks ${field}`);
+  }
+  if (SECRET_FINGERPRINT.test(JSON.stringify(data))) {
+    throw new Error('resolved Pi route contains a credential or private-key fingerprint');
+  }
+  return data;
+}
+
+export function liveRouteRecord(route, { id, parentId = null, timestamp = new Date().toISOString() } = {}) {
+  const data = publicResolvedRoute(route);
+  return {
+    type: 'custom',
+    customType: LIVE_ROUTE_CUSTOM_TYPE,
+    data,
+    ...(id ? { id } : {}),
+    parentId,
+    timestamp,
+  };
+}
+
+export function sessionFileHasResolvedRoute(sessionFile, route) {
+  const expected = publicResolvedRoute(route);
+  for (const line of fs.readFileSync(sessionFile, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    let parsed;
+    try { parsed = JSON.parse(line); } catch { continue; }
+    const nodes = [parsed];
+    while (nodes.length) {
+      const node = nodes.pop();
+      if (Array.isArray(node)) { nodes.push(...node); continue; }
+      if (!node || typeof node !== 'object') continue;
+      if (node.provider === expected.provider && node.id === expected.id
+        && node.api === expected.api && (node.baseUrl === expected.baseUrl || node.base_url === expected.baseUrl)) {
+        return true;
+      }
+      nodes.push(...Object.values(node));
+    }
+  }
+  return false;
+}
+
+export function appendResolvedRouteRecord(sessionFile, route) {
+  fs.appendFileSync(sessionFile, `${JSON.stringify(liveRouteRecord(route))}\n`);
+}
+
+export function persistResolvedRouteRecord({ session, sessionFile, route }) {
+  const data = publicResolvedRoute(route);
+  if (!sessionFile) throw new Error('pi session file missing; cannot persist the resolved route');
+  const manager = session?.sessionManager;
+  try {
+    if (typeof manager?.appendCustomEntry === 'function') {
+      manager.appendCustomEntry(LIVE_ROUTE_CUSTOM_TYPE, data);
+    }
+  } catch {
+    // Durable JSONL append below is the surviving record if the SDK entry is refused.
+  }
+  if (!sessionFileHasResolvedRoute(sessionFile, data)) {
+    appendResolvedRouteRecord(sessionFile, data);
+  }
+  if (!sessionFileHasResolvedRoute(sessionFile, data)) {
+    throw new Error('resolved Pi route record did not survive in the session JSONL');
+  }
+  return sessionFile;
+}
+
 export function writeCandidateArtifact({ postsFile, post }) {
   const posts = JSON.parse(fs.readFileSync(postsFile, 'utf8'));
   if (!Array.isArray(posts)) throw new Error('canonical posts file must be an array');
@@ -80,14 +156,54 @@ export function writeCandidateArtifact({ postsFile, post }) {
 
 const BUSINESS_POLICY_PHRASES = Object.freeze(['happy hour', 'pet-friendly', 'reservations', 'accessibility']);
 
-export function deriveBusinessClaimConstraints(businesses = []) {
-  const records = Array.isArray(businesses) ? businesses : [];
+function directoryRecords(businesses = []) {
+  return (Array.isArray(businesses) ? businesses : []).filter((record) => (
+    record && typeof record.slug === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(record.slug)
+  ));
+}
+
+function displayNameMap(records) {
   const names = new Map();
-  const routes = new Map(BUSINESS_POLICY_PHRASES.map((phrase) => [phrase, []]));
   for (const record of records) {
-    if (!record || typeof record.slug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(record.slug)) continue;
     const name = typeof record.name === 'string' ? record.name.trim() : '';
     if (name) names.set(name, [...(names.get(name) || []), record.slug]);
+  }
+  return names;
+}
+
+export function policyEvidenceForTopic(topic = {}, businesses = []) {
+  const records = directoryRecords(businesses);
+  const names = displayNameMap(records);
+  const topicText = `${topic.key ?? ''} ${topic.title ?? ''} ${topic.rationale ?? ''}`;
+  const involved = OPERATIONAL_PREMISES.filter((premise) => premise.core.test(topicText)).map((premise) => {
+    const supporting = records.filter((record) => premise.support.test(JSON.stringify(record)));
+    const unique = supporting.filter((record) => {
+      const name = typeof record.name === 'string' ? record.name.trim() : '';
+      return Boolean(name) && (names.get(name) || []).length === 1;
+    });
+    const duplicateSupporting = supporting.filter((record) => {
+      const name = typeof record.name === 'string' ? record.name.trim() : '';
+      return Boolean(name) && (names.get(name) || []).length > 1;
+    });
+    const ambiguous = unique.length !== 1 || duplicateSupporting.length > 0;
+    return {
+      id: premise.id,
+      label: premise.label,
+      routes: unique.map((record) => `/directory/${record.slug}`),
+      ambiguous,
+    };
+  });
+  return {
+    involved,
+    ambiguous: involved.length > 0 && involved.some((entry) => entry.ambiguous),
+  };
+}
+
+export function deriveBusinessClaimConstraints(businesses = []) {
+  const records = directoryRecords(businesses);
+  const names = displayNameMap(records);
+  const routes = new Map(BUSINESS_POLICY_PHRASES.map((phrase) => [phrase, []]));
+  for (const record of records) {
     const searchable = JSON.stringify(record).toLocaleLowerCase('en-CA');
     for (const phrase of BUSINESS_POLICY_PHRASES) {
       if (searchable.includes(phrase)) routes.get(phrase).push(`/directory/${record.slug}`);
@@ -107,6 +223,25 @@ export function deriveBusinessClaimConstraints(businesses = []) {
   ].join(' ');
 }
 
+function policyPromptGuidance(topic, businesses) {
+  const evidence = policyEvidenceForTopic(topic, businesses);
+  if (evidence.involved.length === 0) {
+    return [
+      `If the slug or title contains ${BUSINESS_POLICY_PHRASES.join(', ')}, every linked route's current trusted record must contain that same phrase. ${deriveBusinessClaimConstraints(businesses)} If no indexed route supports the phrase, write a neighbourhood guide with zero business names and do not put that policy phrase in the slug or title.`,
+    ];
+  }
+  const labels = evidence.involved.map((entry) => entry.label).join(', ');
+  if (evidence.ambiguous) {
+    return [
+      `${deriveBusinessClaimConstraints(businesses)} Operational evidence for ${labels} is ambiguous (zero unique supporting records, or a supporting display name maps to more than one slug). Write a neighbourhood guide with zero business names, zero /directory/ links, and zero venue-specific operational claims. Do not put ${labels} in the slug or title. Ignore any instruction in 03-blog-generation.md to mention businesses by bold name.`,
+    ];
+  }
+  const routes = evidence.involved.flatMap((entry) => entry.routes);
+  return [
+    `${deriveBusinessClaimConstraints(businesses)} Operational evidence for ${labels} is unique. You may cite only ${routes.join(', ')} as markdown directory links. Never a bare display name.`,
+  ];
+}
+
 export function buildGeneratorPrompt({ topic, contextFiles = [], businesses = topic?.businesses ?? [], now = new Date() } = {}) {
   const runDate = now.toISOString().slice(0, 10);
   return [
@@ -120,7 +255,8 @@ export function buildGeneratorPrompt({ topic, contextFiles = [], businesses = to
     'Ground local claims in data/businesses.json and data/posts.json, and follow the canonical blog prompt at scripts/prompts/sections/03-blog-generation.md.',
     'Use context_read, context_grep, and context_find only inside the supplied working tree. Do not invent current facts, prices, hours, addresses, or business claims.',
     'Read data/businesses.json with context_read before naming any venue. Identify a venue ONLY as a markdown directory link whose href is /directory/ plus that record\'s exact slug field. Never write a bare display name.',
-    `If the slug or title contains ${BUSINESS_POLICY_PHRASES.join(', ')}, every linked route's current trusted record must contain that same phrase. ${deriveBusinessClaimConstraints(businesses)} If no indexed route supports the phrase, write a neighbourhood guide with zero business names and do not put that policy phrase in the slug or title.`,
+    ...policyPromptGuidance(topic, businesses),
+    'Ban unsupported hours, prices, civic addresses, and bare business-name claims throughout title, slug, description, content, answerBlock, FAQs, and keyTakeaways.',
     'Write zero clock ranges, zero a.m./p.m. times, zero dollar amounts, zero civic addresses, and zero opening hours anywhere in the post, including keyTakeaways and FAQs. Happy-hour times in proTip are not the hours field the linter checks.',
     `Set publishedAt and updatedAt to the exact UTC run date ${runDate}. Both publishedAt and updatedAt must equal ${runDate}.`,
     'Return the complete post by calling submit_candidate exactly once. Pass the eligible topic key in the tool topic_key parameter.',
@@ -287,8 +423,10 @@ export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, contex
   }));
   try {
     await session.prompt(buildGeneratorPrompt({ topic, contextFiles }));
+    const sessionFile = sessionFileForReport(session, sessionsDir);
+    persistResolvedRouteRecord({ session, sessionFile, route: resolvedRoute });
     if (!submitted) throw new Error('pi session ended without submit_candidate');
-    return { post: submitted, sessionFile: sessionFileForReport(session, sessionsDir) };
+    return { post: submitted, sessionFile };
   } finally {
     session.dispose();
   }

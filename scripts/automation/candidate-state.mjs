@@ -47,6 +47,7 @@ export function emptyTopicState() {
     abandoned: false,
     abandonedAt: null,
     reason: null,
+    outcome: null,
   };
 }
 
@@ -57,6 +58,7 @@ export function emptyCandidateState(kind) {
     regenerations: 0,
     lastFailureAt: null,
     lastReason: null,
+    lastOutcome: null,
     abandoned: false,
     topics: {},
     seen: [],
@@ -139,6 +141,9 @@ export function parseCandidateState(body, kind) {
     topics,
     seen: value.seen.slice(-MAX_SEEN_EVENT_KEYS),
   };
+  if (Object.hasOwn(value, 'lastOutcome')) {
+    state.lastOutcome = typeof value.lastOutcome === 'string' ? value.lastOutcome : null;
+  }
   return {
     ok: true,
     errors: [],
@@ -153,6 +158,7 @@ export function renderCandidateState(state) {
     regenerations: state.regenerations,
     lastFailureAt: state.lastFailureAt,
     lastReason: state.lastReason,
+    lastOutcome: state.lastOutcome ?? null,
     abandoned: state.abandoned,
     topics: state.topics ?? {},
     seen: (state.seen ?? []).slice(-MAX_SEEN_EVENT_KEYS),
@@ -167,6 +173,7 @@ export function renderCandidateState(state) {
     `| Last failed candidate | ${state.lastFailureAt ?? 'never'} |`,
     `| Cooldown before the next candidate | ${REGENERATION_COOLDOWN_HOURS}h |`,
     `| Topic abandoned | ${state.abandoned ? '**yes — waiting on a human**' : 'no'} |`,
+    `| Last outcome | ${state.lastOutcome ?? 'n/a'} |`,
     `| Last reason | ${state.lastReason ?? 'n/a'} |`, '',
     state.abandoned
       ? 'Every bounded candidate for this topic failed. Nothing further will be generated for it until a human closes this issue or clears the state.'
@@ -176,18 +183,22 @@ export function renderCandidateState(state) {
 
 // The one write path. `key` makes it idempotent: replaying the same event (a rerun
 // of the same job attempt) is a no-op, so a rerun can never buy extra budget.
-export function applyCandidateEvent(state, { key, action, at, reason, topicKey } = {}) {
+export function applyCandidateEvent(state, { key, action, at, reason, topicKey, outcome } = {}) {
   if (typeof key !== 'string' || key.trim().length === 0) throw new Error('candidate event requires a stable idempotency key');
   if (state.seen.includes(key)) return { state, changed: false, reason: 'event already recorded; state unchanged' };
   const stamp = typeof at === 'string' && Number.isFinite(Date.parse(at)) ? at : new Date(at ?? Date.now()).toISOString();
   const seen = [...(state.seen ?? []), key].slice(-MAX_SEEN_EVENT_KEYS);
   const topics = state.topics ?? {};
+  const nextReason = reason ?? null;
+  const nextOutcome = typeof outcome === 'string' && outcome ? outcome : null;
 
   if (!topicKey) {
     if (state.abandoned) return { state, changed: false, reason: 'topic is already abandoned; the ladder is closed' };
     if (action === 'abandon-topic') {
       return {
-        state: { ...state, topics, abandoned: true, lastFailureAt: stamp, lastReason: reason ?? null, seen },
+        state: {
+          ...state, topics, abandoned: true, lastFailureAt: stamp, lastReason: nextReason, lastOutcome: nextOutcome, seen,
+        },
         changed: true,
         reason: 'topic abandoned',
       };
@@ -197,7 +208,9 @@ export function applyCandidateEvent(state, { key, action, at, reason, topicKey }
     }
     const regenerations = Math.min(state.regenerations + 1, MAX_CANDIDATE_REGENERATIONS);
     return {
-      state: { ...state, topics, regenerations, lastFailureAt: stamp, lastReason: reason ?? null, seen },
+      state: {
+        ...state, topics, regenerations, lastFailureAt: stamp, lastReason: nextReason, lastOutcome: nextOutcome, seen,
+      },
       changed: true,
       reason: `regeneration ${regenerations}/${MAX_CANDIDATE_REGENERATIONS} recorded`,
     };
@@ -216,11 +229,14 @@ export function applyCandidateEvent(state, { key, action, at, reason, topicKey }
         abandoned: true,
         abandonedAt: stamp,
         lastFailureAt: stamp,
-        reason: reason ?? null,
+        reason: nextReason,
+        outcome: nextOutcome,
       },
     };
     return {
-      state: { ...state, topics: nextTopics, lastFailureAt: stamp, lastReason: reason ?? null, seen },
+      state: {
+        ...state, topics: nextTopics, lastFailureAt: stamp, lastReason: nextReason, lastOutcome: nextOutcome, seen,
+      },
       changed: true,
       reason: 'topic abandoned',
     };
@@ -235,14 +251,17 @@ export function applyCandidateEvent(state, { key, action, at, reason, topicKey }
       ...current,
       regenerations,
       lastFailureAt: stamp,
-      lastReason: reason ?? null,
+      lastReason: nextReason,
       abandoned: false,
       abandonedAt: null,
-      reason: reason ?? null,
+      reason: nextReason,
+      outcome: nextOutcome,
     },
   };
   return {
-    state: { ...state, topics: nextTopics, lastFailureAt: stamp, lastReason: reason ?? null, seen },
+    state: {
+      ...state, topics: nextTopics, lastFailureAt: stamp, lastReason: nextReason, lastOutcome: nextOutcome, seen,
+    },
     changed: true,
     reason: `regeneration ${regenerations}/${MAX_CANDIDATE_REGENERATIONS} recorded`,
   };
@@ -312,9 +331,9 @@ async function commentOnce(repo, issueNumber, marker, body, api) {
  * Records one ladder movement durably and idempotently.
  * @returns { state, changed, issue, announced }
  */
-export async function recordCandidateEvent(repo, kind, { key, action, at, reason, topicKey, queue } = {}, api = defaultApi()) {
+export async function recordCandidateEvent(repo, kind, { key, action, at, reason, topicKey, queue, outcome } = {}, api = defaultApi()) {
   const { issue, state } = await loadCandidateState(repo, kind, api);
-  const applied = applyCandidateEvent(state, { key, action, at, reason, topicKey });
+  const applied = applyCandidateEvent(state, { key, action, at, reason, topicKey, outcome });
   if (!applied.changed) return { ...applied, issue, announced: false };
   const rolled = recomputeCandidateRollups(applied.state, { queue, kind, now: at ?? applied.state.lastFailureAt });
   const topics = { ...(rolled.topics ?? {}) };

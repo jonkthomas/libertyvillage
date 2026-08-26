@@ -19,6 +19,19 @@ test('line-rich command diagnostics remain bounded with an explicit truncation m
   assert.match(reason, / …\[truncated\]$/);
 });
 
+test('boundedOutcomeReason marks information loss even when newline collapse fits under 512', () => {
+  const diagnostic = `lint refused the draft${'\n'.repeat(520)}`;
+  assert.ok([...diagnostic].length > hostRun.OUTCOME_REASON_LIMIT);
+  const collapsed = diagnostic.replace(/\p{C}+/gu, ' ').replace(/\s+/gu, ' ').trim();
+  assert.ok([...collapsed].length <= hostRun.OUTCOME_REASON_LIMIT);
+  const reason = hostRun.boundedOutcomeReason(diagnostic);
+  assert.match(reason, / …\[truncated\]$/);
+  assert.ok([...reason].length <= hostRun.OUTCOME_REASON_LIMIT);
+  assert.equal(reason.includes('\n'), false);
+  assert.equal(/[\p{Cc}\p{Zl}\p{Zp}]/u.test(reason), false);
+  assert.equal(reason, hostRun.boundedOutcomeReason(diagnostic));
+});
+
 test('resolved session evidence carries provider, model, API, and baseUrl together', () => {
   const route = resolvedModelRoute({
     provider: 'lv-openai-acceptance', id: 'openai/gpt-5.6-sol', api: 'openai-responses',
