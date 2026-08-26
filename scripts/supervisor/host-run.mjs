@@ -11,11 +11,20 @@ import { validateIngestDiff, repositoryDispatchBody } from './ingest-contract.mj
 import { generateWithPi, writeCandidateArtifact } from './pi-session.mjs';
 import { fetchObservation } from './github-monitor.mjs';
 import { contentShipEnabled } from '../automation/promotion-control.mjs';
+import { KIND_POLICIES } from '../automation/constants.mjs';
 import { lostDispatchRetry, mayRepin, MONITOR_LIMIT_MS, terminalFromObservation } from './sha-monitor.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const COMMAND_OUTPUT_LIMIT = 8 * 1024;
 export const OUTCOME_REASON_LIMIT = 512;
+
+function numberedCommandOutput(value, label) {
+  return boundedCommandOutput(value).split('\n')
+    .map((line, index) => /^<\d+ characters omitted; showing tail>$/.test(line)
+      ? line
+      : `${label} line ${index + 1}: ${line}`)
+    .join('\n');
+}
 
 function boundedCommandOutput(value) {
   const output = Buffer.isBuffer(value) ? value.toString('utf8') : String(value ?? '');
@@ -44,9 +53,8 @@ export function runCommand(file, args, options = {}) {
     throw new Error([
       `supervisor command failed (${status}): ${invocation}`,
       options.cwd ? `cwd: ${options.cwd}` : null,
-      `stdout:\n${boundedCommandOutput(error.stdout)}`,
-      `stderr:\n${boundedCommandOutput(error.stderr)}`,
-      `detail: ${invocation}`,
+      `stdout:\n${numberedCommandOutput(error.stdout, 'stdout')}`,
+      `stderr:\n${numberedCommandOutput(error.stderr, 'stderr')}`,
     ].filter(Boolean).join('\n'), { cause: error });
   }
 }
@@ -166,15 +174,17 @@ async function findIngestPr(repo, dataSha, { timeoutMs = 25 * 60 * 1000 } = {}) 
 
 export async function monitorOwnedPr({
   repoRoot, repo, prNumber, initialSha, onUpdate = async () => {}, startedAt,
-  now = Date.now, sleep: sleepFn = sleep, kind = 'blog-live',
+  now = Date.now, sleep: sleepFn = sleep, kind = 'blog-live', coordinatorFn = coordinator,
+  fetchObservationFn = fetchObservation,
 } = {}) {
   const clock = typeof now === 'function' ? now : () => now;
   const origin = Number.isFinite(startedAt) ? startedAt : clock();
   let sha = initialSha;
   let missingSince = null;
   let redispatches = 0;
+  let syncAttempts = 0;
   while (clock() - origin < MONITOR_LIMIT_MS) {
-    const observation = await fetchObservation(repo, prNumber, sha);
+    const observation = await fetchObservationFn(repo, prNumber, sha);
     if (observation.pr?.head?.sha !== sha && observation.pr?.state === 'open') {
       const commit = await github(`/repos/${repo}/commits/${observation.pr.head.sha}`);
       const parents = (commit?.parents || []).map((parent) => parent.sha);
@@ -187,13 +197,30 @@ export async function monitorOwnedPr({
       continue;
     }
     const terminal = terminalFromObservation({
-      pr: observation.pr, sha, auditDecision: observation.audit?.decision,
+      pr: observation.pr, sha, auditDecision: observation.audit?.decision, base: KIND_POLICIES[kind]?.base,
       stagingContained: observation.stagingContained,
       mainContained: observation.mainContained,
       productionVercel: observation.productionVercel,
       contentContainedInMain: observation.contentContainedInMain,
     });
     if (terminal.terminal) return { terminal: terminal.terminal, prState: observation.pr?.state, sha };
+    const exactHeadGreen = observation.statuses.ci === 'success'
+      && observation.statuses.gate === 'success' && observation.statuses.vercel === 'success';
+    if (observation.pr?.merged === true && observation.pr?.base?.ref === 'main'
+      && !observation.stagingContained && exactHeadGreen && syncAttempts < 3) {
+      syncAttempts += 1;
+      try {
+        await coordinatorFn(repoRoot, [
+          'observe-and-sync-staging', '--pr', String(prNumber), '--sha', sha,
+        ], { repo });
+        await onUpdate({ head_sha: sha, sync_attempts: syncAttempts });
+      } catch (error) {
+        await onUpdate({ head_sha: sha, sync_attempts: syncAttempts, sync_error: error.message });
+        if (syncAttempts >= 3) return { terminal: 'MONITOR_TIMEOUT', prState: observation.pr?.state, sha };
+      }
+      await sleepFn(30_000);
+      continue;
+    }
     const missing = observation.statuses.ci === 'missing' && observation.statuses.gate === 'missing';
     missingSince = missing ? (missingSince ?? clock()) : null;
     const retry = lostDispatchRetry({ attempts: redispatches, missingSince, now: clock() });

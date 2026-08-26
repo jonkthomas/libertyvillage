@@ -50,15 +50,15 @@ test('a merged main PR stays non-terminal until staging containment, content SHA
     base: { ref: 'main' }, user: { login: 'github-actions[bot]' },
   };
   assert.equal(terminalFromObservation({
-    pr: merged, sha: A, stagingContained: true, mainContained: true, contentContainedInMain: true,
+    pr: merged, sha: A, base: 'main', stagingContained: true, mainContained: true, contentContainedInMain: true,
     productionVercel: 'missing',
   }).terminal, null);
   assert.equal(terminalFromObservation({
-    pr: merged, sha: A, stagingContained: true, mainContained: true, contentContainedInMain: false,
+    pr: merged, sha: A, base: 'main', stagingContained: true, mainContained: true, contentContainedInMain: false,
     productionVercel: 'success',
   }).terminal, null);
   assert.equal(terminalFromObservation({
-    pr: merged, sha: A, stagingContained: true, mainContained: true, contentContainedInMain: true,
+    pr: merged, sha: A, base: 'main', stagingContained: true, mainContained: true, contentContainedInMain: true,
     productionVercel: 'success',
   }).terminal, 'PUBLISHED_MAIN');
 });

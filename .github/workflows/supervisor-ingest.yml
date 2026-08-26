@@ -109,7 +109,10 @@ jobs:
           git add data/posts.json public/images/blog/
           git diff --cached --quiet && { echo "No candidate changes" >&2; exit 1; }
           git commit -m "blog: ingest supervised weekly candidate"
-          FILES_JSON=$(git diff --name-only origin/main...HEAD | jq -Rsc 'split("\n") | map(select(length > 0))')
+          git diff --name-only origin/main...HEAD > /tmp/supervisor-post-commit-files.txt
+          cmp -s /tmp/supervisor-files.txt /tmp/supervisor-post-commit-files.txt \
+            || { echo "Post-commit files differ from the validated ingest list" >&2; exit 1; }
+          FILES_JSON=$(jq -Rsc 'split("\n") | map(select(length > 0))' /tmp/supervisor-post-commit-files.txt)
           FILES_JSON="$FILES_JSON" node --input-type=module <<'NODE'
           import { validatePaths } from './scripts/automation/policy.mjs';
           const result = validatePaths('blog-live', JSON.parse(process.env.FILES_JSON));

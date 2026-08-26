@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { evaluateSentinel } from '../../scripts/supervisor/sentinel.mjs';
 
 const SHA = 'a'.repeat(40);
-const ownedPr = { number: 10, state: 'open', head: { sha: SHA, ref: 'blog/auto-owned', repo: { fork: false } }, base: { ref: 'staging' }, user: { login: 'github-actions[bot]' } };
+const ownedPr = { number: 10, state: 'open', head: { sha: SHA, ref: 'blog/auto-owned', repo: { fork: false } }, base: { ref: 'main' }, user: { login: 'github-actions[bot]' } };
 const status = { sha: SHA, statuses: [] };
 
 test('unrelated bot PR cannot trigger the ledger-scoped VM sentinel', () => {

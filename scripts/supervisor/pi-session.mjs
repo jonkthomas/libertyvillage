@@ -56,6 +56,19 @@ export function validateSubmittedPost(post, topic, submittedTopicKey, { now = ne
   return { ok: errors.length === 0, errors };
 }
 
+export function resolvedModelRoute(model, fallbackBaseUrl) {
+  const route = {
+    provider: model?.provider,
+    id: model?.id,
+    api: model?.api,
+    baseUrl: model?.baseUrl ?? fallbackBaseUrl,
+  };
+  for (const field of ['provider', 'id', 'api', 'baseUrl']) {
+    if (typeof route[field] !== 'string' || !route[field]) throw new Error(`resolved Pi route lacks ${field}`);
+  }
+  return route;
+}
+
 export function writeCandidateArtifact({ postsFile, post }) {
   const posts = JSON.parse(fs.readFileSync(postsFile, 'utf8'));
   if (!Array.isArray(posts)) throw new Error('canonical posts file must be an array');
@@ -65,7 +78,36 @@ export function writeCandidateArtifact({ postsFile, post }) {
   fs.renameSync(temporary, postsFile);
 }
 
-export function buildGeneratorPrompt({ topic, contextFiles = [], now = new Date() } = {}) {
+const BUSINESS_POLICY_PHRASES = Object.freeze(['happy hour', 'pet-friendly', 'reservations', 'accessibility']);
+
+export function deriveBusinessClaimConstraints(businesses = []) {
+  const records = Array.isArray(businesses) ? businesses : [];
+  const names = new Map();
+  const routes = new Map(BUSINESS_POLICY_PHRASES.map((phrase) => [phrase, []]));
+  for (const record of records) {
+    if (!record || typeof record.slug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(record.slug)) continue;
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    if (name) names.set(name, [...(names.get(name) || []), record.slug]);
+    const searchable = JSON.stringify(record).toLocaleLowerCase('en-CA');
+    for (const phrase of BUSINESS_POLICY_PHRASES) {
+      if (searchable.includes(phrase)) routes.get(phrase).push(`/directory/${record.slug}`);
+    }
+  }
+  const duplicateNames = [...names.entries()].filter(([, slugs]) => slugs.length > 1)
+    .map(([name, slugs]) => `${JSON.stringify(name)} maps to ${slugs.map((slug) => `/directory/${slug}`).join(', ')}`);
+  const safeRoutes = BUSINESS_POLICY_PHRASES.map((phrase) => {
+    const values = routes.get(phrase);
+    return `${phrase}: ${values.length ? values.join(', ') : 'no currently trusted directory record'}`;
+  });
+  return [
+    `Current trusted phrase-to-route index: ${safeRoutes.join('; ')}.`,
+    duplicateNames.length
+      ? `Duplicate display names require an exact linked route (never a bare name): ${duplicateNames.join('; ')}.`
+      : 'Use an exact linked route for every business; never rely on a bare display name.',
+  ].join(' ');
+}
+
+export function buildGeneratorPrompt({ topic, contextFiles = [], businesses = topic?.businesses ?? [], now = new Date() } = {}) {
   const runDate = now.toISOString().slice(0, 10);
   return [
     'Generate exactly one grounded Liberty Village blog post for the eligible topic below.',
@@ -77,8 +119,8 @@ export function buildGeneratorPrompt({ topic, contextFiles = [], now = new Date(
     'Read data/topic-queue.json, locate the selected entry by the exact topic key, confirm the source and rationale above match it, and use that entry\'s source and rationale as the grounding for why this topic was selected. Do not substitute a different topic or claim evidence beyond that rationale.',
     'Ground local claims in data/businesses.json and data/posts.json, and follow the canonical blog prompt at scripts/prompts/sections/03-blog-generation.md.',
     'Use context_read, context_grep, and context_find only inside the supplied working tree. Do not invent current facts, prices, hours, addresses, or business claims.',
-    'Read data/businesses.json with context_read before naming any venue. Identify a venue ONLY as a markdown directory link whose href is /directory/ plus that record\'s exact slug field. Never write a bare display name: two records are both named Cibo Wine Bar, and naming it in prose attributes both, including cibo-wine-bar which does not contain happy hour.',
-    'If the slug or title contains happy hour, pet-friendly, reservations, or accessibility, every linked slug\'s record must contain that same phrase. For a happy-hour topic the only safe Liberty Village slugs are local-public-eatery and cibo-liberty-village. Do not link or name cibo-wine-bar. If you cannot satisfy that, write a neighbourhood guide with zero business names and do not put those policy words in the slug or title.',
+    'Read data/businesses.json with context_read before naming any venue. Identify a venue ONLY as a markdown directory link whose href is /directory/ plus that record\'s exact slug field. Never write a bare display name.',
+    `If the slug or title contains ${BUSINESS_POLICY_PHRASES.join(', ')}, every linked route's current trusted record must contain that same phrase. ${deriveBusinessClaimConstraints(businesses)} If no indexed route supports the phrase, write a neighbourhood guide with zero business names and do not put that policy phrase in the slug or title.`,
     'Write zero clock ranges, zero a.m./p.m. times, zero dollar amounts, zero civic addresses, and zero opening hours anywhere in the post, including keyTakeaways and FAQs. Happy-hour times in proTip are not the hours field the linter checks.',
     `Set publishedAt and updatedAt to the exact UTC run date ${runDate}. Both publishedAt and updatedAt must equal ${runDate}.`,
     'Return the complete post by calling submit_candidate exactly once. Pass the eligible topic key in the tool topic_key parameter.',
@@ -214,7 +256,9 @@ export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, contex
   try {
   const { sdk, typebox } = await loadPiSdk();
   const { Type } = typebox;
+  topic = { ...topic, businesses: JSON.parse(fs.readFileSync(path.join(cwd, 'data/businesses.json'), 'utf8')) };
   let submitted = null;
+  let resolvedRoute = { provider, id: modelId, api: null, baseUrl };
   const constrainedTools = createConstrainedTools({ sdk, Type, cwd, onSubmit: async (_id, params) => {
       if (submitted) return { content: [{ type: 'text', text: 'Rejected: a candidate was already submitted.' }], details: {} };
       try {
@@ -222,7 +266,7 @@ export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, contex
         const checked = validateSubmittedPost(candidate, topic, params.topic_key);
         if (!checked.ok) return { content: [{ type: 'text', text: `Rejected: ${checked.errors.join('; ')}` }], details: {} };
         submitted = candidate;
-        return { content: [{ type: 'text', text: 'Accepted. End the session.' }], details: {} };
+        return { content: [{ type: 'text', text: 'Accepted. End the session.' }], details: { resolvedRoute } };
       } catch (error) {
         return { content: [{ type: 'text', text: `Rejected: invalid JSON (${error.message})` }], details: {} };
       }
@@ -234,6 +278,7 @@ export async function generateWithPi({ cwd, agentDir, sessionsDir, topic, contex
   await modelRuntime.setRuntimeApiKey(provider, process.env.PI_API_KEY || 'implicit');
   const model = modelRuntime.getModel(provider, modelId);
   if (!model) throw new Error(`pi model is unavailable: ${provider}/${modelId}`);
+  resolvedRoute = resolvedModelRoute(model, baseUrl);
   const settingsManager = sdk.SettingsManager.inMemory({ compaction: { enabled: true }, retry: { enabled: true, maxRetries: 2 } });
   const resourceLoader = constrainedResourceLoader(sdk);
   const { session } = await sdk.createAgentSession(piSessionOptions({
