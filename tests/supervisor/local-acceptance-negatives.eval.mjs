@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import {
   Checks, assertTrue, readSpawnLog, spawnEntriesFor,
 } from './helpers/acceptance-evidence.mjs';
-import { prepareScenario, writeGenerateShim, shimPost, firstBlogImage } from './local-acceptance-happy.eval.mjs';
+import { prepareScenario, writeGenerateShim, shimPost, firstBlogImage, liveGenerationChecks } from './helpers/acceptance-scenario.mjs';
 
 const noBaselineArtifacts = (scenario, ch, id) => {
   ch.check(`${id}-clean`, 'no data branch, dispatch, PR, or candidate-state write escaped the failure', () => {
@@ -21,6 +21,22 @@ const noBaselineArtifacts = (scenario, ch, id) => {
     assertTrue(scenario.sim.pulls().length === 0, 'a pull request exists');
     return null;
   });
+};
+
+// Extracts the machine payload of the durable candidate-state issue and walks
+// its string values, so equality checks are made against parsed content rather
+// than a raw (JSON-escaped) body substring.
+const candidateStateStrings = (issueBody) => {
+  const match = String(issueBody).match(/automation-candidate-state:({[\s\S]*?}) -->/);
+  if (!match) return null;
+  const values = [];
+  const walk = (node) => {
+    if (typeof node === 'string') { values.push(node); return; }
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (node && typeof node === 'object') Object.values(node).forEach(walk);
+  };
+  try { walk(JSON.parse(match[1])); } catch { return null; }
+  return values;
 };
 
 const cleanupAsserts = (scenario, ch, id, runRow) => {
@@ -87,6 +103,15 @@ async function runN1(context) {
       return null;
     });
     noBaselineArtifacts(scenario, ch, 'N1');
+    ch.check('N1-noladder', 'candidate-state issue body is byte-identical to the seeded empty state (no candidate-state write)', () => {
+      const issue = [...scenario.sim.issues.values()].find((entry) => entry.title === 'automation-state: blog candidate ladder');
+      assertTrue(issue, 'the seeded candidate-state issue is missing');
+      assertTrue(typeof scenario.seededIssueBody === 'string', 'no seeded issue body was captured before the run');
+      assertTrue(issue.body === scenario.seededIssueBody, 'the durable candidate-state body changed during a baseline failure');
+      assertTrue(!scenario.sim.requests.some((entry) => entry.method === 'PATCH' && entry.path.endsWith(`/issues/${issue.number}`)),
+        'a PATCH was issued against the candidate-state issue');
+      return null;
+    });
     cleanupAsserts(scenario, ch, 'N1', runRow);
   } catch (error) {
     ch.check('N1', 'N1 executed', () => { throw error; });
@@ -168,15 +193,29 @@ async function runN3N4(context) {
       assertTrue(error.includes('stdout:'), 'bounded stdout section missing');
       return null;
     });
-    ch.check('N4-reason', 'coordinator --reason is one bounded line (≤512, …[truncated]) matching boundedOutcomeReason', () => {
+    ch.check('N4-reason', 'coordinator --reason is one bounded line: ≤512 chars, no Unicode control/separator chars, literal …[truncated], equal to boundedOutcomeReason', () => {
       const record = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'coordinator.mjs')
         .find((entry) => entry.argv.includes('record-candidate-outcome'));
       assertTrue(record, 'record-candidate-outcome never ran');
       const reason = record.argv[record.argv.indexOf('--reason') + 1];
-      assertTrue(typeof reason === 'string' && !/[\n\r]/.test(reason) && reason === reason.trim() && [...reason].length <= 512,
-        'reason is not a bounded single line');
+      assertTrue(typeof reason === 'string' && reason === reason.trim() && [...reason].length <= 512, 'reason is not a bounded trimmed line');
+      assertTrue(!/[\p{Cc}\p{Zl}\p{Zp}]/u.test(reason), 'reason contains Unicode control or separator characters');
+      assertTrue([...String(runRow.error)].length > 512, 'control error: the raw diagnostic is not longer than the bound, so truncation cannot be proven');
+      assertTrue(reason.endsWith('…[truncated]'), 'a >512-char diagnostic was not truncated with the literal …[truncated] marker');
       assertTrue(reason === scenario.prod.boundedOutcomeReason(runRow.error), 'reason does not equal boundedOutcomeReason(ledger error)');
       return { reason: reason.slice(0, 120) };
+    });
+    ch.check('N4-durable', 'durable candidate-state issue content carries the exact bounded reason', () => {
+      const issue = [...scenario.sim.issues.values()].find((entry) => entry.title === 'automation-state: blog candidate ladder');
+      assertTrue(issue, 'candidate-state issue is missing');
+      const record = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'coordinator.mjs')
+        .find((entry) => entry.argv.includes('record-candidate-outcome'));
+      const reason = record.argv[record.argv.indexOf('--reason') + 1];
+      const values = candidateStateStrings(issue.body);
+      assertTrue(Array.isArray(values), 'candidate-state issue body has no parseable machine payload');
+      assertTrue(values.some((value) => value === reason || value.endsWith(reason)),
+        'no durable candidate-state value equals the bounded reason');
+      return null;
     });
     await ch.checkAsync('N4-replay', 'replaying the same run/topic outcome key moves the ladder zero times', async () => {
       const issue = [...scenario.sim.issues.values()].find((entry) => entry.title === 'automation-state: blog candidate ladder');
@@ -215,27 +254,39 @@ async function runN5(context) {
       const row = candidate.ledgerRows().at(-1);
       if (row?.terminal === 'BLOCKED_VALIDATION') { scenario = candidate; result = attemptResult; } else {
         ch.note(`attempt-${attempt}`, `live N5 attempt ended ${row?.terminal ?? 'without a terminal'} (exit ${attemptResult.code})`, attemptResult.stderr.slice(-800));
-        candidate.shredAndScan({});
-        if (attempt === 2) { await candidate.cleanup(); throw new Error('N5 never reached BLOCKED_VALIDATION within the live budget'); }
+        const failedScan = candidate.shredAndScan({ stdout: attemptResult.stdout, stderr: attemptResult.stderr });
         await candidate.cleanup();
+        if (failedScan.hits.length) throw new Error(`SECRET_LEAKED after a failed N5 live attempt: ${failedScan.hits.join(', ')}`);
+        if (attempt === 2) throw new Error('N5 never reached BLOCKED_VALIDATION within the live budget');
       }
     }
     const { fixture, sim } = scenario;
     const runRow = scenario.ledgerRows().at(-1);
     const pr = sim.pulls().find((entry) => entry.baseRef === 'main');
-    scenario.shredAndScan({ stdout: result.stdout, stderr: result.stderr });
+    const n5Scan = scenario.shredAndScan({ stdout: result.stdout, stderr: result.stderr });
     scenario.retain(context.reportDir, 'serial-n5', { 'child-stdout.txt': result.stdout, 'child-stderr.txt': result.stderr });
+    ch.check('N5-secrets', 'auth.json shredded; no literal credential in ledger, sessions, HTTP log, or simulator events', () => {
+      assertTrue(n5Scan.hits.length === 0, `SECRET_LEAKED: ${n5Scan.hits.join(', ')}`);
+      return null;
+    });
     ch.check('N5-terminal', 'monitor returned BLOCKED_VALIDATION (never PUBLISHED_MAIN / MERGED_STAGING), child nonzero', () => {
       assertTrue(result.code !== 0 && !result.deadlineHit, `exit ${result.code} deadline=${result.deadlineHit}`);
       assertTrue(runRow.terminal === 'BLOCKED_VALIDATION', `terminal ${runRow.terminal}`);
       assertTrue(!result.stdout.includes('PUBLISHED_MAIN:') && !result.stdout.includes('MERGED_STAGING:'), 'a success terminal was printed');
       return null;
     });
-    ch.check('N5-order', 'live generation and lint preceded the data branch, dispatch, and PR creation', () => {
+    liveGenerationChecks({ scenario, runRow, stagingBefore: fixture.stagingSha, ch, prefix: 'N5-live' });
+    ch.check('N5-order', 'generation/lint preceded the data branch and dispatch; failed statuses were driven only after the host pinned the OPEN PR', () => {
       assertTrue(scenario.sessionFiles().length >= 1 && runRow.pi_session_file, 'no live session evidence');
       const types = sim.events.map((event) => event.type);
       assertTrue(types.indexOf('dispatch') >= 0 && types.indexOf('ingest-pr-created') > types.indexOf('dispatch'),
         'PR was not created by the ingest dispatch');
+      const pinned = sim.events.findIndex((event) => event.type === 'host-observed-pinned-head' && event.number === pr?.number);
+      const firstFailed = sim.events.findIndex((event) => event.type === 'status' && event.sha === pr?.headSha && event.state === 'failure');
+      assertTrue(pinned >= 0, 'the host was never observed pinning the head');
+      assertTrue(sim.events[pinned].prState === 'open' && sim.events[pinned].statusesAtObservation === 0,
+        'the host did not observe an OPEN, status-free PR before checks existed');
+      assertTrue(firstFailed > pinned, 'failed statuses existed before the host pinned the head');
       return null;
     });
     ch.check('N5-audit', 'trusted validation-failed audit existed for the exact head before the monitor returned', () => {

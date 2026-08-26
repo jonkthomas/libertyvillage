@@ -19,7 +19,7 @@ import path from 'node:path';
 import {
   Checks, assertTrue, readSpawnLog, spawnEntriesFor,
 } from './helpers/acceptance-evidence.mjs';
-import { prepareScenario, writeGenerateShim, shimPost, firstBlogImage } from './local-acceptance-happy.eval.mjs';
+import { prepareScenario, writeGenerateShim, shimPost, firstBlogImage } from './helpers/acceptance-scenario.mjs';
 
 const FIX_134 = '9f24eeca64aac1cfc2b671ab57865164995cff3d';
 const FIX_136 = '5234731bee9d13dc045903ecd876e62afb217920';

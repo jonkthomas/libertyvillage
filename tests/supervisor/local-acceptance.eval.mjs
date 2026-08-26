@@ -2,13 +2,14 @@
 // Local live-model supervisor acceptance gate — serial orchestrator.
 // Eval-owned; FROZEN by evals/local-supervisor-acceptance.sha256. Spec:
 // /tmp/lv-supervisor-local-acceptance-spec.md (sha256 3ed29573…).
-//
+// Second eval-owner freeze: resolves all five mandatory Codex-review
+// corrections (external lifecycle+event order; executable C-N5/9/13/14;
+// structural live proof; closed loopholes; fail-closed cleanup).
 // Phase order: manifest → Design C static contracts → environment preflight →
 // live/negative/mutation/hitchhiker/RED scenarios. The static phase runs BEFORE
-// any credential or network use, so on a pre-Design-C tree (origin/staging
-// 710ea82) this evaluator is RED — for the missing PUBLISHED_MAIN terminal,
-// the missing blog-live kind (hitchhiker C-N1 lane), the missing production
-// Vercel wait (C-N13), and the missing PR-shaped sync (C-N14) — without
+// any credential or network use, so on a pre-Design-C tree (710ea82) this
+// evaluator is RED — missing PUBLISHED_MAIN terminal, blog-live kind (C-N1
+// lane), production Vercel wait (C-N13), PR-shaped sync (C-N14) — without
 // spending a model token. Success requires every phase to pass.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -18,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   APPROVED_LIVE_ROUTE, Checks, assertLiveRoute, assertTrue, renderReport,
+  scanForLiteral, shredFile,
 } from './helpers/acceptance-evidence.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -30,8 +32,11 @@ export const EVAL_OWNED_PATHS = Object.freeze([
   'tests/supervisor/local-acceptance-red.eval.mjs',
   'tests/supervisor/local-acceptance-live-ship.eval.mjs',
   'tests/supervisor/helpers/fake-supervisor-github.mjs',
+  'tests/supervisor/helpers/fake-supervisor-protection.mjs',
   'tests/supervisor/helpers/local-git-fixture.mjs',
   'tests/supervisor/helpers/acceptance-evidence.mjs',
+  'tests/supervisor/helpers/acceptance-scenario.mjs',
+  'tests/supervisor/helpers/acceptance-live-proof.mjs',
 ]);
 
 const read = (relative) => fs.readFileSync(path.join(REPO_ROOT, relative), 'utf8');
@@ -136,12 +141,27 @@ async function staticPhase() {
     }
     return null;
   });
-  ch.check('S6', 'generation prompt states the exact UTC run date for publishedAt/updatedAt', () => {
+  ch.check('S6', 'generation prompt explicitly requires publishedAt AND updatedAt to equal ONE frozen exact UTC run date (not loose token presence)', () => {
+    const before = new Date().toISOString().slice(0, 10);
     const prompt = piSession.buildGeneratorPrompt({ topic: { key: 'k', title: 't', source: 's', rationale: 'r' }, contextFiles: [] });
-    const today = new Date().toISOString().slice(0, 10);
-    assertTrue(prompt.includes(today), `prompt does not state the exact UTC run date ${today}`);
-    assertTrue(/publishedAt/.test(prompt) && /updatedAt/.test(prompt), 'prompt does not bind publishedAt/updatedAt to the run date');
-    return null;
+    const after = new Date().toISOString().slice(0, 10);
+    const dates = [...new Set([before, after])];
+    let bound = false;
+    const re = /publishedAt/g;
+    let match;
+    while ((match = re.exec(prompt))) {
+      const window = prompt.slice(Math.max(0, match.index - 240), match.index + 320);
+      if (window.includes('updatedAt') && dates.some((date) => window.includes(date)) && /exact|equal|must be|must use|set .* to/i.test(window)) {
+        bound = true;
+        break;
+      }
+    }
+    assertTrue(bound, `no single prompt passage requires publishedAt AND updatedAt to equal the exact UTC run date ${dates.join('/')}`);
+    for (const window of prompt.match(/publishedAt[^]{0,320}/g) || []) {
+      const found = window.match(/\d{4}-\d{2}-\d{2}/g) || [];
+      assertTrue(found.every((date) => dates.includes(date)), `a different date (${found.join(', ')}) is bound to publishedAt/updatedAt`);
+    }
+    return { date: dates[0] };
   });
   ch.check('S7', 'production model defaults are unchanged and gateway values never leak into them', () => {
     const host = read('scripts/supervisor/host-run.mjs');
@@ -233,22 +253,30 @@ async function environmentPhase(context) {
     }
     return null;
   });
-  await ch.checkAsync('E7', 'resolved live model identity is recorded (provider/id/api/baseUrl)', async () => {
+  await ch.checkAsync('E7', 'resolved live model identity is recorded and api === openai-responses is ASSERTED before any report language may claim the production dialect; runtime auth.json is shredded, never recursive-deleted', async () => {
     const { loadPiSdk } = await importProd('scripts/supervisor/pi-session.mjs');
     const { sdk } = await loadPiSdk();
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-accept-model-'));
+    const authPath = path.join(root, 'auth.json');
     try {
       const models = { providers: { [APPROVED_LIVE_ROUTE.provider]: { baseUrl: APPROVED_LIVE_ROUTE.baseUrl, api: APPROVED_LIVE_ROUTE.api, models: [{ id: APPROVED_LIVE_ROUTE.model, name: APPROVED_LIVE_ROUTE.model }] } } };
       fs.writeFileSync(path.join(root, 'models.json'), `${JSON.stringify(models, null, 2)}\n`);
-      const runtime = await sdk.ModelRuntime.create({ authPath: path.join(root, 'auth.json'), modelsPath: path.join(root, 'models.json') });
+      const runtime = await sdk.ModelRuntime.create({ authPath, modelsPath: path.join(root, 'models.json') });
       runtime.registerProvider(APPROVED_LIVE_ROUTE.provider, { baseUrl: APPROVED_LIVE_ROUTE.baseUrl });
       await runtime.setRuntimeApiKey(APPROVED_LIVE_ROUTE.provider, process.env.PI_API_KEY || 'implicit');
       const model = runtime.getModel(APPROVED_LIVE_ROUTE.provider, APPROVED_LIVE_ROUTE.model);
       assertTrue(model, 'approved local live model is unavailable in the runtime');
       context.resolvedRoute = { provider: model.provider, id: model.id, api: model.api, baseUrl: model.baseUrl };
       assertTrue(model.baseUrl === APPROVED_LIVE_ROUTE.baseUrl, `unexpected resolved base ${model.baseUrl}`);
+      assertTrue(model.api === 'openai-responses',
+        `resolved api is ${model.api}, not openai-responses — the report must not claim the production API dialect`);
+      const shredded = shredFile(authPath);
+      assertTrue(shredded === true, 'runtime auth.json was not present to shred (credential handling drifted)');
       return context.resolvedRoute;
-    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+    } finally {
+      try { shredFile(authPath); } catch { /* already shredded */ }
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
   return ch;
 }
@@ -277,7 +305,7 @@ async function main() {
   const context = {
     repoRoot: REPO_ROOT, sourceSha, tmpBase, reportDir, only,
     npmCache: path.join(tmpBase, 'npm-cache'), resolvedRoute: null,
-    budget: createLiveBudget(), phases: [],
+    budget: createLiveBudget(), phases: [], live: new Set(),
   };
   fs.mkdirSync(context.npmCache, { recursive: true, mode: 0o700 });
   const push = (checks) => {
@@ -287,43 +315,84 @@ async function main() {
     }
     return checks.ok;
   };
-  let ok = push(manifestPhase());
-  const staticOk = push(await staticPhase());
-  ok = ok && staticOk;
-  if (!staticOk) {
-    console.error('\nRED: Design C static contracts failed on this tree. The blog-live lane, PUBLISHED_MAIN terminal, '
-      + 'production Vercel wait, or PR-shaped sync is missing (spec anchors: happy path, C-N1, C-N13, C-N14). '
-      + 'No live scenario was attempted and no model token was spent.');
-  } else {
-    const envOk = push(await environmentPhase(context));
-    ok = ok && envOk;
-    if (envOk) {
-      const suites = [
-        ['happy', './local-acceptance-happy.eval.mjs'],
-        ['negatives', './local-acceptance-negatives.eval.mjs'],
-        ['mutations', './local-acceptance-mutations.eval.mjs'],
-        ['live-ship', './local-acceptance-live-ship.eval.mjs'],
-        ['red-mocks', './local-acceptance-red.eval.mjs'],
-      ];
-      for (const [name, file] of suites) {
-        if (only && !only.has(name)) { console.log(`SKIP [${name}] (diagnostic --scenario filter; PARTIAL run, not acceptance)`); continue; }
-        const suite = await import(file);
-        for (const checks of await suite.run(context)) ok = push(checks) && ok;
-      }
+  let ok = false;
+  // Top-level fail-closed finally: a thrown suite/report failure can never
+  // leave roots, servers, or children; the residue proof enters the report.
+  try {
+    ok = push(manifestPhase());
+    const staticOk = push(await staticPhase());
+    ok = ok && staticOk;
+    if (!staticOk) {
+      console.error('\nRED: Design C static contracts failed on this tree — the blog-live lane, PUBLISHED_MAIN terminal, '
+        + 'production Vercel wait, or PR-shaped sync is missing (happy path, C-N1, C-N13, C-N14). No model token was spent.');
     } else {
-      ok = false;
+      const envOk = push(await environmentPhase(context));
+      ok = ok && envOk;
+      if (envOk) {
+        const suites = [
+          ['happy', './local-acceptance-happy.eval.mjs'],
+          ['negatives', './local-acceptance-negatives.eval.mjs'],
+          ['mutations', './local-acceptance-mutations.eval.mjs'],
+          ['live-ship', './local-acceptance-live-ship.eval.mjs'],
+          ['red-mocks', './local-acceptance-red.eval.mjs'],
+        ];
+        for (const [name, file] of suites) {
+          if (only && !only.has(name)) { console.log(`SKIP [${name}] (diagnostic --scenario filter; PARTIAL run, not acceptance)`); continue; }
+          const suite = await import(file);
+          for (const checks of await suite.run(context)) ok = push(checks) && ok;
+        }
+      } else {
+        ok = false;
+      }
     }
+  } catch (error) {
+    ok = false;
+    context.phases.push({ phase: 'orchestrator', ok: false, checks: [{ id: 'FATAL', description: 'suite crashed before completing', ok: false, error: error.message }] });
+    console.error(`FATAL [orchestrator]: ${error.stack || error.message}`);
+  } finally {
+    const cleanup = new Checks('cleanup');
+    const leftovers = [];
+    const pendingPids = [];
+    for (const scenario of [...context.live]) {
+      for (const handle of scenario.handles || []) { if (handle.pid && !handle.exited) pendingPids.push(handle.pid); }
+      try { scenario.forceClean(); context.live.delete(scenario); } catch (cleanError) { leftovers.push(`${scenario.name}: ${cleanError.message}`); }
+    }
+    for (let wait = 0; wait < 30 && pendingPids.some((pid) => { try { process.kill(pid, 0); return true; } catch { return false; } }); wait += 1) {
+      await new Promise((resolve) => { setTimeout(resolve, 100); });
+    }
+    cleanup.check('CLEAN1', 'no child supervisor process survived forced cleanup', () => {
+      const alive = pendingPids.filter((pid) => { try { process.kill(pid, 0); return true; } catch { return false; } });
+      assertTrue(alive.length === 0, `live child pids after forced cleanup: ${alive.join(', ')}`);
+      return { killed: pendingPids.length };
+    });
+    cleanup.check('CLEAN2', 'every scenario root and simulator server was force-cleaned', () => {
+      assertTrue(leftovers.length === 0, `force-clean failures: ${leftovers.join('; ')}`);
+      return null;
+    });
+    cleanup.check('CLEAN3', 'the evaluator temporary root is removed', () => {
+      fs.rmSync(tmpBase, { recursive: true, force: true });
+      assertTrue(!fs.existsSync(tmpBase), `temporary root survived: ${tmpBase}`);
+      return null;
+    });
+    ok = push(cleanup) && ok;
+    const { jsonPath, mdPath } = renderReport({
+      outDir: reportDir, sourceSha, resolvedRoute: context.resolvedRoute,
+      phases: context.phases, liveAttempts: context.budget.log,
+      redactions: [process.env.PI_API_KEY],
+    });
+    const reportHits = scanForLiteral({ files: [jsonPath, mdPath], literal: process.env.PI_API_KEY });
+    if (reportHits.length) {
+      fs.rmSync(jsonPath, { force: true });
+      fs.rmSync(mdPath, { force: true });
+      ok = false;
+      console.error(`SECRET_LEAKED into the final report (deleted): ${reportHits.join(', ')}`);
+    } else {
+      console.log(`\nreport: ${jsonPath}\nreport: ${mdPath}`);
+    }
+    if (only) { console.log('PARTIAL run (--scenario): never acceptance evidence.'); ok = false; }
+    console.log(ok ? '\nACCEPTANCE GREEN' : '\nACCEPTANCE RED');
+    process.exitCode = ok ? 0 : 1;
   }
-  const { jsonPath, mdPath } = renderReport({
-    outDir: reportDir, sourceSha, resolvedRoute: context.resolvedRoute,
-    phases: context.phases, liveAttempts: context.budget.log,
-    redactions: [process.env.PI_API_KEY],
-  });
-  fs.rmSync(tmpBase, { recursive: true, force: true });
-  console.log(`\nreport: ${jsonPath}\nreport: ${mdPath}`);
-  if (only) { console.log('PARTIAL run (--scenario): never acceptance evidence.'); ok = false; }
-  console.log(ok ? '\nACCEPTANCE GREEN' : '\nACCEPTANCE RED');
-  process.exitCode = ok ? 0 : 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

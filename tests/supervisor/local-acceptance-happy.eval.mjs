@@ -1,147 +1,29 @@
-// Happy-path scenario (LIVE MODEL) + shared scenario runner for the local
-// supervisor acceptance gate. Eval-owned; FROZEN by
+// Happy-path scenario (LIVE MODEL) + shared happy-evidence verifier for the
+// local supervisor acceptance gate. Eval-owned; FROZEN by
 // evals/local-supervisor-acceptance.sha256.
 //
 // The happy path runs the real `node scripts/supervisor/cli.mjs run` as a child
 // against the eval-owned bare origin + loopback GitHub double, generates with
 // the approved local live route (lv-vercel-acceptance @ ai-gateway.vercel.sh,
 // openai-responses, openai/gpt-5.6-sol), and accepts only the full Design C
-// chain ending in ledger terminal PUBLISHED_MAIN. Checks A–D and P1–P13 are
+// chain ending in ledger terminal PUBLISHED_MAIN. Checks A–D and P0–P13 are
 // observations of external boundaries (bare refs, HTTP log, statuses actors,
 // session JSONL, ledger, spawn log) — never the child's self-report alone.
+// P0 asserts the COMPLETE externally-driven event order: the synchronous PR is
+// created inside the dispatch handler, but statuses, exact merge-ref
+// validation, merge, production Vercel, and the PR-shaped sync happen only
+// after the host is observed polling the pinned OPEN head.
 import fs from 'node:fs';
 import path from 'node:path';
-import { assertContainedOrigin, createFixture } from './helpers/local-git-fixture.mjs';
-import { createSupervisorGithub } from './helpers/fake-supervisor-github.mjs';
+import { assertContainedOrigin } from './helpers/local-git-fixture.mjs';
 import {
   APPROVED_LIVE_ROUTE, Checks, REPORT_LANGUAGE, assertLiveRoute, assertTrue,
-  childEnv, loadProd, parsePiSessionTools, readSpawnLog, runChildCli,
-  scanForLiteral, shredFile, spawnEntriesFor, writeModelsJson, writeSpawnLogger,
+  readSpawnLog, spawnEntriesFor,
 } from './helpers/acceptance-evidence.mjs';
+import { REPO, liveGenerationChecks, prepareScenario } from './helpers/acceptance-scenario.mjs';
 
-export const REPO = 'acceptance/libertyvillage';
+export { REPO };
 const BLOG_FILE = /^data\/posts\.json$|^public\/images\/blog\//;
-
-export async function prepareScenario(context, {
-  name, mutateStaging = null, controls = {}, pi = null, proxyAuth = 'false',
-  ownerEnv = 'exedev', contentShip, cloneSplit = true, stagingSentinel = true, seedIssue = true, mainAt = 'base',
-} = {}) {
-  const root = fs.mkdtempSync(path.join(context.tmpBase, `scn-${name}-`));
-  fs.chmodSync(root, 0o700);
-  const fixture = createFixture({ root, sourceRepo: context.repoRoot, sourceSha: context.sourceSha, mutateStaging, cloneSplit, stagingSentinel, mainAt });
-  const prod = await loadProd(context.repoRoot);
-  const childEnvLike = { LV_WEEKLY_OWNER: ownerEnv ?? undefined, LV_CONTENT_SHIP_ENABLED: contentShip };
-  const sim = createSupervisorGithub({ repo: REPO, fixture, prod, controls, childEnvLike });
-  const apiUrl = await sim.listen();
-  if (seedIssue && prod.renderCandidateState && prod.emptyCandidateState) sim.seedCandidateStateIssue();
-  const stateDir = path.join(root, 'state');
-  const home = path.join(root, 'home');
-  fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
-  const { loggerPath, spawnLog } = writeSpawnLogger(path.join(root, 'observe'));
-  const piEnv = pi === null ? {} : {
-    provider: pi.provider ?? APPROVED_LIVE_ROUTE.provider,
-    model: pi.model ?? APPROVED_LIVE_ROUTE.model,
-    baseUrl: pi.baseUrl ?? APPROVED_LIVE_ROUTE.baseUrl,
-    apiKey: pi.apiKey ?? process.env.PI_API_KEY,
-    sdkPath: pi.sdkPath ?? process.env.PI_SDK_PATH,
-  };
-  if (pi && pi.models !== false) writeModelsJson(path.join(stateDir, 'pi-runtime'), pi.modelsOverride);
-  assertContainedOrigin(fixture.clone, root);
-  const scenario = {
-    name, root, fixture, prod, sim, apiUrl, stateDir, home,
-    ledgerFile: path.join(stateDir, 'ledger.json'),
-    spawnLog, piEnv,
-    env: childEnv({
-      apiUrl, stateDir, ledger: path.join(stateDir, 'ledger.json'), repo: REPO, home,
-      spawnLog, loggerPath, proxyAuth, ownerEnv, contentShip, npmCache: context.npmCache, pi: piEnv,
-    }),
-    runChild: (deadlineMs) => runChildCli({ cloneDir: fixture.clone, env: scenario.env, deadlineMs }),
-    ledgerRows() {
-      if (!fs.existsSync(scenario.ledgerFile)) return [];
-      try { return prod.readLedger(scenario.ledgerFile).runs; }
-      catch { return JSON.parse(fs.readFileSync(scenario.ledgerFile, 'utf8')).runs || []; }
-    },
-    sessionFiles() {
-      const dir = path.join(stateDir, 'pi-sessions');
-      return fs.existsSync(dir) ? fs.readdirSync(dir).map((file) => path.join(dir, file)) : [];
-    },
-    shredAndScan(streams = {}) {
-      const shredded = shredFile(path.join(stateDir, 'pi-runtime', 'auth.json'));
-      const files = [scenario.ledgerFile, ...scenario.sessionFiles(), scenario.spawnLog];
-      const hits = scanForLiteral({ files, strings: streams, literal: process.env.PI_API_KEY });
-      return { shredded, hits };
-    },
-    retain(reportDir, label, extra = {}) {
-      const dir = path.join(reportDir, label);
-      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-      for (const file of [scenario.ledgerFile, ...scenario.sessionFiles()]) {
-        if (fs.existsSync(file)) fs.copyFileSync(file, path.join(dir, path.basename(file)));
-      }
-      fs.writeFileSync(path.join(dir, 'http-requests.json'), `${JSON.stringify(scenario.sim.requests, null, 2)}\n`);
-      fs.writeFileSync(path.join(dir, 'sim-events.json'), `${JSON.stringify(scenario.sim.events, null, 2)}\n`);
-      for (const [file, text] of Object.entries(extra)) fs.writeFileSync(path.join(dir, file), text ?? '');
-      return dir;
-    },
-    async cleanup() {
-      await sim.close();
-      fs.rmSync(root, { recursive: true, force: true });
-    },
-  };
-  return scenario;
-}
-
-// Writes the evaluator-owned generateWithPi shim into a scenario CLONE only
-// (serial N3/N4, mutation M138, hitchhiker C-N13). Explicitly NOT generation
-// proof; it never counts against the live budget and never claims a live route.
-export function writeGenerateShim(scenario, { post }) {
-  const dir = path.join(scenario.fixture.clone, 'scripts/supervisor');
-  fs.renameSync(path.join(dir, 'pi-session.mjs'), path.join(dir, 'pi-session.real.mjs'));
-  fs.writeFileSync(path.join(dir, 'acceptance-shim-post.json'), `${JSON.stringify(post, null, 2)}\n`);
-  fs.writeFileSync(path.join(dir, 'pi-session.mjs'), [
-    '// EVALUATOR-OWNED clone-local shim (serial N3 boundary test; not generation proof).',
-    "export * from './pi-session.real.mjs';",
-    "import fs from 'node:fs';",
-    "import path from 'node:path';",
-    "import { fileURLToPath } from 'node:url';",
-    "import { validateSubmittedPost } from './pi-session.real.mjs';",
-    'export async function generateWithPi({ sessionsDir, topic }) {',
-    "  const post = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'acceptance-shim-post.json'), 'utf8'));",
-    "  post.publishedAt = new Date().toISOString().slice(0, 10); post.updatedAt = post.publishedAt;",
-    '  const checked = validateSubmittedPost(post, topic, topic.key);',
-    "  if (!checked.ok) throw new Error(`shim post failed validateSubmittedPost: ${checked.errors.join('; ')}`);",
-    '  fs.mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });',
-    "  const sessionFile = path.join(sessionsDir, `shim-${Date.now()}.jsonl`);",
-    "  fs.writeFileSync(sessionFile, `${JSON.stringify({ type: 'acceptance-shim', note: 'not a live session' })}\\n`);",
-    '  return { post, sessionFile };',
-    '}',
-    '',
-  ].join('\n'));
-}
-
-export function shimPost({ dirty, image }) {
-  const body = dirty
-    ? 'Neighbourhood notes. **Acceptance Fictitious Cafe** pours espresso for $4.25 and stays open 7 am to 9 pm daily, per its own posted menu board and signage.'
-    : 'Liberty Village keeps a steady weekly rhythm, and this overview simply links the reader to guides the site has already published without asserting any new venue details.';
-  return {
-    slug: dirty ? 'acceptance-serial-n3-candidate' : 'acceptance-clean-candidate',
-    title: dirty ? 'Acceptance Serial N3 Candidate' : 'Acceptance Clean Candidate',
-    description: body, content: `${body}\n\n${body}`, answerBlock: body,
-    publishedAt: '2026-01-01', updatedAt: '2026-01-01', category: 'community',
-    image, author: 'LibertyVillage.co',
-    tags: ['liberty-village', 'community', 'weekly', 'notes'],
-    faqs: [1, 2, 3, 4].map((n) => ({ question: `Question ${n} about the neighbourhood?`, answer: 'The site keeps grounded answers in its published guides.' })),
-    relatedServices: [], relatedTopics: [], relatedPosts: [],
-    keyTakeaways: ['One', 'Two', 'Three', 'Four'].map((n) => `${n} grounded takeaway with no venue specifics.`),
-  };
-}
-
-export function firstBlogImage(repoRoot) {
-  const dir = path.join(repoRoot, 'public/images/blog');
-  const file = fs.readdirSync(dir).filter((name) => /\.(jpg|jpeg|png|webp)$/i.test(name)).sort()[0];
-  assertTrue(file, 'no committed blog image exists under public/images/blog');
-  return `/images/blog/${file}`;
-}
 
 export function verifyHappyEvidence(scenario, ev, ch) {
   const { fixture, sim, prod } = scenario;
@@ -151,6 +33,40 @@ export function verifyHappyEvidence(scenario, ev, ch) {
     const firstDispatch = sim.requests.findIndex((entry) => entry.method === 'POST' && entry.path.endsWith('/dispatches'));
     assertTrue(firstRead >= 0 && firstDispatch > firstRead, `read@${firstRead} dispatch@${firstDispatch}`);
     return null;
+  });
+  ch.check('P0', 'complete event order: dispatch → sync PR create → host pins OPEN head (no statuses yet) → publish statuses + preview Vercel → host observes statuses → exact merge-ref validation → merge → production Vercel → PR-shaped sync', () => {
+    const head = ev.contentPr?.headSha;
+    assertTrue(head, 'no content PR head to order events around');
+    const seq = sim.events;
+    const at = (type, filter = () => true) => seq.findIndex((event) => event.type === type && filter(event));
+    const order = [
+      ['dispatch', at('dispatch', (event) => event.event_type === 'supervisor-ingest-blog')],
+      ['ingest-pr-created', at('ingest-pr-created', (event) => event.sha === head)],
+      ['host-observed-pinned-head', at('host-observed-pinned-head', (event) => event.number === ev.contentPr.number)],
+      ['status:ci@head', at('status', (event) => event.sha === head && event.context === 'automation/ci' && event.state === 'success')],
+      ['status:gate@head', at('status', (event) => event.sha === head && event.context === 'automation/opus-gate' && event.state === 'success')],
+      ['status:vercel@head', at('status', (event) => event.sha === head && event.context === 'Vercel' && event.state === 'success')],
+      ['host-observed-head-statuses', at('host-observed-head-statuses', (event) => event.number === ev.contentPr.number)],
+      ['merge-ref-validated', at('merge-ref-validated', (event) => event.headSha === head)],
+      ['content-merge', at('content-merge', (event) => event.number === ev.contentPr.number)],
+      ['status:vercel@merge', at('status', (event) => event.sha === ev.contentPr.merge_commit_sha && event.context === 'Vercel')],
+    ];
+    const syncIndex = Math.max(at('sync-merge'), at('sync-noop'));
+    order.push(['sync', syncIndex]);
+    let previous = -1;
+    for (const [label, index] of order) {
+      assertTrue(index >= 0, `event missing from the lifecycle: ${label}`);
+      assertTrue(index > previous, `event out of order: ${label} at ${index} did not follow its predecessor at ${previous}`);
+      previous = index;
+    }
+    const pinned = seq[order[2][1]];
+    assertTrue(pinned.prState === 'open' && pinned.merged === false, `host observed a ${pinned.prState}/merged=${pinned.merged} PR, not an open unmerged one`);
+    assertTrue(pinned.statusesAtObservation === 0, `${pinned.statusesAtObservation} statuses already existed when the host pinned the head`);
+    const refCheck = seq[order[7][1]];
+    assertTrue(refCheck.parents.length === 2 && refCheck.parents[0] === refCheck.mainSha && refCheck.parents[1] === head,
+      `synthetic merge-ref parents drifted: [${refCheck.parents.join(', ')}]`);
+    assertTrue(refCheck.mainSha === ev.mainBefore, `merge-ref validated against ${refCheck.mainSha}, not the live pre-merge main ${ev.mainBefore}`);
+    return { order: order.map(([label, index]) => `${label}@${index}`) };
   });
   ch.check('P1', 'Actions-authored PR: base=main, head blog/auto-*, bot author, exact head', () => {
     const pr = ev.contentPr;
@@ -218,19 +134,50 @@ export function verifyHappyEvidence(scenario, ev, ch) {
     assertTrue(delta.length === 0, `blog-path drift: ${delta.join(', ')}`);
     return null;
   });
-  ch.check('P10', 'durable ledger: single TERMINAL/PUBLISHED_MAIN row, closed PR, lease and owner lock released', () => {
+  ch.check('P10', 'durable ledger: exactly one run row, monotonic timestamps, exact topic/staging/PR/head/session fields, lease and locks released', () => {
     assertTrue(runRow, 'no ledger row for the run');
+    assertTrue(Array.isArray(ev.ledger.runs) && ev.ledger.runs.length === 1, `${ev.ledger.runs?.length} ledger rows exist; expected exactly one`);
     assertTrue(runRow.state === 'TERMINAL' && runRow.terminal === 'PUBLISHED_MAIN', `terminal is ${runRow.terminal} (${runRow.state})`);
     assertTrue(runRow.terminal !== 'MERGED_STAGING', 'MERGED_STAGING is not happy-path success');
     assertTrue(runRow.pr_state === 'closed', `pr_state is ${runRow.pr_state}`);
+    const started = Date.parse(runRow.started_at);
+    const terminalAt = Date.parse(runRow.terminal_at);
+    const updatedAt = Date.parse(runRow.updated_at);
+    assertTrue(Number.isFinite(started) && Number.isFinite(terminalAt) && Number.isFinite(updatedAt), 'run timestamps are not parseable');
+    let cursor = started;
+    for (const entry of runRow.sha_history || []) {
+      const at = Date.parse(entry.at);
+      assertTrue(Number.isFinite(at) && at >= cursor, `sha_history timestamp regressed at ${entry.sha}`);
+      cursor = at;
+    }
+    assertTrue(terminalAt >= cursor && updatedAt >= started, 'terminal/updated timestamps are not monotonic with the run');
+    const dispatch = sim.events.find((event) => event.type === 'dispatch' && event.event_type === 'supervisor-ingest-blog');
+    assertTrue(dispatch, 'no ingest dispatch payload to compare exact fields against');
+    assertTrue(runRow.topic_key === dispatch.payload.topic_key, `ledger topic ${runRow.topic_key} != dispatched topic ${dispatch.payload.topic_key}`);
+    assertTrue(runRow.data_sha === dispatch.payload.data_sha && runRow.data_branch === dispatch.payload.data_branch,
+      'ledger data branch/SHA differ from the dispatched payload');
+    assertTrue(runRow.trusted_staging_sha === ev.stagingBefore, `trusted_staging_sha ${runRow.trusted_staging_sha} != fixture staging ${ev.stagingBefore}`);
+    assertTrue(runRow.pr_number === ev.contentPr.number, `ledger pr_number ${runRow.pr_number} != ${ev.contentPr.number}`);
+    assertTrue(runRow.head_sha === ev.contentPr.headSha, `ledger head_sha ${runRow.head_sha} != ${ev.contentPr.headSha}`);
+    assertTrue(String(runRow.pi_session_file || '').startsWith(path.join(scenario.stateDir, 'pi-sessions')), 'ledger session path is outside the scenario state root');
     assertTrue(ev.ledger.lease === null || ev.ledger.lease === undefined, 'ledger lease was not released');
     assertTrue(!fs.existsSync(path.join(scenario.stateDir, 'run.owner')), 'run.owner lock remains');
     assertTrue(!fs.existsSync(path.join(scenario.stateDir, 'ledger.json.write-lock')), 'ledger write lock remains');
     return { run_id: runRow.run_id, topic_key: runRow.topic_key };
   });
-  ch.check('P11', 'owned data branch and supervisor worktree are gone; unrelated refs untouched', () => {
-    const heads = fixture.remoteHeads().map(([name]) => name);
-    assertTrue(!heads.some((name) => name.startsWith('supervisor/blog-data-')), 'owned data branch still exists');
+  ch.check('P11', 'owned data branch and supervisor worktree gone; every unrelated ref is byte-for-byte unchanged', () => {
+    const heads = new Map(fixture.remoteHeads());
+    assertTrue(![...heads.keys()].some((name) => name.startsWith('supervisor/blog-data-')), 'owned data branch still exists');
+    assertTrue(ev.headsBefore, 'no pre-run ref snapshot exists to compare unrelated refs against');
+    for (const [name, sha] of ev.headsBefore) {
+      if (name === 'main' || name === 'staging' || name.startsWith('supervisor/blog-data-')) continue;
+      assertTrue(heads.get(name) === sha, `unrelated ref moved or vanished: ${name} was ${sha}, is ${heads.get(name)}`);
+    }
+    for (const name of heads.keys()) {
+      const allowed = name === 'main' || name === 'staging' || /^blog\/auto-/.test(name) || /^sync\/main-/.test(name)
+        || ev.headsBefore.has(name);
+      assertTrue(allowed, `unexpected ref appeared: ${name}`);
+    }
     assertTrue(!fs.existsSync(path.join(scenario.stateDir, 'work', runRow.run_id)), 'supervisor worktree directory remains');
     const worktrees = fixture.cloneGit(['worktree', 'list', '--porcelain']).split('\n\n').filter(Boolean);
     assertTrue(worktrees.length === 1, `acceptance worktree leaked: ${worktrees.length} entries`);
@@ -244,20 +191,31 @@ export function verifyHappyEvidence(scenario, ev, ch) {
     assertTrue(!kinds.includes('promotion'), 'a kind=promotion dispatch occurred');
     return kinds;
   });
-  ch.check('P13', 'staging advanced only via the merged Actions-authored sync PR (or was already contained); no successful direct push', () => {
+  ch.check('P13', 'staging advanced only via the merged Actions-authored sync PR: bot author, exact sync-head statuses, blog-only file set, merge ancestry; no successful direct push', () => {
     const sync = sim.events.find((event) => event.type === 'sync-merge') || sim.events.find((event) => event.type === 'sync-noop');
     assertTrue(sync, 'no PR-shaped sync (or no-op) was recorded');
     if (sync.type === 'sync-merge') {
       const pr = [...sim.issues.values()].find((entry) => entry.pull && entry.number === sync.number);
       assertTrue(pr.baseRef === 'staging' && /^sync\/main-/.test(pr.headRef) && pr.merged, 'sync PR identity drifted');
+      assertTrue(pr.author === 'github-actions[bot]', `sync PR author is ${pr.author}`);
       assertTrue(sync.method === 'merge', `sync merge method was ${sync.method}`);
+      const syncStatuses = sim.statusesFor(pr.headSha);
+      for (const context of ['automation/ci', 'automation/opus-gate']) {
+        assertTrue(syncStatuses.some((status) => status.context === context && status.state === 'success' && status.actor === 'coordinator-double'),
+          `missing coordinator ${context} success on the exact sync head`);
+      }
+      assertTrue(!syncStatuses.some((status) => status.context === 'Vercel'), 'a Vercel status was posted on the sync head');
+      assertTrue(pr.files.every((file) => BLOG_FILE.test(file)), `non-blog sync PR file: ${pr.files.join(', ')}`);
+      const newStaging = fixture.rev('staging');
+      assertTrue(sync.merge_commit_sha === newStaging || fixture.isAncestor(sync.merge_commit_sha, newStaging), 'staging tip does not carry the sync merge');
+      assertTrue(sync.parents.length === 2 && sync.parents[0] === sync.oldStaging && sync.parents[1] === pr.headSha,
+        `sync merge ancestry drifted: [${sync.parents.join(', ')}] != [old staging, sync head]`);
     }
     assertTrue(!sim.events.some((event) => event.type === 'direct-push-accepted'), 'a direct protected-branch push succeeded');
     assertTrue(fixture.isAncestor(ev.contentPr.headSha, fixture.rev('staging')), 'staging does not contain the content SHA');
     return { via: sync.type };
   });
   ch.note('NOTE-doubled', REPORT_LANGUAGE.doubled, null);
-  ch.note('NOTE-dialect', REPORT_LANGUAGE.dialect, null);
   return ch;
 }
 
@@ -270,23 +228,25 @@ export async function run(context) {
       context.budget.claim('happy', attempt);
       assertLiveRoute({ provider: APPROVED_LIVE_ROUTE.provider, model: APPROVED_LIVE_ROUTE.model, baseUrl: APPROVED_LIVE_ROUTE.baseUrl });
       const candidate = await prepareScenario(context, { name: `happy-a${attempt}`, pi: { live: true } });
+      candidate.headsBefore = new Map(candidate.fixture.remoteHeads());
       const attemptResult = await candidate.runChild(25 * 60_000);
       if (attemptResult.code === 0 && /PUBLISHED_MAIN: /.test(attemptResult.stdout)) {
         scenario = candidate; result = attemptResult;
       } else {
         ch.note(`attempt-${attempt}`, `live attempt failed (exit ${attemptResult.code}, deadline=${attemptResult.deadlineHit})`, attemptResult.stderr.slice(-1500));
-        candidate.shredAndScan({});
-        if (attempt === 2) { await candidate.cleanup(); throw new Error('happy path never reached PUBLISHED_MAIN within the live-attempt budget'); }
+        const failedScan = candidate.shredAndScan({ stdout: attemptResult.stdout, stderr: attemptResult.stderr });
         await candidate.cleanup();
+        if (failedScan.hits.length) throw new Error(`SECRET_LEAKED after a failed live attempt: ${failedScan.hits.join(', ')}`);
+        if (attempt === 2) throw new Error('happy path never reached PUBLISHED_MAIN within the live-attempt budget');
       }
     }
-    const { fixture, sim, prod } = scenario;
+    const { fixture, prod, sim } = scenario;
     const ledger = fs.existsSync(scenario.ledgerFile) ? prod.readLedger(scenario.ledgerFile) : { runs: [], lease: null };
     const runRow = ledger.runs.at(-1);
     const contentPr = sim.pulls().find((entry) => entry.baseRef === 'main' && /^blog\/auto-/.test(entry.headRef));
     const ev = {
       exit: result, ledger, runRow, contentPr,
-      mainBefore: fixture.baseSha, stagingBefore: fixture.stagingSha,
+      mainBefore: fixture.baseSha, stagingBefore: fixture.stagingSha, headsBefore: scenario.headsBefore,
     };
     const { shredded, hits } = scenario.shredAndScan({ stdout: result.stdout, stderr: result.stderr });
     scenario.retain(context.reportDir, 'happy', {
@@ -318,64 +278,24 @@ export async function run(context) {
       assertTrue(match && runRow && match[1] === runRow.run_id, 'stdout run id does not match the ledger row');
       return match[1];
     });
-    ch.check('B1', 'live Pi session JSONL exists under the scenario state root and matches the ledger', () => {
-      const sessions = scenario.sessionFiles();
-      assertTrue(sessions.length >= 1, 'no session JSONL under <state>/pi-sessions');
-      assertTrue(runRow.pi_session_file && sessions.includes(runRow.pi_session_file), 'ledger session path is not under the scenario state root');
-      return { sessionFile: runRow.pi_session_file, bytes: fs.statSync(runRow.pi_session_file).size };
-    });
-    ch.check('B2', 'JSONL-derived tool contract: subset of the allowlist, submit_candidate accepted, context tool used', () => {
-      const parsed = parsePiSessionTools(runRow.pi_session_file, prod.PI_TOOL_ALLOWLIST);
-      assertTrue(parsed.extras.length === 0, `extra tools invoked: ${parsed.extras.join(', ')}`);
-      assertTrue(parsed.invoked.includes('submit_candidate'), 'no submit_candidate call in the live transcript');
-      assertTrue(parsed.invoked.some((name) => name.startsWith('context_')), 'no context_* tool call in the live transcript');
-      assertTrue(parsed.accepted, 'host acceptance of submit_candidate is missing from the transcript');
-      if (parsed.active) {
-        assertTrue(JSON.stringify([...parsed.active].sort()) === JSON.stringify([...prod.PI_TOOL_ALLOWLIST].sort()),
-          `registered tool set drifted: ${parsed.active.join(', ')}`);
-      }
-      return { invoked: parsed.invoked, active: parsed.active };
-    });
-    ch.check('B3', 'session identifies the resolved live route (no canned/loopback generation)', () => {
-      const text = fs.readFileSync(runRow.pi_session_file, 'utf8');
-      assertTrue(text.includes(APPROVED_LIVE_ROUTE.model) || text.includes(APPROVED_LIVE_ROUTE.provider),
-        'session transcript never names the approved live provider/model');
-      assertTrue(!text.includes('127.0.0.1') || !/base.?url"?\s*:\s*"http:\/\/127\.0\.0\.1/i.test(text), 'session transcript points at a loopback model endpoint');
+    liveGenerationChecks({ scenario, runRow, stagingBefore: ev.stagingBefore, ch, prefix: 'B' });
+    ch.check('B6', 'submitted candidate also matches the PR head post byte-for-byte', () => {
+      const headPosts = JSON.parse(fixture.show(ev.contentPr.headSha, 'data/posts.json'));
+      const shipped = JSON.parse(fixture.show(runRow.data_sha, 'data/posts.json'));
+      assertTrue(JSON.stringify(headPosts.at(-1)) === JSON.stringify(shipped.at(-1)), 'PR head post differs from the submitted data commit');
       return null;
     });
-    ch.check('B4', 'candidate is new vs the staging baseline and the data commit carries exactly that post', () => {
-      const baseline = JSON.parse(fixture.show(ev.stagingBefore, 'data/posts.json'));
-      const dataSha = runRow.data_sha;
-      assertTrue(prod.isExactSha(dataSha), 'ledger has no exact data_sha');
-      const shipped = JSON.parse(fixture.show(dataSha, 'data/posts.json'));
-      assertTrue(shipped.length === baseline.length + 1, 'data commit does not append exactly one post');
-      const candidate = shipped.at(-1);
-      assertTrue(!baseline.some((post) => post.slug === candidate.slug), 'candidate slug pre-existed in the baseline');
-      const headPosts = JSON.parse(fixture.show(ev.contentPr.headSha, 'data/posts.json'));
-      assertTrue(JSON.stringify(headPosts.at(-1)) === JSON.stringify(candidate), 'PR head post differs from the submitted data commit');
-      return { slug: candidate.slug };
-    });
-    ch.check('B5', 'auth.json shredded before retention; literal PI_API_KEY appears in no retained evidence', () => {
+    ch.check('B7', 'auth.json shredded before retention; literal PI_API_KEY appears in no retained evidence, HTTP log, or simulator events', () => {
       assertTrue(shredded === true || !process.env.PI_API_KEY, 'auth.json was not present to shred');
       assertTrue(!fs.existsSync(path.join(scenario.stateDir, 'pi-runtime', 'auth.json')), 'auth.json survived the shred');
       assertTrue(hits.length === 0, `SECRET_LEAKED: ${hits.join(', ')}`);
       return null;
     });
-    ch.check('C1', 'trusted linter invocation shape: repoRoot script, cwd=workDir, relative data paths', () => {
-      const entries = spawnEntriesFor(readSpawnLog(scenario.spawnLog), 'scripts/blog-lint.mjs');
-      const lint = entries.find((entry) => entry.cwd.includes(path.join('state', 'work')));
-      assertTrue(lint, 'no observed blog-lint invocation from the staging worktree');
-      assertTrue(lint.argv[1] === path.join(fixture.clone, 'scripts/blog-lint.mjs'), `lint script path was ${lint.argv[1]}`);
-      assertTrue(lint.argv.includes('--posts') && lint.argv[lint.argv.indexOf('--posts') + 1] === 'data/posts.json', 'non-relative --posts');
-      assertTrue(lint.argv[lint.argv.indexOf('--businesses') + 1] === 'data/businesses.json', 'non-relative --businesses');
-      assertTrue(lint.cwd.startsWith(path.join(scenario.stateDir, 'work')), `lint cwd was ${lint.cwd}`);
-      return { argv: lint.argv.slice(1), cwd: lint.cwd };
-    });
     ch.check('C2', 'baseline gates all ran in order before generation', () => {
-      const npm = readSpawnLog(scenario.spawnLog);
+      const entries = readSpawnLog(scenario.spawnLog);
       const seen = ['ci', 'lint:automation', 'lint:supervisor', 'test:automation', 'test:supervisor'];
       const observed = [];
-      for (const entry of npm) {
+      for (const entry of entries) {
         const argv = entry.argv || [];
         const npmIndex = argv.findIndex((part) => /npm-cli\.js$/.test(String(part)));
         if (npmIndex >= 0) {
@@ -388,6 +308,8 @@ export async function run(context) {
         assertTrue(observed.indexOf(step) >= 0, `baseline step never ran: ${step}`);
         if (index > 0) assertTrue(observed.indexOf(step) > observed.indexOf(seen[index - 1]), `baseline order broke at ${step}`);
       }
+      const lint = spawnEntriesFor(entries, 'scripts/blog-lint.mjs').find((entry) => entry.cwd.startsWith(path.join(scenario.stateDir, 'work')));
+      assertTrue(lint && lint.cwd.includes(path.join('state', 'work')), 'lint cwd was not the staging worktree');
       return { observed };
     });
     verifyHappyEvidence(scenario, ev, ch);

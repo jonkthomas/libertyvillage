@@ -6,21 +6,21 @@
 // in-memory HTTP state and the temporary bare Git remote. It EXECUTES the
 // production ingest validators (validateIngestPayload / validateIngestDiff /
 // validatePaths('blog-live') / contentShipEnabled) and the trusted-main
-// re-lint, creates the Actions-authored base=main PR synchronously inside the
-// repository-dispatch handler, doubles (does not exercise) the coordinator's
-// validate → status → merge decision, posts `Vercel` only as a distinct
-// evaluator actor, and syncs main → staging only through a PR-shaped
-// sync/main-<sha> head. Direct pushes of main/staging are rejected by the bare
-// remote's pre-receive hook (see local-git-fixture.mjs).
+// re-lint, and creates the Actions-authored base=main PR synchronously inside
+// the repository-dispatch handler. Everything AFTER PR creation — statuses,
+// exact synthetic merge-ref validation, merge, production Vercel, PR-shaped
+// sync — lives in fake-supervisor-protection.mjs and is driven only after the
+// child is observed polling the pinned head (or immediately, for
+// evaluator-driven controls that run no child).
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { gitEnv } from './local-git-fixture.mjs';
+import { createLifecycleDriver } from './fake-supervisor-protection.mjs';
 
 const BOT = 'github-actions[bot]';
 const PUBLISH_CONTEXTS = Object.freeze(['automation/ci', 'automation/opus-gate']);
-const BLOG_FILE = /^data\/posts\.json$|^public\/images\/blog\//;
 
 export function createSupervisorGithub({ repo, fixture, prod, controls = {}, childEnvLike = {} }) {
   const owner = repo.split('/')[0];
@@ -77,6 +77,12 @@ export function createSupervisorGithub({ repo, fixture, prod, controls = {}, chi
     record('audit-comment', { number, sha, decision });
   };
 
+  const statusesFor = (sha) => statuses.get(sha) || [];
+  const lifecycle = createLifecycleDriver({
+    fixture, prod, controls,
+    hub: { repo, record, postStatus, addAudit, addIssue, asPull, statusesFor },
+  });
+
   const runTrustedLint = (wt) => {
     execFileSync(process.execPath, [path.join(wt, 'scripts/blog-lint.mjs'), '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'], {
       cwd: wt, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
@@ -110,7 +116,9 @@ export function createSupervisorGithub({ repo, fixture, prod, controls = {}, chi
   }
 
   // Design C ingest semantics, executed synchronously inside the dispatch
-  // handler so the trusted PR exists before the HTTP response returns.
+  // handler so the trusted PR exists before the HTTP response returns. The PR
+  // lifecycle (statuses/merge-ref/merge/Vercel/sync) is NOT run here — it is
+  // armed for external driving once the host observes the pinned head.
   function runIngest(payload) {
     const checked = prod.validateIngestPayload(payload);
     if (!checked.ok) throw new Error(`invalid ingest payload: ${checked.errors.join('; ')}`);
@@ -153,70 +161,8 @@ export function createSupervisorGithub({ repo, fixture, prod, controls = {}, chi
     record('ingest-pr-created', { number: pr.number, head: branch, sha: headSha, base: 'main' });
     record('coordinator-dispatch', { kind: 'blog-live', sha: headSha, number: pr.number });
     record('mark-regeneration', { key: payload.topic_key });
-    driveLifecycle(pr);
+    lifecycle.arm(pr);
     return pr;
-  }
-
-  // Doubled (not exercised) coordinator decision + evaluator-owned Vercel actor.
-  function driveLifecycle(pr) {
-    if (prod.validatePullRequest) {
-      const verdict = prod.validatePullRequest({ repository: repo, kind: 'blog-live', expectedSha: pr.headSha, pr: asPull(pr), files: pr.files });
-      if (!verdict.ok) { record('validation-failed-generator', { number: pr.number, errors: verdict.errors }); addAudit(pr.number, pr.headSha, 'validation-failed'); return; }
-    }
-    if (controls.checks === 'fail') {
-      postStatus(pr.headSha, 'automation/ci', 'failure', 'coordinator-double');
-      postStatus(pr.headSha, 'automation/opus-gate', 'failure', 'coordinator-double');
-      addAudit(pr.number, pr.headSha, 'validation-failed');
-      return;
-    }
-    postStatus(pr.headSha, 'automation/ci', 'success', 'coordinator-double');
-    postStatus(pr.headSha, 'automation/opus-gate', 'success', 'coordinator-double');
-    if (controls.vercelHead !== false) postStatus(pr.headSha, 'Vercel', 'success', 'evaluator-vercel');
-    if (controls.merge === 'none') return;
-    if (controls.dishonestMerged) {
-      pr.merged = true; pr.state = 'closed';
-      pr.merge_commit_sha = 'd15400e57'.padEnd(40, 'a');
-      record('dishonest-merge', { number: pr.number });
-      return;
-    }
-    const mergeSha = fixture.mergeViaApi({ base: 'main', headSha: pr.headSha, method: controls.merge || 'merge' });
-    pr.merged = true; pr.state = 'closed'; pr.merge_commit_sha = mergeSha; pr.updatedAt = new Date().toISOString();
-    record('content-merge', { number: pr.number, merge_commit_sha: mergeSha, method: controls.merge || 'merge', parents: fixture.parentsOf(mergeSha) });
-    if (controls.vercelProd !== 'missing') postStatus(mergeSha, 'Vercel', controls.vercelProd || 'success', 'evaluator-vercel');
-    if (controls.sync === 'none') return;
-    if (controls.sync === 'direct-push') { attemptDirectPush('staging', mergeSha); return; }
-    driveSync(mergeSha, pr.headSha);
-  }
-
-  function attemptDirectPush(branch, sha) {
-    try {
-      execFileSync('git', ['-C', fixture.clone, 'push', 'origin', `${sha}:refs/heads/${branch}`], {
-        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: gitEnv(),
-      });
-      record('direct-push-accepted', { branch, sha });
-    } catch (error) {
-      record('direct-push-rejected', { branch, sha, stderr: String(error.stderr || error.message).slice(0, 400) });
-    }
-  }
-
-  function driveSync(mainSha, contentSha) {
-    if (fixture.isAncestor(mainSha, fixture.rev('staging'))) { record('sync-noop', { mainSha }); return; }
-    const oldStaging = fixture.rev('staging');
-    const { branch, headSha, delta } = fixture.buildSyncHead(mainSha);
-    const nonBlog = delta.filter((file) => !BLOG_FILE.test(file));
-    const deltaOk = delta.length === 0 ? { ok: true, errors: [] } : prod.validatePaths('blog-live', delta);
-    if (!deltaOk.ok || nonBlog.length) {
-      fixture.bareGit(['update-ref', '-d', `refs/heads/${branch}`]);
-      record('sync-aborted', { mainSha, delta, errors: deltaOk.errors });
-      return;
-    }
-    const pr = addIssue({ title: `sync: main into staging`, pull: true, head: { ref: branch, sha: headSha }, base: 'staging', files: delta });
-    record('sync-pr-created', { number: pr.number, head: branch, sha: headSha, base: 'staging' });
-    postStatus(headSha, 'automation/ci', 'success', 'coordinator-double');
-    postStatus(headSha, 'automation/opus-gate', 'success', 'coordinator-double');
-    const newStaging = fixture.mergeViaApi({ base: 'staging', headSha, method: 'merge' });
-    pr.merged = true; pr.state = 'closed'; pr.merge_commit_sha = newStaging; pr.updatedAt = new Date().toISOString();
-    record('sync-merge', { number: pr.number, merge_commit_sha: newStaging, method: 'merge', oldStaging, contentSha });
   }
 
   const json = (response, status, payload) => {
@@ -275,7 +221,9 @@ export function createSupervisorGithub({ repo, fixture, prod, controls = {}, chi
           const sha = controls.statusPayloadSha || tail[1];
           const visible = (statuses.get(tail[1]) || [])
             .map((status) => ({ context: status.context, state: status.state, created_at: status.created_at, updated_at: status.updated_at }));
-          return json(response, 200, { sha, statuses: visible, state: 'pending' });
+          json(response, 200, { sha, statuses: visible, state: 'pending' });
+          lifecycle.onStatusPoll(tail[1]);
+          return undefined;
         }
         if (tail[0] === 'commits' && tail.length === 2 && request.method === 'GET') {
           try {
@@ -362,13 +310,15 @@ export function createSupervisorGithub({ repo, fixture, prod, controls = {}, chi
 
   const api = {
     server, requests, events, issues, comments, statuses, controls,
-    addIssue, addAudit, postStatus, runIngest, driveSync, attemptDirectPush,
+    addIssue, addAudit, postStatus, runIngest,
+    driveSync: lifecycle.driveSync, attemptDirectPush: lifecycle.attemptDirectPush,
+    stageMerge: lifecycle.stageMerge, validateMergeRef: lifecycle.validateMergeRef,
     seedCandidateStateIssue() {
       const body = prod.renderCandidateState(prod.emptyCandidateState('blog'));
       return addIssue({ title: 'automation-state: blog candidate ladder', body, labels: ['automation-state'] });
     },
     pulls: () => [...issues.values()].filter((entry) => entry.pull),
-    statusesFor: (sha) => statuses.get(sha) || [],
+    statusesFor,
     coordinatorPostedVercel: () => [...statuses.values()].flat()
       .some((status) => status.context === 'Vercel' && status.actor !== 'evaluator-vercel')
       || requests.some((entry) => entry.method === 'POST' && entry.path.includes('/statuses/') && entry.body?.context === 'Vercel'),

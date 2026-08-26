@@ -135,9 +135,14 @@ export async function runChildCli({ cloneDir, env, deadlineMs, maxOutput = 2 * 1
     deadlineHit = true;
     try { process.kill(-child.pid, 'SIGKILL'); } catch { /* already exited */ }
   }, deadlineMs);
-  if (handle) handle.kill = () => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* exited */ } };
+  if (handle) {
+    handle.pid = child.pid;
+    handle.exited = false;
+    handle.kill = () => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* exited */ } };
+  }
   const [code, signal] = await new Promise((resolve) => { child.on('close', (c, s) => resolve([c, s])); });
   clearTimeout(killer);
+  if (handle) handle.exited = true;
   return { code, signal, stdout, stderr, deadlineHit, durationMs: Date.now() - startedAt };
 }
 
@@ -165,38 +170,6 @@ export function scanForLiteral({ files = [], strings = {}, literal }) {
     if (typeof value === 'string' && value.includes(literal)) hits.push(`stream:${name}`);
   }
   return hits;
-}
-
-// Derives the tool contract from the LIVE JSONL itself (never smokePiSession):
-// registered/active tool lists, the distinct invoked tool names, and whether a
-// submit_candidate call was accepted by the host.
-export function parsePiSessionTools(file, allowlist) {
-  const known = new Set(allowlist);
-  const active = new Set();
-  const invoked = new Set();
-  let accepted = false;
-  const walk = (node) => {
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (!node || typeof node !== 'object') return;
-    const type = String(node.type ?? '').toLowerCase();
-    const name = node.toolName ?? node.tool_name ?? (type.includes('tool') ? node.name : undefined);
-    if (typeof name === 'string' && /^[a-z][a-z0-9_]*$/.test(name) && (type.includes('tool') || node.toolName || node.tool_name)) {
-      if (type.includes('call') || type.includes('use') || type.includes('result')) invoked.add(name);
-    }
-    if (Array.isArray(node.tools) && node.tools.every((tool) => typeof tool === 'string')) {
-      node.tools.forEach((tool) => active.add(tool));
-    }
-    Object.values(node).forEach(walk);
-  };
-  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-    if (!line.trim()) continue;
-    let parsed;
-    try { parsed = JSON.parse(line); } catch { continue; }
-    walk(parsed);
-    if (line.includes('Accepted. End the session.')) accepted = true;
-  }
-  const extras = [...invoked].filter((name) => !known.has(name));
-  return { active: active.size ? [...active] : null, invoked: [...invoked], extras, accepted };
 }
 
 export function sha256File(file) {
@@ -249,11 +222,15 @@ export function assertTrue(value, label) {
 
 export function renderReport({ outDir, sourceSha, resolvedRoute, phases, liveAttempts, redactions = [] }) {
   fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
+  // The dialect sentence may claim the production API surface ONLY when the
+  // resolved live api was asserted to be openai-responses (E7); otherwise the
+  // report must use the drift wording.
+  const dialectLine = resolvedRoute?.api === 'openai-responses' ? REPORT_LANGUAGE.dialect : REPORT_LANGUAGE.dialectDrift;
   const report = {
     generated_at: new Date().toISOString(),
     source_sha: sourceSha,
     resolved_route: resolvedRoute ?? null,
-    language: REPORT_LANGUAGE,
+    language: { doubled: REPORT_LANGUAGE.doubled, dialect: dialectLine },
     live_attempts: liveAttempts,
     phases: phases.map((phase) => ({
       phase: phase.phase, ok: phase.ok,
@@ -274,7 +251,7 @@ export function renderReport({ outDir, sourceSha, resolvedRoute, phases, liveAtt
     }
     lines.push('');
   }
-  lines.push(`> ${REPORT_LANGUAGE.doubled}.`, '', `> ${REPORT_LANGUAGE.dialect}.`, '');
+  lines.push(`> ${REPORT_LANGUAGE.doubled}.`, '', `> ${dialectLine}.`, '');
   let md = lines.join('\n');
   for (const secret of redactions) {
     if (secret) md = md.split(secret).join('[REDACTED]');
@@ -290,13 +267,14 @@ export async function loadProd(repoRoot) {
   const load = async (relative) => {
     try { return await import(pathToFileURL(path.join(repoRoot, relative)).href); } catch { return {}; }
   };
-  const [policy, ingest, promotion, candidateState, ledger, piSession, recovery, shaMonitor, terminalPr, hostRun, monitor, blogLint] = await Promise.all([
+  const [policy, ingest, promotion, candidateState, ledger, piSession, recovery, shaMonitor, terminalPr, hostRun, monitor, blogLint, sentinel] = await Promise.all([
     load('scripts/automation/policy.mjs'), load('scripts/supervisor/ingest-contract.mjs'),
     load('scripts/automation/promotion-control.mjs'), load('scripts/automation/candidate-state.mjs'),
     load('scripts/supervisor/ledger.mjs'), load('scripts/supervisor/pi-session.mjs'),
     load('scripts/automation/recovery.mjs'), load('scripts/supervisor/sha-monitor.mjs'),
     load('scripts/supervisor/terminal-pr.mjs'), load('scripts/supervisor/host-run.mjs'),
     load('scripts/supervisor/github-monitor.mjs'), load('scripts/blog-lint.mjs'),
+    load('scripts/supervisor/sentinel.mjs'),
   ]);
   return {
     validatePaths: policy.validatePaths, validatePullRequest: policy.validatePullRequest, isExactSha: policy.isExactSha,
@@ -306,7 +284,26 @@ export async function loadProd(repoRoot) {
     readLedger: ledger.readLedger, TERMINALS: ledger.TERMINALS,
     PI_TOOL_ALLOWLIST: piSession.PI_TOOL_ALLOWLIST, validateSubmittedPost: piSession.validateSubmittedPost,
     parseAuditRecord: recovery.parseAuditRecord, statusForExactSha: shaMonitor.statusForExactSha,
-    finalizeOwnedPr: terminalPr.finalizeOwnedPr, boundedOutcomeReason: hostRun.boundedOutcomeReason,
+    terminalFromObservation: shaMonitor.terminalFromObservation, MONITOR_LIMIT_MS: shaMonitor.MONITOR_LIMIT_MS,
+    finalizeOwnedPr: terminalPr.finalizeOwnedPr, terminalRequiresCandidateOutcome: terminalPr.terminalRequiresCandidateOutcome,
+    boundedOutcomeReason: hostRun.boundedOutcomeReason, monitorOwnedPr: hostRun.monitorOwnedPr,
+    recordSupervisorOutcome: hostRun.recordSupervisorOutcome,
+    evaluateSentinel: sentinel.evaluateSentinel, activeOwnedRuns: sentinel.activeOwnedRuns,
     latestAuditForSha: monitor.latestAuditForSha, resolveLintMode: blogLint.resolveLintMode, lintPost: blogLint.lintPost,
+  };
+}
+
+// Shared loopback GitHub client for evaluator-driven production-function calls
+// (finalizeOwnedPr, monitor observations) against the double.
+export function httpClient(apiUrl) {
+  return async (apiPath, { method = 'GET', body } = {}) => {
+    const response = await fetch(`${apiUrl}${apiPath}`, {
+      method,
+      headers: { Accept: 'application/vnd.github+json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`double ${method} ${apiPath} failed (${response.status}): ${text.slice(0, 200)}`);
+    return text ? JSON.parse(text) : null;
   };
 }

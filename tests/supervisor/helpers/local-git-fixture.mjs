@@ -106,6 +106,9 @@ export function createFixture({ root, sourceRepo, sourceSha, mutateStaging = nul
   const stagingSha = git(build, ['rev-parse', 'HEAD']);
   if (mainAt === 'staging') baseSha = stagingSha;
   git(build, ['push', bare, `${stagingSha}:refs/heads/staging`, `${baseSha}:refs/heads/main`]);
+  // Unrelated ref for the P11 byte-for-byte-unchanged comparison: nothing the
+  // supervisor does may move or delete it.
+  git(bare, ['update-ref', 'refs/heads/keep/acceptance-unrelated', baseSha]);
   git(bare, ['symbolic-ref', 'HEAD', 'refs/heads/staging']);
   writeProtectionHook(bare);
   const clone = path.join(root, 'clone');
@@ -147,6 +150,14 @@ export function createFixture({ root, sourceRepo, sourceSha, mutateStaging = nul
     protectionLog() {
       const file = path.join(bare, 'protection-attempts.log');
       return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean) : [];
+    },
+    // A new commit object (same tree, new SHA) that no ref points at: pushing
+    // it to a protected branch is a GENUINE ref move, so the pre-receive
+    // protection hook must actually run and reject it (C-N14).
+    makeLooseCommit(ref, message = 'acceptance: genuine protected-ref move attempt') {
+      const tip = fixture.rev(ref);
+      const tree = git(bare, ['rev-parse', `${tip}^{tree}`]);
+      return git(bare, ['-c', 'user.name=acceptance-eval', '-c', 'user.email=eval@acceptance.local', 'commit-tree', tree, '-p', tip, '-m', message]);
     },
     graphInvariant() {
       const main = fixture.rev('main');
