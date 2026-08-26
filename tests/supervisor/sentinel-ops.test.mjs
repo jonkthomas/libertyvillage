@@ -19,6 +19,19 @@ test('owned open PR beyond the pilot bound alerts', () => {
   assert.equal(findings[0].key, 'owned:open-beyond-bound');
 });
 
+test('merged-to-main nonterminal past the bound screams', () => {
+  const ledger = { lease: null, runs: [{ run_id: 'owned', pr_number: 10, head_sha: SHA, started_at: '2026-08-24T09:00:00Z', terminal: null }] };
+  const merged = {
+    ...ownedPr, state: 'closed', merged: true, merge_commit_sha: 'b'.repeat(40),
+    base: { ref: 'main' },
+  };
+  const findings = evaluateSentinel({
+    ledger, observations: new Map([[10, { pr: merged, status }]]),
+    now: Date.parse('2026-08-24T14:00:00Z'), pidAlive: () => false,
+  });
+  assert.equal(findings.some((finding) => finding.runId === 'owned' && finding.key === 'owned:merged-nonterminal'), true);
+});
+
 test('systemd, checksum, smoke, environment, and rollback artifacts are bounded', () => {
   const read = (name) => fs.readFileSync(new URL(`../../ops/exedev-supervisor/${name}`, import.meta.url), 'utf8');
   const supervisorUnit = read('systemd/lv-supervisor.service');

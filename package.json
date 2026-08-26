@@ -12,6 +12,7 @@
     "lint:changed": "node scripts/automation/lint-changed.mjs",
     "test:automation": "node --import tsx --test tests/automation/*.test.mjs tests/automation/*.eval.mjs",
     "test:supervisor": "node --test tests/supervisor/*.test.mjs",
+    "test:supervisor:acceptance": "node tests/supervisor/local-acceptance.eval.mjs",
     "supervisor:smoke": "node scripts/supervisor/cli.mjs smoke",
     "test:news-pilot": "node --import tsx --test tests/news-pilot/*.test.mjs",
     "test:e2e": "playwright test",

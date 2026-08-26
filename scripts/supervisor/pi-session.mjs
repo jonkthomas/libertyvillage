@@ -65,7 +65,8 @@ export function writeCandidateArtifact({ postsFile, post }) {
   fs.renameSync(temporary, postsFile);
 }
 
-export function buildGeneratorPrompt({ topic, contextFiles = [] }) {
+export function buildGeneratorPrompt({ topic, contextFiles = [], now = new Date() } = {}) {
+  const runDate = now.toISOString().slice(0, 10);
   return [
     'Generate exactly one grounded Liberty Village blog post for the eligible topic below.',
     `Topic key: ${topic.key}`,
@@ -76,6 +77,7 @@ export function buildGeneratorPrompt({ topic, contextFiles = [] }) {
     'Read data/topic-queue.json, locate the selected entry by the exact topic key, confirm the source and rationale above match it, and use that entry\'s source and rationale as the grounding for why this topic was selected. Do not substitute a different topic or claim evidence beyond that rationale.',
     'Ground local claims in data/businesses.json and data/posts.json, and follow the canonical blog prompt at scripts/prompts/sections/03-blog-generation.md.',
     'Use context_read, context_grep, and context_find only inside the supplied working tree. Do not invent current facts, prices, hours, addresses, or business claims.',
+    `Set publishedAt and updatedAt to the exact UTC run date ${runDate}. Both publishedAt and updatedAt must equal ${runDate}.`,
     'Return the complete post by calling submit_candidate exactly once. Pass the eligible topic key in the tool topic_key parameter.',
     'Follow the trusted BlogPost interface file exactly and select an image path that already exists under public/.',
     'You cannot write files or run commands. The host validates and writes the sole allowed artifact.',

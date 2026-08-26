@@ -13,7 +13,7 @@ import {
   buildGeneratorPrompt, createConstrainedTools, createPersistentSessionManager, PI_SDK_VERSION, PI_TOOL_ALLOWLIST,
   piSessionOptions, sessionFileForReport, validateSubmittedPost,
 } from '../../scripts/supervisor/pi-session.mjs';
-import { promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
+import { contentShipEnabled, promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
 import { parseWeeklyOwnerFile, readWeeklyOwner } from '../../scripts/automation/weekly-owner.mjs';
 import { finalizeOwnedPr, finalizeSupervisorTerminal } from '../../scripts/supervisor/terminal-pr.mjs';
 import { latestAuditForSha } from '../../scripts/supervisor/github-monitor.mjs';
@@ -44,9 +44,12 @@ test('ingest is repository_dispatch-only and keeps PR authorship in Actions', ()
   assert.doesNotMatch(workflow, /workflow_dispatch:|schedule:/);
   assert.match(workflow, /github-actions\[bot\]/);
   assert.match(workflow, /coordinator\.mjs dispatch/);
+  assert.match(workflow, /--kind blog-live/);
+  assert.match(workflow, /gh pr create --base main/);
   assert.match(workflow, /actions\/setup-node@v4/);
   assert.match(workflow, /git ls-remote origin "refs\/heads\/\$DATA_BRANCH"/);
   assert.match(constants, /TRUSTED_PR_AUTHORS = Object\.freeze\(\['github-actions\[bot\]'\]\)/);
+  assert.match(constants, /'blog-live'/);
 });
 
 test('supervisor baseline is staging-based and data branches are bounded and cleaned', () => {
@@ -263,6 +266,44 @@ test('persistent pi sessions preserve the worktree cwd and exact supervisor stat
   assert.throws(() => createPersistentSessionManager({ sdk: homeDerivedSdk, cwd, sessionsDir }), /refused the supervisor sessions directory/);
   assert.throws(() => sessionFileForReport({ sessionFile: path.join(sessionsDir, '--var-lib-lv-supervisor-pi-sessions--', 'session.jsonl') }, sessionsDir), /escaped the supervisor sessions directory/);
   assert.doesNotMatch(piSession, /SessionManager\.create\(sessionsDir\)/);
+});
+
+test('generation prompt binds publishedAt and updatedAt to the exact UTC run date', () => {
+  const now = new Date('2026-08-26T15:04:05Z');
+  const prompt = buildGeneratorPrompt({
+    topic: { key: 'k', title: 't', source: 's', rationale: 'r' },
+    contextFiles: ['data/posts.json'],
+    now,
+  });
+  assert.match(prompt, /publishedAt/);
+  assert.match(prompt, /updatedAt/);
+  assert.match(prompt, /2026-08-26/);
+  assert.match(prompt, /exact UTC run date 2026-08-26/);
+  assert.match(prompt, /must equal 2026-08-26/);
+  assert.doesNotMatch(prompt, /2026-08-25|2026-08-27/);
+});
+
+test('content ship is on only for exedev and fails closed on the emergency override', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-content-ship-'));
+  const exedevOwner = path.join(directory, 'owner.txt');
+  const ghaOwner = path.join(directory, 'gha-owner.txt');
+  fs.writeFileSync(exedevOwner, 'exedev\n');
+  fs.writeFileSync(ghaOwner, 'gha\n');
+  assert.equal(contentShipEnabled({ LV_WEEKLY_OWNER: 'exedev' }, { ownerFile: exedevOwner }), true);
+  assert.equal(contentShipEnabled({ LV_WEEKLY_OWNER: 'exedev', LV_CONTENT_SHIP_ENABLED: 'false' }, { ownerFile: exedevOwner }), false);
+  assert.equal(contentShipEnabled({}, { ownerFile: ghaOwner, owner: 'gha' }), false);
+  assert.equal(promotionEnabled({ LV_WEEKLY_OWNER: 'exedev', LV_PROMOTION_ENABLED: 'true' }, { ownerFile: exedevOwner }), false);
+  const output = execFileSync(process.execPath, ['scripts/automation/promotion-control.mjs', '--content-ship'], {
+    encoding: 'utf8', env: { ...process.env, LV_WEEKLY_OWNER: 'exedev' },
+  });
+  assert.match(output, /enabled/);
+  assert.throws(() => execFileSync(process.execPath, ['scripts/automation/promotion-control.mjs', '--content-ship'], {
+    encoding: 'utf8', env: { ...process.env, LV_WEEKLY_OWNER: 'exedev', LV_CONTENT_SHIP_ENABLED: 'false' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }), (error) => {
+    assert.match(String(error.stderr || error.message), /emergency override/);
+    return true;
+  });
 });
 
 test('pi prompt grounds the selected topic in its trusted queue evidence and canonical local context', () => {

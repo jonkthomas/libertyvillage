@@ -5,7 +5,7 @@ on:
     types: [autonomous-coordinate]
 
 concurrency:
-  group: autonomous-${{ github.event.client_payload.kind == 'promotion' && 'promotion-main' || 'generator-staging' }}
+  group: autonomous-${{ github.event.client_payload.kind == 'promotion' && 'promotion-main' || github.event.client_payload.kind == 'blog-live' && 'content-main' || 'generator-staging' }}
   cancel-in-progress: false
 
 env:
@@ -29,6 +29,7 @@ jobs:
       can_repair: ${{ steps.validate.outputs.can_repair }}
       heal_attempt: ${{ steps.validate.outputs.heal_attempt }}
       can_heal: ${{ steps.validate.outputs.can_heal }}
+      main_sha: ${{ steps.validate.outputs.main_sha }}
     steps:
       - name: Checkout trusted coordinator tooling from main
         uses: actions/checkout@v4
@@ -62,7 +63,13 @@ jobs:
       - name: Verify merge ref contains the validated exact head
         env:
           EXPECTED_SHA: ${{ needs.validate-generator.outputs.head_sha }}
-        run: test "$(git rev-parse HEAD^2)" = "$EXPECTED_SHA"
+          EXPECTED_MAIN: ${{ needs.validate-generator.outputs.main_sha }}
+          KIND: ${{ github.event.client_payload.kind }}
+        run: |
+          test "$(git rev-parse HEAD^2)" = "$EXPECTED_SHA"
+          if [ "$KIND" = blog-live ]; then
+            test "$(git rev-parse HEAD^1)" = "$EXPECTED_MAIN"
+          fi
       - run: npm ci
       - run: npm run lint:automation
       - run: npm run lint:supervisor
@@ -407,16 +414,27 @@ jobs:
           path: gate-audit.json
           if-no-files-found: error
       - name: Enable native merge-commit auto-merge into staging
-        if: ${{ steps.refresh.outputs.refreshed != 'true' }}
+        if: ${{ steps.refresh.outputs.refreshed != 'true' && github.event.client_payload.kind != 'blog-live' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh pr merge "${{ needs.validate-generator.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
       - name: Observe staging merge and explicitly dispatch cumulative promotion
-        if: ${{ steps.refresh.outputs.refreshed != 'true' }}
+        if: ${{ steps.refresh.outputs.refreshed != 'true' && github.event.client_payload.kind != 'blog-live' }}
         env:
           GH_TOKEN: ${{ github.token }}
           LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
         run: node scripts/automation/coordinator.mjs observe-and-promote --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
+      - name: Enable native merge-commit auto-merge into main
+        if: ${{ steps.refresh.outputs.refreshed != 'true' && github.event.client_payload.kind == 'blog-live' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge "${{ needs.validate-generator.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
+      - name: Observe main merge and PR-shaped sync into staging
+        if: ${{ steps.refresh.outputs.refreshed != 'true' && github.event.client_payload.kind == 'blog-live' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LV_CONTENT_SHIP_ENABLED: ${{ vars.LV_CONTENT_SHIP_ENABLED }}
+        run: node scripts/automation/coordinator.mjs observe-and-sync-staging --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
 
   block-generator:
     needs:

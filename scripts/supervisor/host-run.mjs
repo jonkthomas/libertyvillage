@@ -10,6 +10,7 @@ import {
 import { validateIngestDiff, repositoryDispatchBody } from './ingest-contract.mjs';
 import { generateWithPi, writeCandidateArtifact } from './pi-session.mjs';
 import { fetchObservation } from './github-monitor.mjs';
+import { contentShipEnabled } from '../automation/promotion-control.mjs';
 import { lostDispatchRetry, mayRepin, MONITOR_LIMIT_MS, terminalFromObservation } from './sha-monitor.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -140,11 +141,16 @@ async function findIngestPr(repo, dataSha, { timeoutMs = 25 * 60 * 1000 } = {}) 
   throw new Error('timed out waiting for trusted ingest pull request');
 }
 
-async function monitorOwnedPr({ repoRoot, repo, prNumber, initialSha, onUpdate, startedAt = Date.now() }) {
+export async function monitorOwnedPr({
+  repoRoot, repo, prNumber, initialSha, onUpdate = async () => {}, startedAt,
+  now = Date.now, sleep: sleepFn = sleep, kind = 'blog-live',
+} = {}) {
+  const clock = typeof now === 'function' ? now : () => now;
+  const origin = Number.isFinite(startedAt) ? startedAt : clock();
   let sha = initialSha;
   let missingSince = null;
   let redispatches = 0;
-  while (Date.now() - startedAt < MONITOR_LIMIT_MS) {
+  while (clock() - origin < MONITOR_LIMIT_MS) {
     const observation = await fetchObservation(repo, prNumber, sha);
     if (observation.pr?.head?.sha !== sha && observation.pr?.state === 'open') {
       const commit = await github(`/repos/${repo}/commits/${observation.pr.head.sha}`);
@@ -159,23 +165,28 @@ async function monitorOwnedPr({ repoRoot, repo, prNumber, initialSha, onUpdate, 
     }
     const terminal = terminalFromObservation({
       pr: observation.pr, sha, auditDecision: observation.audit?.decision,
+      stagingContained: observation.stagingContained,
+      mainContained: observation.mainContained,
+      productionVercel: observation.productionVercel,
+      contentContainedInMain: observation.contentContainedInMain,
     });
     if (terminal.terminal) return { terminal: terminal.terminal, prState: observation.pr?.state, sha };
     const missing = observation.statuses.ci === 'missing' && observation.statuses.gate === 'missing';
-    missingSince = missing ? (missingSince ?? Date.now()) : null;
-    const retry = lostDispatchRetry({ attempts: redispatches, missingSince });
+    missingSince = missing ? (missingSince ?? clock()) : null;
+    const retry = lostDispatchRetry({ attempts: redispatches, missingSince, now: clock() });
     if (retry.action === 'retry') {
-      coordinator(repoRoot, ['dispatch', '--pr', String(prNumber), '--kind', 'blog', '--sha', sha], { repo });
-      redispatches += 1; missingSince = Date.now();
+      coordinator(repoRoot, ['dispatch', '--pr', String(prNumber), '--kind', kind, '--sha', sha], { repo });
+      redispatches += 1; missingSince = clock();
       await onUpdate({ head_sha: sha, sha_reason: 'redispatch', redispatches });
     } else if (retry.action === 'block') return { terminal: 'MONITOR_TIMEOUT', prState: observation.pr?.state, sha };
-    await sleep(30_000);
+    await sleepFn(30_000);
   }
   return { terminal: 'MONITOR_TIMEOUT', prState: 'open', sha };
 }
 
 export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun = false, onUpdate = async () => {} }) {
   if (resolveHostWeeklyOwner(repoRoot) !== 'exedev') return { terminal: 'SKIPPED_OWNER' };
+  if (!contentShipEnabled()) throw new Error('contentShipEnabled is false; refusing autonomous writes to protected branches');
   const trustedStagingSha = command('git', ['rev-parse', 'origin/staging'], { cwd: repoRoot });
   if (!isExactSha(trustedStagingSha)) throw new Error('origin/staging did not resolve to an exact SHA');
   const workDir = path.join(stateDir, 'work', run.run_id);
@@ -254,7 +265,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     }
     if (!isExactSha(pr?.head?.sha)) throw new Error('ingest PR has no exact head SHA');
     await onUpdate({ state: 'MONITORING_CI', data_branch: generation.result.dataBranch, data_sha: generation.result.dataSha, pr_number: pr.number, head_sha: pr.head.sha, sha_reason: 'ingest' });
-    return { ...(await monitorOwnedPr({ repoRoot, repo, prNumber: pr.number, initialSha: pr.head.sha, onUpdate })), topic_key: topic.topic_key };
+    return { ...(await monitorOwnedPr({ repoRoot, repo, prNumber: pr.number, initialSha: pr.head.sha, onUpdate, kind: 'blog-live' })), topic_key: topic.topic_key };
   } finally {
     if (dataBranch) {
       try { cleanupDataBranch(repoRoot, dataBranch); } catch (error) { console.error(`data branch cleanup failed for ${dataBranch}: ${error.message}`); }

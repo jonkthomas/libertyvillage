@@ -19,7 +19,7 @@ test('latest status context is selected by timestamp with newest-first tie break
     { context: 'automation/opus-gate', state: 'pending' },
     { context: 'automation/opus-gate', state: 'failure' },
   ] }, A);
-  assert.deepEqual(result, { ci: 'success', gate: 'pending' });
+  assert.deepEqual(result, { ci: 'success', gate: 'pending', vercel: 'missing' });
 });
 
 test('repin requires exact distinct heads and the old head among the new commit parents', () => {
@@ -41,4 +41,24 @@ test('an open owned PR can never produce success while a merged PR survives late
   assert.equal(terminalFromObservation({ pr: open, sha: A }).terminal, null);
   const merged = { ...open, state: 'closed', merged: true, merge_commit_sha: B };
   assert.equal(terminalFromObservation({ pr: merged, sha: A, stagingSha: C }).terminal, 'MERGED_STAGING');
+});
+
+test('a merged main PR stays non-terminal until staging containment, content SHA identity, and production Vercel', () => {
+  const merged = {
+    state: 'closed', merged: true, merge_commit_sha: B,
+    head: { sha: A, ref: 'blog/auto-one', repo: { fork: false } },
+    base: { ref: 'main' }, user: { login: 'github-actions[bot]' },
+  };
+  assert.equal(terminalFromObservation({
+    pr: merged, sha: A, stagingContained: true, mainContained: true, contentContainedInMain: true,
+    productionVercel: 'missing',
+  }).terminal, null);
+  assert.equal(terminalFromObservation({
+    pr: merged, sha: A, stagingContained: true, mainContained: true, contentContainedInMain: false,
+    productionVercel: 'success',
+  }).terminal, null);
+  assert.equal(terminalFromObservation({
+    pr: merged, sha: A, stagingContained: true, mainContained: true, contentContainedInMain: true,
+    productionVercel: 'success',
+  }).terminal, 'PUBLISHED_MAIN');
 });

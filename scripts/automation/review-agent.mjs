@@ -76,6 +76,11 @@ const LENSES = {
     'CONTENT lens: useful original article; no fabricated quotes, businesses, events, or superlatives.',
     'CODE lens: post JSON and assets must match existing formats and remain renderable and accessible.',
   ],
+  'blog-live': [
+    'DATA lens: local details, dates, links, and post metadata must be consistent and supportable.',
+    'CONTENT lens: useful original article; no fabricated quotes, businesses, events, or superlatives.',
+    'CODE lens: post JSON and assets must match existing formats and remain renderable and accessible; the scored diff must stay content-only onto main.',
+  ],
   news: [
     'DATA lens: every local claim, date, number, actor, and source link must be grounded, current, Liberty Village-relevant, and mutually consistent.',
     'CONTENT lens: original useful local reporting with no fabricated quotes, events, closures, allegations, images, or implied firsthand knowledge; risk-sensitive stories must remain human-only.',

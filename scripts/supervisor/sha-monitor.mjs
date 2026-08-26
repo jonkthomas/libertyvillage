@@ -5,11 +5,13 @@ import { nextRetry } from '../automation/recovery.mjs';
 export const MONITOR_LIMIT_MS = 4 * 60 * 60 * 1000;
 export const LOST_STATUS_MS = 15 * 60 * 1000;
 
-export function validateOwnedPr({ pr, expectedSha }) {
+export function validateOwnedPr({ pr, expectedSha, base } = {}) {
   const errors = [];
+  const expectedBase = base || (['staging', 'main'].includes(pr?.base?.ref) ? pr.base.ref : 'staging');
   if (!isExactSha(expectedSha)) errors.push('expected SHA is not exact');
   if (!pr || pr.head?.sha !== expectedSha) errors.push('pull request head SHA drifted');
-  if (pr?.base?.ref !== 'staging') errors.push('pull request base is not staging');
+  if (!['staging', 'main'].includes(expectedBase)) errors.push(`pull request base is not a supervised branch: ${expectedBase}`);
+  if (pr?.base?.ref !== expectedBase) errors.push(`pull request base is not ${expectedBase}`);
   if (!String(pr?.head?.ref ?? '').startsWith('blog/auto-')) errors.push('pull request branch is not blog/auto-*');
   if (!TRUSTED_PR_AUTHORS.includes(pr?.user?.login)) errors.push('pull request author is untrusted');
   if (pr?.head?.repo?.fork === true) errors.push('fork pull requests are not owned');
@@ -33,8 +35,9 @@ export function statusForExactSha(statuses, sha) {
       || (candidate.timestamp === current.timestamp && candidate.index < current.index)) latest.set(item.context, candidate);
   }
   return {
-    ci: latest.get(STATUS_CONTEXTS.ci)?.state ?? 'missing',
-    gate: latest.get(STATUS_CONTEXTS.gate)?.state ?? 'missing',
+    ci: latest.get(STATUS_CONTEXTS.publish.ci)?.state ?? 'missing',
+    gate: latest.get(STATUS_CONTEXTS.publish.gate)?.state ?? 'missing',
+    vercel: latest.get(STATUS_CONTEXTS.wait.vercel)?.state ?? 'missing',
   };
 }
 
@@ -49,7 +52,15 @@ export function lostDispatchRetry({ attempts, missingSince, now = Date.now() }) 
   return nextRetry({ attempts, classification: 'transient' });
 }
 
-export function terminalFromObservation({ pr, sha, auditDecision }) {
+function contained({ status, behindBy }) {
+  return ['ahead', 'identical'].includes(status) && Number(behindBy || 0) === 0;
+}
+
+export function terminalFromObservation({
+  pr, sha, auditDecision,
+  stagingContained = false, mainContained = false,
+  productionVercel = 'missing', contentContainedInMain = false,
+} = {}) {
   const owned = validateOwnedPr({ pr, expectedSha: sha });
   if (!owned.ok && !pr?.merged) return { terminal: 'INGEST_FAILED', errors: owned.errors };
   if (pr?.merged) {
@@ -63,7 +74,15 @@ export function terminalFromObservation({ pr, sha, auditDecision }) {
     return { terminal: null };
   }
   if (pr?.merged && isExactSha(pr.merge_commit_sha)) {
+    if (pr.base?.ref === 'main') {
+      if (!mainContained || !stagingContained || productionVercel !== 'success' || !contentContainedInMain) {
+        return { terminal: null };
+      }
+      return { terminal: 'PUBLISHED_MAIN' };
+    }
     return { terminal: 'MERGED_STAGING' };
   }
   return { terminal: 'BLOCKED_VALIDATION' };
 }
+
+export { contained as comparisonIsContained };

@@ -1,9 +1,12 @@
 import { github, paged } from '../automation/github.mjs';
 import { isExactSha } from '../automation/policy.mjs';
-import { mayRepin, validateOwnedPr } from './sha-monitor.mjs';
+import { comparisonIsContained, mayRepin, statusForExactSha, validateOwnedPr } from './sha-monitor.mjs';
 import { TRUSTED_PR_AUTHORS } from '../automation/constants.mjs';
 
-const NO_LADDER_TERMINALS = new Set(['MERGED_STAGING', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE', 'ABANDONED_TOPIC', 'DRY_RUN', 'BASELINE_FAILED']);
+const NO_LADDER_TERMINALS = new Set([
+  'MERGED_STAGING', 'PUBLISHED_MAIN', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE',
+  'ABANDONED_TOPIC', 'DRY_RUN', 'BASELINE_FAILED',
+]);
 
 export function terminalRequiresCandidateOutcome({ terminal, topicKey }) {
   return Boolean(topicKey) && !NO_LADDER_TERMINALS.has(terminal);
@@ -41,9 +44,39 @@ export async function finalizeOwnedPr({ repo, prNumber, expectedSha, terminal, r
     if (pr.state !== 'closed' || pr.merged !== true || !isExactSha(pr.merge_commit_sha)) {
       throw new Error('MERGED_STAGING requires a closed, merged owned PR');
     }
+    if (pr.base?.ref !== 'staging') throw new Error('MERGED_STAGING requires a staging-base owned PR');
     const comparison = await githubClient(`/repos/${repo}/compare/${pr.merge_commit_sha}...staging`);
-    if (!['ahead', 'identical'].includes(comparison?.status) || Number(comparison?.behind_by || 0) !== 0) {
+    if (!comparisonIsContained({ status: comparison?.status, behindBy: comparison?.behind_by })) {
       throw new Error('MERGED_STAGING merge commit is not contained in live staging');
+    }
+    return { prState: 'closed', merged: true, headSha: adoptedSha };
+  }
+  if (terminal === 'PUBLISHED_MAIN') {
+    if (pr.state !== 'closed' || pr.merged !== true || !isExactSha(pr.merge_commit_sha)) {
+      throw new Error('PUBLISHED_MAIN requires a closed, merged owned PR');
+    }
+    if (pr.base?.ref !== 'main') throw new Error('PUBLISHED_MAIN requires a main-base owned PR');
+    const mergeOnMain = await githubClient(`/repos/${repo}/compare/${pr.merge_commit_sha}...main`);
+    if (!comparisonIsContained({ status: mergeOnMain?.status, behindBy: mergeOnMain?.behind_by })) {
+      throw new Error('PUBLISHED_MAIN merge commit is not contained in live main');
+    }
+    const contentOnMain = await githubClient(`/repos/${repo}/compare/${adoptedSha}...main`);
+    if (!comparisonIsContained({ status: contentOnMain?.status, behindBy: contentOnMain?.behind_by })) {
+      throw new Error('PUBLISHED_MAIN content SHA is not contained in live main as itself');
+    }
+    const stagingMerge = await githubClient(`/repos/${repo}/compare/${pr.merge_commit_sha}...staging`).catch(() => null);
+    const stagingHead = await githubClient(`/repos/${repo}/compare/${adoptedSha}...staging`).catch(() => null);
+    const stagingOk = comparisonIsContained({ status: stagingMerge?.status, behindBy: stagingMerge?.behind_by })
+      || comparisonIsContained({ status: stagingHead?.status, behindBy: stagingHead?.behind_by });
+    if (!stagingOk) throw new Error('PUBLISHED_MAIN content is not contained in live staging');
+    const prodStatus = await githubClient(`/repos/${repo}/commits/${pr.merge_commit_sha}/status`);
+    const vercel = statusForExactSha(prodStatus, pr.merge_commit_sha);
+    if (vercel.vercel !== 'success') {
+      throw new Error('PUBLISHED_MAIN requires Vercel success on merge_commit_sha');
+    }
+    const statuses = prodStatus?.statuses || [];
+    if (statuses.some((item) => item.context === 'Vercel' && item.actor && !['evaluator-vercel', 'Vercel'].includes(item.actor))) {
+      throw new Error('PUBLISHED_MAIN refused a coordinator-forged Vercel status');
     }
     return { prState: 'closed', merged: true, headSha: adoptedSha };
   }
