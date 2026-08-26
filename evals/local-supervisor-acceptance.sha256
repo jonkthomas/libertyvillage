@@ -4,44 +4,81 @@
 # architecture: /tmp/lv-autonomous-live-content-architecture.md, sha256
 # 4704227a99b84089a7fead2ed39b2b605b884edf903d9d65261c930f78071758).
 #
-# FOURTH EVAL-OWNER FREEZE: re-frozen after a real full live run on a separate
-# builder commit exposed two CHECKER defects (no production change could fix
-# either).
+# FIFTH EVAL-OWNER FREEZE: re-frozen after a full live execution proved one
+# remaining CHECKER deadlock — the same same-process loopback defect, reached
+# INDIRECTLY through an imported production wrapper. No production change could
+# fix it, and none is required.
 #
-# (1) SAME-PROCESS LOOPBACK + SYNCHRONOUS EXTERNAL CHILD. The evaluator hosts
-#     the loopback GitHub double in its own process, yet N4-replay and C-N5
-#     launched an external coordinator with execFileSync. The blocked event loop
-#     could never answer the child, which connected over TCP and then waited
-#     forever at 0% CPU (N4 `coordinator.mjs record-candidate-outcome --reason
-#     replay` >3m; C-N5 `coordinator.mjs heal-generator-base` >2m; both had to
-#     be terminated). Every external child that can reach the double now runs
-#     through the new eval-owned helpers/acceptance-exec.mjs: async, detached
-#     into its own process group, bounded by a short per-call timeout, swept by
-#     a process-group SIGKILL, and asserted to have COMPLETED or been REJECTED —
-#     never merely "did not hang". New eval-owned
-#     local-acceptance-deadlock.eval.mjs adds deterministic no-network probes
-#     DL1-DL5, including a discriminating negative control that reproduces the
-#     defect under its own bound, and a static scan (DL4) that fails if any
-#     frozen path reintroduces a synchronous child carrying the double.
+# THE DEFECT. `local-acceptance-live-ship.eval.mjs` C-N13-outcome called
+# `prod.recordSupervisorOutcome(payload)` and supplied no coordinatorFn.
+# Production `recordSupervisorOutcome({...}, coordinatorFn = coordinator)` then
+# defaulted to `coordinator()`, whose body launches
+# `scripts/automation/coordinator.mjs` through the synchronous
+# `command`/`execFileSync` path. Because the fake GitHub double is hosted in the
+# EVALUATOR's own Node event loop, that child completed its loopback TCP connect
+# and then waited forever for a response the blocked host could never write:
+# observed >3 minutes at 0% CPU on `record-candidate-outcome --outcome
+# MONITOR_TIMEOUT`. A frozen path therefore does not have to WRITE a synchronous
+# spawn to deadlock the checker — calling a production wrapper that DEFAULTS to
+# one is the identical defect one level down.
 #
-# (2) LEXICAL CROSS-PROCESS PATH CONTAINMENT. N3-shape compared a child's
-#     `process.cwd()` against a lexically built `<state>/work` prefix; on macOS
-#     the child reports `/private/var/...` for the evaluator's `/var/...`
-#     directory, so a lint invocation that provably occurred was reported as
-#     none. Both sides are now canonicalized (fs.realpathSync.native) before
-#     comparison, and containment is TIGHTENED to a real path-segment boundary.
-#     The exact repoRoot-script and relative data-path assertions are unchanged.
-#     New deterministic probes PC1-PC3 (in local-acceptance-probes.eval.mjs)
-#     reproduce the divergence with a symlinked parent on any POSIX platform and
-#     fail if lexical containment, or a loosened one, returns.
+# THE EVALUATOR-ONLY FIX.
 #
-# Also: N4 now rejects an absent/null runRow.topic_key at the preceding required
-# boundary (N4-topic-key) and refuses to pass a literal null into the
-# coordinator, so a missing early topic persistence fails promptly by name.
+# (1) C-N13-outcome now injects the eval-owned bounded async
+#     `asyncCoordinatorSeam().fn` through the coordinatorFn seam production
+#     ALREADY exposes (helpers/acceptance-exec.mjs). The seam mirrors the
+#     production wrapper exactly — private GITHUB_OUTPUT file, appended `--repo`,
+#     key=value parse, throw on a nonzero exit — but launches the child async,
+#     detached into its own process group, under a short per-call bound with a
+#     process-group SIGKILL sweep. No production wrapper becomes async and no
+#     approved behavior changes. The check still proves everything it did
+#     before and MORE: production's own argument mapping (subcommand, --kind,
+#     --outcome, --key, --topic-key, --reason after boundedOutcomeReason, and
+#     the appended --repo), the terminal outcome it forwards, exit 0,
+#     `recorded=true`, the durable `automation-state: blog candidate ladder`
+#     issue carrying MONITOR_TIMEOUT, and that no child process survived
+#     (helpers/acceptance-scenario.mjs `recordOutcomeThroughSeam`).
 #
-# The file set grew by helpers/acceptance-exec.mjs and
-# local-acceptance-deadlock.eval.mjs (13 -> 15). Every file below is eval-owned
-# and FROZEN.
+# (2) FULL INDIRECT AUDIT of every frozen eval call into an imported production
+#     function while the in-process double is listening. Only two production
+#     surfaces reachable from a frozen path can spawn synchronously:
+#     `recordSupervisorOutcome` (fixed above, via its coordinatorFn seam) and
+#     `monitorOwnedPr`, which redispatches through the synchronous
+#     `coordinator()` only when BOTH automation/ci and automation/opus-gate are
+#     missing past LOST_STATUS_MS. C-N13-setup now ASSERTS both contexts are
+#     posted at the pinned head, so that branch is provably unreachable in the
+#     one place the monitor is driven in-process. Everything else the evaluator
+#     calls in-process (validatePaths, validatePullRequest, validateIngest*,
+#     terminalFromObservation, statusForExactSha, latestAuditForSha,
+#     finalizeOwnedPr, evaluateSentinel, readLedger, candidate-state renderers,
+#     resolveLintMode, boundedOutcomeReason, terminalRequiresCandidateOutcome)
+#     reaches no child process at all. The remaining execFileSync calls in the
+#     frozen set are local git/CLI work that never contacts the double
+#     (local-git-fixture, fake-supervisor-protection, the orchestrator's
+#     git/pi/npm `run`, and the double's own scrubbed-env blog-lint), and
+#     loadPiSdk's `npm root --global` runs in the environment phase before any
+#     double exists.
+#
+# (3) local-acceptance-deadlock.eval.mjs regression EXTENDED to both shapes and
+#     re-proven discriminating. DL4 now scans every manifest-listed file for a
+#     DIRECT synchronous child carrying the double AND for an INDIRECT call into
+#     a registered production sync-spawn wrapper with no injected async seam
+#     (PRODUCTION_SYNC_SPAWN_WRAPPERS / ASYNC_SEAM_MARKERS in
+#     helpers/acceptance-exec.mjs). Comments are stripped and calls SPELLED
+#     inside string literals are ignored, so prose and registry entries are never
+#     mistaken for calls. New DL4b proves the scan still discriminates in four
+#     directions on synthetic sources (seamless wrapper call flagged; the same
+#     call with the seam not flagged; a wrapper named only in prose not flagged;
+#     a direct sync child carrying the double flagged). New DL6 is a bounded
+#     DYNAMIC reproduction of the exact C-N13-outcome shape against the REAL
+#     production wrapper with a stub coordinator planted at the exact path
+#     production resolves: DL6-negative proves the SYNCHRONOUS default is served
+#     nothing by the server it blocks, and DL6 proves the seam-injected call
+#     completes, is served, maps every argument, leaves a durable
+#     MONITOR_TIMEOUT record, and leaves no orphan process.
+#
+# The file set is UNCHANGED at 15 eval-owned files. Every file below is
+# eval-owned and FROZEN.
 #
 # These files are FROZEN. The implementation builder must not edit, weaken,
 # delete, re-scope, or restage any of them. Maker != checker: any change to an
@@ -53,18 +90,18 @@
 #   shasum -a 256 -c evals/local-supervisor-acceptance.sha256
 #
 # Linux equivalent: sha256sum -c evals/local-supervisor-acceptance.sha256
-67e4a1fd2f9f4dda9406d295f453d71aa25a66cb60f70aea30fc833c137c1b25  tests/supervisor/local-acceptance.eval.mjs
+ef0c2eb0345a1b26ea3bbecc81cc14b0eb3cedd666b740097e5130980a31a609  tests/supervisor/local-acceptance.eval.mjs
 09b3296023e052b53bc1c6c4870eb04cfc029fca1611412eae95b6ce760a66a5  tests/supervisor/local-acceptance-happy.eval.mjs
 6201cb9b2828846b78920eee89405e4392d7b4801c46a0a6df2be0e45578d5ce  tests/supervisor/local-acceptance-mutations.eval.mjs
 2da9ccdcbc0f2721381a2f43bf7e48f632055979bbd2836873eff2b3cd24bcbd  tests/supervisor/local-acceptance-negatives.eval.mjs
 05a397d82a1cb2896d54b7d6911e82eac86932fa7a14a410e1c4c05165941ce7  tests/supervisor/local-acceptance-red.eval.mjs
-ad3de992bd7a943c85500181b939d8aa99aac9fe36a0e0a59a413ed7ccefc571  tests/supervisor/local-acceptance-live-ship.eval.mjs
+248a54accf02e9b3b8016407d3f85a2218b92bcc5b18b82334a6989ddaac984e  tests/supervisor/local-acceptance-live-ship.eval.mjs
 aa39e9c30ded74d4ac6174e96dd7c3c997f5ac63c504db5079a34c18b94dcefb  tests/supervisor/local-acceptance-probes.eval.mjs
-d71d277ce19a99de994ccdbedfbd4e60c8e5d80cd10582f40914a8b77273e266  tests/supervisor/local-acceptance-deadlock.eval.mjs
+caae327a7ab5b81c3b806c3943b213dcc56c1c4c778ad722d2b568b19c93b2ad  tests/supervisor/local-acceptance-deadlock.eval.mjs
 3b8a823051e5c3030f813272e9f9793ebbf2061ed6f9eab0d0bd164b654ea16a  tests/supervisor/helpers/fake-supervisor-github.mjs
 0551d756af55aa928ce5e871f6f77f1fca0e2386f7ff88f0ebfcc08665c65e18  tests/supervisor/helpers/fake-supervisor-protection.mjs
 b70ccd95ccd4a5514be2ee300b22f69243802287175462cb1a7fd2e3b371d51d  tests/supervisor/helpers/local-git-fixture.mjs
 3e4e3cc8bf7bd49bd6edf47f628f282096c0995a775bde8e06525e860eaf47c0  tests/supervisor/helpers/acceptance-evidence.mjs
-6ae0c3f8f916af5def56b8bdb2d296e74dbda72ed32d3b3d0be50db407d2bc59  tests/supervisor/helpers/acceptance-scenario.mjs
+c35174d4d655c37c491db0661718b0af8f47692fdedb9e4a94fba9ff4f0d6954  tests/supervisor/helpers/acceptance-scenario.mjs
 b3168088694ff18d464c327cbb5f51f1a81fa656ad3c2e0537d6f81cd16ab3ce  tests/supervisor/helpers/acceptance-live-proof.mjs
-0d9183cfe3a33bc0e71016a86ea02174ed1955bcfc3bebea4635d6ff19b5cd2f  tests/supervisor/helpers/acceptance-exec.mjs
+ff35f5cba517780c642b01ac68e0999ad1dd1090e4dca72221fd1d4cb98fdc25  tests/supervisor/helpers/acceptance-exec.mjs

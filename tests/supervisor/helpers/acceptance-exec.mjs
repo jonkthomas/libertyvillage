@@ -17,6 +17,18 @@
 // timeout, and swept by a process-group SIGKILL. Callers then assert COMPLETION
 // or REJECTION with `assertSettled` + an explicit exit-code expectation — a
 // child that merely failed to hang is never acceptance evidence.
+//
+// FIFTH eval-owner correction — INDIRECT sync children. A frozen path does not
+// have to write execFileSync itself to deadlock the checker. Calling an imported
+// PRODUCTION function whose DEFAULT parameter spawns the coordinator/CLI
+// synchronously is the same defect one level down: C-N13-outcome called
+// `recordSupervisorOutcome(payload)` and production defaulted `coordinatorFn` to
+// `coordinator()`, which runs coordinator.mjs through execFileSync. Observed
+// >3m at 0% CPU on `record-candidate-outcome --outcome MONITOR_TIMEOUT`. The
+// fix is evaluator-side only: inject `asyncCoordinatorSeam().fn` through the
+// seam production already exposes. No production wrapper becomes async.
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
@@ -51,7 +63,7 @@ export function runExternal(file, args, {
       clearTimeout(timer);
       killGroup();
       resolve({
-        label, code, signal, stdout, stderr, timedOut,
+        label, code, signal, stdout, stderr, timedOut, pid: child.pid,
         spawnError, timeoutMs, durationMs: Date.now() - startedAt,
       });
     });
@@ -82,4 +94,69 @@ export function assertSettled(result, label) {
   }
   if (typeof result?.code !== 'number' && !result?.signal) throw new Error(`${label}: child produced no exit status`);
   return result;
+}
+
+// Known PRODUCTION functions that reach a synchronous child (directly, or via a
+// DEFAULT parameter/callback) which can speak to the loopback double or run the
+// coordinator/CLI. A frozen eval that calls one of these while the in-process
+// double is listening deadlocks the checker THROUGH production code. `seam` is
+// the production parameter the evaluator must inject to stay async; `seam: null`
+// means production exposes none, so a frozen eval must not call it at all.
+export const PRODUCTION_SYNC_SPAWN_WRAPPERS = Object.freeze([
+  Object.freeze({ name: 'recordSupervisorOutcome', module: 'scripts/supervisor/host-run.mjs', seam: 'coordinatorFn', reaches: 'coordinator() → execFileSync(coordinator.mjs record-candidate-outcome)' }),
+  Object.freeze({ name: 'coordinator', module: 'scripts/supervisor/host-run.mjs', seam: null, reaches: 'execFileSync(coordinator.mjs …)' }),
+  Object.freeze({ name: 'runCommand', module: 'scripts/supervisor/host-run.mjs', seam: null, reaches: 'execFileSync(<file>)' }),
+  Object.freeze({ name: 'cleanupDataBranch', module: 'scripts/supervisor/host-run.mjs', seam: null, reaches: 'execFileSync(git ls-remote/push origin)' }),
+  Object.freeze({ name: 'resolveHostWeeklyOwner', module: 'scripts/supervisor/host-run.mjs', seam: null, reaches: 'execFileSync(git fetch/show origin)' }),
+  Object.freeze({ name: 'runBlogSupervisor', module: 'scripts/supervisor/host-run.mjs', seam: null, reaches: 'execFileSync(git/npm) + coordinator()' }),
+]);
+
+// The eval-owned async machinery. A wrapper call is only safe when its own call
+// expression hands production one of these; anything else takes the synchronous
+// production default and deadlocks.
+export const ASYNC_SEAM_MARKERS = Object.freeze([
+  'asyncCoordinatorSeam', 'coordinatorFn', 'seam.fn', 'runCoordinator', 'runExternal',
+]);
+
+const parseGithubOutput = (file) => Object.fromEntries(fs.readFileSync(file, 'utf8').trim().split('\n')
+  .filter(Boolean).map((line) => { const split = line.indexOf('='); return [line.slice(0, split), line.slice(split + 1)]; }));
+
+// Bounded ASYNC drop-in for production `coordinator(repoRoot, args, { repo })`,
+// injected through an existing production seam (today: recordSupervisorOutcome's
+// `coordinatorFn`). It mirrors the production wrapper exactly — a private
+// GITHUB_OUTPUT file, the appended `--repo`, the key=value parse, a throw on a
+// nonzero exit — but launches the child through runCoordinator so the evaluator
+// keeps serving the double it hosts. Every invocation is recorded, so callers
+// still assert production's own argument mapping instead of trusting it.
+export function asyncCoordinatorSeam({
+  cloneDir = null, env, extraEnv = {}, timeoutMs = COORDINATOR_TIMEOUT_MS, label = 'coordinator',
+} = {}) {
+  const calls = [];
+  const fn = async (repoRoot, args, options = {}) => {
+    const root = cloneDir ?? repoRoot;
+    const call = { repoRoot, args: [...args], options: { ...options }, argv: null, result: null, outputs: null };
+    calls.push(call);
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-accept-coordinator-'));
+    const output = path.join(directory, 'output');
+    fs.writeFileSync(output, '', { mode: 0o600 });
+    const name = `${label} ${args[0]}`;
+    try {
+      call.argv = [...args, '--repo', options.repo];
+      call.result = await runCoordinator(root, call.argv, {
+        cwd: root, env, timeoutMs, label: name, extraEnv: { ...extraEnv, GITHUB_OUTPUT: output },
+      });
+      assertSettled(call.result, name);
+      if (call.result.code !== 0) {
+        throw new Error(`${name} exited ${call.result.code}: ${(call.result.stderr || call.result.stdout).slice(-400)}`);
+      }
+      call.outputs = parseGithubOutput(output);
+      return call.outputs;
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+  };
+  // Orphan sweep: every child this seam launched must be gone once it settled.
+  const orphans = () => calls.map((call) => call.result?.pid).filter((pid) => {
+    if (!pid) return false;
+    try { process.kill(pid, 0); return true; } catch { return false; }
+  });
+  return { fn, calls, orphans };
 }
