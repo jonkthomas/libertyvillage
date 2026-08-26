@@ -15,7 +15,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { createFakeGitHub } from './helpers/fake-github.mjs';
+import { createFakeGitHub, fakeGithubEnv } from './helpers/fake-github.mjs';
 
 const read = (rel) => fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
 const BLOG_YML = read('../../.github/workflows/weekly-blog.yml');
@@ -154,7 +154,7 @@ test('the gate refuses to run ungrounded when its reference records cannot be lo
         '--kind', 'blog', '--sha', SHA, '--out', path.join(workDir, 'verdict.json'),
       ], {
         encoding: 'utf8',
-        env: { ...process.env, GITHUB_API_URL: url, GH_TOKEN: 'test-token', GITHUB_OUTPUT: outputFile },
+        env: fakeGithubEnv(url, { GITHUB_OUTPUT: outputFile }),
       });
       stdout = `${result.stdout}${result.stderr}`;
     } catch (error) {

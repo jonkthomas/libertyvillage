@@ -13,10 +13,32 @@ import { fetchObservation } from './github-monitor.mjs';
 import { lostDispatchRetry, mayRepin, MONITOR_LIMIT_MS, terminalFromObservation } from './sha-monitor.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const COMMAND_OUTPUT_LIMIT = 8 * 1024;
 
-function command(file, args, options = {}) {
-  return execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim();
+function boundedCommandOutput(value) {
+  const output = Buffer.isBuffer(value) ? value.toString('utf8') : String(value ?? '');
+  const trimmed = output.trim();
+  if (!trimmed) return '<empty>';
+  if (trimmed.length <= COMMAND_OUTPUT_LIMIT) return trimmed;
+  const omitted = trimmed.length - COMMAND_OUTPUT_LIMIT;
+  return `<${omitted} characters omitted; showing tail>\n${trimmed.slice(-COMMAND_OUTPUT_LIMIT)}`;
 }
+
+export function runCommand(file, args, options = {}) {
+  try {
+    return execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim();
+  } catch (error) {
+    const status = Number.isInteger(error.status) ? `exit ${error.status}` : `signal ${error.signal || 'unknown'}`;
+    const invocation = [file, ...args].map((part) => JSON.stringify(String(part))).join(' ');
+    throw new Error([
+      `supervisor command failed (${status}): ${invocation}`,
+      `stdout:\n${boundedCommandOutput(error.stdout)}`,
+      `stderr:\n${boundedCommandOutput(error.stderr)}`,
+    ].join('\n'), { cause: error });
+  }
+}
+
+const command = runCommand;
 
 export function coordinator(repoRoot, args, { repo }) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-supervisor-output-'));
