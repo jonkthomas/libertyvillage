@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { github, githubRequestAuth } from '../../scripts/automation/github.mjs';
+import { fakeGithubEnv } from './helpers/fake-github.mjs';
 
 const INTERNAL_API = 'https://github.int.exe.xyz/api/v3';
 
@@ -32,6 +34,18 @@ test('GitHub auth policy preserves token requirements outside proxy mode', () =>
     api: 'https://api.github.com', authorization: 'Bearer github-value',
   });
   assert.throws(() => githubRequestAuth({}), /GH_TOKEN is required/);
+});
+
+test('fake GitHub subprocesses disable the VM transparent-proxy opt-in', () => {
+  const api = 'http://127.0.0.1:12345';
+  const env = fakeGithubEnv(api, {}, { LV_EXE_GITHUB_PROXY_AUTH: 'true' });
+  assert.equal(env.LV_EXE_GITHUB_PROXY_AUTH, 'false');
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', [
+    "import { githubRequestAuth } from './scripts/automation/github.mjs'",
+    'process.stdout.write(JSON.stringify(githubRequestAuth(process.env)))',
+  ].join(';')], { encoding: 'utf8', env });
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), { api, authorization: 'Bearer test-token' });
 });
 
 test('GitHub runtime omits Authorization in transparent proxy mode', async () => {

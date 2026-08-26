@@ -9,6 +9,16 @@ import http from 'node:http';
 
 const TRUSTED_BOT = 'github-actions[bot]';
 
+export function fakeGithubEnv(apiUrl, overrides = {}, baseEnv = process.env) {
+  return {
+    ...baseEnv,
+    ...overrides,
+    GITHUB_API_URL: apiUrl,
+    GH_TOKEN: 'test-token',
+    LV_EXE_GITHUB_PROXY_AUTH: 'false',
+  };
+}
+
 export function createFakeGitHub({ repo = 'owner/repo' } = {}) {
   const issues = new Map();
   const comments = new Map();

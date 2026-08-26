@@ -23,6 +23,36 @@ function hasStagingPrOpener(text) {
   ));
 }
 
+function workflowJobSteps(text, jobName) {
+  const headers = [...text.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)];
+  const jobIndex = headers.findIndex((header) => header[1] === jobName);
+  assert.notEqual(jobIndex, -1, `missing workflow job ${jobName}`);
+  const jobStart = headers[jobIndex].index;
+  const jobEnd = headers[jobIndex + 1]?.index ?? text.length;
+  const job = text.slice(jobStart, jobEnd);
+  const stepsStart = job.indexOf('\n    steps:\n');
+  assert.notEqual(stepsStart, -1, `missing steps for workflow job ${jobName}`);
+  const stepsText = job.slice(stepsStart + '\n    steps:\n'.length);
+  const stepHeaders = [...stepsText.matchAll(/^ {6}- ([A-Za-z0-9_-]+):\s*(.*)$/gm)];
+  return stepHeaders.map((header, index) => {
+    const start = header.index;
+    const end = index + 1 < stepHeaders.length ? stepHeaders[index + 1].index : stepsText.length;
+    const step = stepsText.slice(start, end);
+    const property = (name) => {
+      const first = new RegExp(`^ {6}- ${name}:\\s*(.*)$`, 'm').exec(step);
+      const nested = new RegExp(`^ {8}${name}:\\s*(.*)$`, 'm').exec(step);
+      return (first || nested)?.[1]?.trim() ?? null;
+    };
+    return { text: step, name: property('name'), id: property('id'), uses: property('uses'), if: property('if') };
+  });
+}
+
+function controlConditionAllows(step, enabled) {
+  const match = /^\$\{\{ steps\.control\.outputs\.enabled == '(true|false)' \}\}$/.exec(step.if || '');
+  if (!match) return !step.if;
+  return String(enabled) === match[1];
+}
+
 test('coordinator is dispatch-only and synthetic merge checkouts fetch parent history', () => {
   assert.doesNotMatch(workflow, /workflow_call|inputs\./);
   const mergeCheckouts = [...workflow.matchAll(/ref: refs\/pull\/[^\n]+\/merge\n\s+fetch-depth: 0/g)];
@@ -42,6 +72,35 @@ test('news-pilot safety regressions gate generator and promotion CI', () => {
   );
   assert.match(generator, /npm run test:news-pilot/);
   assert.match(promotion, /npm run test:news-pilot/);
+});
+
+test('disabled promotion control makes every downstream pass step unreachable', () => {
+  const steps = workflowJobSteps(workflow, 'pass-promotion');
+  const controlIndex = steps.findIndex((step) => step.id === 'control');
+  assert.equal(controlIndex, 1, 'only the trusted-main checkout may precede promotion control');
+  assert.match(steps[controlIndex].text, /promotion-control\.mjs --github-output/);
+
+  const downstream = steps.slice(controlIndex + 1);
+  assert.ok(downstream.length > 0, 'promotion control must guard real downstream work');
+  for (const step of downstream) {
+    assert.equal(step.if, "${{ steps.control.outputs.enabled == 'true' }}",
+      `downstream promotion step is not controlled: ${step.name || step.id || step.uses}`);
+  }
+
+  const effects = downstream.filter((step) => (
+    step.uses === 'actions/download-artifact@v4'
+    || step.uses === 'actions/upload-artifact@v4'
+    || /coordinator\.mjs audit|gh pr merge/.test(step.text)
+  ));
+  assert.equal(effects.length, 3, 'download, audit/merge, and upload must all remain explicit controlled steps');
+  assert.ok(effects.some((step) => step.uses === 'actions/download-artifact@v4'), 'missing controlled verdict download');
+  assert.ok(effects.some((step) => /coordinator\.mjs audit/.test(step.text)), 'missing controlled promotion audit');
+  assert.ok(effects.some((step) => /gh pr merge/.test(step.text)), 'missing controlled promotion merge');
+  assert.ok(effects.some((step) => step.uses === 'actions/upload-artifact@v4'), 'missing controlled audit upload');
+  assert.deepEqual(effects.filter((step) => controlConditionAllows(step, false)), [],
+    'disabled ownership must execute no artifact, audit, or merge effect');
+  assert.equal(effects.filter((step) => controlConditionAllows(step, true)).length, effects.length,
+    'GHA ownership must preserve the complete promotion path');
 });
 
 test('every autonomous generator kind has an independent review lens', () => {

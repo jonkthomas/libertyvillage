@@ -763,20 +763,26 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - name: Check canonical promotion ownership
+        id: control
+        env:
+          LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
+        run: node scripts/automation/promotion-control.mjs --github-output
+      - if: ${{ steps.control.outputs.enabled == 'true' }}
+        uses: actions/download-artifact@v4
         with:
           name: promotion-verdict-${{ needs.validate-promotion-pr.outputs.head_sha }}
       - id: audit
+        if: ${{ steps.control.outputs.enabled == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
         run: |
-          node scripts/automation/promotion-control.mjs
           node scripts/automation/coordinator.mjs validate-promotion --repo "$GITHUB_REPOSITORY" --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --main-sha "${{ needs.validate-promotion.outputs.main_sha }}"
           node scripts/automation/coordinator.mjs validate-pr --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}"
           node scripts/automation/coordinator.mjs audit --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-promotion-pr.outputs.pr_number }}" --kind promotion --sha "${{ needs.validate-promotion-pr.outputs.head_sha }}" --decision promoted --attempt 0 --range "${{ needs.validate-promotion.outputs.range }}" --verdict promotion-verdict.json --out promotion-audit.json
           gh pr merge "${{ needs.validate-promotion-pr.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
-      - uses: actions/upload-artifact@v4
+      - if: ${{ steps.control.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v4
         with:
           name: promotion-audit-${{ needs.validate-promotion-pr.outputs.head_sha }}
           path: promotion-audit.json

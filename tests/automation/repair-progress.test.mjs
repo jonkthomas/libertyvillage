@@ -15,7 +15,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { createFakeGitHub } from './helpers/fake-github.mjs';
+import { createFakeGitHub, fakeGithubEnv } from './helpers/fake-github.mjs';
 import { buildRepairHistory, evaluateRepairProgress, parseAuditRecord } from '../../scripts/automation/recovery.mjs';
 
 const REPO = 'owner/repo';
@@ -43,10 +43,10 @@ async function runAudit(apiUrl, workDir, { pr, sha, decision, attempt, verdict, 
   }
   const { stdout } = await execFileAsync(process.execPath, args, {
     encoding: 'utf8',
-    env: {
-      ...process.env, GITHUB_API_URL: apiUrl, GH_TOKEN: 'test-token', GITHUB_OUTPUT: outputFile,
+    env: fakeGithubEnv(apiUrl, {
+      GITHUB_OUTPUT: outputFile,
       GITHUB_SERVER_URL: 'https://github.example', GITHUB_RUN_ID: '12345',
-    },
+    }),
   });
   const outputs = {};
   for (const line of fs.readFileSync(outputFile, 'utf8').split('\n').filter(Boolean)) {
