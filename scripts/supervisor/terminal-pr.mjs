@@ -14,20 +14,21 @@ export function terminalRequiresCandidateOutcome({ terminal, topicKey }) {
 
 // Canonical terminal ordering: durable ladder first, exact owned PR closure second.
 // The run_id-backed outcome key makes a reclaimed/replayed terminal idempotent.
-export async function finalizeSupervisorTerminal({ repo, run, terminal, expectedSha, reason, recordOutcome, finalizePr = finalizeOwnedPr }) {
+export async function finalizeSupervisorTerminal({ repo, run, terminal, expectedSha, reason, recordOutcome, expectedBase = 'main', finalizePr = finalizeOwnedPr }) {
   if (terminalRequiresCandidateOutcome({ terminal, topicKey: run.topic_key })) {
     await recordOutcome({ terminal, topicKey: run.topic_key, reason });
   }
   if (!run.pr_number) return { prState: undefined, merged: false };
-  return finalizePr({ repo, prNumber: run.pr_number, expectedSha, terminal, runId: run.run_id });
+  return finalizePr({ repo, prNumber: run.pr_number, expectedSha, terminal, runId: run.run_id, base: expectedBase });
 }
 
-export async function finalizeOwnedPr({ repo, prNumber, expectedSha, terminal, runId, githubClient = github, commentsClient = paged }) {
+export async function finalizeOwnedPr({ repo, prNumber, expectedSha, terminal, runId, base = 'staging', githubClient = github, commentsClient = paged }) {
   if (!Number.isInteger(prNumber) || prNumber <= 0) throw new Error('terminal finalizer requires the exact ledger PR number');
   if (!isExactSha(expectedSha)) throw new Error('terminal finalizer requires the exact ledger head SHA');
   const pr = await githubClient(`/repos/${repo}/pulls/${prNumber}`);
   const liveSha = pr?.head?.sha;
-  const identity = validateOwnedPr({ pr, expectedSha: liveSha });
+  const expectedBase = base;
+  const identity = validateOwnedPr({ pr, expectedSha: liveSha, base: expectedBase });
   if (!identity.ok) throw new Error(`terminal finalizer refused PR identity drift: ${identity.errors.join('; ')}`);
   let adoptedSha = expectedSha;
   if (liveSha !== expectedSha) {
@@ -38,7 +39,7 @@ export async function finalizeOwnedPr({ repo, prNumber, expectedSha, terminal, r
     }
     adoptedSha = liveSha;
   }
-  const owned = validateOwnedPr({ pr, expectedSha: adoptedSha });
+  const owned = validateOwnedPr({ pr, expectedSha: adoptedSha, base: expectedBase });
   if (!owned.ok) throw new Error(`terminal finalizer refused PR identity drift: ${owned.errors.join('; ')}`);
   if (terminal === 'MERGED_STAGING') {
     if (pr.state !== 'closed' || pr.merged !== true || !isExactSha(pr.merge_commit_sha)) {
@@ -75,7 +76,7 @@ export async function finalizeOwnedPr({ repo, prNumber, expectedSha, terminal, r
       throw new Error('PUBLISHED_MAIN requires Vercel success on merge_commit_sha');
     }
     const statuses = prodStatus?.statuses || [];
-    if (statuses.some((item) => item.context === 'Vercel' && item.actor && !['evaluator-vercel', 'Vercel'].includes(item.actor))) {
+    if (statuses.some((item) => item.context === 'Vercel' && TRUSTED_PR_AUTHORS.includes(item.creator?.login))) {
       throw new Error('PUBLISHED_MAIN refused a coordinator-forged Vercel status');
     }
     return { prState: 'closed', merged: true, headSha: adoptedSha };
@@ -92,7 +93,7 @@ export async function finalizeOwnedPr({ repo, prNumber, expectedSha, terminal, r
     await githubClient(`/repos/${repo}/pulls/${prNumber}`, { method: 'PATCH', body: { state: 'closed' } });
   }
   const verified = await githubClient(`/repos/${repo}/pulls/${prNumber}`);
-  const exact = validateOwnedPr({ pr: verified, expectedSha: adoptedSha });
+  const exact = validateOwnedPr({ pr: verified, expectedSha: adoptedSha, base: expectedBase });
   if (!exact.ok || verified.state !== 'closed' || verified.merged === true) {
     throw new Error(`terminal finalizer could not verify a closed, unmerged exact PR: ${exact.errors.join('; ')}`);
   }

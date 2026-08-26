@@ -16,7 +16,7 @@ export function evaluateSentinel({ ledger, observations = new Map(), now = Date.
       findings.push({ key: `${run.run_id}:missing-pr`, runId: run.run_id, message: `owned PR #${run.pr_number} could not be read` });
       continue;
     }
-    const owned = validateOwnedPr({ pr: observation.pr, expectedSha: run.head_sha });
+    const owned = validateOwnedPr({ pr: observation.pr, expectedSha: run.head_sha, base: 'main' });
     if (!owned.ok && observation.pr?.state === 'open') {
       findings.push({ key: `${run.run_id}:identity-drift`, runId: run.run_id, message: `owned PR #${run.pr_number} drifted: ${owned.errors.join('; ')}` });
       continue;

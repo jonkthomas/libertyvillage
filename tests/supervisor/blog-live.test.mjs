@@ -33,6 +33,7 @@ test('generation prompt binds publishedAt and updatedAt to the exact UTC run dat
   const prompt = buildGeneratorPrompt({
     topic: { key: 'k', title: 't', source: 's', rationale: 'r' },
     contextFiles: ['data/posts.json'],
+    businesses: JSON.parse(fs.readFileSync('data/businesses.json', 'utf8')),
     now,
   });
   assert.match(prompt, /publishedAt/);
@@ -42,7 +43,9 @@ test('generation prompt binds publishedAt and updatedAt to the exact UTC run dat
   assert.doesNotMatch(prompt, /2026-08-25|2026-08-27/);
   assert.match(prompt, /exact slug field/);
   assert.match(prompt, /Write zero clock ranges/);
-  assert.match(prompt, /Cibo Wine Bar/);
+  assert.match(prompt, /Current trusted phrase-to-route index/);
+  assert.match(prompt, /Duplicate display names require an exact linked route/);
+  assert.doesNotMatch(prompt, /the only safe Liberty Village slugs/);
 });
 
 test('content ship is on only for exedev and fails closed on the emergency override', () => {
@@ -67,5 +70,4 @@ test('content ship is on only for exedev and fails closed on the emergency overr
     return true;
   });
 });
-
 

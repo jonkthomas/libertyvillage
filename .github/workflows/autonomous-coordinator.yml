@@ -388,6 +388,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      statuses: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -424,6 +425,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           LV_PROMOTION_ENABLED: ${{ vars.LV_PROMOTION_ENABLED }}
         run: node scripts/automation/coordinator.mjs observe-and-promote --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
+      - name: Require exact-head CI, Opus, and Vercel success before arming main merge
+        if: ${{ steps.refresh.outputs.refreshed != 'true' && github.event.client_payload.kind == 'blog-live' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/automation/coordinator.mjs wait-for-blog-live-head --repo "$GITHUB_REPOSITORY" --pr "${{ needs.validate-generator.outputs.pr_number }}" --sha "${{ needs.validate-generator.outputs.head_sha }}"
       - name: Enable native merge-commit auto-merge into main
         if: ${{ steps.refresh.outputs.refreshed != 'true' && github.event.client_payload.kind == 'blog-live' }}
         env:

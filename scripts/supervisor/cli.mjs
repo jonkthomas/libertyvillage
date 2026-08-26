@@ -39,6 +39,7 @@ function persistRun(runId, changes) {
 async function settleTerminal(runRow, terminal, expectedSha, reason) {
   return finalizeSupervisorTerminal({
     repo: REPO, run: runRow, terminal, expectedSha, reason,
+    expectedBase: terminal === 'MERGED_STAGING' ? 'staging' : 'main',
     recordOutcome: ({ terminal: outcome, topicKey, reason: outcomeReason }) => recordSupervisorOutcome({
       repoRoot: REPO_ROOT, repo: REPO, runId: runRow.run_id, topicKey, terminal: outcome, reason: outcomeReason,
     }),
@@ -109,6 +110,7 @@ async function run(dryRun) {
             const observation = await fetchObservation(REPO, staleRun.pr_number, staleRun.head_sha || pr.head?.sha);
             recoveryTerminal = terminalFromObservation({
               pr: observation.pr, sha: staleRun.head_sha || pr.head?.sha,
+              base: 'main',
               auditDecision: observation.audit?.decision,
               stagingContained: observation.stagingContained,
               mainContained: observation.mainContained,

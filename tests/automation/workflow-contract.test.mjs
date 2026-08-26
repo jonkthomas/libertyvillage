@@ -12,6 +12,7 @@ const sentinel = fs.readFileSync(new URL('../../.github/workflows/blocked-sentin
 const sentinelScript = fs.readFileSync(new URL('../../scripts/automation/blocked-sentinel.mjs', import.meta.url), 'utf8');
 const reviewAgent = fs.readFileSync(new URL('../../scripts/automation/review-agent.mjs', import.meta.url), 'utf8');
 const coordinator = fs.readFileSync(new URL('../../scripts/automation/coordinator.mjs', import.meta.url), 'utf8');
+const contentSync = fs.readFileSync(new URL('../../scripts/automation/content-sync.mjs', import.meta.url), 'utf8');
 const preflight = fs.readFileSync(new URL('../../scripts/automation/news-preflight.mjs', import.meta.url), 'utf8');
 const WORKFLOWS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.github/workflows');
 
@@ -176,8 +177,8 @@ test('supervisor ingest transplants onto main as blog-live and never opens a sta
   assert.doesNotMatch(ingest, /git push origin (staging|main)\b/);
   assert.match(workflow, /content-main/);
   assert.match(workflow, /observe-and-sync-staging/);
-  assert.match(coordinator, /sync\/main-/);
-  assert.doesNotMatch(coordinator, /git push origin (staging|main)\b/);
+  assert.match(contentSync, /sync\/main-/);
+  assert.doesNotMatch(coordinator + contentSync, /git push origin (staging|main)\b/);
 });
 
 test('preflight reuses canonical models and content commands avoid GitHub APIs', () => {
@@ -268,6 +269,6 @@ test('generator pass refreshes after audit and skips auto-merge and observation 
   assert.ok(audit >= 0 && audit < refresh, 'base refresh must follow exact-SHA audit');
   assert.ok(refresh < autoMerge && autoMerge < observe, 'refresh must precede merge and observation');
   assert.match(passJob, /observe-and-sync-staging/);
-  assert.equal((passJob.match(/steps\.refresh\.outputs\.refreshed != 'true'/g) || []).length, 4);
+  assert.equal((passJob.match(/steps\.refresh\.outputs\.refreshed != 'true'/g) || []).length, 5);
   assert.doesNotMatch(passJob.slice(0, refresh), /gh pr merge|observe-and-promote|observe-and-sync-staging/);
 });

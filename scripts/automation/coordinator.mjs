@@ -4,14 +4,14 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   ABANDONED_LABEL, ALLOW_RECORD_DELETION_LABEL, BLOCKED_LABEL, BLOCKING_SEVERITIES, FIXER_MODEL, GATE_MODEL,
-  KIND_POLICIES, MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS, TRUSTED_PR_AUTHORS,
+  KIND_POLICIES, MAX_HEALS, MAX_REPAIRS, TRUSTED_PR_AUTHORS,
 } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
 import {
   canHeal, evaluateGeneratorBase, evaluateObservedMerge, filterRepairablePaths, healLabel, isExactSha,
   isTextRepairPath, readHealAttempt, readRegenerationCount, readRepairAttempt, readRetryAttempt,
   regenerationLabel, retryLabel, validatePaths, validatePromotionRange, validatePullRequest,
-  validateRepairPlan, validateSyncDelta,
+  validateRepairPlan,
 } from './policy.mjs';
 import { MAX_TRANSIENT_RETRIES } from './constants.mjs';
 import {
@@ -26,7 +26,10 @@ import { planBaseHeal, resolveAppendUnion } from './heal-base.mjs';
 import {
   applyRecordRepairPlan, isRecordFile, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
 } from './record-repair.mjs';
-import { contentShipEnabled, promotionEnabled } from './promotion-control.mjs';
+import { promotionEnabled } from './promotion-control.mjs';
+import { publishStatus } from './statuses.mjs';
+// The delegated runtime owns the exact-merge `sync/main-<sha>` branch lifecycle.
+import { observeAndSyncStaging, waitForBlogLiveHeadStatuses } from './content-sync.mjs';
 
 function parseArgs() {
   const values = {};
@@ -143,17 +146,6 @@ async function preparePromotion(options) {
   if (pr.head.sha !== options.sha) throw new Error('promotion PR head is stale after creation/reuse');
   writeOutput({ pr_number: pr.number, head_sha: pr.head.sha, created: existing[0] ? 'false' : 'true' });
   console.log(`${existing[0] ? 'Reused' : 'Created'} promotion PR #${pr.number} at ${pr.head.sha}.`);
-}
-
-async function publishStatus(options) {
-  requireOptions(options, ['repo', 'sha', 'context', 'state', 'description']);
-  if (!isExactSha(options.sha)) throw new Error('status SHA is invalid');
-  if (!Object.values(STATUS_CONTEXTS.publish).includes(options.context)) throw new Error('status context is not controlled');
-  if (!['pending', 'success', 'failure', 'error'].includes(options.state)) throw new Error('invalid status state');
-  await github(`/repos/${options.repo}/statuses/${options.sha}`, {
-    method: 'POST', body: { state: options.state, context: options.context, description: options.description.slice(0, 140) },
-  });
-  console.log(`Published ${options.context}=${options.state} on ${options.sha}.`);
 }
 
 async function createLabel(repo, name, color, description) {
@@ -633,7 +625,7 @@ async function recordCandidateOutcome(options) {
   const topic = options['topic-key'] || options.topicKey
     || selectEligibleTopic({ queue, state, kind, now: new Date() })?.key
     || null;
-  const reason = `${options.outcome}: ${options.reason || 'bounded candidate failed before a pull request existed'}`;
+  const reason = options.reason || 'bounded candidate failed before a pull request existed';
   const eventKey = `${kind}:${options.key}`;
 
   if (topic) {
@@ -648,7 +640,7 @@ async function recordCandidateOutcome(options) {
       kind, action: preview.action, recorded: recorded.changed ? 'true' : 'false',
       regenerations: recorded.state.topics?.[topic]?.regenerations ?? recorded.state.regenerations,
       abandoned: recorded.state.abandoned ? 'true' : 'false',
-      topic_key: topic, state_issue: recorded.issue?.number ?? issue?.number ?? '', reason,
+      topic_key: topic, state_issue: recorded.issue?.number ?? issue?.number ?? '',
     });
     console.log(recorded.changed
       ? `Recorded ${options.outcome} for ${kind} topic ${topic}: ${preview.action}, ladder now ${recorded.state.topics?.[topic]?.regenerations ?? recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`
@@ -664,7 +656,7 @@ async function recordCandidateOutcome(options) {
   writeOutput({
     kind, action: ladder.action, recorded: recorded.changed ? 'true' : 'false',
     regenerations: recorded.state.regenerations, abandoned: recorded.state.abandoned ? 'true' : 'false',
-    topic_key: '', state_issue: recorded.issue?.number ?? '', reason,
+    topic_key: '', state_issue: recorded.issue?.number ?? '',
   });
   console.log(recorded.changed
     ? `Recorded ${options.outcome} for ${kind}: ${ladder.action}, ladder now ${recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`
@@ -947,116 +939,11 @@ async function observeAndPromote(options) {
     + ' Handing off to the scheduled promotion sweep and exiting 0 — this is not a block.');
 }
 
-function comparisonContained(comparison) {
-  return ['ahead', 'identical'].includes(comparison?.status) && Number(comparison?.behind_by || 0) === 0;
-}
-
-function syncHeadName(mainSha) {
-  if (!isExactSha(mainSha)) throw new Error('sync head requires an exact main SHA');
-  return `sync/main-${mainSha}`;
-}
-
-async function observeAndSyncStaging(options) {
-  requireOptions(options, ['repo', 'pr', 'sha']);
-  if (!contentShipEnabled()) {
-    throw new Error('contentShipEnabled is false; refusing blog-live sync onto protected branches');
-  }
-  const pr = await github(`/repos/${options.repo}/pulls/${options.pr}`);
-  if (String(pr?.head?.ref || '').startsWith('sync/main-')) {
-    throw new Error('observe-and-sync-staging refused to recurse into a sync PR');
-  }
-  if (!pr?.merged || pr.base?.ref !== 'main' || !isExactSha(pr.merge_commit_sha)) {
-    writeOutput({ synced: 'false', reason: 'wait-merge' });
-    console.log(`Owned content PR #${options.pr} is not yet a main merge; staying non-terminal.`);
-    return;
-  }
-  const mergeSha = pr.merge_commit_sha;
-  const contentSha = pr.head?.sha;
-  const mainComparison = await github(`/repos/${options.repo}/compare/${mergeSha}...main`);
-  if (!comparisonContained(mainComparison)) {
-    throw new Error('main does not contain the content merge commit');
-  }
-  const staging = await github(`/repos/${options.repo}/branches/staging`);
-  const alreadyMerge = await github(`/repos/${options.repo}/compare/${mergeSha}...staging`).catch(() => null);
-  const alreadyHead = isExactSha(contentSha)
-    ? await github(`/repos/${options.repo}/compare/${contentSha}...staging`).catch(() => null)
-    : null;
-  if (comparisonContained(alreadyMerge) || comparisonContained(alreadyHead)) {
-    writeOutput({ synced: 'noop', merge_commit_sha: mergeSha, staging_sha: staging.commit.sha });
-    console.log(`Staging already contains content merge ${mergeSha}; no sync PR.`);
-    return;
-  }
-  const main = await github(`/repos/${options.repo}/branches/main`);
-  const mainSha = main.commit.sha;
-  if (!isExactSha(mainSha)) throw new Error('main head is not an exact SHA');
-  const headName = syncHeadName(mainSha);
-  if (headName === 'staging' || headName === 'main') throw new Error('refused to name a protected branch as the sync head');
-  const owner = options.repo.split('/')[0];
-  const existing = await paged(`/repos/${options.repo}/pulls?state=open&base=staging&head=${encodeURIComponent(`${owner}:${headName}`)}`);
-  if (existing.length > 1) throw new Error('multiple open main-to-staging sync PRs found');
-  let syncPr = existing[0];
-  let syncSha = syncPr?.head?.sha;
-  if (!syncPr) {
-    await github(`/repos/${options.repo}/git/refs`, {
-      method: 'POST', body: { ref: `refs/heads/${headName}`, sha: staging.commit.sha },
-    });
-    const merged = await github(`/repos/${options.repo}/merges`, {
-      method: 'POST',
-      body: { base: headName, head: mainSha, commit_message: `sync: main ${mainSha.slice(0, 12)} into staging` },
-    });
-    syncSha = merged?.sha;
-    if (!isExactSha(syncSha)) throw new Error('sync merge did not produce an exact SHA');
-    const deltaCompare = await github(`/repos/${options.repo}/compare/${staging.commit.sha}...${syncSha}`);
-    const delta = (deltaCompare.files || []).map((file) => file.filename);
-    const deltaOk = validateSyncDelta(delta);
-    if (!deltaOk.ok) {
-      try { await github(`/repos/${options.repo}/git/refs/heads/${encodeURIComponent(headName)}`, { method: 'DELETE' }); } catch { /* still fail closed */ }
-      throw new Error(`sync aborted: incoming delta is not blog-only: ${deltaOk.errors.join('; ')}`);
-    }
-    syncPr = await github(`/repos/${options.repo}/pulls`, {
-      method: 'POST',
-      body: {
-        title: `sync: main ${mainSha.slice(0, 12)} into staging`,
-        head: headName, base: 'staging', draft: false,
-        body: 'PR-shaped main→staging content sync. Required checks are automation/ci and automation/opus-gate. Merge with --merge only.',
-      },
-    });
-  }
-  const files = (await paged(`/repos/${options.repo}/pulls/${syncPr.number}/files`)).map((file) => file.filename);
-  const filesOk = validateSyncDelta(files);
-  if (!filesOk.ok) {
-    await github(`/repos/${options.repo}/pulls/${syncPr.number}`, { method: 'PATCH', body: { state: 'closed' } });
-    throw new Error(`sync PR closed unmerged: files are not blog-only: ${filesOk.errors.join('; ')}`);
-  }
-  await publishStatus({
-    repo: options.repo, sha: syncSha, context: STATUS_CONTEXTS.publish.ci,
-    state: 'success', description: 'Content-sync merge-ref CI',
-  });
-  await publishStatus({
-    repo: options.repo, sha: syncSha, context: STATUS_CONTEXTS.publish.gate,
-    state: 'success', description: 'Content-sync gate',
-  });
-  const merge = await github(`/repos/${options.repo}/pulls/${syncPr.number}/merge`, {
-    method: 'PUT', body: { merge_method: 'merge', sha: syncSha },
-  });
-  if (!merge?.merged) throw new Error('sync PR merge did not complete with --merge');
-  const contained = await github(`/repos/${options.repo}/compare/${mergeSha}...staging`);
-  if (!comparisonContained(contained)) {
-    throw new Error('staging does not contain the content merge after the sync PR');
-  }
-  const stagingAfter = await github(`/repos/${options.repo}/branches/staging`);
-  writeOutput({
-    synced: 'true', sync_pr: syncPr.number, sync_sha: syncSha,
-    staging_sha: stagingAfter.commit.sha, merge_commit_sha: mergeSha,
-  });
-  console.log(`Synced main ${mainSha} into staging via PR #${syncPr.number} at ${syncSha}.`);
-}
-
 const commands = {
   'validate-pr': validatePr, 'validate-promotion': validatePromotion, 'prepare-promotion': preparePromotion,
   status: publishStatus, audit, 'apply-fix': applyFix, 'set-attempt': setAttempt, dispatch,
   'refresh-generator-base': refreshGeneratorBase, 'observe-and-promote': observeAndPromote,
-  'observe-and-sync-staging': observeAndSyncStaging,
+  'wait-for-blog-live-head': waitForBlogLiveHeadStatuses, 'observe-and-sync-staging': observeAndSyncStaging,
   'heal-generator-base': healGeneratorBase, 'set-heal': setHeal,
   recover, 'read-attempt': readAttempt, 'plan-candidate': planCandidate, 'mark-regeneration': markRegeneration,
   'record-candidate-outcome': recordCandidateOutcome, 'resolve-topic': resolveTopic,
