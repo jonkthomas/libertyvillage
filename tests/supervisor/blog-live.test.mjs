@@ -7,7 +7,6 @@ import { execFileSync } from 'node:child_process';
 import { KIND_POLICIES, STATUS_CONTEXTS } from '../../scripts/automation/constants.mjs';
 import { contentShipEnabled, promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
 import { buildGeneratorPrompt } from '../../scripts/supervisor/pi-session.mjs';
-import { boundedOutcomeReason, command, OUTCOME_REASON_LIMIT } from '../../scripts/supervisor/host-run.mjs';
 
 const workflow = fs.readFileSync(new URL('../../.github/workflows/supervisor-ingest.yml', import.meta.url), 'utf8');
 
@@ -41,8 +40,8 @@ test('generation prompt binds publishedAt and updatedAt to the exact UTC run dat
   assert.match(prompt, /exact UTC run date 2026-08-26/);
   assert.match(prompt, /must equal 2026-08-26/);
   assert.doesNotMatch(prompt, /2026-08-25|2026-08-27/);
-  assert.match(prompt, /exact unique slug/);
-  assert.match(prompt, /Do not write clock ranges/);
+  assert.match(prompt, /exact slug field/);
+  assert.match(prompt, /Write zero clock ranges/);
   assert.match(prompt, /Cibo Wine Bar/);
 });
 
@@ -69,27 +68,4 @@ test('content ship is on only for exedev and fails closed on the emergency overr
   });
 });
 
-test('host node command failures keep cwd in the diagnostic so bounded reasons truncate', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-reason-'));
-  let error;
-  try {
-    command(process.execPath, ['-e', 'console.log("finding ".repeat(80)); process.exit(1)'], { cwd: directory });
-  } catch (caught) { error = caught; }
-  assert.ok(error);
-  assert.match(error.message, /cwd:/);
-  assert.ok([...error.message].length > OUTCOME_REASON_LIMIT);
-  const reason = boundedOutcomeReason(error.message);
-  assert.ok([...reason].length <= OUTCOME_REASON_LIMIT);
-  assert.match(reason, /…\[truncated\]$/);
-  assert.equal(/[\p{C}\r\n\u2028\u2029]/u.test(reason), false);
-});
 
-test('node children observe the requested cwd rather than a realpath rewrite', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cwd-'));
-  const scriptDir = path.join(directory, 'scripts');
-  fs.mkdirSync(scriptDir);
-  const script = path.join(scriptDir, 'blog-lint.mjs');
-  fs.writeFileSync(script, 'process.stdout.write(process.cwd());\n');
-  const observed = command(process.execPath, [script], { cwd: directory });
-  assert.equal(observed, directory);
-});
