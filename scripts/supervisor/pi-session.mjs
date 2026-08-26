@@ -77,6 +77,7 @@ export function buildGeneratorPrompt({ topic, contextFiles = [], now = new Date(
     'Read data/topic-queue.json, locate the selected entry by the exact topic key, confirm the source and rationale above match it, and use that entry\'s source and rationale as the grounding for why this topic was selected. Do not substitute a different topic or claim evidence beyond that rationale.',
     'Ground local claims in data/businesses.json and data/posts.json, and follow the canonical blog prompt at scripts/prompts/sections/03-blog-generation.md.',
     'Use context_read, context_grep, and context_find only inside the supplied working tree. Do not invent current facts, prices, hours, addresses, or business claims.',
+    'Read data/businesses.json before naming any business. Attribute an operational policy (happy hour, hours, prices, reservations, patio, pet-friendly, takeout) to a business only when that business record contains the same policy verbatim. If the topic is happy hour and no record supports it, write a neighbourhood guide that does not claim any business currently runs happy hour.',
     `Set publishedAt and updatedAt to the exact UTC run date ${runDate}. Both publishedAt and updatedAt must equal ${runDate}.`,
     'Return the complete post by calling submit_candidate exactly once. Pass the eligible topic key in the tool topic_key parameter.',
     'Follow the trusted BlogPost interface file exactly and select an image path that already exists under public/.',

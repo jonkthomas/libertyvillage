@@ -43,13 +43,60 @@ export function runCommand(file, args, options = {}) {
     const invocation = [file, ...args].map((part) => JSON.stringify(String(part))).join(' ');
     throw new Error([
       `supervisor command failed (${status}): ${invocation}`,
+      options.cwd ? `cwd: ${options.cwd}` : null,
       `stdout:\n${boundedCommandOutput(error.stdout)}`,
       `stderr:\n${boundedCommandOutput(error.stderr)}`,
-    ].join('\n'), { cause: error });
+    ].filter(Boolean).join('\n'), { cause: error });
   }
 }
 
-const command = runCommand;
+function isNodeExecutable(file) {
+  return file === process.execPath || /(?:^|\/)node(?:\.exe)?$/i.test(String(file));
+}
+
+function envWithRequestedCwd(env, cwd) {
+  // macOS getcwd(3) realpaths /var -> /private/var, so child process.cwd() would
+  // otherwise disagree with the lexical cwd the host passed. Preserve the requested
+  // path for node children so relative tools and observers see that same tree.
+  const src = 'const _cwd=process.cwd.bind(process);process.cwd=()=>process.env.LV_REQUESTED_CWD||_cwd()';
+  const preload = `--import data:text/javascript,${encodeURIComponent(src)}`;
+  const existing = env.NODE_OPTIONS ? ` ${env.NODE_OPTIONS}` : '';
+  return { ...env, LV_REQUESTED_CWD: cwd, NODE_OPTIONS: `${preload}${existing}` };
+}
+
+function withNodeCwd(file, args, options = {}) {
+  // Only the trusted linter child must report the lexical worktree cwd.
+  // Patching npm/test descendants would rewrite process.cwd() for suites that chdir.
+  if (!isNodeExecutable(file) || !options.cwd) return options;
+  const script = args?.[0] ? String(args[0]) : '';
+  if (!script.endsWith(`${path.sep}scripts${path.sep}blog-lint.mjs`) && !script.endsWith('/scripts/blog-lint.mjs')) {
+    return options;
+  }
+  return { ...options, env: envWithRequestedCwd(options.env || process.env, options.cwd) };
+}
+
+export function command(file, args, options = {}) {
+  return runCommand(file, args, withNodeCwd(file, args, options));
+}
+
+let cachedNpmCli = undefined;
+function npmCliJs() {
+  if (cachedNpmCli !== undefined) return cachedNpmCli;
+  try {
+    const globalRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
+    const cli = path.join(globalRoot, 'npm/bin/npm-cli.js');
+    cachedNpmCli = fs.existsSync(cli) ? cli : null;
+  } catch {
+    cachedNpmCli = null;
+  }
+  return cachedNpmCli;
+}
+
+function npm(args, options) {
+  const cli = npmCliJs();
+  if (cli) return command(process.execPath, [cli, ...args], options);
+  return command('npm', args, options);
+}
 
 export function coordinator(repoRoot, args, { repo }) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-supervisor-output-'));
@@ -195,11 +242,11 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
   let dataBranch = null;
   try {
     await onUpdate({ state: 'BASELINE_CI', trusted_staging_sha: trustedStagingSha });
-    command('npm', ['ci'], { cwd: workDir });
-    command('npm', ['run', 'lint:automation'], { cwd: workDir });
-    command('npm', ['run', 'lint:supervisor'], { cwd: workDir });
-    command('npm', ['run', 'test:automation'], { cwd: workDir });
-    command('npm', ['run', 'test:supervisor'], { cwd: workDir });
+    npm(['ci'], { cwd: workDir });
+    npm(['run', 'lint:automation'], { cwd: workDir });
+    npm(['run', 'lint:supervisor'], { cwd: workDir });
+    npm(['run', 'test:automation'], { cwd: workDir });
+    npm(['run', 'test:supervisor'], { cwd: workDir });
 
     const resolved = resolveCandidateReadOnly({
       dryRun,
