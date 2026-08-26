@@ -60,6 +60,25 @@ test('coordinator is dispatch-only and synthetic merge checkouts fetch parent hi
   assert.equal(mergeCheckouts.length, 2);
 });
 
+test('generator CI waits for a direct-child repair merge ref and still requires the exact head', () => {
+  const generator = workflow.slice(workflow.indexOf('  generator-ci:'), workflow.indexOf('  generator-ci-status:'));
+  const wait = generator.indexOf('if [ "$(git rev-parse HEAD^2)" != "$EXPECTED_SHA" ]');
+  const exactHead = generator.lastIndexOf('test "$(git rev-parse HEAD^2)" = "$EXPECTED_SHA"');
+  const ci = generator.indexOf('npm run test:automation');
+  const e2e = generator.indexOf('npm run test:e2e');
+  assert.ok(wait >= 0, 'generator-ci must wait when the merge ref is stale');
+  assert.ok(wait < exactHead, 'the wait must finish before the exact-head assertion');
+  assert.ok(exactHead < ci && ci < e2e, 'exact-head CI still runs after the merge ref is confirmed');
+  assert.match(generator, /git rev-parse "\$\{EXPECTED_SHA\}\^1"/);
+  assert.match(generator, /-ge 12/);
+  assert.match(generator, /sleep 10/);
+  assert.match(generator, /\+refs\/pull\/\$\{PR_NUMBER\}\/merge:refs\/pull\/\$\{PR_NUMBER\}\/merge/);
+  assert.match(generator, /refusing unrelated\/stale merge ref/);
+  assert.match(generator, /did not contain exact expected head/);
+  assert.doesNotMatch(generator, /path: trusted/);
+  assert.doesNotMatch(generator, /continue-on-error: true/);
+});
+
 test('news-pilot safety regressions gate generator and promotion CI', () => {
   const commands = workflow.match(/- run: npm run test:news-pilot/g) || [];
   assert.equal(commands.length, 2, 'generator and promotion CI must both run news safety tests');
