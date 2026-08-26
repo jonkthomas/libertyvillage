@@ -4,11 +4,16 @@
 # architecture: /tmp/lv-autonomous-live-content-architecture.md, sha256
 # 4704227a99b84089a7fead2ed39b2b605b884edf903d9d65261c930f78071758).
 #
-# SECOND EVAL-OWNER FREEZE: re-frozen after resolving all five mandatory
-# corrections of the independent (Codex) evaluator review. The file set grew by
-# fake-supervisor-protection.mjs, acceptance-scenario.mjs, and
-# acceptance-live-proof.mjs (spec file-budget splits); every file below is
-# eval-owned and FROZEN.
+# THIRD EVAL-OWNER FREEZE: re-frozen after resolving the two mandatory BLOCKs
+# of the independent (Codex) re-gate: (1) the live-proof parser now reads the
+# SDK's documented v3 session shape (role "toolResult" host results correlated
+# by toolCallId; arguments.post_json decoded to the candidate) with anchored,
+# never-bare acceptance; (2) liveGenerationChecks requires ALL FOUR resolved
+# provider/id/api/baseUrl fields present and exactly the approved route, bound
+# to child session evidence, and the report's production-dialect wording is
+# emitted only after that same proof. The file set grew by
+# local-acceptance-probes.eval.mjs (deterministic documented-shape parser
+# probes, positive and negative). Every file below is eval-owned and FROZEN.
 #
 # These files are FROZEN. The implementation builder must not edit, weaken,
 # delete, re-scope, or restage any of them. Maker != checker: any change to an
@@ -20,15 +25,16 @@
 #   shasum -a 256 -c evals/local-supervisor-acceptance.sha256
 #
 # Linux equivalent: sha256sum -c evals/local-supervisor-acceptance.sha256
-3e3b825d3a123f0348df27ebc619c14327742cd3c17b614768d76826512db4e7  tests/supervisor/local-acceptance.eval.mjs
-321951e34bdd04864f2dcee70004e2dc0b751b8b72900c085bce981befe7e279  tests/supervisor/local-acceptance-happy.eval.mjs
+8f680e404314b94e1e78ebfd288eec2f04ac5df6f4e2ddcda72d8c1da08a9c1a  tests/supervisor/local-acceptance.eval.mjs
+3b769455c8b4be73f022392acffbda1c6482230c7baaeabc695d04b90ae6b17e  tests/supervisor/local-acceptance-happy.eval.mjs
 3e5634cb3cc132ca81657f4f57550ecd4ac547b08e47c4b82e764771957ac98c  tests/supervisor/local-acceptance-mutations.eval.mjs
-16fa751169886ab2a6130a31464e37bc9947d4bf9259a131765cbea02a4152c1  tests/supervisor/local-acceptance-negatives.eval.mjs
+2497cd6b8e7b904c41c68c32e12cbef03cbb0eab18899f5a90b76396faa8bb68  tests/supervisor/local-acceptance-negatives.eval.mjs
 05a397d82a1cb2896d54b7d6911e82eac86932fa7a14a410e1c4c05165941ce7  tests/supervisor/local-acceptance-red.eval.mjs
 3d65dc05a93bd32a2701d6912d091d084f9ed283d8b30131ddeabbb0b6487d91  tests/supervisor/local-acceptance-live-ship.eval.mjs
+f19c739a3a588ade4c30fbd800cd4494304a0576c04a6a4c028f487a1ae2bf04  tests/supervisor/local-acceptance-probes.eval.mjs
 3b8a823051e5c3030f813272e9f9793ebbf2061ed6f9eab0d0bd164b654ea16a  tests/supervisor/helpers/fake-supervisor-github.mjs
 0551d756af55aa928ce5e871f6f77f1fca0e2386f7ff88f0ebfcc08665c65e18  tests/supervisor/helpers/fake-supervisor-protection.mjs
 b70ccd95ccd4a5514be2ee300b22f69243802287175462cb1a7fd2e3b371d51d  tests/supervisor/helpers/local-git-fixture.mjs
-2f78493356aa7611627468ab17562fed5e90a647b6e40bdcce4623cecf4349e5  tests/supervisor/helpers/acceptance-evidence.mjs
-239a15b54bd2ef19d85099d05737f85ccee08a8e7cc3c5276e617bffbc783f50  tests/supervisor/helpers/acceptance-scenario.mjs
-5c0a63cae47c7e17cd9a1570690c13752179ffc4cd388579a6edafb43da7de11  tests/supervisor/helpers/acceptance-live-proof.mjs
+483aacb667bf4ba8ecdb391267e824f4aec6cdbe8ffdad32b5c599e870b7b82f  tests/supervisor/helpers/acceptance-evidence.mjs
+604aed6a4abbca31f21d95d8aa539111c981e69763428d2006a2b03df8fa8a5e  tests/supervisor/helpers/acceptance-scenario.mjs
+b3168088694ff18d464c327cbb5f51f1a81fa656ad3c2e0537d6f81cd16ab3ce  tests/supervisor/helpers/acceptance-live-proof.mjs

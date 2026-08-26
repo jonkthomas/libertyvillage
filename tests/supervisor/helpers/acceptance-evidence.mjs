@@ -220,16 +220,24 @@ export function assertTrue(value, label) {
   return true;
 }
 
-export function renderReport({ outDir, sourceSha, resolvedRoute, phases, liveAttempts, redactions = [] }) {
+export function renderReport({ outDir, sourceSha, resolvedRoute, liveRouteProof, phases, liveAttempts, redactions = [] }) {
   fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
-  // The dialect sentence may claim the production API surface ONLY when the
-  // resolved live api was asserted to be openai-responses (E7); otherwise the
-  // report must use the drift wording.
-  const dialectLine = resolvedRoute?.api === 'openai-responses' ? REPORT_LANGUAGE.dialect : REPORT_LANGUAGE.dialectDrift;
+  // The production-dialect sentence may be emitted ONLY after the exact live
+  // proof: a VERIFIED child session whose resolved provider/id/api/baseUrl all
+  // equal the approved route with api openai-responses (the same four-field
+  // proof the B3/N5-live3 check enforces). An evaluator-side runtime probe or
+  // anything less uses the drift wording.
+  const proven = Boolean(liveRouteProof
+    && liveRouteProof.provider === APPROVED_LIVE_ROUTE.provider
+    && liveRouteProof.id === APPROVED_LIVE_ROUTE.model
+    && liveRouteProof.baseUrl === APPROVED_LIVE_ROUTE.baseUrl
+    && liveRouteProof.api === 'openai-responses');
+  const dialectLine = proven ? REPORT_LANGUAGE.dialect : REPORT_LANGUAGE.dialectDrift;
   const report = {
     generated_at: new Date().toISOString(),
     source_sha: sourceSha,
     resolved_route: resolvedRoute ?? null,
+    live_route_proof: liveRouteProof ?? null,
     language: { doubled: REPORT_LANGUAGE.doubled, dialect: dialectLine },
     live_attempts: liveAttempts,
     phases: phases.map((phase) => ({

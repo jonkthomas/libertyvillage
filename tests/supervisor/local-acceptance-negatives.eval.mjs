@@ -275,7 +275,7 @@ async function runN5(context) {
       assertTrue(!result.stdout.includes('PUBLISHED_MAIN:') && !result.stdout.includes('MERGED_STAGING:'), 'a success terminal was printed');
       return null;
     });
-    liveGenerationChecks({ scenario, runRow, stagingBefore: fixture.stagingSha, ch, prefix: 'N5-live' });
+    liveGenerationChecks({ scenario, runRow, stagingBefore: fixture.stagingSha, ch, prefix: 'N5-live', context });
     ch.check('N5-order', 'generation/lint preceded the data branch and dispatch; failed statuses were driven only after the host pinned the OPEN PR', () => {
       assertTrue(scenario.sessionFiles().length >= 1 && runRow.pi_session_file, 'no live session evidence');
       const types = sim.events.map((event) => event.type);

@@ -215,8 +215,10 @@ export function firstBlogImage(repoRoot) {
 // Shared structural live-generation verifier (happy path and serial N5): the
 // JSONL is parsed, the accepted submit_candidate is correlated by call ID to a
 // host tool result, and the accepted candidate bytes must equal the shipped
-// data-commit post. Substring evidence is never accepted.
-export function liveGenerationChecks({ scenario, runRow, stagingBefore, ch, prefix }) {
+// data-commit post. Substring evidence is never accepted. When `context` is
+// supplied, a fully verified route proof is recorded on it so the report's
+// production-dialect wording can be gated on this exact proof and nothing less.
+export function liveGenerationChecks({ scenario, runRow, stagingBefore, ch, prefix, context = null }) {
   const { prod, fixture } = scenario;
   let parsed = null;
   ch.check(`${prefix}1`, 'live Pi session JSONL exists under the scenario state root and matches the ledger', () => {
@@ -235,13 +237,20 @@ export function liveGenerationChecks({ scenario, runRow, stagingBefore, ch, pref
     if (parsed.active) assertEqual([...parsed.active].sort(), [...prod.PI_TOOL_ALLOWLIST].sort(), 'registered tool set');
     return { invoked: parsed.invoked, active: parsed.active, calls: parsed.callCount };
   });
-  ch.check(`${prefix}3`, 'session metadata identifies the resolved live route exactly (provider/id/api/baseUrl)', () => {
+  ch.check(`${prefix}3`, 'session evidence resolves ALL FOUR of provider/id/api/baseUrl, each exactly the approved route; a missing field fails, it is never skipped', () => {
     const meta = sessionModelMetadata(runRow.pi_session_file);
-    assertTrue(meta.provider === APPROVED_LIVE_ROUTE.provider, `session provider is ${meta.provider}, not ${APPROVED_LIVE_ROUTE.provider}`);
-    assertTrue(meta.id === APPROVED_LIVE_ROUTE.model, `session model id is ${meta.id}, not ${APPROVED_LIVE_ROUTE.model}`);
-    if (meta.api !== null) assertTrue(meta.api === APPROVED_LIVE_ROUTE.api, `session api is ${meta.api}, not ${APPROVED_LIVE_ROUTE.api}`);
-    if (meta.baseUrl !== null) assertTrue(meta.baseUrl === APPROVED_LIVE_ROUTE.baseUrl, `session baseUrl is ${meta.baseUrl}, not ${APPROVED_LIVE_ROUTE.baseUrl}`);
+    for (const [key, expected] of [
+      ['provider', APPROVED_LIVE_ROUTE.provider], ['id', APPROVED_LIVE_ROUTE.model],
+      ['api', APPROVED_LIVE_ROUTE.api], ['baseUrl', APPROVED_LIVE_ROUTE.baseUrl],
+    ]) {
+      assertTrue(meta[key] !== null, `child session/runtime evidence never records the resolved ${key}`);
+      assertTrue(meta[key] === expected, `session ${key} is ${meta[key]}, not ${expected}`);
+    }
+    assertTrue(meta.assistant, 'no assistant message in the live stream carries provider AND model AND api — the identity is not bound to the child model stream');
+    assertEqual(meta.assistant, { provider: APPROVED_LIVE_ROUTE.provider, id: APPROVED_LIVE_ROUTE.model, api: APPROVED_LIVE_ROUTE.api },
+      'assistant-stream model identity');
     assertTrue(!/https?:\/\/(127\.0\.0\.1|localhost)/i.test(String(meta.baseUrl)), 'session resolved a loopback model endpoint');
+    if (context) context.liveRouteProof = { provider: meta.provider, id: meta.id, api: meta.api, baseUrl: meta.baseUrl };
     return meta;
   });
   ch.check(`${prefix}4`, 'accepted candidate bytes: JSONL submission equals the shipped data-commit post; new vs staging baseline', () => {

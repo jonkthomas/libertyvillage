@@ -2,12 +2,12 @@
 // Local live-model supervisor acceptance gate — serial orchestrator.
 // Eval-owned; FROZEN by evals/local-supervisor-acceptance.sha256. Spec:
 // /tmp/lv-supervisor-local-acceptance-spec.md (sha256 3ed29573…).
-// Second eval-owner freeze: resolves all five mandatory Codex-review
-// corrections (external lifecycle+event order; executable C-N5/9/13/14;
-// structural live proof; closed loopholes; fail-closed cleanup).
-// Phase order: manifest → Design C static contracts → environment preflight →
-// live/negative/mutation/hitchhiker/RED scenarios. The static phase runs BEFORE
-// any credential or network use, so on a pre-Design-C tree (710ea82) this
+// Third eval-owner freeze: documented-v3 structural parser probes plus the
+// mandatory four-field live-route binding (Codex re-gate corrections).
+// Phase order: manifest → deterministic parser probes → Design C static
+// contracts → environment preflight → live/negative/mutation/hitchhiker/RED
+// scenarios. Manifest/probe/static phases run BEFORE any credential or
+// network use, so on a pre-Design-C tree (710ea82) this
 // evaluator is RED — missing PUBLISHED_MAIN terminal, blog-live kind (C-N1
 // lane), production Vercel wait (C-N13), PR-shaped sync (C-N14) — without
 // spending a model token. Success requires every phase to pass.
@@ -21,6 +21,7 @@ import {
   APPROVED_LIVE_ROUTE, Checks, assertLiveRoute, assertTrue, renderReport,
   scanForLiteral, shredFile,
 } from './helpers/acceptance-evidence.mjs';
+import { parserProbePhase } from './local-acceptance-probes.eval.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MANIFEST = path.join(REPO_ROOT, 'evals/local-supervisor-acceptance.sha256');
@@ -31,6 +32,7 @@ export const EVAL_OWNED_PATHS = Object.freeze([
   'tests/supervisor/local-acceptance-negatives.eval.mjs',
   'tests/supervisor/local-acceptance-red.eval.mjs',
   'tests/supervisor/local-acceptance-live-ship.eval.mjs',
+  'tests/supervisor/local-acceptance-probes.eval.mjs',
   'tests/supervisor/helpers/fake-supervisor-github.mjs',
   'tests/supervisor/helpers/fake-supervisor-protection.mjs',
   'tests/supervisor/helpers/local-git-fixture.mjs',
@@ -67,8 +69,7 @@ function manifestPhase() {
 }
 
 // Design C static contracts: production modules are imported and CALLED, so a
-// missing kind/terminal/enable-switch fails at a real function boundary, not by
-// prose inspection. Each failure names the spec anchor it blocks.
+// missing kind/terminal/switch fails at a real function boundary, not prose.
 async function staticPhase() {
   const ch = new Checks('design-c-static');
   let constants = null;
@@ -304,7 +305,7 @@ async function main() {
   fs.chmodSync(reportDir, 0o700);
   const context = {
     repoRoot: REPO_ROOT, sourceSha, tmpBase, reportDir, only,
-    npmCache: path.join(tmpBase, 'npm-cache'), resolvedRoute: null,
+    npmCache: path.join(tmpBase, 'npm-cache'), resolvedRoute: null, liveRouteProof: null,
     budget: createLiveBudget(), phases: [], live: new Set(),
   };
   fs.mkdirSync(context.npmCache, { recursive: true, mode: 0o700 });
@@ -316,15 +317,14 @@ async function main() {
     return checks.ok;
   };
   let ok = false;
-  // Top-level fail-closed finally: a thrown suite/report failure can never
-  // leave roots, servers, or children; the residue proof enters the report.
+  // Top-level fail-closed finally: crashes never leave roots/servers/children.
   try {
     ok = push(manifestPhase());
+    ok = push(parserProbePhase()) && ok;
     const staticOk = push(await staticPhase());
     ok = ok && staticOk;
     if (!staticOk) {
-      console.error('\nRED: Design C static contracts failed on this tree — the blog-live lane, PUBLISHED_MAIN terminal, '
-        + 'production Vercel wait, or PR-shaped sync is missing (happy path, C-N1, C-N13, C-N14). No model token was spent.');
+      console.error('\nRED: Design C static contracts failed on this tree — the blog-live lane, PUBLISHED_MAIN terminal, production Vercel wait, or PR-shaped sync is missing (happy path, C-N1, C-N13, C-N14). No model token was spent.');
     } else {
       const envOk = push(await environmentPhase(context));
       ok = ok && envOk;
@@ -377,7 +377,7 @@ async function main() {
     ok = push(cleanup) && ok;
     const { jsonPath, mdPath } = renderReport({
       outDir: reportDir, sourceSha, resolvedRoute: context.resolvedRoute,
-      phases: context.phases, liveAttempts: context.budget.log,
+      liveRouteProof: context.liveRouteProof, phases: context.phases, liveAttempts: context.budget.log,
       redactions: [process.env.PI_API_KEY],
     });
     const reportHits = scanForLiteral({ files: [jsonPath, mdPath], literal: process.env.PI_API_KEY });

@@ -278,7 +278,7 @@ export async function run(context) {
       assertTrue(match && runRow && match[1] === runRow.run_id, 'stdout run id does not match the ledger row');
       return match[1];
     });
-    liveGenerationChecks({ scenario, runRow, stagingBefore: ev.stagingBefore, ch, prefix: 'B' });
+    liveGenerationChecks({ scenario, runRow, stagingBefore: ev.stagingBefore, ch, prefix: 'B', context });
     ch.check('B6', 'submitted candidate also matches the PR head post byte-for-byte', () => {
       const headPosts = JSON.parse(fixture.show(ev.contentPr.headSha, 'data/posts.json'));
       const shipped = JSON.parse(fixture.show(runRow.data_sha, 'data/posts.json'));
