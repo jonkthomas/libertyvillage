@@ -14,6 +14,7 @@ import { lostDispatchRetry, mayRepin, MONITOR_LIMIT_MS, terminalFromObservation 
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const COMMAND_OUTPUT_LIMIT = 8 * 1024;
+export const OUTCOME_REASON_LIMIT = 512;
 
 function boundedCommandOutput(value) {
   const output = Buffer.isBuffer(value) ? value.toString('utf8') : String(value ?? '');
@@ -22,6 +23,15 @@ function boundedCommandOutput(value) {
   if (trimmed.length <= COMMAND_OUTPUT_LIMIT) return trimmed;
   const omitted = trimmed.length - COMMAND_OUTPUT_LIMIT;
   return `<${omitted} characters omitted; showing tail>\n${trimmed.slice(-COMMAND_OUTPUT_LIMIT)}`;
+}
+
+export function boundedOutcomeReason(value) {
+  const singleLine = String(value ?? '').replace(/\p{C}+/gu, ' ').replace(/\s+/gu, ' ').trim();
+  if (!singleLine) return '<empty>';
+  const characters = [...singleLine];
+  if (characters.length <= OUTCOME_REASON_LIMIT) return singleLine;
+  const suffix = ' …[truncated]';
+  return `${characters.slice(0, OUTCOME_REASON_LIMIT - [...suffix].length).join('').trimEnd()}${suffix}`;
 }
 
 export function runCommand(file, args, options = {}) {
@@ -98,7 +108,7 @@ export function recordSupervisorOutcome({ repoRoot, repo, runId, topicKey, termi
   if (!runId || !topicKey) throw new Error('candidate outcome requires exact run and topic keys');
   return coordinatorFn(repoRoot, [
     'record-candidate-outcome', '--kind', 'blog', '--outcome', terminal,
-    '--key', runId, '--topic-key', topicKey, '--reason', reason || terminal,
+    '--key', runId, '--topic-key', topicKey, '--reason', boundedOutcomeReason(reason || terminal),
   ], { repo });
 }
 
@@ -210,7 +220,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
         }
         writeCandidateArtifact({ postsFile: path.join(workDir, 'data/posts.json'), post });
         await onUpdate({ state: 'LINT', pi_session_file: sessionFile });
-        command(process.execPath, [path.join(repoRoot, 'scripts/blog-lint.mjs'), '--posts', path.join(workDir, 'data/posts.json'), '--businesses', path.join(workDir, 'data/businesses.json')], { cwd: repoRoot });
+        command(process.execPath, [path.join(repoRoot, 'scripts/blog-lint.mjs'), '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'], { cwd: workDir });
       },
       publish: async () => {
         await onUpdate({ state: 'PUSH_DATA_BRANCH' });

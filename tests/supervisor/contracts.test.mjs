@@ -6,8 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validateIngestDiff, validateIngestPayload } from '../../scripts/supervisor/ingest-contract.mjs';
 import {
-  boundedCandidateFlow, COMMAND_OUTPUT_LIMIT, readSelectedTopic, recordSupervisorOutcome, resolveCandidateReadOnly,
-  resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
+  boundedCandidateFlow, COMMAND_OUTPUT_LIMIT, OUTCOME_REASON_LIMIT, readSelectedTopic, recordSupervisorOutcome,
+  resolveCandidateReadOnly, resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
 } from '../../scripts/supervisor/host-run.mjs';
 import {
   buildGeneratorPrompt, createConstrainedTools, createPersistentSessionManager, PI_SDK_VERSION, PI_TOOL_ALLOWLIST,
@@ -65,8 +65,44 @@ test('supervisor baseline is staging-based and data branches are bounded and cle
   assert.match(host, /cleanupDataBranch\(repoRoot, dataBranch\)/);
   assert.match(host, /contextFiles:\s*\[\s*'data\/topic-queue\.json',\s*'data\/businesses\.json',\s*'data\/posts\.json',\s*'scripts\/prompts\/sections\/03-blog-generation\.md'/,
     'generation must receive the trusted queue and canonical local context');
+  assert.match(host, /path\.join\(repoRoot, 'scripts\/blog-lint\.mjs'\), '--posts', 'data\/posts\.json', '--businesses', 'data\/businesses\.json'\], \{ cwd: workDir \}/,
+    'the trusted main linter must resolve the staging worktree HEAD and relative data paths');
   assert.doesNotMatch(host, /LV_SEO_CONTEXT|LV_SEO_PREFETCH_COMMAND|LV_GCP_CREDENTIALS_PATH|seo-data-latest|refresh-seo/);
   assert.doesNotMatch(host, /trusted_main_sha/);
+});
+
+test('relative lint data paths compare only the staging worktree candidate against HEAD', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-lint-baseline-'));
+  const data = path.join(directory, 'data');
+  fs.mkdirSync(data);
+  const historical = {
+    slug: 'historical-post', title: 'Historical post',
+    content: '**Not In Records Cafe** is the neighbourhood favourite.',
+  };
+  const candidate = { slug: 'candidate-post', title: 'Candidate post', content: 'A plain neighbourhood guide.' };
+  fs.writeFileSync(path.join(data, 'posts.json'), JSON.stringify([historical]));
+  fs.writeFileSync(path.join(data, 'businesses.json'), '[]');
+  execFileSync('git', ['init', '--initial-branch=staging'], { cwd: directory });
+  execFileSync('git', ['config', 'user.name', 'Lint Test'], { cwd: directory });
+  execFileSync('git', ['config', 'user.email', 'lint@example.test'], { cwd: directory });
+  execFileSync('git', ['add', 'data/posts.json', 'data/businesses.json'], { cwd: directory });
+  execFileSync('git', ['commit', '-m', 'baseline'], { cwd: directory });
+  fs.writeFileSync(path.join(data, 'posts.json'), JSON.stringify([historical, candidate]));
+
+  const script = path.resolve('scripts/blog-lint.mjs');
+  const relative = execFileSync(process.execPath, [script, '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'], {
+    cwd: directory, encoding: 'utf8',
+  });
+  assert.match(relative, /blog-lint candidate-post: clean/);
+  assert.doesNotMatch(relative, /historical-post/);
+
+  assert.throws(() => execFileSync(process.execPath, [
+    script, '--posts', path.join(data, 'posts.json'), '--businesses', path.join(data, 'businesses.json'),
+  ], { cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }), (error) => {
+    assert.match(error.stdout, /No HEAD baseline for .*data\/posts\.json; linting every post/);
+    assert.match(error.stdout, /blog-lint historical-post: 1 finding\(s\)/);
+    return true;
+  });
 });
 
 test('supervisor command failures preserve bounded stdout and stderr diagnostics', () => {
@@ -333,6 +369,22 @@ test('durable outcome command carries exact idempotency and topic keys', () => {
     'record-candidate-outcome', '--kind', 'blog', '--outcome', 'DISCARDED_PRE_PR',
     '--key', 'run-exact', '--topic-key', 'topic-exact', '--reason', 'lint',
   ], { repo: 'owner/repo' }]);
+});
+
+test('durable outcome command adapts rich diagnostics to bounded single-line GitHub output', () => {
+  let invocation;
+  const diagnostic = `supervisor command failed (exit 1): node blog-lint\nstdout:\n${'finding '.repeat(100)}\u0000\nstderr:\nfinal detail`;
+  recordSupervisorOutcome({
+    repoRoot: '/repo', repo: 'owner/repo', runId: 'run-multiline', topicKey: 'topic-multiline',
+    terminal: 'DISCARDED_PRE_PR', reason: diagnostic,
+  }, (...args) => { invocation = args; return {}; });
+  const args = invocation[1];
+  const reason = args[args.indexOf('--reason') + 1];
+  assert.equal(reason.includes('supervisor command failed (exit 1)'), true);
+  assert.equal(/[\p{C}\r\n\u2028\u2029]/u.test(reason), false);
+  assert.ok([...reason].length <= OUTCOME_REASON_LIMIT);
+  assert.match(reason, /…\[truncated\]$/);
+  assert.match(diagnostic, /\nstdout:\n/, 'the original ledger/journal diagnostic remains rich and unchanged');
 });
 
 test('bounded candidate flow lints before its single publish path', async () => {
