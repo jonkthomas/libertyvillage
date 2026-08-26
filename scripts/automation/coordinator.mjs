@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   ABANDONED_LABEL, ALLOW_RECORD_DELETION_LABEL, BLOCKED_LABEL, BLOCKING_SEVERITIES, FIXER_MODEL, GATE_MODEL,
-  KIND_POLICIES, MAX_HEALS, MAX_REPAIRS, STATUS_CONTEXTS, TRUSTED_PR_AUTHORS,
+  KIND_POLICIES, MAX_HEALS, MAX_REPAIRS, TRUSTED_PR_AUTHORS,
 } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
 import {
@@ -27,6 +27,9 @@ import {
   applyRecordRepairPlan, isRecordFile, isRecordRepairPlan, partitionRepairFiles, readRecordFile,
 } from './record-repair.mjs';
 import { promotionEnabled } from './promotion-control.mjs';
+import { publishStatus } from './statuses.mjs';
+// The delegated runtime owns the exact-merge `sync/main-<sha>` branch lifecycle.
+import { observeAndSyncStaging, waitForBlogLiveHeadStatuses } from './content-sync.mjs';
 
 function parseArgs() {
   const values = {};
@@ -91,9 +94,12 @@ async function validatePr(options) {
     repository: options.repo, kind: options.kind, expectedSha: options.sha, pr, files, sources,
   });
   if (!result.ok) throw new Error(`pull request rejected: ${result.errors.join('; ')}`);
+  const main = await github(`/repos/${options.repo}/branches/main`);
+  if (!isExactSha(main?.commit?.sha)) throw new Error('main head is not an exact SHA');
   writeOutput({
     trusted: 'true', pr_number: pr.number, head_sha: pr.head.sha, head_ref: pr.head.ref,
-    base_ref: pr.base.ref, attempt: result.attempt, can_repair: result.attempt < MAX_REPAIRS ? 'true' : 'false',
+    base_ref: pr.base.ref, main_sha: main.commit.sha,
+    attempt: result.attempt, can_repair: result.attempt < MAX_REPAIRS ? 'true' : 'false',
     heal_attempt: result.healAttempt, can_heal: canHeal(result.healAttempt) ? 'true' : 'false',
     files: files.length,
     record_deletion_overridden: result.destructiveOverridden ? 'true' : 'false',
@@ -140,17 +146,6 @@ async function preparePromotion(options) {
   if (pr.head.sha !== options.sha) throw new Error('promotion PR head is stale after creation/reuse');
   writeOutput({ pr_number: pr.number, head_sha: pr.head.sha, created: existing[0] ? 'false' : 'true' });
   console.log(`${existing[0] ? 'Reused' : 'Created'} promotion PR #${pr.number} at ${pr.head.sha}.`);
-}
-
-async function publishStatus(options) {
-  requireOptions(options, ['repo', 'sha', 'context', 'state', 'description']);
-  if (!isExactSha(options.sha)) throw new Error('status SHA is invalid');
-  if (!Object.values(STATUS_CONTEXTS).includes(options.context)) throw new Error('status context is not controlled');
-  if (!['pending', 'success', 'failure', 'error'].includes(options.state)) throw new Error('invalid status state');
-  await github(`/repos/${options.repo}/statuses/${options.sha}`, {
-    method: 'POST', body: { state: options.state, context: options.context, description: options.description.slice(0, 140) },
-  });
-  console.log(`Published ${options.context}=${options.state} on ${options.sha}.`);
 }
 
 async function createLabel(repo, name, color, description) {
@@ -630,7 +625,7 @@ async function recordCandidateOutcome(options) {
   const topic = options['topic-key'] || options.topicKey
     || selectEligibleTopic({ queue, state, kind, now: new Date() })?.key
     || null;
-  const reason = `${options.outcome}: ${options.reason || 'bounded candidate failed before a pull request existed'}`;
+  const reason = options.reason || 'bounded candidate failed before a pull request existed';
   const eventKey = `${kind}:${options.key}`;
 
   if (topic) {
@@ -639,13 +634,13 @@ async function recordCandidateOutcome(options) {
     });
     const recorded = await recordCandidateEvent(options.repo, kind, {
       key: eventKey, action: preview.action, at: new Date().toISOString(), reason,
-      topicKey: topic, queue: preview.queue,
+      topicKey: topic, queue: preview.queue, outcome: options.outcome,
     });
     writeOutput({
       kind, action: preview.action, recorded: recorded.changed ? 'true' : 'false',
       regenerations: recorded.state.topics?.[topic]?.regenerations ?? recorded.state.regenerations,
       abandoned: recorded.state.abandoned ? 'true' : 'false',
-      topic_key: topic, state_issue: recorded.issue?.number ?? issue?.number ?? '', reason,
+      topic_key: topic, state_issue: recorded.issue?.number ?? issue?.number ?? '',
     });
     console.log(recorded.changed
       ? `Recorded ${options.outcome} for ${kind} topic ${topic}: ${preview.action}, ladder now ${recorded.state.topics?.[topic]?.regenerations ?? recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`
@@ -657,11 +652,12 @@ async function recordCandidateOutcome(options) {
   const ladder = recordCandidateFailure({ regenerations: state.regenerations });
   const recorded = await recordCandidateEvent(options.repo, kind, {
     key: eventKey, action: ladder.action, at: new Date().toISOString(), reason,
+    outcome: options.outcome,
   });
   writeOutput({
     kind, action: ladder.action, recorded: recorded.changed ? 'true' : 'false',
     regenerations: recorded.state.regenerations, abandoned: recorded.state.abandoned ? 'true' : 'false',
-    topic_key: '', state_issue: recorded.issue?.number ?? '', reason,
+    topic_key: '', state_issue: recorded.issue?.number ?? '',
   });
   console.log(recorded.changed
     ? `Recorded ${options.outcome} for ${kind}: ${ladder.action}, ladder now ${recorded.state.regenerations}/${MAX_CANDIDATE_REGENERATIONS}`
@@ -742,17 +738,23 @@ async function refreshGeneratorBase(options) {
   });
   if (!trusted.ok) throw new Error(`pull request rejected before base refresh: ${trusted.errors.join('; ')}`);
 
-  const staging = await github(`/repos/${options.repo}/branches/staging`);
-  const comparison = await github(`/repos/${options.repo}/compare/${options.sha}...${staging.commit.sha}`);
+  const policy = KIND_POLICIES[options.kind];
+  const baseRef = policy?.base;
+  if (!baseRef) throw new Error(`unknown generator kind: ${options.kind}`);
+  if (options.kind === 'blog-live' && baseRef !== 'main') {
+    throw new Error('blog-live refresh refused: incoming base must be main, never staging');
+  }
+  const incoming = await github(`/repos/${options.repo}/branches/${baseRef}`);
+  const comparison = await github(`/repos/${options.repo}/compare/${options.sha}...${incoming.commit.sha}`);
   const decision = evaluateGeneratorBase({
-    expectedSha: options.sha, prHeadSha: pr.head.sha, stagingSha: staging.commit.sha,
-    stagingAheadBy: comparison.ahead_by,
+    expectedSha: options.sha, prHeadSha: pr.head.sha, stagingSha: incoming.commit.sha,
+    stagingAheadBy: comparison.ahead_by, baseSha: incoming.commit.sha, baseAheadBy: comparison.ahead_by,
   });
   if (decision === 'continue') {
     const current = await github(`/repos/${options.repo}/pulls/${options.pr}`);
     assertSamePrIdentity(pr, current, options.sha, options.repo);
     writeOutput({ refreshed: 'false', head_sha: options.sha });
-    console.log(`PR #${pr.number} already contains current staging base ${staging.commit.sha}.`);
+    console.log(`PR #${pr.number} already contains current ${baseRef} base ${incoming.commit.sha}.`);
     return;
   }
 
@@ -776,7 +778,7 @@ async function refreshGeneratorBase(options) {
     const commit = await github(`/repos/${options.repo}/git/commits/${current.head.sha}`);
     if (
       commit.sha !== current.head.sha || commit.parents?.length !== 2
-      || commit.parents[0]?.sha !== options.sha || commit.parents[1]?.sha !== staging.commit.sha
+      || commit.parents[0]?.sha !== options.sha || commit.parents[1]?.sha !== incoming.commit.sha
     ) throw new Error('PR head changed unexpectedly during base refresh');
 
     await dispatch({ repo: options.repo, pr: options.pr, kind: options.kind, sha: current.head.sha });
@@ -820,26 +822,32 @@ async function healGeneratorBase(options) {
   if (!trusted.ok) throw new Error(`pull request rejected before base heal: ${trusted.errors.join('; ')}`);
   if (!canHeal(trusted.healAttempt)) throw new Error(`base heal budget exhausted: ${trusted.healAttempt}/${MAX_HEALS}`);
 
-  const staging = await github(`/repos/${options.repo}/branches/staging`);
-  const stagingSha = staging?.commit?.sha;
-  if (!isExactSha(stagingSha)) throw new Error('staging head is not an exact SHA');
-  git(['fetch', '--no-tags', 'origin', '+refs/heads/staging:refs/remotes/origin/staging'], { stdio: 'ignore' });
-  if (git(['rev-parse', 'refs/remotes/origin/staging']).trim() !== stagingSha) {
-    throw new Error('fetched staging head does not match the live staging head');
+  const policy = KIND_POLICIES[options.kind];
+  const baseRef = policy?.base;
+  if (!baseRef) throw new Error(`unknown generator kind: ${options.kind}`);
+  if (options.kind === 'blog-live' && baseRef !== 'main') {
+    throw new Error('blog-live heal refused: incoming base must be main, never origin/staging');
   }
-  let containsStaging = true;
-  try { git(['merge-base', '--is-ancestor', stagingSha, options.sha], { stdio: 'ignore' }); }
-  catch { containsStaging = false; }
-  if (containsStaging) {
-    writeOutput({ healed: 'false', reason: 'current-base', staging_sha: stagingSha });
-    console.log(`PR #${pr.number} already contains current staging ${stagingSha}; no base heal applies.`);
+  const incoming = await github(`/repos/${options.repo}/branches/${baseRef}`);
+  const incomingSha = incoming?.commit?.sha;
+  if (!isExactSha(incomingSha)) throw new Error(`${baseRef} head is not an exact SHA`);
+  git(['fetch', '--no-tags', 'origin', `+refs/heads/${baseRef}:refs/remotes/origin/${baseRef}`], { stdio: 'ignore' });
+  if (git(['rev-parse', `refs/remotes/origin/${baseRef}`]).trim() !== incomingSha) {
+    throw new Error(`fetched ${baseRef} head does not match the live ${baseRef} head`);
+  }
+  let containsBase = true;
+  try { git(['merge-base', '--is-ancestor', incomingSha, options.sha], { stdio: 'ignore' }); }
+  catch { containsBase = false; }
+  if (containsBase) {
+    writeOutput({ healed: 'false', reason: 'current-base', staging_sha: incomingSha, base_sha: incomingSha });
+    console.log(`PR #${pr.number} already contains current ${baseRef} ${incomingSha}; no base heal applies.`);
     return;
   }
 
   let conflicted = [];
   let mergeError = null;
   try {
-    git(['merge', '--no-commit', '--no-ff', '--no-verify', stagingSha], { stdio: 'pipe' });
+    git(['merge', '--no-commit', '--no-ff', '--no-verify', incomingSha], { stdio: 'pipe' });
   } catch (error) {
     mergeError = error;
     conflicted = conflictedFiles();
@@ -847,8 +855,8 @@ async function healGeneratorBase(options) {
   if (conflicted.length === 0) {
     try { git(['merge', '--abort'], { stdio: 'ignore' }); } catch { /* nothing staged to abort */ }
     if (mergeError) throw new Error(`merge failed without a resolvable conflict: ${String(mergeError.stderr || mergeError.message).trim().slice(0, 200)}`);
-    writeOutput({ healed: 'false', reason: 'clean-merge', staging_sha: stagingSha });
-    console.log(`Staging ${stagingSha} merges cleanly into PR #${pr.number}; no base heal applies.`);
+    writeOutput({ healed: 'false', reason: 'clean-merge', staging_sha: incomingSha, base_sha: incomingSha });
+    console.log(`${baseRef} ${incomingSha} merges cleanly into PR #${pr.number}; no base heal applies.`);
     return;
   }
 
@@ -871,27 +879,40 @@ async function healGeneratorBase(options) {
 
   git([
     '-c', 'user.name=LV Automation Healer', '-c', 'user.email=noreply@libertyvillage.co',
-    'commit', '--no-verify', '-m', `automation: heal generator base conflict with staging (heal ${trusted.healAttempt + 1})`,
+    'commit', '--no-verify', '-m', `automation: heal generator base conflict with ${baseRef} (heal ${trusted.healAttempt + 1})`,
   ], { stdio: 'pipe' });
   const newSha = git(['rev-parse', 'HEAD']).trim();
   const parents = git(['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ');
-  if (parents.length !== 3 || parents[1] !== options.sha || parents[2] !== stagingSha) {
-    throw new Error('healed commit is not an exact merge of the validated head and staging');
+  if (parents.length !== 3 || parents[1] !== options.sha || parents[2] !== incomingSha) {
+    throw new Error(`healed commit is not an exact merge of the validated head and ${baseRef}`);
   }
-  const changed = git(['diff', '--name-only', `${stagingSha}..HEAD`]).trim().split('\n').filter(Boolean);
+  if (options.kind === 'blog-live') {
+    let stagingMergedIn = false;
+    try {
+      git(['fetch', '--no-tags', 'origin', '+refs/heads/staging:refs/remotes/origin/staging'], { stdio: 'ignore' });
+      const liveStaging = git(['rev-parse', 'refs/remotes/origin/staging']).trim();
+      git(['merge-base', '--is-ancestor', liveStaging, newSha], { stdio: 'ignore' });
+      stagingMergedIn = true;
+    } catch { stagingMergedIn = false; }
+    if (stagingMergedIn) throw new Error('heal merged origin/staging into a blog-live head');
+  }
+  const changed = git(['diff', '--name-only', `${incomingSha}..HEAD`]).trim().split('\n').filter(Boolean);
   const paths = validatePaths(options.kind, changed);
   if (!paths.ok) throw new Error(`healed tree is outside policy: ${paths.errors.join('; ')}`);
 
   writeOutput({
-    healed: 'true', new_sha: newSha, staging_sha: stagingSha,
+    healed: 'true', new_sha: newSha, staging_sha: incomingSha, base_sha: incomingSha,
     next_heal: trusted.healAttempt + 1, resolved_files: resolutions.length,
   });
   const summary = resolutions.map((result) => `${result.file} [+${result.appendedSlugs.join(', ')}]`).join('; ');
-  console.log(`Healed PR #${pr.number} base against staging ${stagingSha} as ${newSha} (${summary}).`);
+  console.log(`Healed PR #${pr.number} base against ${baseRef} ${incomingSha} as ${newSha} (${summary}).`);
 }
 
 async function observeAndPromote(options) {
   requireOptions(options, ['repo', 'pr', 'sha']);
+  if (options.kind === 'blog-live') {
+    throw new Error('observe-and-promote refused: blog-live PRs must use observe-and-sync-staging');
+  }
   if (!promotionEnabled()) {
     writeOutput({ observed: 'pilot-no-promote', promotion_dispatched: 'false' });
     console.log('Staging merge observation completed with promotion disabled for the supervisor pilot.');
@@ -923,6 +944,7 @@ const commands = {
   'validate-pr': validatePr, 'validate-promotion': validatePromotion, 'prepare-promotion': preparePromotion,
   status: publishStatus, audit, 'apply-fix': applyFix, 'set-attempt': setAttempt, dispatch,
   'refresh-generator-base': refreshGeneratorBase, 'observe-and-promote': observeAndPromote,
+  'wait-for-blog-live-head': waitForBlogLiveHeadStatuses, 'observe-and-sync-staging': observeAndSyncStaging,
   'heal-generator-base': healGeneratorBase, 'set-heal': setHeal,
   recover, 'read-attempt': readAttempt, 'plan-candidate': planCandidate, 'mark-regeneration': markRegeneration,
   'record-candidate-outcome': recordCandidateOutcome, 'resolve-topic': resolveTopic,

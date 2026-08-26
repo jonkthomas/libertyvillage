@@ -41,6 +41,24 @@ export function isForbiddenPath(file) {
   return FORBIDDEN_PATHS.includes(normalized) || FORBIDDEN_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
+const BLOG_LIVE_PARITY_PATHS = Object.freeze(['data/posts.json', 'public/images/blog/']);
+
+export function blogLiveParityPaths() {
+  return BLOG_LIVE_PARITY_PATHS;
+}
+
+export function validateContentTreeParity(files) {
+  if (!Array.isArray(files)) return { ok: false, errors: ['two-dot blog-path file list is required'] };
+  if (files.length === 0) return { ok: true, errors: [] };
+  return { ok: false, errors: [`two-dot blog-path diff is non-empty: ${files.join(', ')}`] };
+}
+
+export function validateSyncDelta(files) {
+  if (!Array.isArray(files)) return { ok: false, errors: ['sync delta file list is required'] };
+  if (files.length === 0) return { ok: true, errors: [] };
+  return validatePaths('blog-live', files);
+}
+
 export function validatePaths(kind, files, { repair = false } = {}) {
   const policy = KIND_POLICIES[kind];
   if (!policy) return { ok: false, errors: [`unknown generator kind: ${kind}`] };
@@ -290,11 +308,15 @@ export function validatePromotionRange({ expectedSha, stagingSha, mainSha, ahead
   return { ok: errors.length === 0, errors, noChanges: errors.length === 0 && aheadBy === 0, range: `${mainSha}...${stagingSha}` };
 }
 
-export function evaluateGeneratorBase({ expectedSha, prHeadSha, stagingSha, stagingAheadBy }) {
+export function evaluateGeneratorBase({
+  expectedSha, prHeadSha, stagingSha, stagingAheadBy, baseSha, baseAheadBy,
+}) {
+  const incomingSha = baseSha ?? stagingSha;
+  const aheadBy = baseAheadBy ?? stagingAheadBy;
   if (!isExactSha(expectedSha) || prHeadSha !== expectedSha) throw new Error('PR head changed before base refresh');
-  if (!isExactSha(stagingSha)) throw new Error('staging head is not an exact SHA');
-  if (!Number.isInteger(stagingAheadBy) || stagingAheadBy < 0) throw new Error('invalid staging comparison');
-  return stagingAheadBy > 0 ? 'refresh' : 'continue';
+  if (!isExactSha(incomingSha)) throw new Error('incoming base head is not an exact SHA');
+  if (!Number.isInteger(aheadBy) || aheadBy < 0) throw new Error('invalid base comparison');
+  return aheadBy > 0 ? 'refresh' : 'continue';
 }
 
 export function evaluateObservedMerge({ pr, expectedSha, stagingSha }) {

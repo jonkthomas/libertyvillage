@@ -12,6 +12,7 @@ const sentinel = fs.readFileSync(new URL('../../.github/workflows/blocked-sentin
 const sentinelScript = fs.readFileSync(new URL('../../scripts/automation/blocked-sentinel.mjs', import.meta.url), 'utf8');
 const reviewAgent = fs.readFileSync(new URL('../../scripts/automation/review-agent.mjs', import.meta.url), 'utf8');
 const coordinator = fs.readFileSync(new URL('../../scripts/automation/coordinator.mjs', import.meta.url), 'utf8');
+const contentSync = fs.readFileSync(new URL('../../scripts/automation/content-sync.mjs', import.meta.url), 'utf8');
 const preflight = fs.readFileSync(new URL('../../scripts/automation/news-preflight.mjs', import.meta.url), 'utf8');
 const WORKFLOWS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.github/workflows');
 
@@ -104,7 +105,7 @@ test('disabled promotion control makes every downstream pass step unreachable', 
 });
 
 test('every autonomous generator kind has an independent review lens', () => {
-  for (const kind of ['seo', 'blog', 'news', 'business', 'topic-discovery', 'promotion']) {
+  for (const kind of ['seo', 'blog', 'blog-live', 'news', 'business', 'topic-discovery', 'promotion']) {
     assert.match(reviewAgent, new RegExp(`\\n  ['"]?${kind}['"]?: \\[`), `missing ${kind} review lens`);
   }
   assert.match(reviewAgent, /Liberty Township/);
@@ -123,10 +124,6 @@ test('every workflow that opens a staging PR explicitly dispatches a matching co
     'weekly-blog.yml': {
       kind: 'blog', prefix: 'blog/auto-', paths: ['data/posts.json', 'public/images/blog/example.jpg'],
       stage: 'git add data/posts.json "public/images/blog/"',
-    },
-    'supervisor-ingest.yml': {
-      kind: 'blog', prefix: 'blog/auto-', paths: ['data/posts.json', 'public/images/blog/example.jpg'],
-      stage: 'git add data/posts.json public/images/blog/',
     },
     'weekly-seo-improvements.yml': {
       kind: 'seo', prefix: 'seo/auto-',
@@ -165,6 +162,23 @@ test('every workflow that opens a staging PR explicitly dispatches a matching co
         `${file}: contract does not exercise allowed path ${allowed}`);
     }
   }
+});
+
+test('supervisor ingest transplants onto main as blog-live and never opens a staging PR', () => {
+  const ingest = fs.readFileSync(path.join(WORKFLOWS, 'supervisor-ingest.yml'), 'utf8');
+  assert.match(ingest, /gh pr create --base main/);
+  assert.doesNotMatch(ingest, /gh pr create --base staging/);
+  assert.match(ingest, /git checkout -B "blog\/auto-supervisor-\$\{DATA_SHA:0:12\}" origin\/main/);
+  assert.match(ingest, /--kind blog-live/);
+  assert.doesNotMatch(ingest, /--kind blog(?: |$)/);
+  assert.match(ingest, /validatePaths\('blog-live'/);
+  assert.match(ingest, /promotion-control\.mjs --content-ship/);
+  assert.match(ingest, /merge-base --is-ancestor origin\/main origin\/staging/);
+  assert.doesNotMatch(ingest, /git push origin (staging|main)\b/);
+  assert.match(workflow, /content-main/);
+  assert.match(workflow, /observe-and-sync-staging/);
+  assert.match(contentSync, /sync\/main-/);
+  assert.doesNotMatch(coordinator + contentSync, /git push origin (staging|main)\b/);
 });
 
 test('preflight reuses canonical models and content commands avoid GitHub APIs', () => {
@@ -254,6 +268,7 @@ test('generator pass refreshes after audit and skips auto-merge and observation 
   const observe = passJob.indexOf('coordinator.mjs observe-and-promote');
   assert.ok(audit >= 0 && audit < refresh, 'base refresh must follow exact-SHA audit');
   assert.ok(refresh < autoMerge && autoMerge < observe, 'refresh must precede merge and observation');
-  assert.equal((passJob.match(/if: \$\{\{ steps\.refresh\.outputs\.refreshed != 'true' \}\}/g) || []).length, 2);
-  assert.doesNotMatch(passJob.slice(0, refresh), /gh pr merge|observe-and-promote/);
+  assert.match(passJob, /observe-and-sync-staging/);
+  assert.equal((passJob.match(/steps\.refresh\.outputs\.refreshed != 'true'/g) || []).length, 5);
+  assert.doesNotMatch(passJob.slice(0, refresh), /gh pr merge|observe-and-promote|observe-and-sync-staging/);
 });
