@@ -529,4 +529,3 @@ test('host-run wires the weekly lane and fetches origin/main for containment', (
   assert.doesNotMatch(host, /export function resolveCandidateReadOnly/);
   assert.doesNotMatch(host, /export async function boundedCandidateFlow/);
 });
-
