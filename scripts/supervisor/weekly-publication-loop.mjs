@@ -188,18 +188,57 @@ export function selectFallbackCategory(usedCategories = []) {
   return FALLBACK_CATEGORIES.find((category) => !used.has(category)) ?? FALLBACK_CATEGORIES[0];
 }
 
-export function buildFallbackGuide({ records, usedCategories = [], publishedAt, id }) {
-  const specifics = extractVerbatimSpecifics(records);
-  const byRecord = new Map();
-  for (const specific of specifics) {
-    if (!byRecord.has(specific.recordSlug)) byRecord.set(specific.recordSlug, []);
-    byRecord.get(specific.recordSlug).push(specific.text);
+export function fallbackGuideIdentity({ category, weekKey } = {}) {
+  const label = String(category ?? '').trim();
+  const week = String(weekKey ?? '').trim();
+  if (!label || !week) throw new Error('fallback identity requires a category and ISO week key');
+  const titled = `${label[0].toUpperCase()}${label.slice(1)}`;
+  const title = `Liberty Village ${titled} Guide ${week}: Straight From the Records`;
+  return {
+    weekKey: week,
+    title,
+    slug: slugForTitle(`grounded ${label} guide ${week} from repository records`),
+  };
+}
+
+export function boundFallbackEvidence(records) {
+  const contributors = [];
+  for (const record of Array.isArray(records) ? records : []) {
+    const extracted = uniqueSpecifics(extractVerbatimSpecifics([record]));
+    if (extracted.length === 0) continue;
+    contributors.push({ record, specifics: extracted });
+    if (contributors.length >= MIN_RESOLVING_RECORDS) break;
   }
+  const specifics = [];
+  const seen = new Set();
+  for (const { specifics: items } of contributors) {
+    const first = items.find((item) => !seen.has(item.text));
+    if (!first) continue;
+    seen.add(first.text);
+    specifics.push(first);
+  }
+  for (const { specifics: items } of contributors) {
+    for (const item of items) {
+      if (specifics.length >= MIN_VERBATIM_SPECIFICS) break;
+      if (seen.has(item.text)) continue;
+      seen.add(item.text);
+      specifics.push(item);
+    }
+    if (specifics.length >= MIN_VERBATIM_SPECIFICS) break;
+  }
+  return { records: contributors.map((entry) => entry.record), specifics };
+}
+
+export function buildFallbackGuide({ records, usedCategories = [], publishedAt, id, weekKey } = {}) {
+  const week = weekKey || isoWeekWindow(publishedAt).key;
+  const bounded = boundFallbackEvidence(records);
   const category = selectFallbackCategory(usedCategories);
-  const recordLines = [...byRecord.entries()].map(([slug, values]) => {
-    const record = (Array.isArray(records) ? records : []).find((entry) => entry?.slug === slug);
-    const name = record?.name ?? slug;
-    return `- [${name}](/directory/${slug}): ${[...new Set(values)].join('; ')}.`;
+  const identity = fallbackGuideIdentity({ category, weekKey: week });
+  const recordLines = bounded.records.map((record) => {
+    const values = bounded.specifics
+      .filter((specific) => specific.recordSlug === record.slug)
+      .map((specific) => specific.text);
+    return `- [${record.name ?? record.slug}](/directory/${record.slug}): ${[...new Set(values)].join('; ')}.`;
   });
   const content = [
     '## The short answer',
@@ -218,17 +257,19 @@ export function buildFallbackGuide({ records, usedCategories = [], publishedAt, 
   ].join('\n');
   const guide = {
     id,
-    slug: slugForTitle(`grounded ${category} guide from repository records`),
-    title: `Liberty Village ${category[0].toUpperCase()}${category.slice(1)} Guide: Straight From the Records`,
+    slug: identity.slug,
+    title: identity.title,
     category,
     grounded: true,
     publishedAt,
     updatedAt: publishedAt,
     content,
-    specifics,
+    specifics: bounded.specifics,
     author: 'LibertyVillage.co',
   };
-  const validation = validateGroundedGuide({ content, specifics, records, mode: 'sunday-grounded-fallback' });
+  const validation = validateGroundedGuide({
+    content, specifics: bounded.specifics, records: bounded.records, mode: 'sunday-grounded-fallback',
+  });
   if (!validation.ok) {
     throw new Error(`grounded fallback guide is not publishable: ${validation.errors.join('; ')}`);
   }
@@ -630,6 +671,10 @@ export async function runWeeklyLane({
 } = {}) {
   if (typeof fetchTarget === 'function') await fetchTarget();
   const week = isoWeekWindow(scheduledAt);
+  if (dryRun) {
+    const topic = typeof resolveTopic === 'function' ? await resolveTopic({ excludeTopicKeys: [] }) : null;
+    return { terminal: 'DRY_RUN', topic_key: topic?.topic_key || null, week: week.key };
+  }
   const deadlineLane = isDeadlineLane(scheduledAt);
 
   let history;
@@ -681,7 +726,6 @@ export async function runWeeklyLane({
       excludeTopicKeys.push(lastTopicKey);
       attemptedFingerprints.push(fingerprint);
       failureStages.push(`${lastTopicKey}:abandoned`);
-      fresh += 1;
       continue;
     }
     if (candidate?.generate !== 'true') {
@@ -725,9 +769,9 @@ export async function runWeeklyLane({
         scheduledAt,
       });
       if (fallback?.terminal === PUBLISHED_MAIN) {
-        const fingerprint = intentFingerprint({ title: fallback.title || 'sunday grounded fallback' });
+        const fingerprint = intentFingerprint({ title: fallback.title || `sunday grounded fallback ${week.key}` });
         if (typeof consumeIntent === 'function') {
-          await consumeIntent({ fingerprint, topicKey: fallback.topic_key, contained: true });
+          await consumeIntent({ fingerprint, contained: true });
         }
         return { ...fallback, week: week.key };
       }
@@ -749,80 +793,99 @@ export async function runWeeklyGroundedPublicationJourney(input) {
   const ctx = journeyContext(input);
   const week = isoWeekWindow(ctx.scheduledAt);
   const git = makeGit(ctx.repoPath, ctx.scheduledAt);
-  const deadlineLane = isDeadlineLane(ctx.scheduledAt);
-
-  let history;
-  try {
-    history = branchPublicationHistory(git, ctx.targetBranch);
-  } catch (error) {
-    return {
-      week: week.key,
-      attempts: [],
-      consumedFingerprints: [],
-      publication: weeklyPublicationMissed({
-        week: week.key,
-        failureStages: [`history:malformed:${error.message}`],
-      }),
-    };
-  }
-
-  const already = findQualifyingPublication({ history, week });
-  if (already) {
-    return {
-      week: week.key,
-      attempts: [],
-      consumedFingerprints: [],
-      publication: {
-        claimedTerminal: WEEKLY_OBJECTIVE_MET,
-        week: week.key,
-        targetBranch: ctx.targetBranch,
-        articleCommit: already.sha,
-        qualifyingPost: already.post,
-      },
-    };
-  }
-
   const plan = ctx.adapters.plan();
   const records = ctx.adapters.records();
   const attempts = [];
   const consumed = new Set();
   const attemptedFingerprints = [];
-  const failureStages = [];
-  const freshCandidates = plan.filter((candidate) => candidate?.mode === 'distinct-candidate');
 
-  for (let fresh = 0; fresh < MAX_WEEKLY_FRESH_CANDIDATES;) {
-    const { candidate, fingerprint } = selectDistinctTopic({
-      candidates: freshCandidates,
-      consumedFingerprints: [...consumed],
-      excludeFingerprints: [...attemptedFingerprints],
-      existingSlugs: existingPostSlugs(git, ctx.targetBranch),
-    });
-    if (!candidate) break;
-    fresh += 1;
-    attemptedFingerprints.push(fingerprint);
-    const attempt = await attemptCandidate(ctx, git, { candidate, fingerprint, mode: 'distinct-candidate', records });
-    attempts.push(attempt);
-    if (attempt.disposition === 'published') {
-      const consumption = consumePublishedIntent(consumed, { fingerprint, contained: true });
-      if (typeof ctx.adapters.consume === 'function') {
-        await ctx.adapters.consume({ fingerprint, contained: true, topicKey: candidate.id });
-      }
-      return {
-        week: week.key,
-        attempts,
-        consumedFingerprints: [...consumption.consumed],
-        publication: {
-          claimedTerminal: PUBLISHED_MAIN,
-          week: week.key,
-          targetBranch: ctx.targetBranch,
-          articleCommit: attempt.articleCommit,
-        },
-      };
+  const rememberConsumed = async (fingerprint, topicKey) => {
+    const consumption = consumePublishedIntent(consumed, { fingerprint, contained: true });
+    consumed.clear();
+    for (const value of consumption.consumed) consumed.add(value);
+    if (typeof ctx.adapters.consume === 'function') {
+      await ctx.adapters.consume({ fingerprint, contained: true, topicKey });
     }
-    failureStages.push(`${candidate.id}:${attempt.disposition}`);
-  }
+  };
 
-  if (!deadlineLane) {
+  const lane = await runWeeklyLane({
+    scheduledAt: ctx.scheduledAt,
+    fetchTarget: async () => {},
+    readPublicationHistory: async () => branchPublicationHistory(git, ctx.targetBranch),
+    resolveTopic: async ({ excludeTopicKeys }) => {
+      const remaining = plan.filter((candidate) => (
+        candidate?.mode === 'distinct-candidate' && !excludeTopicKeys.includes(candidate.id)
+      ));
+      const { candidate, fingerprint } = selectDistinctTopic({
+        candidates: remaining,
+        consumedFingerprints: [...consumed],
+        excludeFingerprints: [...attemptedFingerprints],
+        existingSlugs: existingPostSlugs(git, ctx.targetBranch),
+      });
+      if (!candidate) return { topic_key: null };
+      return { topic_key: candidate.id, topic_title: candidate.title, candidate, fingerprint };
+    },
+    planCandidate: async (topic) => ({ generate: 'true', action: 'generate', topic_key: topic.topic_key }),
+    runCandidate: async ({ topic, fingerprint }) => {
+      const candidate = topic.candidate || plan.find((entry) => entry.id === topic.topic_key);
+      const fp = fingerprint || topic.fingerprint || intentFingerprint(candidate);
+      attemptedFingerprints.push(fp);
+      const attempt = await attemptCandidate(ctx, git, {
+        candidate, fingerprint: fp, mode: 'distinct-candidate', records,
+      });
+      attempts.push(attempt);
+      if (attempt.disposition === 'published') {
+        await rememberConsumed(fp, candidate.id);
+        return { terminal: PUBLISHED_MAIN, articleCommit: attempt.articleCommit };
+      }
+      return { terminal: 'rejected' };
+    },
+    consumeIntent: async () => {},
+    records: async () => records,
+    usedCategories: readPostsAt(git, publicationRef(ctx.targetBranch)).map((post) => post?.category).filter(Boolean),
+    runFallback: async ({ usedCategories }) => {
+      const fallbackPlan = plan.find((candidate) => candidate?.mode === 'sunday-grounded-fallback');
+      if (!fallbackPlan) return { terminal: WEEKLY_PUBLICATION_MISSED };
+      const { guide } = buildFallbackGuide({
+        records,
+        usedCategories,
+        publishedAt: ctx.scheduledAt,
+        id: fallbackPlan.id,
+        weekKey: week.key,
+      });
+      const fallbackCandidate = {
+        ...fallbackPlan,
+        title: guide.title,
+        category: guide.category,
+        content: guide.content,
+        specifics: guide.specifics,
+      };
+      const fingerprint = intentFingerprint(fallbackCandidate);
+      if (!attemptedFingerprints.includes(fingerprint)) attemptedFingerprints.push(fingerprint);
+      const attempt = await attemptCandidate(ctx, git, {
+        candidate: { ...fallbackCandidate, publishedAt: ctx.scheduledAt },
+        fingerprint,
+        mode: 'sunday-grounded-fallback',
+        records,
+      });
+      attempts.push(attempt);
+      if (attempt.disposition === 'published') {
+        await rememberConsumed(fingerprint, fallbackCandidate.id);
+        return { terminal: PUBLISHED_MAIN, articleCommit: attempt.articleCommit, title: guide.title };
+      }
+      return { terminal: WEEKLY_PUBLICATION_MISSED };
+    },
+  });
+
+  if (lane.terminal === WEEKLY_OBJECTIVE_MET) {
+    return {
+      week: week.key,
+      attempts: [],
+      consumedFingerprints: [],
+      publication: { ...lane.publication, targetBranch: ctx.targetBranch },
+    };
+  }
+  if (lane.terminal === DEFERRED_TO_DEADLINE) {
     return {
       week: week.key,
       attempts,
@@ -832,66 +895,32 @@ export async function runWeeklyGroundedPublicationJourney(input) {
         week: week.key,
         targetBranch: ctx.targetBranch,
         attemptedFingerprints: [...attemptedFingerprints],
-        failureStages: [...failureStages],
+        failureStages: lane.failureStages || [],
         note: 'the bounded fresh-candidate budget did not publish this week; the Sunday deadline lane will catch up',
       },
     };
   }
-
-  const fallbackPlan = plan.find((candidate) => candidate?.mode === 'sunday-grounded-fallback');
-  if (fallbackPlan) {
-    const usedCategories = readPostsAt(git, publicationRef(ctx.targetBranch))
-      .map((post) => post?.category).filter(Boolean);
-    const { guide } = buildFallbackGuide({
-      records,
-      usedCategories,
-      publishedAt: ctx.scheduledAt,
-      id: fallbackPlan.id,
-    });
-    const fallbackCandidate = {
-      ...fallbackPlan,
-      title: guide.title,
-      category: guide.category,
-      content: guide.content,
-      specifics: guide.specifics,
-    };
-    const fingerprint = intentFingerprint(fallbackCandidate);
-    if (!attemptedFingerprints.includes(fingerprint)) attemptedFingerprints.push(fingerprint);
-    const attempt = await attemptCandidate(ctx, git, {
-      candidate: { ...fallbackCandidate, publishedAt: ctx.scheduledAt },
-      fingerprint,
-      mode: 'sunday-grounded-fallback',
-      records,
-    });
-    attempts.push(attempt);
-    if (attempt.disposition === 'published') {
-      const consumption = consumePublishedIntent(consumed, { fingerprint, contained: true });
-      if (typeof ctx.adapters.consume === 'function') {
-        await ctx.adapters.consume({ fingerprint, contained: true, topicKey: fallbackCandidate.id });
-      }
-      return {
+  if (lane.terminal === PUBLISHED_MAIN) {
+    return {
+      week: week.key,
+      attempts,
+      consumedFingerprints: [...consumed],
+      publication: {
+        claimedTerminal: PUBLISHED_MAIN,
         week: week.key,
-        attempts,
-        consumedFingerprints: [...consumption.consumed],
-        publication: {
-          claimedTerminal: PUBLISHED_MAIN,
-          week: week.key,
-          targetBranch: ctx.targetBranch,
-          articleCommit: attempt.articleCommit,
-        },
-      };
-    }
-    failureStages.push(`${fallbackCandidate.id}:${attempt.disposition}`);
+        targetBranch: ctx.targetBranch,
+        articleCommit: lane.articleCommit,
+      },
+    };
   }
-
   return {
     week: week.key,
     attempts,
     consumedFingerprints: [...consumed],
-    publication: weeklyPublicationMissed({
+    publication: lane.publication || weeklyPublicationMissed({
       week: week.key,
       attemptedFingerprints,
-      failureStages,
+      failureStages: lane.failureStages || [],
       runUrl: ctx.adapters.runUrl?.() ?? null,
       prUrl: ctx.adapters.prUrl?.() ?? null,
     }),

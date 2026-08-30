@@ -123,12 +123,6 @@ export function resolveHostWeeklyOwner(repoRoot, env = process.env) {
   return matchWeeklyOwnerEnv(mainOwner, env);
 }
 
-export function resolveCandidateReadOnly({ dryRun, resolve, plan }) {
-  const topic = resolve();
-  if (dryRun) return { topic, candidate: null, terminal: 'DRY_RUN' };
-  return { topic, candidate: plan(topic) };
-}
-
 export function readSelectedTopic(queueFile, topicKey) {
   const queue = JSON.parse(fs.readFileSync(queueFile, 'utf8'));
   if (queue?.version !== 1 || !Array.isArray(queue.topics)) throw new Error('trusted topic queue must use schema version 1');
@@ -155,13 +149,6 @@ export function cleanupDataBranch(repoRoot, branch) {
   if (!remote) return false;
   command('git', ['push', 'origin', '--delete', branch], { cwd: repoRoot });
   return true;
-}
-
-export async function boundedCandidateFlow({ generate, lint, publish }) {
-  const candidate = await generate();
-  await lint(candidate);
-  const result = await publish(candidate);
-  return { published: true, result };
 }
 
 function pickExistingPublicImage(workDir) {
@@ -289,6 +276,14 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
   fs.mkdirSync(path.dirname(workDir), { recursive: true, mode: 0o700 });
   command('git', ['worktree', 'add', '--detach', workDir, 'origin/staging'], { cwd: repoRoot });
   let dataBranch = null;
+  const releaseDataBranch = () => {
+    if (!dataBranch) return;
+    const branch = dataBranch;
+    dataBranch = null;
+    try { cleanupDataBranch(repoRoot, branch); } catch (error) {
+      console.error(`data branch cleanup failed for ${branch}: ${error.message}`);
+    }
+  };
   try {
     await onUpdate({ state: 'BASELINE_CI', trusted_staging_sha: trustedStagingSha });
     npm(['ci'], { cwd: workDir });
@@ -382,17 +377,13 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
         });
         if (result?.terminal && result.terminal !== PUBLISHED_MAIN) {
           await recordOutcome(topic.topic_key, result.terminal, `weekly candidate ${result.terminal}`);
+          releaseDataBranch();
           resetWorktree();
         }
         return result;
       } catch (error) {
         await recordOutcome(topic.topic_key, 'GENERATION_FAILED_PRE_PR', error.message);
-        if (dataBranch) {
-          try { cleanupDataBranch(repoRoot, dataBranch); } catch (cleanupError) {
-            console.error(`data branch cleanup failed for ${dataBranch}: ${cleanupError.message}`);
-          }
-          dataBranch = null;
-        }
+        releaseDataBranch();
         resetWorktree();
         return { terminal: 'GENERATION_FAILED_PRE_PR', topic_key: topic.topic_key, reason: error.message };
       }
@@ -442,17 +433,16 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
         const post = fallbackPostFromGuide(guide, image, String(fallbackAt).slice(0, 10));
         resetWorktree();
         try {
-          return await publishStagedPost({
+          const published = await publishStagedPost({
             topic: { topic_key: `sunday-fallback-${week.key}`, topic_title: guide.title },
             candidate: { regenerations: 0 },
             post,
             sessionFile: null,
           });
+          if (published?.terminal && published.terminal !== PUBLISHED_MAIN) releaseDataBranch();
+          return { ...published, title: guide.title };
         } catch (error) {
-          if (dataBranch) {
-            try { cleanupDataBranch(repoRoot, dataBranch); } catch {}
-            dataBranch = null;
-          }
+          releaseDataBranch();
           resetWorktree();
           return { terminal: WEEKLY_PUBLICATION_MISSED, reason: error.message };
         }
@@ -463,9 +453,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     }
     return lane;
   } finally {
-    if (dataBranch) {
-      try { cleanupDataBranch(repoRoot, dataBranch); } catch (error) { console.error(`data branch cleanup failed for ${dataBranch}: ${error.message}`); }
-    }
+    releaseDataBranch();
     try { command('git', ['worktree', 'remove', '--force', workDir], { cwd: repoRoot }); } catch {}
   }
 }

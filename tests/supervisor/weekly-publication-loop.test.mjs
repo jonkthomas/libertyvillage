@@ -11,6 +11,7 @@ import {
   evaluateGateOutcome,
   evaluateRepairRound,
   extractVerbatimSpecifics,
+  FALLBACK_CATEGORIES,
   findQualifyingPublication,
   hasDeferralHedge,
   intentFingerprint,
@@ -255,6 +256,43 @@ test('the fallback guide needs six verbatim specifics across three records and a
   assert.equal(selectFallbackCategory(['lifestyle', 'community', 'food-drink', 'transit', 'real-estate', 'development', 'events']), 'news');
 });
 
+test('fallback intent and slug stay unique after every category is already used', () => {
+  const used = [...FALLBACK_CATEGORIES];
+  const first = buildFallbackGuide({
+    records: RECORDS, usedCategories: used, publishedAt: '2026-08-30', id: 'week-35',
+  });
+  const second = buildFallbackGuide({
+    records: RECORDS, usedCategories: used, publishedAt: '2026-09-06', id: 'week-36',
+  });
+  assert.equal(first.guide.category, 'lifestyle');
+  assert.equal(second.guide.category, 'lifestyle');
+  assert.notEqual(first.guide.slug, second.guide.slug);
+  assert.notEqual(first.guide.title, second.guide.title);
+  assert.notEqual(
+    intentFingerprint({ title: first.guide.title }),
+    intentFingerprint({ title: second.guide.title }),
+  );
+  assert.match(first.guide.slug, /2026-w35/);
+  assert.match(second.guide.slug, /2026-w36/);
+});
+
+test('fallback guide is bounded to three records and six unique specifics', () => {
+  const many = Array.from({ length: 20 }, (_, index) => ({
+    slug: `record-${index}`,
+    name: `Record ${index}`,
+    text: `Record ${index} at ${100 + index} King St opens 9:00 a.m. with mains from $${10 + index} to $${20 + index}.`,
+  }));
+  const { guide, validation } = buildFallbackGuide({
+    records: many, usedCategories: [], publishedAt: '2026-08-30', id: 'bounded',
+  });
+  assert.equal(validation.ok, true);
+  assert.equal(validation.records, MIN_RESOLVING_RECORDS);
+  assert.equal(validation.specifics, MIN_VERBATIM_SPECIFICS);
+  assert.equal(guide.specifics.length, MIN_VERBATIM_SPECIFICS);
+  assert.equal(new Set(guide.specifics.map((specific) => specific.recordSlug)).size, MIN_RESOLVING_RECORDS);
+  assert.ok(guide.content.length < 2500);
+});
+
 test('intent consumption happens only after verified containment', () => {
   const fingerprint = intentFingerprint({ title: 'Coffee Guide' });
   const notContained = consumePublishedIntent([], { fingerprint, contained: false });
@@ -318,6 +356,53 @@ test('image inventory includes neighborhood and og paths and optional dirs fail 
   assert.match(source, /dir: 'public\/images\/og'[\s\S]*required: false/);
   assert.match(source, /neighborhoodImages/);
   assert.match(source, /ogImages/);
+});
+
+test('abandoned topics do not consume the fresh-candidate budget', async () => {
+  const ran = [];
+  const keys = ['topic-a', 'topic-b', 'topic-c', 'topic-d'];
+  const result = await runWeeklyLane({
+    scheduledAt: '2026-09-02T11:00:00.000Z',
+    maxFresh: 1,
+    fetchTarget: async () => {},
+    readPublicationHistory: async () => [],
+    resolveTopic: async ({ excludeTopicKeys }) => {
+      const key = keys.find((entry) => !excludeTopicKeys.includes(entry));
+      return key ? { topic_key: key, topic_title: key } : { topic_key: null };
+    },
+    planCandidate: async (topic) => (
+      topic.topic_key === 'topic-d'
+        ? { action: 'generate', generate: 'true', topic_key: 'topic-d' }
+        : { action: 'abandon-topic', generate: 'false', topic_key: topic.topic_key }
+    ),
+    runCandidate: async ({ topic }) => {
+      ran.push(topic.topic_key);
+      return { terminal: PUBLISHED_MAIN, topic_key: topic.topic_key };
+    },
+  });
+  assert.deepEqual(ran, ['topic-d']);
+  assert.equal(result.terminal, PUBLISHED_MAIN);
+});
+
+test('dry run stays DRY_RUN and never plans, generates, or claims a publication', async () => {
+  let planned = false;
+  let generated = false;
+  const result = await runWeeklyLane({
+    scheduledAt: '2026-08-30T11:00:00.000Z',
+    dryRun: true,
+    fetchTarget: async () => {},
+    readPublicationHistory: async () => {
+      throw new Error('dry-run must not inspect publication history');
+    },
+    resolveTopic: async () => ({ topic_key: 'one', topic_title: 'One' }),
+    planCandidate: async () => { planned = true; return { generate: 'true' }; },
+    runCandidate: async () => { generated = true; return { terminal: PUBLISHED_MAIN }; },
+    runFallback: async () => { generated = true; return { terminal: PUBLISHED_MAIN }; },
+  });
+  assert.equal(result.terminal, 'DRY_RUN');
+  assert.equal(result.topic_key, 'one');
+  assert.equal(planned, false);
+  assert.equal(generated, false);
 });
 
 test('the weekly lane continues after abandonment instead of stopping', async () => {
@@ -438,6 +523,10 @@ test('host-run wires the weekly lane and fetches origin/main for containment', (
   assert.match(host, /branchPublicationHistory\(gitAtRepo, 'origin\/main'\)/);
   assert.match(host, /exclude-topic-keys/);
   assert.match(host, /terminal: PUBLISHED_MAIN/);
+  assert.match(host, /releaseDataBranch\(\)/);
+  assert.match(host, /result\.terminal !== PUBLISHED_MAIN/);
   assert.doesNotMatch(host, /if \(candidate\.generate !== 'true'\) return \{ terminal: candidate\.action === 'abandon-topic' \? 'ABANDONED_TOPIC'/);
+  assert.doesNotMatch(host, /export function resolveCandidateReadOnly/);
+  assert.doesNotMatch(host, /export async function boundedCandidateFlow/);
 });
 

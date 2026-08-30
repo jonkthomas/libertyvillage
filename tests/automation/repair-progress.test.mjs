@@ -242,14 +242,17 @@ test('the `allow-record-deletion` override is named loudly in the durable audit 
 // The wiring itself: a real caller, and a workflow gate that acts on the answer.
 // ---------------------------------------------------------------------------
 test('evaluateRepairProgress has a real production caller before the fixer is dispatched', () => {
-  assert.match(REVIEW_AGENT, /import\s*{[^}]*evaluateRepairProgress[^}]*}\s*from '\.\/recovery\.mjs'/,
-    'review-agent must import the convergence policy');
+  assert.match(REVIEW_AGENT, /routeFailedGate\(/, 'review-agent must apply the weekly failed-gate policy');
+  assert.match(REVIEW_AGENT, /evaluateRepairRound\(/, 'review-agent must apply the weekly repair-round policy');
   const reviewFn = REVIEW_AGENT.slice(REVIEW_AGENT.indexOf('async function review('), REVIEW_AGENT.indexOf('async function reviewContent'));
   assert.match(reviewFn, /buildRepairHistory\(/, 'the ordered history must come from the durable audit evidence');
-  assert.match(reviewFn, /evaluateRepairProgress\(/, 'the gate job must ask the convergence question');
+  assert.match(reviewFn, /evaluateRepairRound\(/, 'the gate job must ask the convergence question');
+  assert.match(reviewFn, /routeFailedGate\(/, 'sub-8 zero-blocker routing must happen in the gate job');
   assert.match(reviewFn, /converging/, 'the answer must reach the workflow as a step output');
+  assert.match(reviewFn, /repairable = routing\.action === 'dispatch-fixer'/,
+    'only high/critical blocking findings may dispatch the fixer');
   assert.ok(
-    reviewFn.indexOf('evaluateRepairProgress(') < reviewFn.indexOf("writeOutput({\n    review_ok:"),
+    reviewFn.indexOf('evaluateRepairRound(') < reviewFn.indexOf("writeOutput({\n    review_ok:"),
     'the decision must be made before the review job reports its outputs',
   );
 });

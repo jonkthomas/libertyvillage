@@ -11,7 +11,8 @@ import {
 import { evaluateVerdict, filterRepairablePaths, validateRepairPlan } from './policy.mjs';
 import { classifyFindings, validatePostRepair } from './preflight.mjs';
 import { selectReferenceRecords } from '../lib/referenced-businesses.mjs';
-import { buildRepairHistory, classifyRunFailure, evaluateRepairProgress } from './recovery.mjs';
+import { buildRepairHistory, classifyRunFailure } from './recovery.mjs';
+import { evaluateRepairRound, routeFailedGate } from '../supervisor/weekly-publication-loop.mjs';
 
 export { selectReferenceRecords };
 
@@ -324,11 +325,18 @@ async function review(options) {
   if (!decision.passed && kind !== 'promotion') {
     const changedFiles = (await paged(`/repos/${repo}/pulls/${pr}/files`)).map((file) => file.filename);
     const classified = classifyFindings(kind, raw, { changedFiles });
-    repairable = classified.noFixer || classified.allUnrepairable ? 'false' : 'true';
+    const routing = routeFailedGate(
+      { model: GATE_MODEL, scoreThreshold: SCORE_THRESHOLD, blockingSeverities: [...BLOCKING_SEVERITIES] },
+      raw,
+      { kind, changedFiles, repairable: !(classified.noFixer || classified.allUnrepairable) },
+    );
+    repairable = routing.action === 'dispatch-fixer' ? 'true' : 'false';
     if (classified.noFixer) {
       console.log(`${kind} has an explicit no-fixer policy; a verdict that needs repair must block honestly.`);
     } else if (classified.allUnrepairable) {
       console.log(`Every blocking finding is structurally unrepairable: ${classified.unrepairable.map((finding) => `${finding.path} (${finding.note})`).join('; ')}`);
+    } else if (routing.action === 'advance-topic') {
+      console.log(routing.reason);
     }
     // F4. #97 went 7.2 -> 6.5 and #75 went 5.0 -> 4.5 while the budget kept paying
     // for rounds that made the candidate worse. The ordered history is rebuilt from
@@ -342,10 +350,10 @@ async function review(options) {
     if (!history.some((round) => round.sha === sha)) {
       history.push({ sha, decision: 'reviewing', attempt: history.length, overall: raw.overall, blockingCount });
     }
-    const progress = evaluateRepairProgress({ history });
-    converging = progress.decision === 'abandon' ? 'false' : 'true';
-    progressReason = progress.reason;
-    console.log(`Repair convergence over ${history.length} scored round(s): ${progress.decision} — ${progress.reason}.`);
+    const round = evaluateRepairRound({ history });
+    converging = round.action === 'terminate-candidate' ? 'false' : 'true';
+    progressReason = round.reason;
+    console.log(`Repair convergence over ${history.length} scored round(s): ${round.action} — ${round.reason}.`);
   }
   writeOutput({
     review_ok: 'true', passed: decision.passed ? 'true' : 'false', overall: raw.overall,
