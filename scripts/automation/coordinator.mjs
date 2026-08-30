@@ -447,9 +447,18 @@ function isAbandonedPull(pr) {
   return labelNames(pr?.labels).includes(ABANDONED_LABEL);
 }
 
+function parseExcludeTopicKeys(options) {
+  return String(options['exclude-topic-keys'] ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean);
+}
+
 async function planFromQueue(options, { kind, state, issue, stateIssue, nowDate, prNumber = '' }) {
   const queue = hydrateQueue(loadTopicQueue(), state);
-  const planned = planTopicCandidate({ queue, state, kind, now: nowDate });
+  const planned = planTopicCandidate({
+    queue, state, kind, now: nowDate, excludeKeys: parseExcludeTopicKeys(options),
+  });
   const title = queueEntryTitle(planned.queue, planned.topicKey);
   if (planned.action === 'abandon-topic' && planned.topicKey) {
     const recorded = await recordCandidateEvent(options.repo, kind, {
@@ -628,6 +637,25 @@ async function recordCandidateOutcome(options) {
   const reason = options.reason || 'bounded candidate failed before a pull request existed';
   const eventKey = `${kind}:${options.key}`;
 
+  if (options.outcome === 'PUBLISHED_MAIN') {
+    if (!topic) throw new Error('record-candidate-outcome PUBLISHED_MAIN requires --topic-key');
+    const recorded = await recordCandidateEvent(options.repo, kind, {
+      key: eventKey, action: 'consume-intent', at: new Date().toISOString(), reason,
+      topicKey: topic, queue, outcome: options.outcome,
+    });
+    writeOutput({
+      kind, action: 'consume-intent', recorded: recorded.changed ? 'true' : 'false',
+      regenerations: recorded.state.topics?.[topic]?.regenerations ?? recorded.state.regenerations,
+      abandoned: recorded.state.abandoned ? 'true' : 'false',
+      consumed: recorded.state.topics?.[topic]?.consumed ? 'true' : 'false',
+      topic_key: topic, state_issue: recorded.issue?.number ?? issue?.number ?? '',
+    });
+    console.log(recorded.changed
+      ? `Consumed published intent for ${kind} topic ${topic} after verified main containment.`
+      : `Published intent for ${kind} topic ${topic} was already consumed (${recorded.reason}).`);
+    return;
+  }
+
   if (topic) {
     const preview = recordTopicFailure({
       queue, state, kind, now: new Date(), key: eventKey, topicKey: topic, reason,
@@ -671,7 +699,9 @@ async function resolveTopic(options) {
   if (!isGeneratorKind(kind)) throw new Error(`resolve-topic requires a generator kind: ${kind}`);
   const { state } = await loadCandidateState(options.repo, kind);
   const queue = hydrateQueue(loadTopicQueue(), state);
-  const planned = planTopicCandidate({ queue, state, kind, now: new Date() });
+  const planned = planTopicCandidate({
+    queue, state, kind, now: new Date(), excludeKeys: parseExcludeTopicKeys(options),
+  });
   writeOutput({
     kind,
     topic_key: planned.topicKey ?? '',

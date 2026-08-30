@@ -6,6 +6,7 @@ import { TRUSTED_PR_AUTHORS } from '../automation/constants.mjs';
 const NO_LADDER_TERMINALS = new Set([
   'MERGED_STAGING', 'PUBLISHED_MAIN', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE',
   'ABANDONED_TOPIC', 'DRY_RUN', 'BASELINE_FAILED',
+  'WEEKLY_OBJECTIVE_MET', 'DEFERRED_TO_DEADLINE', 'WEEKLY_PUBLICATION_MISSED',
 ]);
 
 export function terminalRequiresCandidateOutcome({ terminal, topicKey }) {

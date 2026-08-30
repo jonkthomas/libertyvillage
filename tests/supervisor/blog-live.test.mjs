@@ -42,10 +42,10 @@ test('generation prompt binds publishedAt and updatedAt to the exact UTC run dat
   assert.match(prompt, /must equal 2026-08-26/);
   assert.doesNotMatch(prompt, /2026-08-25|2026-08-27/);
   assert.match(prompt, /exact slug field/);
-  assert.match(prompt, /Write zero clock ranges/);
+  assert.match(prompt, /copied verbatim from the linked repository record/);
   assert.match(prompt, /Current trusted phrase-to-route index/);
   assert.match(prompt, /Duplicate display names require an exact linked route/);
-  assert.match(prompt, /Ban unsupported hours, prices, civic addresses/);
+  assert.match(prompt, /Do not invent or approximate any clock range/);
   assert.doesNotMatch(prompt, /the only safe Liberty Village slugs/);
 });
 
