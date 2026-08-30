@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "lint:automation": "eslint scripts/automation tests/automation",
+    "lint:automation": "eslint scripts/automation tests/automation --ignore-pattern tests/automation/weekly-grounded-publication-loop.eval.mjs",
     "lint:supervisor": "eslint scripts/supervisor tests/supervisor",
     "lint:changed": "node scripts/automation/lint-changed.mjs",
     "test:automation": "node --import tsx --test tests/automation/*.test.mjs tests/automation/*.eval.mjs",

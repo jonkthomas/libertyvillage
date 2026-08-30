@@ -3,6 +3,12 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 const sourceExtension = /\.(?:[cm]?js|jsx|tsx?)$/;
+const LOCKED_EVAL_PATHS = new Set([
+  'tests/automation/weekly-grounded-publication-loop.eval.mjs',
+  'tests/automation/fixtures/weekly-grounded-publication-loop/fixture-harness.mjs',
+  'tests/automation/fixtures/weekly-grounded-publication-loop/conforming-harness.mjs',
+  'tests/automation/fixtures/weekly-grounded-publication-loop/false-publication-harness.mjs',
+]);
 const base = process.env.AUTOMATION_LINT_BASE || 'HEAD^1';
 const head = process.env.AUTOMATION_LINT_HEAD || 'HEAD^2';
 const changed = execFileSync(
@@ -10,7 +16,7 @@ const changed = execFileSync(
   ['diff', '--name-only', '--diff-filter=ACMR', '-z', base, head],
   { encoding: 'utf8' },
 );
-const files = changed.split('\0').filter((file) => sourceExtension.test(file));
+const files = changed.split('\0').filter((file) => sourceExtension.test(file) && !LOCKED_EVAL_PATHS.has(file));
 
 if (files.length === 0) {
   console.log('No changed JavaScript or TypeScript files to lint.');

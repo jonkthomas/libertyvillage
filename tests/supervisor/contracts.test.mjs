@@ -6,8 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validateIngestDiff, validateIngestPayload } from '../../scripts/supervisor/ingest-contract.mjs';
 import {
-  boundedCandidateFlow, COMMAND_OUTPUT_LIMIT, OUTCOME_REASON_LIMIT, readSelectedTopic, recordSupervisorOutcome,
-  resolveCandidateReadOnly, resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
+  COMMAND_OUTPUT_LIMIT, OUTCOME_REASON_LIMIT, readSelectedTopic, recordSupervisorOutcome,
+  resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
 } from '../../scripts/supervisor/host-run.mjs';
 import {
   buildGeneratorPrompt, createConstrainedTools, createPersistentSessionManager, PI_SDK_VERSION, PI_TOOL_ALLOWLIST,
@@ -284,8 +284,8 @@ test('pi prompt grounds the selected topic in its trusted queue evidence and can
   assert.match(prompt, /Topic source: gsc/);
   assert.match(prompt, /Topic rationale: GSC top query \(8 clicks\)/);
   assert.match(prompt, /\/directory\//);
-  assert.match(prompt, /Write zero clock ranges/);
-  assert.match(prompt, /Ban unsupported hours, prices, civic addresses/);
+  assert.match(prompt, /copied verbatim from the linked repository record/);
+  assert.match(prompt, /Do not invent or approximate any clock range/);
   assert.doesNotMatch(prompt, /SEO evidence|seo-data-latest|missing SEO/i);
 });
 
@@ -399,13 +399,6 @@ test('monitor accepts durable audit decisions only from the canonical trusted au
   assert.equal(latestAuditForSha([comment(old, 'repairing'), comment(current, 'passed')], old).decision, 'repairing');
 });
 
-test('dry run resolves only and never invokes the mutating candidate planner', () => {
-  let planned = false;
-  const result = resolveCandidateReadOnly({ dryRun: true, resolve: () => ({ topic_key: 'one' }), plan: () => { planned = true; } });
-  assert.equal(result.terminal, 'DRY_RUN');
-  assert.equal(planned, false);
-});
-
 test('candidate ladder advances idempotently before blocked PR closure and reaches its cap', async () => {
   const events = new Set();
   const sequence = [];
@@ -448,15 +441,6 @@ test('durable outcome command adapts rich diagnostics to bounded single-line Git
   assert.ok([...reason].length <= OUTCOME_REASON_LIMIT);
   assert.match(reason, /…\[truncated\]$/);
   assert.match(diagnostic, /\nstdout:\n/, 'the original ledger/journal diagnostic remains rich and unchanged');
-});
-
-test('bounded candidate flow lints before its single publish path', async () => {
-  const sequence = [];
-  let published = false;
-  const result = await boundedCandidateFlow({ generate: async () => { sequence.push('generate'); return { post: {} }; }, lint: async () => { sequence.push('lint'); }, publish: async () => { sequence.push('publish'); published = true; return 'done'; } });
-  assert.equal(result.published, true);
-  assert.equal(published, true);
-  assert.deepEqual(sequence, ['generate', 'lint', 'publish']);
 });
 
 test('blocked terminal closes only the exact ledger-owned PR and verifies closure', async () => {

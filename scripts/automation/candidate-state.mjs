@@ -241,6 +241,25 @@ export function applyCandidateEvent(state, { key, action, at, reason, topicKey, 
       reason: 'topic abandoned',
     };
   }
+  if (action === 'consume-intent') {
+    const nextTopics = {
+      ...topics,
+      [topicKey]: {
+        ...current,
+        consumed: true,
+        consumedAt: stamp,
+        outcome: nextOutcome || 'PUBLISHED_MAIN',
+        reason: nextReason,
+      },
+    };
+    return {
+      state: {
+        ...state, topics: nextTopics, lastReason: nextReason, lastOutcome: nextOutcome || 'PUBLISHED_MAIN', seen,
+      },
+      changed: true,
+      reason: 'intent consumed after verified publication',
+    };
+  }
   if (action !== 'close-and-regenerate') {
     return { state, changed: false, reason: `no ladder movement for action ${String(action)}` };
   }
