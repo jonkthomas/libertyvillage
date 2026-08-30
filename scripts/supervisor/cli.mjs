@@ -180,7 +180,7 @@ async function run(dryRun) {
       latest.lease = null; return latest;
     });
     console.log(`${result.terminal}: ${runId}`);
-    if (!['PUBLISHED_MAIN', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE', 'DISCARDED_PRE_PR', 'DRY_RUN'].includes(result.terminal)) process.exitCode = 1;
+    if (!['PUBLISHED_MAIN', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE', 'DISCARDED_PRE_PR', 'DRY_RUN', 'WEEKLY_OBJECTIVE_MET', 'DEFERRED_TO_DEADLINE'].includes(result.terminal)) process.exitCode = 1;
   } catch (error) {
     const snapshot = readLedger(LEDGER_FILE);
     const current = snapshot.runs.find((entry) => entry.run_id === runId);

@@ -269,11 +269,14 @@ export function selectNextTopic(queue, state, now) {
   const kind = state?.kind;
   const list = kindQueue(queue, kind);
   const topics = state?.topics ?? {};
+  const exclude = new Set(Array.isArray(state?.excludeKeys) ? state.excludeKeys : []);
   const eligible = [];
   for (let index = 0; index < list.length; index += 1) {
     const entry = list[index];
     const topic = topics[entry.key] ?? emptyTopicState();
     if (isTopicAbandoned(topic, now)) continue;
+    if (topic.consumed === true) continue;
+    if (exclude.has(entry.key)) continue;
     const attempts = isExpiredTopic(topic, now) ? 0 : (Number.isInteger(entry.attempts) ? entry.attempts : 0);
     if (attempts > MAX_QUEUE_ATTEMPTS) continue;
     eligible.push({ entry, attempts, index });

@@ -1,40 +1,19 @@
 // Weekly grounded publication loop (issue #152).
 //
-// The weekly objective is explicit: by Sunday 23:59 UTC the target branch
-// contains at least one newly published, grounded article for that ISO week.
-// This module is the one place that objective lives. It is a loop engine, not
-// a script: candidate generation, gate review, repair, fallback, and
-// promotion are adapter seams so the same policy runs offline in the locked
-// journey (deterministic adapters, no network, no model spend) and in the
-// scheduled supervisor lanes (real adapters).
-//
-// The loop's invariants, none of which are configurable:
-//   - The gate profile is frozen: threshold 8, blocking severities critical
-//     and high, model claude-opus-5. A weaker profile supplied at the seam is
-//     refused, never adopted.
-//   - Success is repository truth: the exact article commit must be contained
-//     in refs/heads/<targetBranch>. A terminal/status claim is evidence only.
-//   - A topic and its deterministic intent fingerprint are consumed only
-//     AFTER verified containment; failed attempts stay auditable on their
-//     candidate branches and never block the next distinct topic.
-//   - One invocation advances past rejection, abandonment, gate exhaustion,
-//     and unrepairable content to the next distinct eligible topic, within a
-//     bounded same-cycle budget. No hot loops, no budget resets.
-//   - The Sunday deadline lane first checks the weekly success predicate
-//     (no-op when the week is already satisfied), then publishes one
-//     conservative record-backed fallback guide, and if even that fails it
-//     records exactly one WEEKLY_PUBLICATION_MISSED terminal with evidence.
-//     Nothing is ever published below the gate.
+// Policy lives here. Production execution reuses coordinator, candidate-state,
+// the isolated host-run worktree, ingest, and monitorOwnedPr. The locked journey
+// eval drives the same policy against an isolated fixture via worktrees so the
+// caller checkout is never switched or clobbered.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { BLOCKING_SEVERITIES, GATE_MODEL, SCORE_THRESHOLD } from '../automation/constants.mjs';
+import { classifyFindings } from '../automation/preflight.mjs';
+import { evaluateRepairProgress } from '../automation/recovery.mjs';
 
-// At most three fresh normal-topic candidates per Wednesday cycle (spec §32).
 export const MAX_WEEKLY_FRESH_CANDIDATES = 3;
-// The Sunday fallback guide must carry at least six verbatim specifics drawn
-// from at least three resolving repository records, with zero deferral hedges.
 export const MIN_VERBATIM_SPECIFICS = 6;
 export const MIN_RESOLVING_RECORDS = 3;
 export const PUBLISHED_MAIN = 'PUBLISHED_MAIN';
@@ -50,9 +29,6 @@ function normalizeTitle(title) {
   return String(title ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-// The deterministic intent fingerprint: stable across regenerations of the
-// same topic, distinct across topics. A consumed fingerprint permanently
-// blocks the topic from being regenerated under a near-duplicate slug.
 export function intentFingerprint({ kind = 'blog', title } = {}) {
   const normalized = normalizeTitle(title);
   if (!normalized) throw new Error('intent fingerprint requires a topic title');
@@ -64,7 +40,6 @@ export function slugForTitle(title) {
   return slug || 'weekly-grounded-guide';
 }
 
-// ISO week window in UTC: Monday 00:00:00.000 through Sunday 23:59:59.999.
 export function isoWeekWindow(scheduledAt) {
   const date = scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt);
   if (!Number.isFinite(date.getTime())) throw new Error(`unreadable scheduled-at timestamp: ${String(scheduledAt)}`);
@@ -77,17 +52,12 @@ export function isoWeekWindow(scheduledAt) {
   return { key: `${thursday.getUTCFullYear()}-W${String(week).padStart(2, '0')}`, start, end };
 }
 
-// The Sunday run is the deadline catch-up lane; the Wednesday run defers to it.
 export function isDeadlineLane(scheduledAt) {
   const date = scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt);
   if (!Number.isFinite(date.getTime())) throw new Error(`unreadable scheduled-at timestamp: ${String(scheduledAt)}`);
   return date.getUTCDay() === 0;
 }
 
-// The trusted gate decision rule. The threshold and blocking severities always
-// come from the supplied gate profile — the same frozen profile the journey
-// binds its evidence to — and the outcome is recomputed here, never accepted
-// from the reviewer's own verdict.
 export function evaluateGateOutcome(gate, verdict) {
   const threshold = Number(gate?.scoreThreshold);
   const severities = Array.isArray(gate?.blockingSeverities) ? gate.blockingSeverities : [...BLOCKING_SEVERITIES];
@@ -101,11 +71,9 @@ export function evaluateGateOutcome(gate, verdict) {
   };
 }
 
-// Repair routing (spec §36-37): the fixer is dispatched only for blocking
-// critical/high findings that are actually repairable. A sub-8 score without
-// blocking findings returns to fresh-candidate selection — inviting broad
-// "make it vaguer" repairs on it is how useful local details get sanded off.
-export function routeFailedGate(gate, verdict, { repairable = true } = {}) {
+export function routeFailedGate(gate, verdict, {
+  repairable = true, kind = 'blog-live', changedFiles = ['data/posts.json'],
+} = {}) {
   const outcome = evaluateGateOutcome(gate, verdict);
   if (outcome.passed) return { action: 'none', reason: 'the gate passed' };
   if (outcome.blocking.length === 0) {
@@ -114,7 +82,8 @@ export function routeFailedGate(gate, verdict, { repairable = true } = {}) {
       reason: `score ${outcome.overall} is below ${gate?.scoreThreshold} without blocking findings; returning to fresh-candidate selection`,
     };
   }
-  if (!repairable) {
+  const classified = classifyFindings(kind, verdict, { changedFiles });
+  if (repairable === false || classified.noFixer || classified.allUnrepairable) {
     return {
       action: 'advance-topic',
       reason: `every blocking finding is structurally unrepairable (${outcome.blocking.length}); terminating this candidate`,
@@ -123,31 +92,19 @@ export function routeFailedGate(gate, verdict, { repairable = true } = {}) {
   return { action: 'dispatch-fixer', reason: `${outcome.blocking.length} blocking finding(s) are repairable` };
 }
 
-// A repair that regresses the score, introduces a new blocking finding, or
-// merely plateaus terminates the candidate immediately. A plateau is not
-// progress: paying more rounds for the same score is the #97 failure mode.
-export function evaluateRepairRound({ previous, latest } = {}) {
-  if (!previous || !latest) {
-    return { action: 'continue', reason: 'not enough scored rounds to judge the repair yet' };
+export function evaluateRepairRound({ previous, latest, history } = {}) {
+  const rounds = Array.isArray(history) && history.length
+    ? history
+    : [previous, latest]
+      .filter((round) => round && Number.isFinite(round.overall))
+      .map((round, attempt) => ({ ...round, attempt }));
+  const progress = evaluateRepairProgress({ history: rounds });
+  if (progress.decision === 'abandon') {
+    return { action: 'terminate-candidate', reason: progress.reason };
   }
-  if (latest.blockingCount > previous.blockingCount) {
-    return {
-      action: 'terminate-candidate',
-      reason: `the repair introduced a new blocking finding (${previous.blockingCount} -> ${latest.blockingCount})`,
-    };
-  }
-  if (latest.overall < previous.overall) {
-    return { action: 'terminate-candidate', reason: `the repair regressed the score (${previous.overall} -> ${latest.overall})` };
-  }
-  if (latest.overall === previous.overall) {
-    return { action: 'terminate-candidate', reason: `the repair plateaued at ${latest.overall}; a plateau is not progress` };
-  }
-  return { action: 'continue', reason: `the repair improved the score (${previous.overall} -> ${latest.overall})` };
+  return { action: 'continue', reason: progress.reason };
 }
 
-// Deferral prose — "check current listings", "verify hours", "call ahead" —
-// is the fallback guide's signature failure mode: it defers the very local
-// specifics the repository already owns. Zero tolerance.
 export const DEFERRAL_HEDGE_PATTERN = new RegExp(
   String.raw`\b(?:check|verify|confirm|research|double-?check)\b[^.!?\n]{0,60}\b(?:current|latest|up-?to-?date|updated|hours|prices|pricing|listings?|availability|schedules?)\b`
   + String.raw`|\b(?:call ahead|call (?:the|them) first|visit (?:their|the|our) (?:website|site|page|listing)|see (?:their|the|our) (?:website|site|page)|before (?:you|your) (?:go|visit))\b`,
@@ -158,25 +115,32 @@ export function hasDeferralHedge(text) {
   return DEFERRAL_HEDGE_PATTERN.test(String(text ?? ''));
 }
 
-// Fail-closed grounding validation. Every specific must appear verbatim in
-// the record it resolves to; the guide must clear the minimum counts and
-// carry zero deferral hedges. Anything less is not publishable, whatever the
-// gate said.
-export function validateGroundedGuide({ content, specifics, records } = {}) {
+export function uniqueSpecifics(specifics) {
+  const seen = new Set();
+  return (Array.isArray(specifics) ? specifics : []).filter((specific) => {
+    const text = String(specific?.text ?? '').trim();
+    if (!text || seen.has(text)) return false;
+    seen.add(text);
+    return true;
+  });
+}
+
+export function validateGroundedGuide({ content, specifics, records, mode = 'candidate' } = {}) {
   const errors = [];
   const recordText = new Map((Array.isArray(records) ? records : [])
     .filter((record) => record && typeof record.slug === 'string')
     .map((record) => [record.slug, String(record.text ?? '')]));
-  const valid = (Array.isArray(specifics) ? specifics : []).filter((specific) => {
+  const valid = uniqueSpecifics(specifics).filter((specific) => {
     if (!specific || typeof specific.text !== 'string' || !specific.text.trim()) return false;
     const source = recordText.get(specific.recordSlug);
     return typeof source === 'string' && source.includes(specific.text);
   });
   const resolvingSlugs = new Set(valid.map((specific) => specific.recordSlug));
-  if (valid.length < MIN_VERBATIM_SPECIFICS) {
-    errors.push(`${valid.length} verbatim record specific(s); at least ${MIN_VERBATIM_SPECIFICS} are required`);
+  const fallback = mode === 'sunday-grounded-fallback' || mode === 'fallback';
+  if (fallback && valid.length < MIN_VERBATIM_SPECIFICS) {
+    errors.push(`${valid.length} unique verbatim record specific(s); at least ${MIN_VERBATIM_SPECIFICS} are required`);
   }
-  if (resolvingSlugs.size < MIN_RESOLVING_RECORDS) {
+  if (fallback && resolvingSlugs.size < MIN_RESOLVING_RECORDS) {
     errors.push(`${resolvingSlugs.size} resolving record slug(s); at least ${MIN_RESOLVING_RECORDS} are required`);
   }
   if (hasDeferralHedge(content)) {
@@ -185,9 +149,6 @@ export function validateGroundedGuide({ content, specifics, records } = {}) {
   return { ok: errors.length === 0, errors, specifics: valid.length, records: resolvingSlugs.size };
 }
 
-// Concrete local details extracted verbatim from record text: civic addresses,
-// clock ranges, and dollar amounts. Each specific is a substring of its record
-// by construction, so the extraction can never invent a specific.
 const SPECIFIC_PATTERNS = Object.freeze([
   String.raw`\b\d{1,5}[A-Za-z]?\s+(?:[A-Z][A-Za-z.'’-]*\s+){0,3}(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Way|Lane|Ln|Cres|Crescent|Pl|Place|Ct|Court)\b`,
   String.raw`\b\d{1,2}:\d{2}\s*(?:a|p)\.?m\.?(?:\s*(?:to|-|–)\s*\d{1,2}:\d{2}\s*(?:a|p)\.?m\.?)?`,
@@ -196,15 +157,30 @@ const SPECIFIC_PATTERNS = Object.freeze([
 
 export function extractVerbatimSpecifics(records) {
   const specifics = [];
+  const seen = new Set();
   for (const record of Array.isArray(records) ? records : []) {
     if (!record || typeof record.text !== 'string') continue;
     for (const source of SPECIFIC_PATTERNS) {
       for (const match of record.text.match(new RegExp(source, 'g')) ?? []) {
-        specifics.push({ text: match, recordSlug: record.slug });
+        const text = match.trim();
+        if (!text || seen.has(text)) continue;
+        seen.add(text);
+        specifics.push({ text, recordSlug: record.slug });
       }
     }
   }
   return specifics;
+}
+
+export function recordsFromBusinesses(businesses) {
+  return (Array.isArray(businesses) ? businesses : []).map((business) => ({
+    slug: business?.slug,
+    name: business?.name,
+    text: [
+      business?.name, business?.address, business?.hours, business?.priceRange,
+      business?.description, business?.answerBlock, business?.proTip,
+    ].filter((value) => typeof value === 'string' && value.trim()).join(' '),
+  })).filter((record) => record.slug && record.text);
 }
 
 export function selectFallbackCategory(usedCategories = []) {
@@ -212,10 +188,6 @@ export function selectFallbackCategory(usedCategories = []) {
   return FALLBACK_CATEGORIES.find((category) => !used.has(category)) ?? FALLBACK_CATEGORIES[0];
 }
 
-// The narrow record-backed Sunday fallback guide (spec §38): one conservative
-// guide from an unused category, built only from verbatim specifics already in
-// the repository records, with zero deferral hedges. It is validated before it
-// is ever staged; a guide that cannot meet the bar is not returned at all.
 export function buildFallbackGuide({ records, usedCategories = [], publishedAt, id }) {
   const specifics = extractVerbatimSpecifics(records);
   const byRecord = new Map();
@@ -226,7 +198,8 @@ export function buildFallbackGuide({ records, usedCategories = [], publishedAt, 
   const category = selectFallbackCategory(usedCategories);
   const recordLines = [...byRecord.entries()].map(([slug, values]) => {
     const record = (Array.isArray(records) ? records : []).find((entry) => entry?.slug === slug);
-    return `- **${record?.name ?? slug}** (${slug}): ${values.join('; ')}.`;
+    const name = record?.name ?? slug;
+    return `- [${name}](/directory/${slug}): ${[...new Set(values)].join('; ')}.`;
   });
   const content = [
     '## The short answer',
@@ -255,16 +228,13 @@ export function buildFallbackGuide({ records, usedCategories = [], publishedAt, 
     specifics,
     author: 'LibertyVillage.co',
   };
-  const validation = validateGroundedGuide({ content, specifics, records });
+  const validation = validateGroundedGuide({ content, specifics, records, mode: 'sunday-grounded-fallback' });
   if (!validation.ok) {
     throw new Error(`grounded fallback guide is not publishable: ${validation.errors.join('; ')}`);
   }
   return { guide, validation };
 }
 
-// Consumption (spec §33): a fingerprint is marked consumed only after the
-// exact article commit is actually contained in the target branch. A
-// publication claim without containment consumes nothing.
 export function consumePublishedIntent(consumed, { fingerprint, contained } = {}) {
   if (typeof fingerprint !== 'string' || !fingerprint) throw new Error('consuming an intent requires its fingerprint');
   const next = new Set(consumed ?? []);
@@ -276,10 +246,6 @@ export function consumePublishedIntent(consumed, { fingerprint, contained } = {}
   return { consumed: next, consumedNow, reason: consumedNow ? 'intent consumed after verified publication' : 'intent was already consumed' };
 }
 
-// Same-cycle distinct-topic advancement: pick the next eligible candidate,
-// skipping fingerprints attempted (and failed) in this same run, fingerprints
-// already consumed by a verified publication, and slugs that already exist as
-// articles — all before any generation spend.
 export function selectDistinctTopic({
   candidates, consumedFingerprints = [], excludeFingerprints = [], existingSlugs = [],
 } = {}) {
@@ -308,9 +274,6 @@ function introducedPosts({ posts, parentPosts } = {}) {
   });
 }
 
-// The weekly success predicate, from repository truth only: an article
-// introduced to the target branch by a contained commit whose publication
-// date falls inside the ISO week. PR creation or a green review is not success.
 export function findQualifyingPublication({ history, week } = {}) {
   const start = week?.start instanceof Date ? week.start.getTime() : Date.parse(week?.start);
   const end = week?.end instanceof Date ? week.end.getTime() : Date.parse(week?.end);
@@ -326,9 +289,6 @@ export function findQualifyingPublication({ history, week } = {}) {
   return null;
 }
 
-// Exactly one visible terminal for a missed week, with the evidence an
-// operator needs: the week, every attempted fingerprint, the exact failure
-// stage of each attempt, and the run/PR links. Never a silent success.
 export function weeklyPublicationMissed({
   week, attemptedFingerprints = [], failureStages = [], runUrl = null, prUrl = null,
 } = {}) {
@@ -344,9 +304,11 @@ export function weeklyPublicationMissed({
   };
 }
 
-// ---------------------------------------------------------------------------
-// Journey executor: the loop driven against a real (isolated) git repository.
-// ---------------------------------------------------------------------------
+function publicationRef(target) {
+  const value = String(target ?? '');
+  if (value.startsWith('refs/') || value.includes('/')) return value;
+  return `refs/heads/${value}`;
+}
 
 function makeGit(repoPath, scheduledAt) {
   const env = {
@@ -354,8 +316,8 @@ function makeGit(repoPath, scheduledAt) {
     GIT_AUTHOR_DATE: scheduledAt,
     GIT_COMMITTER_DATE: scheduledAt,
   };
-  return (args) => execFileSync('git', args, {
-    cwd: repoPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env,
+  return (args, cwd = repoPath) => execFileSync('git', args, {
+    cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env,
   }).trim();
 }
 
@@ -366,25 +328,28 @@ function readPostsAt(git, ref) {
   } catch {
     return [];
   }
+  let value;
   try {
-    const value = JSON.parse(raw);
-    return Array.isArray(value) ? value : [];
+    value = JSON.parse(raw);
   } catch {
-    throw new Error(`data/posts.json at ${ref} is not a JSON array; failing closed`);
+    throw new Error(`malformed publication history: data/posts.json at ${ref} is not valid JSON`);
   }
+  if (!Array.isArray(value)) {
+    throw new Error(`malformed publication history: data/posts.json at ${ref} is not a JSON array`);
+  }
+  return value;
 }
 
-// Bounded walk of the commits on the target branch that touched posts.json,
-// oldest first, with each commit's introduced posts computed against its first
-// parent so the predicate sees exactly what main actually received.
 export function branchPublicationHistory(git, targetBranch, { limit = 200 } = {}) {
-  const shas = git(['log', '--format=%H', '-n', String(limit), `refs/heads/${targetBranch}`, '--', 'data/posts.json'])
+  const ref = publicationRef(targetBranch);
+  const shas = git(['log', '--format=%H', '-n', String(limit), ref, '--', 'data/posts.json'])
     .split('\n').map((line) => line.trim()).filter(Boolean);
   return shas.reverse().map((sha) => {
     let parentPosts = [];
     try {
       parentPosts = readPostsAt(git, `${sha}^`);
-    } catch {
+    } catch (error) {
+      if (String(error.message).includes('malformed publication history')) throw error;
       parentPosts = [];
     }
     return { sha, posts: readPostsAt(git, sha), parentPosts };
@@ -392,12 +357,12 @@ export function branchPublicationHistory(git, targetBranch, { limit = 200 } = {}
 }
 
 function existingPostSlugs(git, targetBranch) {
-  return readPostsAt(git, `refs/heads/${targetBranch}`).map((post) => post?.slug).filter(Boolean);
+  return readPostsAt(git, publicationRef(targetBranch)).map((post) => post?.slug).filter(Boolean);
 }
 
 function commitIsContained(git, targetBranch, commit) {
   try {
-    git(['merge-base', '--is-ancestor', commit, `refs/heads/${targetBranch}`]);
+    git(['merge-base', '--is-ancestor', commit, publicationRef(targetBranch)]);
     return true;
   } catch {
     return false;
@@ -408,24 +373,34 @@ function commitContainsCandidate(git, commit, candidateId) {
   return readPostsAt(git, commit).some((post) => post?.id === candidateId);
 }
 
-// Stage one candidate as an exact article commit on its own branch from the
-// run's base commit. Rejected candidates stay here — auditable, never merged.
-function stageCandidate(git, repoPath, { branch, baseCommit, post }) {
-  git(['checkout', '-b', branch, baseCommit]);
-  const posts = [...readPostsAt(git, baseCommit), post];
-  fs.writeFileSync(path.join(repoPath, 'data/posts.json'), `${JSON.stringify(posts, null, 2)}\n`);
-  git(['add', '--', 'data/posts.json']);
-  git(['commit', '-m', `weekly: candidate ${post.id}`]);
-  return git(['rev-parse', 'HEAD']);
+function withWorktree(git, { branchFlags = [], commitish }, fn) {
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-weekly-wt-'));
+  git(['worktree', 'add', ...branchFlags, workDir, commitish]);
+  try {
+    return fn(workDir);
+  } finally {
+    try { git(['worktree', 'remove', '--force', workDir]); } catch { /* best-effort */ }
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* already removed */ }
+  }
 }
 
-// Protected-main promotion, then the load-bearing check: publication exists
-// only when the exact article commit is verifiably contained in the target
-// branch AND that commit carries this candidate's article. Anything else is a
-// claim, and a claim is not publication.
-function promoteAndVerifyContainment(git, { targetBranch, branch, articleCommit, candidateId }) {
-  git(['checkout', targetBranch]);
-  git(['merge', '--no-ff', '--no-edit', branch]);
+function stageCandidate(git, _repoPath, { branch, baseCommit, post }) {
+  return withWorktree(git, { branchFlags: ['-B', branch], commitish: baseCommit }, (workDir) => {
+    const posts = [...readPostsAt(git, baseCommit), post];
+    fs.mkdirSync(path.join(workDir, 'data'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, 'data/posts.json'), `${JSON.stringify(posts, null, 2)}\n`);
+    git(['add', '--', 'data/posts.json'], workDir);
+    git(['commit', '-m', `weekly: candidate ${post.id}`], workDir);
+    return git(['rev-parse', 'HEAD'], workDir);
+  });
+}
+
+function promoteAndVerifyContainment(git, _repoPath, { targetBranch, branch, articleCommit, candidateId }) {
+  withWorktree(git, { branchFlags: ['--detach'], commitish: publicationRef(targetBranch) }, (workDir) => {
+    git(['merge', '--no-ff', '--no-edit', branch], workDir);
+    const merged = git(['rev-parse', 'HEAD'], workDir);
+    git(['update-ref', publicationRef(targetBranch), merged]);
+  });
   const contained = commitIsContained(git, targetBranch, articleCommit)
     && commitContainsCandidate(git, articleCommit, candidateId);
   return { contained };
@@ -443,9 +418,6 @@ function gateEvidence(gate, commitSha, verdict) {
   };
 }
 
-// Deterministic journey evidence records. The journey repo is isolated, so the
-// loop's grounding is exercised against seeded record text; in production the
-// same validation runs against repository business records.
 const SEEDED_EVIDENCE_RECORDS = Object.freeze([
   {
     slug: 'seeded-record-a',
@@ -491,12 +463,6 @@ function seededVerbatimSpecifics() {
   ];
 }
 
-// The seeded topic plan models the measured baseline scenario: a first fresh
-// candidate whose local specifics are not supported by any record (the gate
-// rejects it under the frozen profile), then a distinct grounded topic, then
-// the Sunday fallback. The loop treats these exactly as it treats any adapter
-// plan: selection, gating, grounding, promotion, and consumption are all
-// decided by the shared policy, never by the seed.
 function defaultJourneyAdapters(input) {
   const publishedAt = input.scheduledAt;
   const { seed } = input;
@@ -532,7 +498,7 @@ function defaultJourneyAdapters(input) {
         mode: 'sunday-grounded-fallback',
         grounded: true,
         repairable: false,
-        content: null, // built from records by the fallback lane
+        content: null,
         specifics: null,
         verdict: { overall: 9, findings: [] },
       },
@@ -611,7 +577,9 @@ async function attemptCandidate(ctx, git, { candidate, fingerprint, mode, record
       reason: routing.reason,
     };
   }
-  const grounding = validateGroundedGuide({ content: candidate.content, specifics: candidate.specifics, records });
+  const grounding = validateGroundedGuide({
+    content: candidate.content, specifics: candidate.specifics, records, mode,
+  });
   if (!grounding.ok) {
     return {
       ...attempt,
@@ -620,14 +588,18 @@ async function attemptCandidate(ctx, git, { candidate, fingerprint, mode, record
       reason: `fail-closed grounding: ${grounding.errors.join('; ')}`,
     };
   }
-  const promotion = promoteAndVerifyContainment(git, {
-    targetBranch: ctx.targetBranch, branch, articleCommit, candidateId: candidate.id,
-  });
+  const promotion = (ctx.adapters.promote
+    ? await ctx.adapters.promote({
+      git, targetBranch: ctx.targetBranch, branch, articleCommit, candidateId: candidate.id,
+    })
+    : promoteAndVerifyContainment(git, ctx.repoPath, {
+      targetBranch: ctx.targetBranch, branch, articleCommit, candidateId: candidate.id,
+    }));
   if (!promotion.contained) {
     return {
       ...attempt,
       disposition: 'promotion-failed',
-      reason: `the exact article commit ${articleCommit} is not verifiably contained in refs/heads/${ctx.targetBranch}`,
+      reason: `the exact article commit ${articleCommit} is not verifiably contained in ${publicationRef(ctx.targetBranch)}`,
     };
   }
   return {
@@ -638,26 +610,163 @@ async function attemptCandidate(ctx, git, { candidate, fingerprint, mode, record
 }
 
 /**
- * Runs the weekly grounded publication loop against the supplied repository.
- *
- * The locked journey (tests/automation/weekly-grounded-publication-loop.eval.mjs)
- * drives this seam offline with deterministic adapters; the supervisor lanes
- * drive the same loop with the real generation and gate adapters.
- *
- * @returns {{ week: string, attempts: Array, publication: object, consumedFingerprints: string[] }}
+ * Same-cycle Wednesday advancement + Sunday fallback/no-op.
+ * Host-run injects coordinator, isolated worktree publish, and monitor adapters.
  */
+export async function runWeeklyLane({
+  scheduledAt,
+  dryRun = false,
+  maxFresh = MAX_WEEKLY_FRESH_CANDIDATES,
+  fetchTarget,
+  readPublicationHistory,
+  resolveTopic,
+  planCandidate,
+  runCandidate,
+  runFallback,
+  consumeIntent,
+  records,
+  usedCategories = [],
+  onUpdate = async () => {},
+} = {}) {
+  if (typeof fetchTarget === 'function') await fetchTarget();
+  const week = isoWeekWindow(scheduledAt);
+  const deadlineLane = isDeadlineLane(scheduledAt);
+
+  let history;
+  try {
+    history = await readPublicationHistory();
+  } catch (error) {
+    return {
+      terminal: WEEKLY_PUBLICATION_MISSED,
+      week: week.key,
+      reason: `malformed publication history: ${error.message}`,
+      publication: weeklyPublicationMissed({
+        week: week.key,
+        failureStages: [`history:malformed:${error.message}`],
+      }),
+    };
+  }
+
+  const already = findQualifyingPublication({ history, week });
+  if (already) {
+    return {
+      terminal: WEEKLY_OBJECTIVE_MET,
+      topic_key: null,
+      week: week.key,
+      publication: {
+        claimedTerminal: WEEKLY_OBJECTIVE_MET,
+        week: week.key,
+        articleCommit: already.sha,
+        qualifyingPost: already.post,
+      },
+    };
+  }
+
+  const excludeTopicKeys = [];
+  const attemptedFingerprints = [];
+  const failureStages = [];
+  let lastTopicKey = null;
+
+  for (let fresh = 0; fresh < maxFresh;) {
+    const topic = await resolveTopic({ excludeTopicKeys });
+    if (dryRun) return { terminal: 'DRY_RUN', topic_key: topic?.topic_key || null };
+    if (!topic?.topic_key) break;
+    if (excludeTopicKeys.includes(topic.topic_key)) break;
+
+    const candidate = await planCandidate(topic, { excludeTopicKeys });
+    lastTopicKey = candidate?.topic_key || topic.topic_key;
+    const fingerprint = intentFingerprint({ title: topic.topic_title || lastTopicKey });
+
+    if (candidate?.action === 'abandon-topic') {
+      excludeTopicKeys.push(lastTopicKey);
+      attemptedFingerprints.push(fingerprint);
+      failureStages.push(`${lastTopicKey}:abandoned`);
+      fresh += 1;
+      continue;
+    }
+    if (candidate?.generate !== 'true') {
+      if (candidate?.action === 'wait' && /cooling down/.test(String(candidate.reason || ''))) {
+        excludeTopicKeys.push(lastTopicKey);
+        continue;
+      }
+      break;
+    }
+
+    fresh += 1;
+    attemptedFingerprints.push(fingerprint);
+    await onUpdate({ state: 'GENERATE', topic_key: lastTopicKey });
+    const result = await runCandidate({ topic, candidate, fingerprint, mode: 'distinct-candidate' });
+    if (result?.terminal === PUBLISHED_MAIN) {
+      if (typeof consumeIntent === 'function') {
+        await consumeIntent({ fingerprint, topicKey: lastTopicKey, contained: true });
+      }
+      return { ...result, topic_key: lastTopicKey, week: week.key };
+    }
+    failureStages.push(`${lastTopicKey}:${result?.terminal || 'rejected'}`);
+    excludeTopicKeys.push(lastTopicKey);
+  }
+
+  if (!deadlineLane) {
+    return {
+      terminal: DEFERRED_TO_DEADLINE,
+      topic_key: lastTopicKey,
+      week: week.key,
+      attemptedFingerprints,
+      failureStages,
+    };
+  }
+
+  if (typeof runFallback === 'function') {
+    try {
+      const fallback = await runFallback({
+        records: typeof records === 'function' ? await records() : records,
+        usedCategories,
+        week,
+        scheduledAt,
+      });
+      if (fallback?.terminal === PUBLISHED_MAIN) {
+        const fingerprint = intentFingerprint({ title: fallback.title || 'sunday grounded fallback' });
+        if (typeof consumeIntent === 'function') {
+          await consumeIntent({ fingerprint, topicKey: fallback.topic_key, contained: true });
+        }
+        return { ...fallback, week: week.key };
+      }
+      failureStages.push(`fallback:${fallback?.terminal || 'rejected'}`);
+    } catch (error) {
+      failureStages.push(`fallback:${error.message}`);
+    }
+  }
+
+  return {
+    terminal: WEEKLY_PUBLICATION_MISSED,
+    topic_key: lastTopicKey,
+    week: week.key,
+    publication: weeklyPublicationMissed({ week: week.key, attemptedFingerprints, failureStages }),
+  };
+}
+
 export async function runWeeklyGroundedPublicationJourney(input) {
   const ctx = journeyContext(input);
   const week = isoWeekWindow(ctx.scheduledAt);
   const git = makeGit(ctx.repoPath, ctx.scheduledAt);
   const deadlineLane = isDeadlineLane(ctx.scheduledAt);
 
-  // Repository truth first: an article already contained in the target branch
-  // for this ISO week makes the whole run a no-op (user story 8).
-  const already = findQualifyingPublication({
-    history: branchPublicationHistory(git, ctx.targetBranch),
-    week,
-  });
+  let history;
+  try {
+    history = branchPublicationHistory(git, ctx.targetBranch);
+  } catch (error) {
+    return {
+      week: week.key,
+      attempts: [],
+      consumedFingerprints: [],
+      publication: weeklyPublicationMissed({
+        week: week.key,
+        failureStages: [`history:malformed:${error.message}`],
+      }),
+    };
+  }
+
+  const already = findQualifyingPublication({ history, week });
   if (already) {
     return {
       week: week.key,
@@ -681,7 +790,6 @@ export async function runWeeklyGroundedPublicationJourney(input) {
   const failureStages = [];
   const freshCandidates = plan.filter((candidate) => candidate?.mode === 'distinct-candidate');
 
-  // The primary lane: bounded fresh, distinct topics in this same invocation.
   for (let fresh = 0; fresh < MAX_WEEKLY_FRESH_CANDIDATES;) {
     const { candidate, fingerprint } = selectDistinctTopic({
       candidates: freshCandidates,
@@ -696,6 +804,9 @@ export async function runWeeklyGroundedPublicationJourney(input) {
     attempts.push(attempt);
     if (attempt.disposition === 'published') {
       const consumption = consumePublishedIntent(consumed, { fingerprint, contained: true });
+      if (typeof ctx.adapters.consume === 'function') {
+        await ctx.adapters.consume({ fingerprint, contained: true, topicKey: candidate.id });
+      }
       return {
         week: week.key,
         attempts,
@@ -711,8 +822,6 @@ export async function runWeeklyGroundedPublicationJourney(input) {
     failureStages.push(`${candidate.id}:${attempt.disposition}`);
   }
 
-  // The Wednesday lane defers to Sunday after its bounded budget; only the
-  // deadline lane may publish the conservative fallback.
   if (!deadlineLane) {
     return {
       week: week.key,
@@ -724,15 +833,14 @@ export async function runWeeklyGroundedPublicationJourney(input) {
         targetBranch: ctx.targetBranch,
         attemptedFingerprints: [...attemptedFingerprints],
         failureStages: [...failureStages],
-        note: `the bounded fresh-candidate budget did not publish this week; the Sunday deadline lane will catch up`,
+        note: 'the bounded fresh-candidate budget did not publish this week; the Sunday deadline lane will catch up',
       },
     };
   }
 
-  // The Sunday fallback lane: one conservative record-backed guide.
   const fallbackPlan = plan.find((candidate) => candidate?.mode === 'sunday-grounded-fallback');
   if (fallbackPlan) {
-    const usedCategories = readPostsAt(git, `refs/heads/${ctx.targetBranch}`)
+    const usedCategories = readPostsAt(git, publicationRef(ctx.targetBranch))
       .map((post) => post?.category).filter(Boolean);
     const { guide } = buildFallbackGuide({
       records,
@@ -758,6 +866,9 @@ export async function runWeeklyGroundedPublicationJourney(input) {
     attempts.push(attempt);
     if (attempt.disposition === 'published') {
       const consumption = consumePublishedIntent(consumed, { fingerprint, contained: true });
+      if (typeof ctx.adapters.consume === 'function') {
+        await ctx.adapters.consume({ fingerprint, contained: true, topicKey: fallbackCandidate.id });
+      }
       return {
         week: week.key,
         attempts,
@@ -773,8 +884,6 @@ export async function runWeeklyGroundedPublicationJourney(input) {
     failureStages.push(`${fallbackCandidate.id}:${attempt.disposition}`);
   }
 
-  // Even the grounded fallback failed. Nothing low-quality is published; the
-  // week records exactly one visible missed terminal with its evidence.
   return {
     week: week.key,
     attempts,

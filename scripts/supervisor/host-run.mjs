@@ -13,6 +13,11 @@ import { fetchObservation } from './github-monitor.mjs';
 import { contentShipEnabled } from '../automation/promotion-control.mjs';
 import { KIND_POLICIES } from '../automation/constants.mjs';
 import { lostDispatchRetry, mayRepin, MONITOR_LIMIT_MS, terminalFromObservation } from './sha-monitor.mjs';
+import {
+  branchPublicationHistory, buildFallbackGuide, DEFERRED_TO_DEADLINE,
+  isoWeekWindow, PUBLISHED_MAIN, recordsFromBusinesses, runWeeklyLane, WEEKLY_OBJECTIVE_MET,
+  WEEKLY_PUBLICATION_MISSED,
+} from './weekly-publication-loop.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const COMMAND_OUTPUT_LIMIT = 8 * 1024;
@@ -159,6 +164,47 @@ export async function boundedCandidateFlow({ generate, lint, publish }) {
   return { published: true, result };
 }
 
+function pickExistingPublicImage(workDir) {
+  for (const dir of ['public/images/blog', 'public/images/neighborhood', 'public/images/og']) {
+    const abs = path.join(workDir, dir);
+    if (!fs.existsSync(abs)) continue;
+    const name = fs.readdirSync(abs).find((entry) => /\.(?:jpe?g|png|webp|avif|gif)$/i.test(entry));
+    if (name) return `/${dir.slice('public/'.length)}/${name}`;
+  }
+  throw new Error('no existing public image for the fallback guide');
+}
+
+function fallbackPostFromGuide(guide, image, runDate) {
+  const specifics = (Array.isArray(guide.specifics) ? guide.specifics : [])
+    .map((specific) => String(specific?.text ?? '').trim())
+    .filter(Boolean);
+  const takeaways = [...new Set(specifics)].slice(0, 6);
+  while (takeaways.length < 4) takeaways.push('Every listed specific is copied verbatim from a linked directory record.');
+  return {
+    slug: guide.slug,
+    title: guide.title,
+    description: `A conservative ${guide.category} guide assembled from Liberty Village repository records.`,
+    content: guide.content,
+    publishedAt: runDate,
+    updatedAt: runDate,
+    category: guide.category,
+    tags: ['liberty-village', 'guide', guide.category, 'records'],
+    answerBlock: `This week's grounded ${guide.category} guide is assembled directly from the site's own business records.`,
+    faqs: [
+      { question: 'Where do these hours, prices, and addresses come from?', answer: 'Every specific is copied verbatim from a linked directory record on this site.' },
+      { question: 'Why is this guide conservative?', answer: 'No detail appears here that a repository record does not already contain.' },
+      { question: 'How do I open the full record?', answer: 'Follow the directory links in the guide. Each linked page is the source record.' },
+      { question: 'Is anything here invented?', answer: 'No. The linked records are the source; this guide restates them verbatim as of publication.' },
+    ],
+    relatedServices: [],
+    relatedTopics: [],
+    relatedPosts: [],
+    keyTakeaways: takeaways.slice(0, 6),
+    image,
+    author: 'LibertyVillage.co',
+  };
+}
+
 async function findIngestPr(repo, dataSha, { timeoutMs = 25 * 60 * 1000 } = {}) {
   const owner = repo.split('/')[0];
   const branch = `blog/auto-supervisor-${dataSha.slice(0, 12)}`;
@@ -251,71 +297,171 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     npm(['run', 'test:automation'], { cwd: workDir });
     npm(['run', 'test:supervisor'], { cwd: workDir });
 
-    const resolved = resolveCandidateReadOnly({
-      dryRun,
-      resolve: () => coordinator(repoRoot, ['resolve-topic', '--kind', 'blog'], { repo }),
-      plan: (topic) => coordinator(repoRoot, ['plan-candidate', '--kind', 'blog', '--topic-key', topic.topic_key], { repo }),
-    });
-    const { topic, candidate } = resolved;
-    await onUpdate({ state: dryRun ? 'TERMINAL' : 'PLAN_CANDIDATE', topic_key: topic.topic_key });
-    if (dryRun) return { terminal: 'DRY_RUN', topic_key: topic.topic_key };
-    if (candidate.generate !== 'true') return { terminal: candidate.action === 'abandon-topic' ? 'ABANDONED_TOPIC' : 'SKIPPED_CANDIDATE', topic_key: topic.topic_key };
-    const selectedTopic = readSelectedTopic(path.join(workDir, 'data/topic-queue.json'), topic.topic_key);
-    if (selectedTopic.title !== topic.topic_title) throw new Error(`selected topic title differs from the staging topic queue: ${topic.topic_key}`);
-    await onUpdate({ state: 'GENERATE', topic_key: topic.topic_key });
-    const generation = await boundedCandidateFlow({
-      generate: async () => generateWithPi({
-        cwd: workDir, agentDir: path.join(stateDir, 'pi-runtime'), sessionsDir: path.join(stateDir, 'pi-sessions'),
-        topic: selectedTopic,
-        contextFiles: [
-          'data/topic-queue.json', 'data/businesses.json', 'data/posts.json',
-          'scripts/prompts/sections/03-blog-generation.md',
-        ],
-        provider: process.env.PI_PROVIDER || 'openai', modelId: process.env.PI_MODEL || 'gpt-5.6-sol',
-        baseUrl: process.env.PI_BASE_URL || 'https://llm.int.exe.xyz/v1',
-      }),
-      lint: async ({ post, sessionFile }) => {
-        const imagePath = path.resolve(path.join(workDir, 'public'), `.${post.image}`);
-        if (!imagePath.startsWith(`${path.join(workDir, 'public')}${path.sep}`) || !fs.existsSync(imagePath)) {
-          throw new Error(`candidate image does not exist in the staging worktree: ${post.image}`);
-        }
-        writeCandidateArtifact({ postsFile: path.join(workDir, 'data/posts.json'), post });
-        await onUpdate({ state: 'LINT', pi_session_file: sessionFile });
-        command(process.execPath, [path.join(repoRoot, 'scripts/blog-lint.mjs'), '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'], { cwd: workDir });
-      },
-      publish: async () => {
-        await onUpdate({ state: 'PUSH_DATA_BRANCH' });
-        dataBranch = `supervisor/blog-data-${Date.now()}`;
-        command('git', ['checkout', '-b', dataBranch], { cwd: workDir });
-        command('git', ['add', '--', 'data/posts.json'], { cwd: workDir });
-        command('git', ['-c', 'user.name=exe.dev supervisor', '-c', 'user.email=supervisor@exe.dev', 'commit', '-m', 'blog: supervised candidate data'], { cwd: workDir });
-        const dataSha = command('git', ['rev-parse', 'HEAD'], { cwd: workDir });
-        const files = command('git', ['diff', '--name-only', 'origin/staging...HEAD'], { cwd: workDir }).split('\n').filter(Boolean);
-        const paths = validateIngestDiff(files);
-        if (!paths.ok) throw new Error(`candidate escaped blog policy: ${paths.errors.join('; ')}`);
-        command('git', ['push', 'origin', `HEAD:${dataBranch}`], { cwd: workDir });
-        await onUpdate({ state: 'WAIT_INGEST', data_branch: dataBranch, data_sha: dataSha });
-        const payload = { kind: 'blog', data_sha: dataSha, data_branch: dataBranch, topic_key: topic.topic_key, regenerations: Number(candidate.regenerations) };
-        await github(`/repos/${repo}/dispatches`, { method: 'POST', body: repositoryDispatchBody(payload) });
-        return { dataBranch, dataSha };
-      },
-    });
-    let pr;
-    try {
-      pr = await findIngestPr(repo, generation.result.dataSha);
-    } catch (error) {
-      if (!String(error.message).includes('timed out waiting for trusted ingest')) throw error;
-      cleanupDataBranch(repoRoot, generation.result.dataBranch);
+    const excludeFlag = (excludeTopicKeys) => (excludeTopicKeys?.length
+      ? ['--exclude-topic-keys', excludeTopicKeys.join(',')] : []);
+    const resetWorktree = () => {
+      command('git', ['checkout', '--detach', 'origin/staging'], { cwd: workDir });
+      command('git', ['reset', '--hard', 'origin/staging'], { cwd: workDir });
+      command('git', ['clean', '-fd'], { cwd: workDir });
+    };
+    const recordOutcome = async (topicKey, terminal, reason) => {
+      if (!topicKey) return;
       try {
-        pr = await findIngestPr(repo, generation.result.dataSha, { timeoutMs: 2 * 60 * 1000 });
-      } catch (lateError) {
-        if (!String(lateError.message).includes('timed out waiting for trusted ingest')) throw lateError;
-        throw error;
+        recordSupervisorOutcome({
+          repoRoot, repo, runId: run.run_id, topicKey, terminal, reason,
+        });
+      } catch (error) {
+        console.error(`candidate outcome record failed for ${topicKey}: ${error.message}`);
       }
+    };
+    const publishStagedPost = async ({ topic, candidate, post, sessionFile }) => {
+      const imagePath = path.resolve(path.join(workDir, 'public'), `.${post.image}`);
+      if (!imagePath.startsWith(`${path.join(workDir, 'public')}${path.sep}`) || !fs.existsSync(imagePath)) {
+        throw new Error(`candidate image does not exist in the staging worktree: ${post.image}`);
+      }
+      writeCandidateArtifact({ postsFile: path.join(workDir, 'data/posts.json'), post });
+      await onUpdate({ state: 'LINT', pi_session_file: sessionFile, topic_key: topic.topic_key });
+      command(process.execPath, [path.join(repoRoot, 'scripts/blog-lint.mjs'), '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'], { cwd: workDir });
+      await onUpdate({ state: 'PUSH_DATA_BRANCH', topic_key: topic.topic_key });
+      dataBranch = `supervisor/blog-data-${Date.now()}`;
+      command('git', ['checkout', '-b', dataBranch], { cwd: workDir });
+      command('git', ['add', '--', 'data/posts.json'], { cwd: workDir });
+      command('git', ['-c', 'user.name=exe.dev supervisor', '-c', 'user.email=supervisor@exe.dev', 'commit', '-m', 'blog: supervised candidate data'], { cwd: workDir });
+      const dataSha = command('git', ['rev-parse', 'HEAD'], { cwd: workDir });
+      const files = command('git', ['diff', '--name-only', 'origin/staging...HEAD'], { cwd: workDir }).split('\n').filter(Boolean);
+      const paths = validateIngestDiff(files);
+      if (!paths.ok) throw new Error(`candidate escaped blog policy: ${paths.errors.join('; ')}`);
+      command('git', ['push', 'origin', `HEAD:${dataBranch}`], { cwd: workDir });
+      await onUpdate({ state: 'WAIT_INGEST', data_branch: dataBranch, data_sha: dataSha, topic_key: topic.topic_key });
+      const payload = {
+        kind: 'blog', data_sha: dataSha, data_branch: dataBranch,
+        topic_key: topic.topic_key, regenerations: Number(candidate?.regenerations || 0),
+      };
+      await github(`/repos/${repo}/dispatches`, { method: 'POST', body: repositoryDispatchBody(payload) });
+      let pr;
+      try {
+        pr = await findIngestPr(repo, dataSha);
+      } catch (error) {
+        if (!String(error.message).includes('timed out waiting for trusted ingest')) throw error;
+        cleanupDataBranch(repoRoot, dataBranch);
+        try {
+          pr = await findIngestPr(repo, dataSha, { timeoutMs: 2 * 60 * 1000 });
+        } catch (lateError) {
+          if (!String(lateError.message).includes('timed out waiting for trusted ingest')) throw lateError;
+          throw error;
+        }
+      }
+      if (!isExactSha(pr?.head?.sha)) throw new Error('ingest PR has no exact head SHA');
+      await onUpdate({
+        state: 'MONITORING_CI', data_branch: dataBranch, data_sha: dataSha,
+        pr_number: pr.number, head_sha: pr.head.sha, sha_reason: 'ingest', topic_key: topic.topic_key,
+      });
+      const monitored = await monitorOwnedPr({
+        repoRoot, repo, prNumber: pr.number, initialSha: pr.head.sha, onUpdate, kind: 'blog-live',
+      });
+      return { ...monitored, topic_key: topic.topic_key, dataBranch, dataSha };
+    };
+    const runOneGeneratedCandidate = async ({ topic, candidate }) => {
+      const selectedTopic = readSelectedTopic(path.join(workDir, 'data/topic-queue.json'), topic.topic_key);
+      if (selectedTopic.title !== topic.topic_title) {
+        throw new Error(`selected topic title differs from the staging topic queue: ${topic.topic_key}`);
+      }
+      try {
+        const generated = await generateWithPi({
+          cwd: workDir, agentDir: path.join(stateDir, 'pi-runtime'), sessionsDir: path.join(stateDir, 'pi-sessions'),
+          topic: selectedTopic,
+          contextFiles: [
+            'data/topic-queue.json', 'data/businesses.json', 'data/posts.json',
+            'scripts/prompts/sections/03-blog-generation.md',
+          ],
+          provider: process.env.PI_PROVIDER || 'openai', modelId: process.env.PI_MODEL || 'gpt-5.6-sol',
+          baseUrl: process.env.PI_BASE_URL || 'https://llm.int.exe.xyz/v1',
+        });
+        const result = await publishStagedPost({
+          topic, candidate, post: generated.post, sessionFile: generated.sessionFile,
+        });
+        if (result?.terminal && result.terminal !== PUBLISHED_MAIN) {
+          await recordOutcome(topic.topic_key, result.terminal, `weekly candidate ${result.terminal}`);
+          resetWorktree();
+        }
+        return result;
+      } catch (error) {
+        await recordOutcome(topic.topic_key, 'GENERATION_FAILED_PRE_PR', error.message);
+        if (dataBranch) {
+          try { cleanupDataBranch(repoRoot, dataBranch); } catch (cleanupError) {
+            console.error(`data branch cleanup failed for ${dataBranch}: ${cleanupError.message}`);
+          }
+          dataBranch = null;
+        }
+        resetWorktree();
+        return { terminal: 'GENERATION_FAILED_PRE_PR', topic_key: topic.topic_key, reason: error.message };
+      }
+    };
+
+    const scheduledAt = run.started_at || new Date().toISOString();
+    const week = isoWeekWindow(scheduledAt);
+    const gitAtRepo = (args) => command('git', args, { cwd: repoRoot });
+    const lane = await runWeeklyLane({
+      scheduledAt,
+      dryRun,
+      onUpdate,
+      fetchTarget: async () => {
+        command('git', ['fetch', '--no-tags', 'origin', 'main'], { cwd: repoRoot });
+      },
+      readPublicationHistory: async () => branchPublicationHistory(gitAtRepo, 'origin/main'),
+      resolveTopic: async ({ excludeTopicKeys }) => coordinator(repoRoot, [
+        'resolve-topic', '--kind', 'blog', ...excludeFlag(excludeTopicKeys),
+      ], { repo }),
+      planCandidate: async (topic, { excludeTopicKeys } = {}) => {
+        await onUpdate({ state: 'PLAN_CANDIDATE', topic_key: topic.topic_key });
+        return coordinator(repoRoot, [
+          'plan-candidate', '--kind', 'blog', '--topic-key', topic.topic_key, ...excludeFlag(excludeTopicKeys),
+        ], { repo });
+      },
+      runCandidate: runOneGeneratedCandidate,
+      records: async () => recordsFromBusinesses(
+        JSON.parse(fs.readFileSync(path.join(workDir, 'data/businesses.json'), 'utf8')),
+      ),
+      usedCategories: JSON.parse(fs.readFileSync(path.join(workDir, 'data/posts.json'), 'utf8'))
+        .map((post) => post?.category).filter(Boolean),
+      consumeIntent: async ({ topicKey, contained }) => {
+        if (contained !== true || !topicKey) return;
+        recordSupervisorOutcome({
+          repoRoot, repo, runId: run.run_id, topicKey,
+          terminal: PUBLISHED_MAIN, reason: 'intent consumed after fetched remote main containment',
+        });
+      },
+      runFallback: async ({ records: fallbackRecords, usedCategories, scheduledAt: fallbackAt }) => {
+        const { guide } = buildFallbackGuide({
+          records: fallbackRecords,
+          usedCategories,
+          publishedAt: String(fallbackAt).slice(0, 10),
+          id: `sunday-fallback-${week.key}`,
+        });
+        const image = pickExistingPublicImage(workDir);
+        const post = fallbackPostFromGuide(guide, image, String(fallbackAt).slice(0, 10));
+        resetWorktree();
+        try {
+          return await publishStagedPost({
+            topic: { topic_key: `sunday-fallback-${week.key}`, topic_title: guide.title },
+            candidate: { regenerations: 0 },
+            post,
+            sessionFile: null,
+          });
+        } catch (error) {
+          if (dataBranch) {
+            try { cleanupDataBranch(repoRoot, dataBranch); } catch {}
+            dataBranch = null;
+          }
+          resetWorktree();
+          return { terminal: WEEKLY_PUBLICATION_MISSED, reason: error.message };
+        }
+      },
+    });
+    if (lane.terminal === WEEKLY_OBJECTIVE_MET || lane.terminal === DEFERRED_TO_DEADLINE) {
+      return { terminal: lane.terminal, topic_key: lane.topic_key || null, week: lane.week };
     }
-    if (!isExactSha(pr?.head?.sha)) throw new Error('ingest PR has no exact head SHA');
-    await onUpdate({ state: 'MONITORING_CI', data_branch: generation.result.dataBranch, data_sha: generation.result.dataSha, pr_number: pr.number, head_sha: pr.head.sha, sha_reason: 'ingest' });
-    return { ...(await monitorOwnedPr({ repoRoot, repo, prNumber: pr.number, initialSha: pr.head.sha, onUpdate, kind: 'blog-live' })), topic_key: topic.topic_key };
+    return lane;
   } finally {
     if (dataBranch) {
       try { cleanupDataBranch(repoRoot, dataBranch); } catch (error) { console.error(`data branch cleanup failed for ${dataBranch}: ${error.message}`); }

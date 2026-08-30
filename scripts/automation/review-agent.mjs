@@ -153,26 +153,41 @@ function referenceBlock(records) {
 // budget regardless of how large the data files grow.
 export const INVENTORY_SLUG_LIMIT = 150;
 export const INVENTORY_IMAGE_LIMIT = 200;
+export const INVENTORY_IMAGE_DIRS = Object.freeze([
+  Object.freeze({ dir: 'public/images/blog', prefix: '/images/blog', required: true }),
+  Object.freeze({ dir: 'public/images/neighborhood', prefix: '/images/neighborhood', required: false }),
+  Object.freeze({ dir: 'public/images/og', prefix: '/images/og', required: false }),
+]);
 const INVENTORY_IMAGE_PATTERN = /\.(?:jpe?g|png|webp|avif|gif)$/i;
 const INVENTORY_LENS = 'INVENTORY lens: verify internal links and image assets against the supplied bounded'
-  + ' inventory of valid slugs and existing blog images; an entry present in the inventory is'
+  + ' inventory of valid slugs and existing public images (blog, neighborhood, og); an entry present in the inventory is'
   + ' verified, never missing.';
 
-export function inventoryFromData({ services = [], topics = [], posts = [], blogImages = [] } = {}) {
+function imagePathsFromListing(names, prefix) {
+  return (Array.isArray(names) ? names : [])
+    .filter((name) => typeof name === 'string' && INVENTORY_IMAGE_PATTERN.test(name))
+    .map((name) => `${prefix}/${name}`);
+}
+
+export function inventoryFromData({
+  services = [], topics = [], posts = [], blogImages = [], neighborhoodImages = [], ogImages = [], images = [],
+} = {}) {
   const slugs = (entries, route) => (Array.isArray(entries) ? entries : [])
     .map((entry) => entry?.slug)
     .filter((slug) => typeof slug === 'string' && slug)
     .slice(0, INVENTORY_SLUG_LIMIT)
     .map((slug) => `/${route}/${slug}`);
-  const images = (Array.isArray(blogImages) ? blogImages : [])
-    .filter((name) => typeof name === 'string' && INVENTORY_IMAGE_PATTERN.test(name))
-    .slice(0, INVENTORY_IMAGE_LIMIT)
-    .map((name) => `/images/blog/${name}`);
+  const listed = [
+    ...imagePathsFromListing(blogImages, '/images/blog'),
+    ...imagePathsFromListing(neighborhoodImages, '/images/neighborhood'),
+    ...imagePathsFromListing(ogImages, '/images/og'),
+    ...(Array.isArray(images) ? images : []).filter((name) => typeof name === 'string' && INVENTORY_IMAGE_PATTERN.test(name)),
+  ].slice(0, INVENTORY_IMAGE_LIMIT);
   const inventory = {
     serviceSlugs: slugs(services, 'best'),
     topicSlugs: slugs(topics, 'guide'),
     postSlugs: slugs(posts, 'blog'),
-    blogImages: images,
+    blogImages: listed,
   };
   inventory.count = inventory.serviceSlugs.length + inventory.topicSlugs.length
     + inventory.postSlugs.length + inventory.blogImages.length;
@@ -208,18 +223,29 @@ async function groundingInventoryFor(repo, kind, sha) {
     load('data/topics.json', 'topics'),
     load('data/posts.json', 'posts'),
   ]);
-  let images;
-  try {
-    images = await github(`/repos/${repo}/contents/public/images/blog?ref=${sha}`);
-  } catch (error) {
-    throw new Error(`existing blog images could not be listed at ${sha}; refusing to run a gate that guesses at assets: ${error.message}`);
-  }
-  if (!Array.isArray(images)) {
-    throw new Error(`the blog image listing at ${sha} is not an array; refusing to run a gate that guesses at assets`);
+  const listed = {};
+  for (const { dir, prefix, required } of INVENTORY_IMAGE_DIRS) {
+    const key = prefix.replace('/images/', '') + 'Images';
+    try {
+      const listing = await github(`/repos/${repo}/contents/${dir}?ref=${sha}`);
+      if (!Array.isArray(listing)) {
+        if (required) throw new Error(`${dir} listing at ${sha} is not an array`);
+        listed[key] = [];
+        continue;
+      }
+      listed[key] = listing.map((entry) => entry?.name);
+    } catch (error) {
+      if (required) {
+        throw new Error(`existing blog images could not be listed at ${sha}; refusing to run a gate that guesses at assets: ${error.message}`);
+      }
+      listed[key] = [];
+    }
   }
   return inventoryFromData({
     services: services[1], topics: topics[1], posts: posts[1],
-    blogImages: images.map((entry) => entry?.name),
+    blogImages: listed.blogImages,
+    neighborhoodImages: listed.neighborhoodImages,
+    ogImages: listed.ogImages,
   });
 }
 

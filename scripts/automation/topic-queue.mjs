@@ -227,7 +227,7 @@ export function recordTopicFailure({ queue, state, kind, now, key, topicKey: top
   };
 }
 
-export function planTopicCandidate({ queue, state, kind, now } = {}) {
+export function planTopicCandidate({ queue, state, kind, now, excludeKeys = [] } = {}) {
   const migrated = {
     ...emptyCandidateState(kind),
     ...state,
@@ -238,7 +238,12 @@ export function planTopicCandidate({ queue, state, kind, now } = {}) {
   const mirrored = mirrorLegacyTopic(migrated, queue, kind, now);
   const expired = applyExpiry(mirrored, queue, now);
   const rolled = recomputeCandidateRollups(expired.state, { queue: expired.queue, kind, now });
-  const selected = selectEligibleTopic({ queue: expired.queue, state: rolled, kind, now });
+  const selected = selectEligibleTopic({
+    queue: expired.queue,
+    state: { ...rolled, excludeKeys },
+    kind,
+    now,
+  });
 
   if (!selected) {
     const scoped = kindQueue(expired.queue, kind);
