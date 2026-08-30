@@ -1,0 +1,19 @@
+# Integrity lock for the evaluator-owned weekly grounded publication journey.
+#
+# These files are LOCKED. The builder must not edit, weaken, delete, re-scope,
+# or skip any of them. Maker != checker.
+#
+# Verify (run from the repository root; must print "OK" for every line and exit 0):
+#
+#   shasum -a 256 -c evals/weekly-grounded-publication-loop.sha256
+#
+# Linux equivalent:
+#
+#   sha256sum -c evals/weekly-grounded-publication-loop.sha256
+#
+# A FAILED line means an evaluator-owned artifact was modified and is an
+# automatic FAIL of the acceptance review.
+ec78c05ed7e354e78e8f902ba9625a23b3210b2d5300395f70221e802704fc15  tests/automation/weekly-grounded-publication-loop.eval.mjs
+2ab1ee8b56b9a37ebb594d3557ad6a24d380a2092f81552f6e911823e3074d71  tests/automation/fixtures/weekly-grounded-publication-loop/fixture-harness.mjs
+091c1de51068c9f6b17cb4dba5ed59123cd6b100b3984fe9ceb74eeed44c4803  tests/automation/fixtures/weekly-grounded-publication-loop/conforming-harness.mjs
+b31144d4d13b437ffb92a6aa1cbfd68fb91dde29c3c05e20c44e5fcae24881c5  tests/automation/fixtures/weekly-grounded-publication-loop/false-publication-harness.mjs
