@@ -112,7 +112,7 @@ const GATE_BAR = `A blocking finding is any finding with severity ${BLOCKING_SEV
 // records for the businesses this diff names, and no tools and no network. A
 // claim it cannot verify from diff + records is flagged `unsupported` — it is
 // never "corrected" from parametric memory (the Balzac's false positive, #97).
-const GROUNDED_KINDS = Object.freeze(['blog', 'news']);
+const GROUNDED_KINDS = Object.freeze(['blog', 'blog-live', 'news']);
 const BUSINESSES_FILE = 'data/businesses.json';
 const GROUNDING_LENS = 'GROUNDING lens: verify named-business facts against the supplied records;'
   + ' if a claim is unverifiable from diff + records, flag it as unsupported —'
