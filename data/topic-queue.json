@@ -100,6 +100,36 @@
       "addedAt": "2026-08-24T22:31:09.308Z",
       "attempts": 0,
       "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "5bd1bbe2db63cb24d8767249b3bd4b35e6e6894b2832503d5bf74a0804cd62be",
+      "kind": "blog",
+      "title": "Is Liberty Village, Toronto Walkable?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-08-31T17:26:57.773Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "11b28dfb6f29c7d62c74652cfd95e2175fe742e004f193ed1bcfaa969e4c86a1",
+      "kind": "blog",
+      "title": "Is Liberty Village, Toronto Downtown?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-08-31T17:26:57.773Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "95cee30d866c90c5d741693412db16a9d8777079f39fff5f472d4c0d206aef74",
+      "kind": "blog",
+      "title": "What Is The Best Place To Eat In Liberty Village, Toronto?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village restaurants\"",
+      "addedAt": "2026-08-31T17:26:57.773Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
     }
   ]
 }
