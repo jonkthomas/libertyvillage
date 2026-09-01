@@ -468,6 +468,12 @@ jobs:
         run: gh pr merge "${{ needs.validate-generator.outputs.pr_number }}" --repo "$GITHUB_REPOSITORY" --auto --merge
       - name: Observe main merge and PR-shaped sync into staging
         if: ${{ steps.refresh.outputs.refreshed != 'true' && github.event.client_payload.kind == 'blog-live' }}
+        # The content pass, merge, and exact-head gate success are already durable
+        # at this point; a post-merge staging-sync operational failure is owned by
+        # the supervisor's bounded sync recovery and must not fail pass-generator,
+        # which would arm block-generator and overwrite the passed gate. The step
+        # still fails visibly in the run log.
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           LV_CONTENT_SHIP_ENABLED: ${{ vars.LV_CONTENT_SHIP_ENABLED }}

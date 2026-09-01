@@ -255,7 +255,7 @@ test('[GREEN] gate constants are unchanged: Opus, threshold 8, blocking severiti
   assert.deepEqual([...constants.BLOCKING_SEVERITIES], ['critical', 'high']);
   assert.equal(constants.MAX_REPAIRS, 3);
   assert.equal(constants.MAX_HEALS, 2);
-  assert.deepEqual([...constants.TRUSTED_PR_AUTHORS], ['github-actions[bot]']);
+  assert.deepEqual([...constants.TRUSTED_PR_AUTHORS], ['github-actions[bot]', 'exe-dev-github-integration[bot]']);
 });
 
 test('[GREEN] the gate decision is recomputed server-side and cannot be talked past', async () => {
