@@ -22,7 +22,10 @@ export const STATUS_CONTEXTS = Object.freeze({
   }),
 });
 
-export const TRUSTED_PR_AUTHORS = Object.freeze(['github-actions[bot]']);
+// exe-dev-github-integration[bot] is the exact REST user.login of the exe.dev
+// GitHub App (gh shows app/exe-dev-github-integration) that authors the
+// workflow-created post-merge staging sync PRs alongside github-actions[bot].
+export const TRUSTED_PR_AUTHORS = Object.freeze(['github-actions[bot]', 'exe-dev-github-integration[bot]']);
 
 // Single binding site for the controlled labels the coordinator writes and the
 // sentinel reads. Duplicating either string is how a blocked PR goes invisible.
