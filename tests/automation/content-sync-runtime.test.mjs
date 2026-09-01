@@ -110,6 +110,41 @@ for (const variant of ['untrusted', 'wrong-ancestry']) {
   });
 }
 
+test('a reused sync PR authored by the exact exe.dev app REST login is trusted and proceeds to statuses', async () => {
+  // Regression for PR #158: the exe.dev GitHub App (gh shows app/exe-dev-github-integration,
+  // REST user.login exe-dev-github-integration[bot]) authors the workflow-created sync PR.
+  // It must pass the same identity, ref/base/head, fork, and two-parent ancestry checks.
+  const reused = {
+    number: 8, state: 'open', merged: false,
+    user: { login: 'exe-dev-github-integration[bot]', type: 'Bot' },
+    base: { ref: 'staging' }, head: { sha: X, ref: `sync/main-${M}`, repo: { fork: false } },
+  };
+  let closed = false;
+  let staged = false;
+  const statuses = [];
+  const github = async (path, options = {}) => {
+    if (path.includes(`/compare/${M}...main`)) return { status: 'ahead', behind_by: 0 };
+    if (path.endsWith('/branches/staging')) return { commit: { sha: staged ? T : S } };
+    if (path.includes(`/compare/${M}...staging`)) return { status: staged ? 'ahead' : 'behind', behind_by: staged ? 0 : 1 };
+    if (path.endsWith('/pulls/8')) return reused;
+    if (path.endsWith(`/commits/${X}`)) return { parents: [{ sha: S }, { sha: M }] };
+    if (path.endsWith('/pulls/8/merge')) { staged = true; return { merged: true }; }
+    if (options.method === 'PATCH') { closed = true; return {}; }
+    if (options.method === 'DELETE') return null;
+    throw new Error(`unexpected ${path}`);
+  };
+  const result = await syncMergedContentToStaging({ repo: REPO, contentPr: contentPr({ merge_commit_sha: M }), mergeSha: M }, {
+    github,
+    paged: async (path) => path.includes('/files') ? [{ filename: 'data/posts.json' }] : [reused],
+    writeOutput: () => {},
+    publishStatus: async (value) => statuses.push(value),
+  });
+  assert.equal(result.synced, 'true');
+  assert.equal(closed, false, 'the app-authored exact-head sync PR must not be closed as untrusted');
+  assert.deepEqual(statuses.map((value) => value.context), ['automation/ci', 'automation/opus-gate'],
+    'identity acceptance must reach the sync statuses and merge');
+});
+
 test('successful sync targets the exact merge SHA, validates two parents, and deletes the merged branch', async () => {
   const calls = [];
   const statuses = [];

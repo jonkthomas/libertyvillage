@@ -291,3 +291,21 @@ test('generator pass refreshes after audit and skips auto-merge and observation 
   assert.equal((passJob.match(/steps\.refresh\.outputs\.refreshed != 'true'/g) || []).length, 5);
   assert.doesNotMatch(passJob.slice(0, refresh), /gh pr merge|observe-and-promote|observe-and-sync-staging/);
 });
+
+test('a post-merge staging-sync failure cannot poison the already-passed blog-live gate', () => {
+  // Regression for the blog-2026-09-01T05-05-21-955Z run: the sync PR identity
+  // refusal threw inside pass-generator's final step, failing the job, which armed
+  // block-generator and overwrote the exact-head automation/opus-gate success.
+  const passJob = workflow.slice(workflow.indexOf('  pass-generator:'), workflow.indexOf('  block-generator:'));
+  const syncStepStart = passJob.indexOf('- name: Observe main merge and PR-shaped sync into staging');
+  assert.ok(syncStepStart >= 0, 'missing the post-merge staging-sync observation step');
+  const syncStep = passJob.slice(syncStepStart);
+  assert.match(syncStep, /coordinator\.mjs observe-and-sync-staging/);
+  assert.match(syncStep, /continue-on-error: true/,
+    'an operational post-merge sync failure must stay observable without failing the passed job');
+  assert.doesNotMatch(passJob.slice(0, syncStepStart), /continue-on-error/,
+    'audit, refresh, exact-head gate waiting, and the main merge must still fail the job');
+  const blockJob = workflow.slice(workflow.indexOf('  block-generator:'), workflow.indexOf('  validate-promotion:'));
+  assert.match(blockJob, /needs\.pass-generator\.result != 'success'/,
+    'block-generator must stay armed only on a real pass-generator failure');
+});
