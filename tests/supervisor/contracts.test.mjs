@@ -50,7 +50,7 @@ test('ingest is repository_dispatch-only and keeps PR authorship in Actions', ()
   assert.match(workflow, /coordinator\.mjs dispatch/);
   assert.match(workflow, /actions\/setup-node@v4/);
   assert.match(workflow, /git ls-remote origin "refs\/heads\/\$DATA_BRANCH"/);
-  assert.match(constants, /TRUSTED_PR_AUTHORS = Object\.freeze\(\['github-actions\[bot\]'\]\)/);
+  assert.match(constants, /TRUSTED_PR_AUTHORS = Object\.freeze\(\['github-actions\[bot\]', 'exe-dev-github-integration\[bot\]'\]\)/);
 });
 
 test('supervisor baseline is staging-based and data branches are bounded and cleaned', () => {
