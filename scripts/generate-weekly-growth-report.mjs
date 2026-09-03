@@ -193,13 +193,14 @@ async function collectPosthogWeek(personalToken, window) {
   }
 }
 
-async function collectPosthogTop(personalToken, window) {
+export async function collectPosthogTop(personalToken, window) {
   const rows = await posthogQuery(personalToken, buildPosthogLandingQuery(window));
   try {
-    return normalizeLandingPaths(rows);
+    normalizeLandingPaths(rows);
   } catch {
     throw new Error('posthog_schema_error');
   }
+  return rows;
 }
 
 async function collectLiveInputs(windows) {

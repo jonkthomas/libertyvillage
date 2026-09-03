@@ -19,6 +19,7 @@ import {
   buildPosthogLandingQuery,
   buildPosthogTotalsQuery,
   collectGscTop,
+  collectPosthogTop,
 } from '../../scripts/generate-weekly-growth-report.mjs';
 
 const fixture = JSON.parse(fs.readFileSync('tests/fixtures/weekly-growth-input.json', 'utf8'));
@@ -67,6 +68,37 @@ test('GSC totals use the authoritative no-dimension row and reject malformed agg
     /invalid_gsc_ctr/,
   );
   assert.throws(() => normalizePosthogTotals([1, 2]), /invalid_posthog_totals/);
+});
+
+test('live PostHog landing collection validates but preserves raw rows for one report-normalization pass', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.match(String(url), /\/api\/projects\/[^/]+\/query\/$/);
+    const body = JSON.parse(init.body);
+    assert.equal(body.query.kind, 'HogQLQuery');
+    assert.match(body.query.query, /GROUP BY path/);
+    return { ok: true, json: async () => ({ results: fixture.top.current.organicLandingPaths }) };
+  };
+  try {
+    const collected = await collectPosthogTop('token', windows[3]);
+    assert.deepEqual(collected, fixture.top.current.organicLandingPaths);
+
+    const report = buildGrowthReport({
+      generatedAt: fixture.generatedAt,
+      windows,
+      weekly: fixture.weekly,
+      top: {
+        current: { ...fixture.top.current, organicLandingPaths: collected },
+        prior: fixture.top.prior,
+      },
+    });
+    assert.equal(report.top.current.organicLandingPaths[0].path, '/guide/parking-guide');
+    assert.equal(report.top.current.organicLandingPaths[0].organicLandings, 30);
+    assert.equal(report.top.current.organicLandingPaths[1].path, '/best/restaurants');
+    assert.equal(report.top.current.organicLandingPaths[1].organicLandings, 20);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('live GSC collection validates but preserves raw rows for one report-normalization pass', async () => {
