@@ -130,6 +130,36 @@
       "addedAt": "2026-08-31T17:26:57.773Z",
       "attempts": 0,
       "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "feed6c7afc8ef2b4d0f09f80f708ae2943414e5d21ae7a27fa2d248969b549e5",
+      "kind": "blog",
+      "title": "Liberty Village Toronto",
+      "source": "gsc",
+      "rationale": "GSC top query (3 clicks, 249 impressions)",
+      "addedAt": "2026-09-07T15:36:03.275Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "5c206841184b389c12a736c8211a9268fedddfcbae8697d6427582ba9e375419",
+      "kind": "blog",
+      "title": "What Is There To Do In Liberty Village, Toronto?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-09-07T15:36:03.275Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "706789b837798504489d32e7420e80673e1539bc64e25f80bcb2753f28465cc0",
+      "kind": "blog",
+      "title": "Is Liberty Village, Toronto Considered Downtown?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-09-07T15:36:03.275Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
     }
   ]
 }
