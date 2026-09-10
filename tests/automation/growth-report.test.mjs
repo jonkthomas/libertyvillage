@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   assertSafeReport,
@@ -194,6 +195,71 @@ test('safe report guard rejects raw event/person/token keys without rejecting ag
     () => assertSafeReport({ ...report, top: { current: { gscQueries: [{ query: 'https://external.example/path?value=secret' }] } } }),
     /unsafe_report_value/,
   );
+});
+
+test('default PostHog sleeper keeps the process alive through a retry without an injected sleep', () => {
+  // Regression for the unref'd default timer: awaiting an unref'd setTimeout lets the
+  // event loop drain mid-retry, so a lone collectPosthogTop exited 0 (entrypoint shape)
+  // or 13 (top-level await) before the second request. The locked evaluator always
+  // injects a sleeper, so only a real child process using the production default can
+  // catch this. Fake fetch serves one 503 with Retry-After: 0 then a 200, so the test
+  // needs no network and no real 1s backoff wait.
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  const child = `
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { collectPosthogTop } = await import(
+  pathToFileURL(path.join(process.argv[2], 'scripts/generate-weekly-growth-report.mjs')).href,
+);
+let calls = 0;
+globalThis.fetch = async () => {
+  calls += 1;
+  if (calls === 1) {
+    return {
+      ok: false,
+      status: 503,
+      headers: { get: (name) => (name.toLowerCase() === 'retry-after' ? '0' : null) },
+      arrayBuffer: async () => new ArrayBuffer(0),
+    };
+  }
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: async () => ({ results: [['/', 5]] }),
+  };
+};
+// Entrypoint-like execution (mirrors run().then/.catch): an abandoned retry
+// must surface here as a missing COLLECT_OK line, not a hang.
+const startedAt = Date.now();
+collectPosthogTop('token', { start: '2026-07-27', end: '2026-08-02' })
+  .then((rows) => {
+    console.log(\`COLLECT_OK calls=\${calls} elapsedMs=\${Date.now() - startedAt} rows=\${JSON.stringify(rows)}\`);
+  })
+  .catch((error) => {
+    console.error(\`COLLECT_FAILED:\${error?.message ?? error}\`);
+    process.exitCode = 1;
+  });
+`;
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'liberty-growth-sleeper-'));
+  try {
+    const childPath = path.join(scratch, 'default-sleeper-child.mjs');
+    fs.writeFileSync(childPath, child);
+    const run = spawnSync(process.execPath, [childPath, root], { encoding: 'utf8' });
+    const okLine = /COLLECT_OK calls=(\d+) elapsedMs=(\d+) rows=(.*)/.exec(run.stdout);
+    assert.ok(
+      okLine,
+      `expected the retry to complete with a second fetch; status=${run.status} stdout=${JSON.stringify(run.stdout)} stderr=${JSON.stringify(run.stderr)}`,
+    );
+    assert.equal(okLine[1], '2', 'the 503 must be retried exactly once via the default sleeper');
+    assert.ok(
+      Number(okLine[2]) < 500,
+      `Retry-After: 0 must not degrade into a real backoff wait (took ${okLine[2]}ms)`,
+    );
+    assert.equal(run.status, 0, run.stderr);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 });
 
 test('CLI writes strict fixture artifacts and fails closed before network access without credentials', () => {
