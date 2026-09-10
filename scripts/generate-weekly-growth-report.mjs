@@ -100,7 +100,7 @@ async function queryGsc(client, window, dimensions) {
   }
 }
 
-async function collectGscWeek(client, window) {
+export async function collectGscWeek(client, window) {
   const rows = await queryGsc(client, window);
   if (rows.length > 1) throw new Error('gsc_schema_error');
   try {
