@@ -102,9 +102,10 @@ async function queryGsc(client, window, dimensions) {
 
 export async function collectGscWeek(client, window) {
   const rows = await queryGsc(client, window);
+  if (rows.length === 0) throw new Error('gsc_schema_error');
   if (rows.length > 1) throw new Error('gsc_schema_error');
   try {
-    return normalizeGscTotals(rows[0] ?? null);
+    return normalizeGscTotals(rows[0]);
   } catch {
     throw new Error('gsc_schema_error');
   }
@@ -157,22 +158,73 @@ ORDER BY organic_landings DESC, path ASC
 LIMIT ${TOP_LIMIT}`.trim();
 }
 
-async function posthogQuery(personalToken, query) {
-  let response;
-  try {
-    response = await fetch(`${POSTHOG_API_HOST}/api/projects/${POSTHOG_PROJECT_ID}/query/`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${personalToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch {
-    throw new Error('posthog_request_failed');
+const POSTHOG_MAX_ATTEMPTS = 3;
+const POSTHOG_BASE_DELAY_MS = 1_000;
+const POSTHOG_MAX_DELAY_MS = 8_000;
+const POSTHOG_ATTEMPT_TIMEOUT_MS = 30_000;
+
+function defaultPosthogSleep(ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+}
+
+function isRetryablePosthogStatus(status) {
+  return status === 408 || status === 429 || (status >= 500 && status <= 599);
+}
+
+function parseRetryAfterMs(header) {
+  if (header == null) return null;
+  const text = String(header).trim();
+  if (/^\d+$/.test(text)) {
+    const ms = Number(text) * 1_000;
+    return Number.isFinite(ms) && ms >= 0 ? ms : null;
   }
-  if (!response.ok) throw new Error('posthog_request_failed');
+  const httpDateMs = Date.parse(text);
+  if (!Number.isFinite(httpDateMs)) return null;
+  const deltaMs = httpDateMs - Date.now();
+  return deltaMs > 0 ? deltaMs : null;
+}
+
+function posthogBackoffMs(attempt) {
+  return Math.min(POSTHOG_BASE_DELAY_MS * 2 ** (attempt - 1), POSTHOG_MAX_DELAY_MS);
+}
+
+async function discardResponseBody(response) {
+  try {
+    if (typeof response?.arrayBuffer === 'function') await response.arrayBuffer();
+    else await response?.body?.cancel?.();
+  } catch {
+    // Draining is best-effort; nothing from the response body may ever surface.
+  }
+}
+
+async function posthogQuery(personalToken, query, { sleep = defaultPosthogSleep } = {}) {
+  let response;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      response = await fetch(`${POSTHOG_API_HOST}/api/projects/${POSTHOG_PROJECT_ID}/query/`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${personalToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
+        signal: AbortSignal.timeout(POSTHOG_ATTEMPT_TIMEOUT_MS),
+      });
+    } catch {
+      if (attempt >= POSTHOG_MAX_ATTEMPTS) throw new Error('posthog_request_failed');
+      await sleep(posthogBackoffMs(attempt));
+      continue;
+    }
+    if (response.ok) break;
+    if (!isRetryablePosthogStatus(response.status)) throw new Error('posthog_request_failed');
+    if (attempt >= POSTHOG_MAX_ATTEMPTS) throw new Error('posthog_request_failed');
+    const retryAfterMs = parseRetryAfterMs(response.headers?.get('retry-after'));
+    await discardResponseBody(response);
+    await sleep(Math.min(retryAfterMs ?? posthogBackoffMs(attempt), POSTHOG_MAX_DELAY_MS));
+  }
   let payload;
   try {
     payload = await response.json();
@@ -193,8 +245,8 @@ async function collectPosthogWeek(personalToken, window) {
   }
 }
 
-export async function collectPosthogTop(personalToken, window) {
-  const rows = await posthogQuery(personalToken, buildPosthogLandingQuery(window));
+export async function collectPosthogTop(personalToken, window, { sleep } = {}) {
+  const rows = await posthogQuery(personalToken, buildPosthogLandingQuery(window), { sleep });
   try {
     normalizeLandingPaths(rows);
   } catch {
