@@ -165,8 +165,7 @@ const POSTHOG_ATTEMPT_TIMEOUT_MS = 30_000;
 
 function defaultPosthogSleep(ms) {
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    timer.unref?.();
+    setTimeout(resolve, ms);
   });
 }
 
