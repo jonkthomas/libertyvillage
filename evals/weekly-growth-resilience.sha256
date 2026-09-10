@@ -1,0 +1,16 @@
+# Integrity lock for the evaluator-owned weekly growth resilience journey.
+#
+# These files are LOCKED. The builder must not edit, weaken, delete, re-scope,
+# or skip any of them. Maker != checker.
+#
+# Verify (run from the repository root; must print "OK" for every line and exit 0):
+#
+#   shasum -a 256 -c evals/weekly-growth-resilience.sha256
+#
+# Linux equivalent:
+#
+#   sha256sum -c evals/weekly-growth-resilience.sha256
+#
+# A FAILED line means an evaluator-owned artifact was modified and is an
+# automatic FAIL of the acceptance review.
+ad9bab2dd1dc11455f4e0e86e4e7cb3d5fa7d696f714c0116a48ebb3fc3625aa  tests/automation/weekly-growth-resilience.eval.mjs
