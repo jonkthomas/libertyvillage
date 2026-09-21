@@ -210,6 +210,26 @@
       "addedAt": "2026-09-14T16:13:41.246Z",
       "attempts": 0,
       "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "2e22af9e37d0eb620be3bccdbb78ac992e5dbf0ef6efaaeb52167cabb51ef8e5",
+      "kind": "blog",
+      "title": "Liberty Village Gyms",
+      "source": "gsc",
+      "rationale": "GSC top query (3 clicks, 10 impressions)",
+      "addedAt": "2026-09-21T16:19:26.134Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "31e0e8c6190e0594d5429114ac1c7fdcaece658551e1cce9a511ff7dd1272414",
+      "kind": "blog",
+      "title": "Liberty Village Spa",
+      "source": "gsc",
+      "rationale": "GSC top query (3 clicks, 29 impressions)",
+      "addedAt": "2026-09-21T16:19:26.134Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
     }
   ]
 }
