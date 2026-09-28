@@ -5,8 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // r7 scope-only workflow retirement: autonomous coordination and all six
-// scheduled writer workflows are deleted. Only the manual human queue
-// news-discovery -> news-draft remains (plus the untouched content-ci).
+// scheduled writer workflows are deleted. The manual news-discovery ->
+// news-draft queue was retired too: the exe.dev runner's daily news job owns
+// news end to end. Only content-ci remains.
 // Contract: zero reachable GITHUB_TOKEN bot-PR paths in retained workflows.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const WORKFLOWS = path.join(ROOT, '.github/workflows');
@@ -25,9 +26,12 @@ const RETIRED = [
   '.github/workflows/weekly-blog.yml',
   '.github/workflows/weekly-growth-report.yml',
   '.github/workflows/news-autopublish.yml',
+  // Manual human news queue (runner news job replaces it).
+  '.github/workflows/news-discovery.yml',
+  '.github/workflows/news-draft.yml',
 ];
 
-const RETAINED = ['content-ci.yml', 'news-discovery.yml', 'news-draft.yml'];
+const RETAINED = ['content-ci.yml'];
 
 // Every bot-PR / autonomous-gate reachability pattern that must be gone.
 const BOT_PR_PATTERNS = [
@@ -53,29 +57,19 @@ test('all retired descriptors are gone', () => {
   }
 });
 
-test('only content-ci and the manual news queue remain', () => {
+test('only content-ci remains', () => {
   const actual = fs.readdirSync(WORKFLOWS).filter((f) => f.endsWith('.yml')).sort();
   assert.deepEqual(actual, [...RETAINED].sort(), 'no other workflow files may remain');
 });
 
-for (const name of ['news-discovery.yml', 'news-draft.yml']) {
-  test(`${name} is manual-only with no bot-PR reachability`, () => {
-    const text = readWorkflow(name);
-    const triggers = onBlock(text);
-    assert.ok(!text.includes('schedule:'), `${name} must not have a schedule trigger`);
-    assert.ok(!text.includes('cron:'), `${name} must not have a cron entry`);
-    assert.ok(!/^  workflow_run:/m.test(text), `${name} must not have a workflow_run trigger`);
-    assert.ok(triggers.includes('workflow_dispatch'), `${name} must keep workflow_dispatch`);
-    for (const pattern of BOT_PR_PATTERNS) {
-      assert.ok(!text.includes(pattern), `${name} must not contain reachable bot-PR path: ${pattern}`);
-    }
-  });
-}
-
-test('manual news-discovery to news-draft artifact path is intact', () => {
-  const draft = readWorkflow('news-draft.yml');
-  assert.ok(draft.includes('discovery_run_id'), 'draft must consume a discovery run id');
-  assert.ok(draft.includes('download-artifact'), 'draft must fetch the discovery artifact');
+test('content-ci has no schedule or bot-PR reachability', () => {
+  const text = readWorkflow('content-ci.yml');
+  const triggers = onBlock(text);
+  assert.ok(!triggers.includes('schedule:'), 'content-ci must not have a schedule trigger');
+  assert.ok(!/^  workflow_run:/m.test(triggers), 'content-ci must not have a workflow_run trigger');
+  for (const pattern of BOT_PR_PATTERNS) {
+    assert.ok(!text.includes(pattern), `content-ci must not contain reachable bot-PR path: ${pattern}`);
+  }
 });
 
 test('content-ci is untouched by the retirement', () => {
