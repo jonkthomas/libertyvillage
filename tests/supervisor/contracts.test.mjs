@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { validateIngestDiff, validateIngestPayload } from '../../scripts/supervisor/ingest-contract.mjs';
+import { validateIngestDiff, validateIngestPayload, validateIngestRoute } from '../../scripts/supervisor/ingest-contract.mjs';
 import {
   COMMAND_OUTPUT_LIMIT, OUTCOME_REASON_LIMIT, readSelectedTopic, recordSupervisorOutcome,
   resolveHostWeeklyOwner, resolveWeeklyOwner, runCommand,
@@ -40,12 +40,23 @@ test('ingest accepts only bounded metadata and canonical blog paths', () => {
   assert.equal(validateIngestDiff(['scripts/evil.mjs']).ok, false);
 });
 
-test('ingest is repository_dispatch-only and keeps PR authorship in Actions', () => {
+test('ingest keeps production repository dispatch and gates staging workflow dispatch', () => {
   assert.match(workflow, /repository_dispatch:/);
+  assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /Checkout trusted owner control from main/);
   assert.match(workflow, /needs\.resolve-owner\.outputs\.owner == 'exedev'/);
   assert.doesNotMatch(workflow, /vars\.LV_WEEKLY_OWNER/);
-  assert.doesNotMatch(workflow, /workflow_dispatch:|schedule:/);
+  assert.doesNotMatch(workflow, /schedule:/);
+  assert.match(workflow, /validateIngestRoute\(payload/);
+  const db = { kind: 'blog', data_sha: 'a'.repeat(40), data_branch: 'supervisor/blog-data-1',
+    topic_key: 'topic-one', regenerations: 0, store: 'db', target: 'staging' };
+  assert.deepEqual(validateIngestRoute(db, { eventName: 'workflow_dispatch', ref: 'refs/heads/staging' }),
+    { store: 'db', target: 'staging' });
+  assert.throws(() => validateIngestRoute(db, { eventName: 'workflow_dispatch', ref: 'refs/heads/main' }), /staging/);
+  assert.throws(() => validateIngestRoute({ ...db, target: 'production' },
+    { eventName: 'workflow_dispatch', ref: 'refs/heads/staging' }), /staging/);
+  assert.deepEqual(validateIngestRoute({ ...db, target: 'production' },
+    { eventName: 'repository_dispatch', ref: 'refs/heads/main' }), { store: 'db', target: 'production' });
   assert.match(workflow, /github-actions\[bot\]/);
   assert.match(workflow, /coordinator\.mjs dispatch/);
   assert.match(workflow, /actions\/setup-node@v4/);
