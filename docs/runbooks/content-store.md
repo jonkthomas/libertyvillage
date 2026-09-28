@@ -53,3 +53,5 @@ node scripts/content/parity-crawl.mjs compare /tmp/l2-source.json /tmp/l2-local.
 ```
 
 For a local restore build, set `CONTENT_SOURCE=json`; never use the DB build flag during the L2 drill. The manifest is live-only and carries no draft, verdict, gate context, or private evidence. A media hash failure or identity drift invalidates the drill.
+
+For a real L2 rollback, restore into the fresh rollback worktree and stage the verified files with `git add data/` and `git add -f public/media/` before committing. `/public/media/` remains ignored so normal writer checkouts cannot commit generated build output.
