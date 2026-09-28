@@ -3,6 +3,11 @@ name: Supervisor blog ingest
 on:
   repository_dispatch:
     types: [supervisor-ingest-blog]
+  workflow_dispatch:
+    inputs:
+      payload:
+        type: string
+        required: true
 
 concurrency:
   group: supervisor-ingest-blog
@@ -13,8 +18,48 @@ permissions:
   pull-requests: write
   issues: write
   actions: write
+  statuses: write
 
 jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      store: ${{ steps.check.outputs.store }}
+      target: ${{ steps.check.outputs.target }}
+      data_sha: ${{ steps.check.outputs.data_sha }}
+    steps:
+      - name: Checkout trusted event ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate event route before ingest
+        id: check
+        env:
+          PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && inputs.payload || toJson(github.event.client_payload) }}
+          CONTENT_HOLD: ${{ vars.LV_CONTENT_CUTOVER_HOLD }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { validateIngestPayload } from './scripts/supervisor/ingest-contract.mjs';
+          const payload = JSON.parse(process.env.PAYLOAD);
+          const result = validateIngestPayload(payload);
+          if (!result.ok) throw new Error(result.errors.join('; '));
+          const event = process.env.GITHUB_EVENT_NAME;
+          const ref = process.env.GITHUB_REF;
+          if (event === 'repository_dispatch') {
+            if (ref !== 'refs/heads/main' || (payload.store === 'db' && payload.target !== 'production'))
+              throw new Error('repository dispatch requires main and production DB target');
+          } else if (event === 'workflow_dispatch') {
+            if (ref !== 'refs/heads/staging' || payload.store !== 'db' || payload.target !== 'staging')
+              throw new Error('workflow dispatch requires staging DB target');
+          } else throw new Error('unsupported ingest event');
+          if (process.env.CONTENT_HOLD === '1' && event !== 'workflow_dispatch')
+            throw new Error('LV_CONTENT_CUTOVER_HOLD blocks non-staging events');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,
+            `store=${payload.store || 'git'}\ntarget=${payload.target || ''}\ndata_sha=${payload.data_sha}\n`);
+          NODE
+
   resolve-owner:
     runs-on: ubuntu-latest
     permissions:
@@ -33,8 +78,8 @@ jobs:
         run: node trusted/scripts/automation/weekly-owner.mjs --github-output
 
   ingest:
-    needs: resolve-owner
-    if: ${{ needs.resolve-owner.outputs.owner == 'exedev' }}
+    needs: [resolve-owner, route]
+    if: ${{ needs.resolve-owner.outputs.owner == 'exedev' && needs.route.outputs.store != 'db' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -135,3 +180,53 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node trusted/scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pr_number }}" --kind blog-live --sha "${{ steps.pr.outputs.head_sha }}"
+
+  ingest-db:
+    needs: [resolve-owner, route]
+    if: ${{ needs.resolve-owner.outputs.owner == 'exedev' && needs.route.outputs.store == 'db' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: content-${{ needs.route.outputs.target }}
+    permissions:
+      contents: read
+      statuses: write
+    env:
+      PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && inputs.payload || toJson(github.event.client_payload) }}
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      CONTENT_TARGET: ${{ needs.route.outputs.target }}
+      CONTENT_DB_NAME: ${{ vars.CONTENT_DB_NAME }}
+      CONTENT_SOURCE: db
+      CONTENT_DATABASE_URL: ${{ secrets.CONTENT_DATABASE_URL }}
+      CONTENT_DATABASE_URL_UNPOOLED: ${{ secrets.CONTENT_DATABASE_URL_UNPOOLED }}
+      CONTENT_DEPLOY_HOOK_URL: ${{ secrets.CONTENT_DEPLOY_HOOK_URL }}
+      CONTENT_SITE_URL: ${{ vars.CONTENT_SITE_URL }}
+      CONTENT_SITE_BYPASS: ${{ secrets.CONTENT_SITE_BYPASS }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Checkout trusted ingest code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Require content-ship enablement
+        env:
+          LV_CONTENT_SHIP_ENABLED: ${{ vars.LV_CONTENT_SHIP_ENABLED }}
+        run: node scripts/automation/promotion-control.mjs --content-ship
+      - name: Ingest exact DB candidate
+        id: ingest
+        run: node scripts/supervisor/ingest-db.mjs --payload "$PAYLOAD"
+      - name: Report startup failure if ingest posted no terminal status
+        if: ${{ failure() && steps.ingest.outcome == 'failure' }}
+        env:
+          DATA_SHA: ${{ needs.route.outputs.data_sha }}
+        run: |
+          LATEST=$(gh api "repos/$GITHUB_REPOSITORY/commits/$DATA_SHA/statuses" --jq '[.[] | select(.context == "content/publish" and .creator.login == "github-actions[bot]")] | first | .description // ""')
+          case "$LATEST" in published:*|decision=*|ingest-error:*) exit 0 ;; esac
+          gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$DATA_SHA" -f context=content/publish -f state=failure -f description=ingest-error:workflow
