@@ -4,9 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { validateDbIngestDiff, validateIngestPayload } from './ingest-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const require = createRequire(import.meta.url);
 
 function execute(file, args, { allow = [0] } = {}) {
   const result = spawnSync(file, args, { cwd: root, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
@@ -31,8 +33,14 @@ function postStatus(repo, sha, state, description, targetUrl, command = execute)
 
 export function runDbIngest(payload, { repo = process.env.GITHUB_REPOSITORY, command = execute } = {}) {
   const valid = validateIngestPayload(payload);
-  const localTestTarget = payload.target === 'test' && /^lv_test_[a-z0-9_]+$/.test(process.env.CONTENT_DB_NAME || '')
-    && valid.errors.length === 1 && valid.errors[0] === 'DB target must be production or staging';
+  let localTestTarget = false;
+  if (payload.target === 'test' && valid.errors.length === 1 && valid.errors[0] === 'DB target must be production or staging') {
+    try {
+      const { isLocalTestBinding } = require('../content/connection-config.cjs');
+      localTestTarget = isLocalTestBinding(process.env.CONTENT_DATABASE_URL, process.env.CONTENT_DB_NAME);
+    } catch { throw new Error('invalid local test database binding'); }
+    if (!localTestTarget) throw new Error('invalid local test database binding');
+  }
   if ((!valid.ok && !localTestTarget) || payload.store !== 'db') throw new Error(`invalid DB ingest payload: ${valid.errors.join('; ')}`);
   if (process.env.CONTENT_TARGET && process.env.CONTENT_TARGET !== payload.target) throw new Error('payload target differs from CONTENT_TARGET');
   const sha = payload.data_sha;

@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { monitorContentPublish } from '../../scripts/supervisor/content-monitor.mjs';
+import { runDbIngest } from '../../scripts/supervisor/ingest-db.mjs';
 import { validateDbIngestDiff, validateIngestPayload, validateIngestRoute, repositoryDispatchBody, workflowDispatchBody } from '../../scripts/supervisor/ingest-contract.mjs';
 import { coordinator, startLocalStagingIngest, validateHostContentMode } from '../../scripts/supervisor/host-run.mjs';
 import { TERMINALS } from '../../scripts/supervisor/ledger.mjs';
@@ -24,6 +25,24 @@ test('DB payload and candidate commit stay bound to staging transport', () => {
   assert.throws(() => repositoryDispatchBody(payload), /staging/);
   assert.deepEqual(repositoryDispatchBody({ ...payload, target: 'production' }).client_payload,
     { ...payload, target: 'production' });
+});
+
+test('local test ingest refuses a driver host override before Git or status commands', () => {
+  const saved = Object.fromEntries(['CONTENT_DATABASE_URL', 'CONTENT_DB_NAME', 'CONTENT_TARGET'].map((key) => [key, process.env[key]]));
+  try {
+    process.env.CONTENT_DB_NAME = 'lv_test_seam';
+    process.env.CONTENT_TARGET = 'test';
+    for (const query of ['host=remote.example.invalid', 'hostaddr=203.0.113.1']) {
+      process.env.CONTENT_DATABASE_URL = `postgres://u:p@127.0.0.1/lv_test_seam?${query}`;
+      let calls = 0;
+      assert.throws(() => runDbIngest({ ...payload, target: 'test' }, {
+        repo: 'fixture/local', command: () => { calls += 1; return { status: 0, stdout: '' }; },
+      }), /local test database binding/);
+      assert.equal(calls, 0);
+    }
+  } finally {
+    for (const [key, value] of Object.entries(saved)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
 });
 
 test('DB topic coordinator selects a topic only present in the hydrated snapshot queue', () => {

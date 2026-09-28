@@ -40,6 +40,7 @@ test('real seed is complete for deployment recovery; one failed notice does not 
   const site = await localSite(db);
   try {
     const seeded = await seed(db, { from: repo }, { apply: true, actor: 'test:seed' });
+    assert.equal(seeded.liveSeq, 1);
     await site.build();
     const firstDeploy = await deployContent(db, { actor: 'test:deploy' }, { env: site.env });
     assert.equal(firstDeploy.exitCode, 0);
@@ -49,6 +50,7 @@ test('real seed is complete for deployment recovery; one failed notice does not 
     const original = seedRecords().businesses[0];
     const first = await publishDirect(db, { kind: 'manual', idempotencyKey: 'after-seed:first',
       items: [{ dataset: 'businesses', key: 'after-seed-first', payload: { ...original, slug: 'after-seed-first' }, expectedLiveRev: null }] });
+    assert.equal(first.submissionId, 2);
     const second = await publishDirect(db, { kind: 'manual', idempotencyKey: 'after-seed:second',
       items: [{ dataset: 'businesses', key: 'after-seed-second', payload: { ...original, slug: 'after-seed-second' }, expectedLiveRev: null }] });
     await releaseClaim(db, first.submissionId, first.token);
