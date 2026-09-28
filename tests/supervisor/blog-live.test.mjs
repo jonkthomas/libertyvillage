@@ -8,8 +8,6 @@ import { KIND_POLICIES, STATUS_CONTEXTS } from '../../scripts/automation/constan
 import { contentShipEnabled, promotionEnabled } from '../../scripts/automation/promotion-control.mjs';
 import { buildGeneratorPrompt } from '../../scripts/supervisor/pi-session.mjs';
 
-const workflow = fs.readFileSync(new URL('../../.github/workflows/supervisor-ingest.yml', import.meta.url), 'utf8');
-
 test('blog-live kind is content-only onto main and does not mutate blog or promotion', () => {
   const live = KIND_POLICIES['blog-live'];
   assert.equal(live.base, 'main');
@@ -22,10 +20,13 @@ test('blog-live kind is content-only onto main and does not mutate blog or promo
   assert.equal(Object.values(STATUS_CONTEXTS.publish).includes('Vercel'), false);
 });
 
-test('ingest transplants onto main as blog-live', () => {
-  assert.match(workflow, /--kind blog-live/);
-  assert.match(workflow, /gh pr create --base main/);
-  assert.match(workflow, /git checkout -B "blog\/auto-supervisor-\$\{DATA_SHA:0:12\}" origin\/main/);
+test('retired ingest workflow is absent and the runner weekly-blog timer owns the schedule', () => {
+  assert.equal(fs.existsSync(new URL('../../.github/workflows/supervisor-ingest.yml', import.meta.url)), false);
+  assert.equal(fs.existsSync(new URL('../../.github/workflows/weekly-blog.yml', import.meta.url)), false);
+  const timer = fs.readFileSync(new URL('../../ops/exedev-runner/lv-runner-weekly-blog.timer', import.meta.url), 'utf8');
+  assert.match(timer, /^OnCalendar=Sun,Wed \*-\*-\* 11:00:00 UTC$/m);
+  assert.match(timer, /^Unit=lv-runner@weekly-blog:production:scheduled\.service$/m);
+  assert.equal(fs.existsSync(new URL('../../ops/exedev-runner/lv-runner@.service', import.meta.url)), true);
 });
 
 test('generation prompt binds publishedAt and updatedAt to the exact UTC run date', () => {

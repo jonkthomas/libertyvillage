@@ -23,13 +23,9 @@ import { finalizeOwnedPr, finalizeSupervisorTerminal } from '../../scripts/super
 import { latestAuditForSha } from '../../scripts/supervisor/github-monitor.mjs';
 import { MAX_RECOVERY_ATTEMPTS, recoverUnfinishedRows, resolveSmokeAgentDir } from '../../scripts/supervisor/cli.mjs';
 
-const workflow = fs.readFileSync(new URL('../../.github/workflows/supervisor-ingest.yml', import.meta.url), 'utf8');
-const weekly = fs.readFileSync(new URL('../../.github/workflows/weekly-blog.yml', import.meta.url), 'utf8');
-const coordinatorWorkflow = fs.readFileSync(new URL('../../.github/workflows/autonomous-coordinator.yml', import.meta.url), 'utf8');
 const constants = fs.readFileSync(new URL('../../scripts/automation/constants.mjs', import.meta.url), 'utf8');
 const host = fs.readFileSync(new URL('../../scripts/supervisor/host-run.mjs', import.meta.url), 'utf8');
 const githubMonitor = fs.readFileSync(new URL('../../scripts/supervisor/github-monitor.mjs', import.meta.url), 'utf8');
-const promotionSweep = fs.readFileSync(new URL('../../.github/workflows/promotion-sweep.yml', import.meta.url), 'utf8');
 const piSession = fs.readFileSync(new URL('../../scripts/supervisor/pi-session.mjs', import.meta.url), 'utf8');
 
 test('ingest accepts only bounded metadata and canonical blog paths', () => {
@@ -40,14 +36,17 @@ test('ingest accepts only bounded metadata and canonical blog paths', () => {
   assert.equal(validateIngestDiff(['scripts/evil.mjs']).ok, false);
 });
 
-test('ingest keeps production repository dispatch and gates staging workflow dispatch', () => {
-  assert.match(workflow, /repository_dispatch:/);
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /Checkout trusted owner control from main/);
-  assert.match(workflow, /needs\.resolve-owner\.outputs\.owner == 'exedev'/);
-  assert.doesNotMatch(workflow, /vars\.LV_WEEKLY_OWNER/);
-  assert.doesNotMatch(workflow, /schedule:/);
-  assert.match(workflow, /validateIngestRoute\(payload/);
+// r7 retired these workflows; the content runner's weekly-blog timer replaces them.
+test('retired ingest, coordinator, promotion-sweep and weekly-blog workflows are absent', () => {
+  for (const name of ['supervisor-ingest.yml', 'autonomous-coordinator.yml', 'promotion-sweep.yml', 'weekly-blog.yml']) {
+    assert.equal(fs.existsSync(new URL(`../../.github/workflows/${name}`, import.meta.url)), false, `${name} must stay retired`);
+  }
+  assert.equal(fs.existsSync(new URL('../../scripts/automation/coordinator.mjs', import.meta.url)), false);
+  assert.match(fs.readFileSync(new URL('../../ops/exedev-runner/lv-runner-weekly-blog.timer', import.meta.url), 'utf8'),
+    /^Unit=lv-runner@weekly-blog:production:scheduled\.service$/m);
+});
+
+test('ingest route contract keeps production repository dispatch and gates staging workflow dispatch', () => {
   const db = { kind: 'blog', data_sha: 'a'.repeat(40), data_branch: 'supervisor/blog-data-1',
     topic_key: 'topic-one', regenerations: 0, store: 'db', target: 'staging' };
   assert.deepEqual(validateIngestRoute(db, { eventName: 'workflow_dispatch', ref: 'refs/heads/staging' }),
@@ -57,10 +56,6 @@ test('ingest keeps production repository dispatch and gates staging workflow dis
     { eventName: 'workflow_dispatch', ref: 'refs/heads/staging' }), /staging/);
   assert.deepEqual(validateIngestRoute({ ...db, target: 'production' },
     { eventName: 'repository_dispatch', ref: 'refs/heads/main' }), { store: 'db', target: 'production' });
-  assert.match(workflow, /github-actions\[bot\]/);
-  assert.match(workflow, /coordinator\.mjs dispatch/);
-  assert.match(workflow, /actions\/setup-node@v4/);
-  assert.match(workflow, /git ls-remote origin "refs\/heads\/\$DATA_BRANCH"/);
   assert.match(constants, /TRUSTED_PR_AUTHORS = Object\.freeze\(\['github-actions\[bot\]', 'exe-dev-github-integration\[bot\]'\]\)/);
 });
 
@@ -74,8 +69,6 @@ test('supervisor baseline is staging-based and data branches are bounded and cle
   assert.match(host, /npm.*test:supervisor/s);
   assert.match(host, /env: \{ \.\.\.process\.env, GITHUB_OUTPUT: output, /,
     'host coordinator subprocesses must inherit the exe.dev proxy gate');
-  assert.match(coordinatorWorkflow, /npm run lint:supervisor/);
-  assert.match(coordinatorWorkflow, /npm run test:supervisor/);
   assert.match(host, /timeoutMs = 25 \* 60 \* 1000/);
   assert.match(host, /cleanupDataBranch\(repoRoot, dataBranch\)/);
   assert.match(host, /contextFiles:\s*\[\s*'data\/topic-queue\.json',\s*'data\/businesses\.json',\s*'data\/posts\.json',\s*'scripts\/prompts\/sections\/03-blog-generation\.md'/,
@@ -181,10 +174,6 @@ test('weekly ownership defaults to GHA and manual bypass is explicit', () => {
   assert.equal(resolveWeeklyOwner({}, exedevOwner), 'exedev');
   assert.equal(resolveWeeklyOwner({ LV_WEEKLY_OWNER: 'exedev' }, exedevOwner), 'exedev');
   assert.throws(() => resolveWeeklyOwner({ LV_WEEKLY_OWNER: 'gha' }, exedevOwner), /weekly owner mismatch/);
-  assert.match(weekly, /Checkout trusted owner control from main/);
-  assert.match(weekly, /needs\.resolve-owner\.outputs\.owner == 'gha'/);
-  assert.match(weekly, /inputs\.force_gha == true/);
-  assert.doesNotMatch(weekly, /vars\.LV_WEEKLY_OWNER/);
 });
 
 test('owner files are strict and missing, invalid, or VM-mismatched ownership fails closed', () => {
@@ -213,33 +202,14 @@ test('promotion is coupled to the committed weekly owner and preserves GHA defau
   assert.equal(promotionEnabled({}, { ownerFile: exedevOwner }), false);
   assert.equal(promotionEnabled({ LV_WEEKLY_OWNER: 'exedev', LV_PROMOTION_ENABLED: 'true' }, { ownerFile: exedevOwner }), false);
   assert.throws(() => promotionEnabled({ LV_WEEKLY_OWNER: 'gha' }, { ownerFile: exedevOwner }), /weekly owner mismatch/);
-  const observeStep = coordinatorWorkflow.slice(
-    coordinatorWorkflow.indexOf('- name: Observe staging merge and explicitly dispatch cumulative promotion'),
-    coordinatorWorkflow.indexOf('\n\n  block-generator:'),
-  );
-  assert.match(observeStep, /LV_PROMOTION_ENABLED: \$\{\{ vars\.LV_PROMOTION_ENABLED \}\}/);
-  assert.match(observeStep, /coordinator\.mjs observe-and-promote/);
-  const validateStep = coordinatorWorkflow.slice(coordinatorWorkflow.indexOf('  validate-promotion:'), coordinatorWorkflow.indexOf('  prepare-promotion:'));
-  assert.match(validateStep, /LV_PROMOTION_ENABLED: \$\{\{ vars\.LV_PROMOTION_ENABLED \}\}/);
-  assert.doesNotMatch(coordinatorWorkflow, /vars\.LV_WEEKLY_OWNER/);
-  assert.match(coordinatorWorkflow, /node scripts\/automation\/promotion-control\.mjs/,
-    'the final merge path must hard-stop when ownership changes during a run');
-  assert.match(promotionSweep, /LV_PROMOTION_ENABLED: \$\{\{ vars\.LV_PROMOTION_ENABLED \}\}/);
-  assert.doesNotMatch(promotionSweep, /vars\.LV_WEEKLY_OWNER/);
-  assert.match(promotionSweep, /steps\.sweep\.outputs\.action == 'dispatch'/);
 });
 
-test('pilot promotion gates exit before API access or dispatch', () => {
+test('pilot promotion sweep exits before API access or dispatch', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-promotion-gate-'));
-  const sha = 'a'.repeat(40);
-  const common = {
-    ...process.env, LV_PROMOTION_ENABLED: 'false',
-    GITHUB_API_URL: 'http://127.0.0.1:9/api/v3', GITHUB_OUTPUT: path.join(directory, 'coordinator-output'),
-  };
-  execFileSync(process.execPath, ['scripts/automation/coordinator.mjs', 'validate-promotion', '--repo', 'owner/repo', '--sha', sha], { env: common });
-  assert.match(fs.readFileSync(common.GITHUB_OUTPUT, 'utf8'), /trusted=false/);
   const sweepOutput = path.join(directory, 'sweep-output');
-  execFileSync(process.execPath, ['scripts/automation/promotion-sweep.mjs', '--repo', 'owner/repo'], { env: { ...common, GITHUB_OUTPUT: sweepOutput } });
+  execFileSync(process.execPath, ['scripts/automation/promotion-sweep.mjs', '--repo', 'owner/repo'], { env: {
+    ...process.env, LV_PROMOTION_ENABLED: 'false', GITHUB_API_URL: 'http://127.0.0.1:9/api/v3', GITHUB_OUTPUT: sweepOutput,
+  } });
   assert.match(fs.readFileSync(sweepOutput, 'utf8'), /action=skip/);
 });
 
