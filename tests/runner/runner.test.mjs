@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { JOBS, alertFailure, assertTarget, childEnv, copyGenerated, generatedPathsForTransfer, allowedGeneratedPath, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, alertFailure, assertTarget, childEnv, copyGenerated, copyScratchTree, generatedPathsForTransfer, allowedGeneratedPath, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -49,6 +49,24 @@ test('target guard rejects wrong DB, site, bypass, and GitHub write bindings', (
   const prod = { ...stage, CONTENT_TARGET: 'production', CONTENT_DB_NAME: 'neondb', CONTENT_DATABASE_URL: 'postgres://a:b@db.example/neondb', CONTENT_DATABASE_URL_UNPOOLED: 'postgres://a:b@db.example/neondb', CONTENT_SITE_URL: 'https://libertyvillage.co', CONTENT_SITE_BYPASS: '', LV_RUNNER_PRODUCTION_ENABLED: '1' };
   assert.doesNotThrow(() => assertTarget(prod, 'production'));
   assert.throws(() => assertTarget({ ...prod, CONTENT_SITE_BYPASS: 'secret' }, 'production'));
+});
+
+test('scratch npm binary stays bound to scratch instead of loading a second trusted Next instance', (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-runner-links-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const trusted = path.join(temp, 'trusted');
+  const scratch = path.join(temp, 'scratch');
+  const target = path.join('node_modules', 'next', 'dist', 'bin', 'next');
+  fs.mkdirSync(path.join(trusted, 'node_modules', '.bin'), { recursive: true });
+  fs.mkdirSync(path.dirname(path.join(trusted, target)), { recursive: true });
+  fs.writeFileSync(path.join(trusted, target), 'local Next binary');
+  fs.symlinkSync('../next/dist/bin/next', path.join(trusted, 'node_modules', '.bin', 'next'));
+
+  copyScratchTree(trusted, scratch);
+  const copiedLink = path.join(scratch, 'node_modules', '.bin', 'next');
+  assert.equal(fs.readlinkSync(copiedLink), '../next/dist/bin/next');
+  assert.equal(fs.realpathSync(copiedLink), fs.realpathSync(path.join(scratch, target)));
+  assert.equal(fs.readFileSync(copiedLink, 'utf8'), 'local Next binary');
 });
 
 test('scratch code poisoning cannot cross into trusted CLI', (t) => {

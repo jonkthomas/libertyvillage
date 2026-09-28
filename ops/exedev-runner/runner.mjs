@@ -166,11 +166,18 @@ function source(script, args, job, log) {
   return result;
 }
 
+// npm's relative .bin links must stay relative inside scratch. Without this,
+// fs.cpSync rewrites them to the trusted repo, loading two Next.js instances
+// during scratch builds and breaking its AsyncLocalStorage prerender context.
+export function copyScratchTree(from, to) {
+  fs.cpSync(from, to, { recursive: true, force: true, verbatimSymlinks: true });
+}
+
 function generator(job, slot, topic, dryRun, log) {
   const scratch = path.join(stateRoot, 'scratch', slot);
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
-  fs.cpSync(repo, scratch, { recursive: true, force: true });
+  copyScratchTree(repo, scratch);
   const requestDir = path.join(stateRoot, 'generator-requests');
   fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun })}\n`, { mode: 0o600 });
