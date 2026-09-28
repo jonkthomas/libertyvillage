@@ -13,6 +13,23 @@ on:
         description: "Max new businesses to add this run"
         required: false
         default: "15"
+      store:
+        description: "Content store. auto reads LV_CONTENT_STORE and defaults to git."
+        required: false
+        type: choice
+        options:
+          - auto
+          - git
+          - db
+        default: auto
+      content_target:
+        description: "DB target. Production is main-only; a staging ref must pass staging."
+        required: false
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
 
 concurrency:
   group: weekly-business-discovery
@@ -23,7 +40,86 @@ permissions:
   pull-requests: write
 
 jobs:
-  discover:
+  route:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      store: ${{ steps.decide.outputs.store }}
+      target: ${{ steps.decide.outputs.target }}
+      lane: ${{ steps.decide.outputs.lane }}
+    steps:
+      - name: Resolve content store route
+        id: decide
+        env:
+          INPUT_STORE: ${{ github.event.inputs.store || '' }}
+          INPUT_CONTENT_TARGET: ${{ github.event.inputs.content_target || '' }}
+          INPUT_SEO_LANE: ${{ github.event.inputs.seo_lane || '' }}
+          LV_CONTENT_STORE: ${{ vars.LV_CONTENT_STORE || '' }}
+          LV_CONTENT_CUTOVER_HOLD: ${{ vars.LV_CONTENT_CUTOVER_HOLD || '' }}
+        run: |
+          # route-writer:begin
+          set -euo pipefail
+          fail() {
+            echo "::error::$1" >&2
+            exit 1
+          }
+
+          case "${INPUT_STORE:-}" in
+            git|db) STORE="$INPUT_STORE" ;;
+            auto|"") STORE="${LV_CONTENT_STORE:-git}" ;;
+            *) fail "unknown store input: ${INPUT_STORE}" ;;
+          esac
+          case "$STORE" in
+            git|db) ;;
+            *) fail "unknown store: ${STORE}" ;;
+          esac
+
+          if [ "${LV_CONTENT_CUTOVER_HOLD:-}" = "1" ]; then
+            if [ "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" ] \
+              || [ "${GITHUB_REF:-}" != "refs/heads/staging" ] \
+              || [ "$STORE" != "db" ] \
+              || [ "${INPUT_CONTENT_TARGET:-}" != "staging" ]; then
+              fail "LV_CONTENT_CUTOVER_HOLD refuses this writer event before side effects"
+            fi
+          fi
+
+          case "${GITHUB_REF:-}" in
+            refs/heads/main)
+              TARGET="${INPUT_CONTENT_TARGET:-production}"
+              if [ "$TARGET" != "production" ]; then
+                fail "content-production is main-only and content-staging requires refs/heads/staging"
+              fi
+              ;;
+            refs/heads/staging)
+              if [ "${INPUT_CONTENT_TARGET:-}" != "staging" ] || [ "$STORE" != "db" ]; then
+                fail "staging ref requires store=db and content_target=staging"
+              fi
+              TARGET="staging"
+              ;;
+            *)
+              fail "unknown ref: ${GITHUB_REF:-}"
+              ;;
+          esac
+
+          LANE=""
+          if [ "${ROUTE_SEO:-}" = "1" ] && [ "$STORE" = "db" ]; then
+            LANE="${INPUT_SEO_LANE:-data}"
+            case "$LANE" in
+              data|code) ;;
+              *) fail "unknown seo_lane: ${LANE}" ;;
+            esac
+          fi
+
+          {
+            echo "store=${STORE}"
+            echo "target=${TARGET}"
+            echo "lane=${LANE}"
+          } >> "$GITHUB_OUTPUT"
+          # route-writer:end
+  legacy:
+    needs: route
+    if: ${{ needs.route.outputs.store == 'git' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,3 +170,48 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/automation/coordinator.mjs dispatch --repo "$GITHUB_REPOSITORY" --pr "${{ steps.pr.outputs.pull-request-number }}" --kind business --sha "${{ steps.pr.outputs.pull-request-head-sha }}"
+  db:
+    needs: route
+    if: ${{ needs.route.outputs.store == 'db' && needs.route.outputs.lane != 'code' }}
+    environment: content-${{ needs.route.outputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CONTENT_DATABASE_URL: ${{ secrets.CONTENT_DATABASE_URL }}
+      CONTENT_DATABASE_URL_UNPOOLED: ${{ secrets.CONTENT_DATABASE_URL_UNPOOLED }}
+      CONTENT_DEPLOY_HOOK_URL: ${{ secrets.CONTENT_DEPLOY_HOOK_URL }}
+      CONTENT_SITE_BYPASS: ${{ secrets.CONTENT_SITE_BYPASS }} # absent in content-production
+      CONTENT_DB_NAME: ${{ vars.CONTENT_DB_NAME }}
+      CONTENT_SITE_URL: ${{ vars.CONTENT_SITE_URL }}
+      CONTENT_TARGET: ${{ needs.route.outputs.target }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.sha }}"
+          fetch-depth: 0
+          persist-credentials: false
+      - run: git fetch --no-tags origin main staging
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: node scripts/content/cli.mjs export --root .
+      - name: Discover new businesses
+        id: discover
+        env:
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: node scripts/discover-businesses.mjs --max=${{ github.event.inputs.max || '15' }}
+      # submissionId null is zero discoveries and skips the gate. markDiscoverySeen
+      # (added on publish, rejected on reject) is the kind=business gate outcome.
+      - name: Submit business content
+        run: node scripts/content/cli.mjs submit --dir . --kind business --idempotency-key "gha:discover-businesses:${{ github.run_id }}:${{ github.run_attempt }}" > submit.json
+      - name: Gate business content
+        run: ID=$(jq -r .submissionId submit.json); [ "$ID" = null ] || node scripts/content/cli.mjs gate --submission "$ID"
+      - name: Weekly content storage check
+        if: always()
+        run: node scripts/content/cli.mjs stats --alert

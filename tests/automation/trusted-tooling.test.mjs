@@ -45,6 +45,8 @@ for (const [name, yaml] of [['weekly-blog.yml', BLOG_YML], ['weekly-seo-improvem
       `${name} must keep the trusted checkout out of the generated-data worktree`);
 
     for (const line of runLines(yaml)) {
+      // Neon writer commands are spec'd at scripts/content and are not staging policy tools.
+      if (/node scripts\/content\/(?:seo-guard|cli)\.mjs(?:\s|$)/.test(line)) continue;
       assert.match(line, /node trusted\/scripts\//,
         `${name} runs a deciding tool from the mutable staging checkout: ${line}`);
     }
