@@ -50,7 +50,7 @@ function defaultFix({ root, postPath, verdictPath, repairPath }) {
   return JSON.parse(fs.readFileSync(repairPath, 'utf8'));
 }
 
-function trimEvidence(value) {
+export function trimEvidence(value) {
   const full = `${JSON.stringify(value, null, 2)}\n`;
   if (Buffer.byteLength(full) <= 200_000) return value;
   const sources = Array.isArray(value?.sources) ? value.sources : [];
@@ -65,7 +65,7 @@ function trimEvidence(value) {
   };
 }
 
-function structuredData(post) {
+export function structuredData(post) {
   return {
     '@context': 'https://schema.org', '@type': 'NewsArticle', headline: post.title,
     datePublished: post.publishedAt, dateModified: post.updatedAt,
