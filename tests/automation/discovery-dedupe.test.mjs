@@ -6,6 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { validatePaths } from '../../scripts/automation/policy.mjs';
+import { getBusinessFAQs } from '../../app/directory/[slug]/page.tsx';
 import {
   appendSeenRegistry, buildDedupeState, fetchImage, isDuplicate,
   norm, readSeenRegistry, selectBatch, slugify, toRecord,
@@ -42,6 +43,16 @@ test('discovery copies aggregate ratings without inventing reviewer origins or t
   assert.match(record.reviewFaqs[0].answer, /817 reviews.*4\.9 out of 5/);
   assert.doesNotMatch(JSON.stringify(record), /locals and visitors|Closes 7 PM/);
   assert.equal(record._needsEnrichment, true);
+  const [hoursFaq] = getBusinessFAQs(record);
+  assert.match(hoursFaq.answer, /hours are not verified/);
+  assert.doesNotMatch(hoursFaq.answer, /is open\s*\./);
+});
+
+test('directory FAQ retains the verified-hours answer when a stable schedule exists', () => {
+  const [hoursFaq] = getBusinessFAQs({
+    name: 'Example Studio', category: 'tattoo-parlors', hours: 'Mon–Fri 10 AM–6 PM',
+  });
+  assert.match(hoursFaq.answer, /is open Mon–Fri 10 AM–6 PM/);
 });
 
 test('a discovered name stays rejected after its record is deleted from businesses.json', () => {

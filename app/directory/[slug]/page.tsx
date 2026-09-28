@@ -7,10 +7,7 @@ import {
 } from "@/lib/data";
 import { generateBusinessPageMeta } from "@/lib/meta";
 import { generateLocalBusinessSchema } from "@/lib/schema";
-import {
-  getRelatedBusinesses,
-  getBreadcrumbs,
-} from "@/lib/links";
+import { getRelatedBusinesses, getBreadcrumbs } from "@/lib/links";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
@@ -55,28 +52,62 @@ type BusinessCategoryType =
 function getBusinessCategoryType(slug: string): BusinessCategoryType {
   const groups: Record<BusinessCategoryType, string[]> = {
     "food-drink": [
-      "restaurants", "coffee-shops", "brunch-spots", "bars", "patios",
-      "breweries", "wine-bars", "pizza", "sushi", "thai-restaurants",
-      "italian-restaurants", "indian-restaurants", "burger-joints", "bakeries",
+      "restaurants",
+      "coffee-shops",
+      "brunch-spots",
+      "bars",
+      "patios",
+      "breweries",
+      "wine-bars",
+      "pizza",
+      "sushi",
+      "thai-restaurants",
+      "italian-restaurants",
+      "indian-restaurants",
+      "burger-joints",
+      "bakeries",
     ],
     events: ["caterers", "event-spaces"],
     fitness: ["gyms", "yoga-studios", "pilates", "personal-trainers"],
     medical: [
-      "dentists", "doctors", "veterinarians", "optometrists", "physiotherapy",
-      "chiropractors", "massage-therapy", "pharmacies",
+      "dentists",
+      "doctors",
+      "veterinarians",
+      "optometrists",
+      "physiotherapy",
+      "chiropractors",
+      "massage-therapy",
+      "pharmacies",
     ],
     beauty: ["hair-salons", "barbers", "nail-salons", "spas", "tattoo-parlors"],
     pets: ["dog-walkers", "dog-groomers", "pet-stores"],
     professional: [
-      "lawyers", "accountants", "real-estate-agents", "insurance-agents",
-      "banks", "it-support", "interior-designers", "tutors", "music-lessons",
+      "lawyers",
+      "accountants",
+      "real-estate-agents",
+      "insurance-agents",
+      "banks",
+      "it-support",
+      "interior-designers",
+      "tutors",
+      "music-lessons",
     ],
     workspace: ["coworking-spaces"],
     rentals: ["short-term-rentals"],
     "home-services": [
-      "house-cleaning", "movers", "dry-cleaners", "tailors", "laundromats",
-      "auto-repair", "bike-shops", "locksmith", "printing-services", "florists",
-      "grocery-stores", "photographers", "daycares",
+      "house-cleaning",
+      "movers",
+      "dry-cleaners",
+      "tailors",
+      "laundromats",
+      "auto-repair",
+      "bike-shops",
+      "locksmith",
+      "printing-services",
+      "florists",
+      "grocery-stores",
+      "photographers",
+      "daycares",
     ],
   };
   for (const [type, slugs] of Object.entries(groups)) {
@@ -85,14 +116,24 @@ function getBusinessCategoryType(slug: string): BusinessCategoryType {
   return "home-services";
 }
 
-function getBusinessFAQs(business: { name: string; category: string; hours: string; priceRange?: string }): FaqEntry[] {
+export function getBusinessFAQs(business: {
+  name: string;
+  category: string;
+  hours: string;
+  priceRange?: string;
+}): FaqEntry[] {
   const { name, hours, priceRange } = business;
   const type = getBusinessCategoryType(business.category);
 
-  const hoursQ: FaqEntry = {
-    question: `What are the hours for ${name}?`,
-    answer: `${name} is open ${hours}. Hours can change on holidays and seasonally, so it's best to call ahead or check the website to confirm before visiting.`,
-  };
+  const hoursQ: FaqEntry = hours.trim()
+    ? {
+        question: `What are the hours for ${name}?`,
+        answer: `${name} is open ${hours}. Hours can change on holidays and seasonally, so it's best to call ahead or check the website to confirm before visiting.`,
+      }
+    : {
+        question: `Are opening hours listed for ${name}?`,
+        answer: `Current opening hours are not verified for ${name}. Check the business website or call ahead before visiting.`,
+      };
   const priceQ: FaqEntry = {
     question: `How much does ${name} cost?`,
     answer: priceRange
@@ -232,26 +273,31 @@ export default async function BusinessDetailPage({ params }: Props) {
 
   const businessSchema = generateLocalBusinessSchema(business);
 
-  const stars = Array.from({ length: 5 }, (_, i) => i < Math.floor(business.rating));
+  const stars = Array.from(
+    { length: 5 },
+    (_, i) => i < Math.floor(business.rating),
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <Breadcrumbs items={breadcrumbs} />
 
-      {business.image && (
-        <HeroImage src={business.image} alt={business.name} />
-      )}
+      {business.image && <HeroImage src={business.image} alt={business.name} />}
 
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
-        {business.name}{" "}
-        <span className="text-warm-400">— Liberty Village</span>
+        {business.name} <span className="text-warm-400">— Liberty Village</span>
       </h1>
 
       {/* Rating & Meta */}
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <span className="flex text-amber-500" aria-label={`${business.rating} out of 5 stars`}>
+        <span
+          className="flex text-amber-500"
+          aria-label={`${business.rating} out of 5 stars`}
+        >
           {stars.map((filled, i) => (
-            <span key={i} className={filled ? "opacity-100" : "opacity-20"}>★</span>
+            <span key={i} className={filled ? "opacity-100" : "opacity-20"}>
+              ★
+            </span>
           ))}
         </span>
         <span className="text-sm text-warm-500">
@@ -290,10 +336,15 @@ export default async function BusinessDetailPage({ params }: Props) {
 
       {business.bestFor && business.bestFor.length > 0 && (
         <div className="mt-4">
-          <span className="text-xs font-medium text-warm-400 uppercase tracking-wide">Best For</span>
+          <span className="text-xs font-medium text-warm-400 uppercase tracking-wide">
+            Best For
+          </span>
           <div className="mt-2 flex flex-wrap gap-2">
             {business.bestFor.map((use) => (
-              <span key={use} className="rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs text-amber-700">
+              <span
+                key={use}
+                className="rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs text-amber-700"
+              >
                 {use}
               </span>
             ))}
@@ -305,16 +356,24 @@ export default async function BusinessDetailPage({ params }: Props) {
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-warm-200 bg-white p-5 space-y-3">
           <div>
-            <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Address</span>
+            <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">
+              Address
+            </span>
             <span className="text-sm text-warm-800">{business.address}</span>
           </div>
-          <div>
-            <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Hours</span>
-            <span className="text-sm text-warm-800">{business.hours}</span>
-          </div>
+          {business.hours.trim() && (
+            <div>
+              <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">
+                Hours
+              </span>
+              <span className="text-sm text-warm-800">{business.hours}</span>
+            </div>
+          )}
           {business.phone && (
             <div>
-              <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Phone</span>
+              <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">
+                Phone
+              </span>
               <a
                 href={`tel:${business.phone}`}
                 data-analytics-event="business_contact_clicked"
@@ -329,7 +388,9 @@ export default async function BusinessDetailPage({ params }: Props) {
           )}
           {business.website && (
             <div>
-              <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Website</span>
+              <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">
+                Website
+              </span>
               <a
                 href={business.website}
                 target="_blank"
@@ -360,9 +421,7 @@ export default async function BusinessDetailPage({ params }: Props) {
       {/* Pro Tip */}
       {business.proTip && (
         <div className="mt-6 rounded-xl border-l-4 border-amber-400 bg-amber-50 p-5">
-          <h2 className="text-sm font-semibold text-amber-800">
-            Insider Tip
-          </h2>
+          <h2 className="text-sm font-semibold text-amber-800">Insider Tip</h2>
           <p className="mt-1 text-sm text-warm-700">{business.proTip}</p>
         </div>
       )}
@@ -377,7 +436,8 @@ export default async function BusinessDetailPage({ params }: Props) {
             {business.reviewExcerpt}
           </p>
           <p className="mt-2 text-xs text-warm-400">
-            Based on {business.reviewCount.toLocaleString()} reviews · {business.rating} out of 5 stars
+            Based on {business.reviewCount.toLocaleString()} reviews ·{" "}
+            {business.rating} out of 5 stars
           </p>
         </section>
       )}
