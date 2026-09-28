@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, alertFailure, assertTarget, childEnv, changedPaths, copyGenerated, copyScratchTree, generatedPathsForTransfer, allowedGeneratedPath, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, alertFailure, assertTarget, childEnv, changedPaths, copyGenerated, copyScratchTree, generatedPathsForTransfer, allowedGeneratedPath, readScratchHead, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -50,6 +50,26 @@ test('target guard rejects wrong DB, site, bypass, and GitHub write bindings', (
   const prod = { ...stage, CONTENT_TARGET: 'production', CONTENT_DB_NAME: 'neondb', CONTENT_DATABASE_URL: 'postgres://a:b@db.example/neondb', CONTENT_DATABASE_URL_UNPOOLED: 'postgres://a:b@db.example/neondb', CONTENT_SITE_URL: 'https://libertyvillage.co', CONTENT_SITE_BYPASS: '', LV_RUNNER_PRODUCTION_ENABLED: '1' };
   assert.doesNotThrow(() => assertTarget(prod, 'production'));
   assert.throws(() => assertTarget({ ...prod, CONTENT_SITE_BYPASS: 'secret' }, 'production'));
+});
+
+test('generator HEAD check refuses FIFO, device link and unbounded metadata', (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-runner-head-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const git = path.join(temp, '.git');
+  fs.mkdirSync(git);
+  const head = path.join(git, 'HEAD');
+  const pinned = 'a'.repeat(40);
+  fs.writeFileSync(head, `${pinned}\n`);
+  assert.equal(readScratchHead(temp), pinned);
+  fs.writeFileSync(head, 'a'.repeat(1024 * 1024));
+  assert.throws(() => readScratchHead(temp), /generator changed pinned commit/);
+  fs.rmSync(head);
+  fs.symlinkSync('/dev/zero', head);
+  assert.throws(() => readScratchHead(temp), { code: 'ELOOP' });
+  fs.rmSync(head);
+  const fifo = spawnSync('mkfifo', [head], { encoding: 'utf8' });
+  assert.equal(fifo.status, 0, fifo.stderr);
+  assert.throws(() => readScratchHead(temp), /generator changed pinned commit/);
 });
 
 test('scratch npm binary stays bound to scratch instead of loading a second trusted Next instance', (t) => {

@@ -179,6 +179,20 @@ export function copyScratchTree(from, to) {
   fs.cpSync(from, to, { recursive: true, force: true, verbatimSymlinks: true });
 }
 
+// Scratch Git metadata is untrusted after the SDK runs. Inspect only a small,
+// regular detached HEAD; never block on a FIFO or read an unbounded device/file.
+export function readScratchHead(scratch) {
+  const file = path.join(scratch, '.git', 'HEAD');
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size < 40 || stat.size > 128) throw new Error('generator changed pinned commit');
+    const head = fs.readFileSync(fd, 'utf8').trim();
+    if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('generator changed pinned commit');
+    return head;
+  } finally { fs.closeSync(fd); }
+}
+
 function generator(job, slot, topic, dryRun, log) {
   const scratch = path.join(stateRoot, 'scratch', slot);
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -192,7 +206,7 @@ function generator(job, slot, topic, dryRun, log) {
   const helper = '/usr/local/libexec/lv-runner-generator';
   command('sudo', ['-n', helper, job, slot], { cwd: repo, env: childEnv(process.env, ['PATH', 'HOME', 'LANG', 'TZ']) });
   const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
-  if (fs.readFileSync(path.join(scratch, '.git', 'HEAD'), 'utf8').trim() !== head) throw new Error('generator changed pinned commit');
+  if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
   const paths = generatedPathsForTransfer(changedPaths(scratch, repo));
   if (job === 'seo-improvements' && paths.some((rel) => !allowedGeneratedPath(rel, job))) {
     logLine(log, 'seo-code-suggestion', { paths: paths.filter((rel) => !allowedGeneratedPath(rel, job)).slice(0, 20) });
