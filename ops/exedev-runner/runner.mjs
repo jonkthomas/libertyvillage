@@ -84,6 +84,14 @@ export function generatedPathsForTransfer(paths) {
   return paths.filter((rel) => rel !== 'tasks/seo-data-latest.json');
 }
 
+// Compare with the freshly exported DB snapshot, never Git HEAD: exported
+// posts can differ from Git even when an SDK agent produced nothing new.
+export function hasOneNewBlogPost(exported, generated) {
+  if (!Array.isArray(exported) || !Array.isArray(generated) || generated.length !== exported.length + 1) return false;
+  const existing = new Set(exported.map((post) => post?.slug));
+  return generated.filter((post) => typeof post?.slug === 'string' && post.slug && !existing.has(post.slug)).length === 1;
+}
+
 export function copyGenerated(scratch, trusted, job, paths = changedPaths(scratch, trusted)) {
   if (paths.length > 100 || paths.some((rel) => !allowedGeneratedPath(rel, job))) throw new Error('scratch output outside allowlist');
   let bytes = 0;
@@ -105,7 +113,14 @@ export function copyGenerated(scratch, trusted, job, paths = changedPaths(scratc
 
 export function selectTopic(queue, state, target) {
   const entries = Array.isArray(queue?.topics) ? queue.topics : [];
-  return entries.find((topic) => topic.kind === 'blog' && typeof topic.title === 'string' && typeof topic.key === 'string' && topic.title.trim() && (state[target]?.[topic.key]?.attempts ?? 0) < 3 && !state[target]?.[topic.key]?.consumed) ?? null;
+  return entries.find((topic) => topic.kind === 'blog' && typeof topic.title === 'string' && typeof topic.key === 'string' && topic.title.trim() && (state[target]?.[topic.key]?.attempts ?? 0) < 3 && !state[target]?.[topic.key]?.consumed && !state[target]?.[topic.key]?.pendingSlot) ?? null;
+}
+
+function writeTopicState(statePath, state) {
+  fs.mkdirSync(path.dirname(statePath), { recursive: true, mode: 0o700 });
+  const temp = `${statePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, `${JSON.stringify(state)}\n`, { mode: 0o600 });
+  fs.renameSync(temp, statePath);
 }
 
 export function recordTopic(statePath, target, topic, consumed = false) {
@@ -113,15 +128,63 @@ export function recordTopic(statePath, target, topic, consumed = false) {
   state[target] ??= {};
   const prior = state[target][topic.key] ?? { attempts: 0, consumed: false };
   state[target][topic.key] = { attempts: prior.attempts + (consumed ? 0 : 1), consumed: consumed || prior.consumed };
-  fs.mkdirSync(path.dirname(statePath), { recursive: true, mode: 0o700 });
-  const temp = `${statePath}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify(state)}\n`, { mode: 0o600 });
-  fs.renameSync(temp, statePath);
+  writeTopicState(statePath, state);
+}
+
+// Reserve a real submitted topic while publication/smoke is pending. A new
+// calendar slot must not draft it again, but it is not consumed until smoke.
+export function reserveTopicSubmission(statePath, target, topic, slot, id) {
+  const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {};
+  state[target] ??= {};
+  const prior = state[target][topic.key] ?? { attempts: 0, consumed: false };
+  state[target][topic.key] = { ...prior, pendingSlot: slot, pendingSubmissionId: id };
+  writeTopicState(statePath, state);
+}
+
+export function clearTopicReservation(statePath, target, topic, slot) {
+  if (!fs.existsSync(statePath)) return;
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  const prior = state[target]?.[topic.key];
+  if (!prior || prior.pendingSlot !== slot) return;
+  delete prior.pendingSlot;
+  delete prior.pendingSubmissionId;
+  writeTopicState(statePath, state);
+}
+
+// The trusted content CLI emits a JSON error envelope on stdout. Preserve only
+// stable classes and bounded operator guidance; never log its raw message,
+// conflicts, target, candidate bytes or URLs (they may carry private data).
+export function classifyCliFailure(binary, args, result) {
+  if (path.basename(binary) !== 'node' || args[0] !== 'scripts/content/cli.mjs') return null;
+  const classes = new Map([
+    ['ValidationError', ['cli-validation', 'fix-source']], ['ConflictError', ['cli-conflict', 'reload-snapshot']],
+    ['TargetError', ['cli-target', 'check-binding']], ['StateError', ['cli-state', 'inspect-submission']],
+    ['ClaimError', ['cli-claim', 'retry-original-slot']], ['ECONNRESET', ['cli-network', 'retry-original-slot']],
+    ['ETIMEDOUT', ['cli-network', 'retry-original-slot']], ['ENOTFOUND', ['cli-network', 'retry-original-slot']],
+    ['EAI_AGAIN', ['cli-network', 'retry-original-slot']], ['57P01', ['cli-database', 'retry-original-slot']],
+  ]);
+  let payload;
+  const stdout = result.stdout;
+  if (typeof stdout === 'string' && Buffer.byteLength(stdout) <= 8192) {
+    try { payload = JSON.parse(stdout.trim()); } catch { /* no safe envelope */ }
+  }
+  let classification = typeof payload?.error === 'string' ? classes.get(payload.error) : null;
+  if (!classification && payload?.error === 'Error' && typeof payload.message === 'string' && payload.message.length <= 2048) {
+    if (/\b(?:HTTP|status)\s*5\d\d\b/i.test(payload.message)) classification = ['cli-server', 'retry-original-slot'];
+    else if (/^(?:fetch failed|network error|connect ECONNRESET|socket hang up)$/i.test(payload.message)) classification = ['cli-network', 'retry-original-slot'];
+  }
+  if (!classification && result.error?.code === 'ETIMEDOUT') classification = ['cli-timeout', 'retry-original-slot'];
+  classification ??= ['cli-operation', 'inspect-run-slot'];
+  return { reason: classification[0], action: classification[1], exit: Number.isInteger(result.status) ? result.status : null };
 }
 
 export function command(binary, args, { cwd, env, allowExit = [] } = {}) {
   const result = spawnSync(binary, args, { cwd, env, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024, timeout: 45 * 60_000 });
-  if (result.error || (result.status !== 0 && !allowExit.includes(result.status))) throw new Error(`${path.basename(binary)} ${args[0] ?? ''} exit ${result.status ?? 'signal'}`);
+  if (result.error || (result.status !== 0 && !allowExit.includes(result.status))) {
+    const failure = new Error(`${path.basename(binary)} ${args[0] ?? ''} exit ${result.status ?? 'signal'}`);
+    failure.cliFailure = classifyCliFailure(binary, args, result);
+    throw failure;
+  }
   return { code: result.status, stdout: result.stdout ?? '' };
 }
 
@@ -201,6 +264,7 @@ function generator(job, slot, topic, dryRun, log) {
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
   copyScratchTree(repo, scratch);
+  const exportedPosts = job === 'weekly-blog' ? readJson(path.join(repo, 'data', 'posts.json')) : null;
   const requestDir = path.join(stateRoot, 'generator-requests');
   fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun })}\n`, { mode: 0o600 });
@@ -211,6 +275,7 @@ function generator(job, slot, topic, dryRun, log) {
   const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
   if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
   const paths = generatedPathsForTransfer(changedPaths(scratch, repo));
+  if (job === 'weekly-blog' && (!paths.includes('data/posts.json') || !hasOneNewBlogPost(exportedPosts, readJson(path.join(scratch, 'data', 'posts.json'))))) throw new Error('blog generated no post');
   if (job === 'seo-improvements' && paths.some((rel) => !allowedGeneratedPath(rel, job))) {
     logLine(log, 'seo-code-suggestion', { paths: paths.filter((rel) => !allowedGeneratedPath(rel, job)).slice(0, 20) });
     throw new Error('SEO code suggestion; human PR required');
@@ -221,7 +286,7 @@ function generator(job, slot, topic, dryRun, log) {
   return changed;
 }
 
-function submitAndGate(job, target, slot, log, extra = []) {
+function submitAndGate(job, target, slot, log, extra = [], onSubmission = null) {
   const kind = JOBS[job].kind;
   const identity = slotKey(job, target, slot);
   const actor = `runner:${job}#${slot}`;
@@ -229,6 +294,7 @@ function submitAndGate(job, target, slot, log, extra = []) {
   const id = submitted.submissionId;
   logLine(log, 'submission', { id });
   if (id == null) return { id: null, success: true };
+  onSubmission?.(id);
   return gate(id, target, actor, log);
 }
 
@@ -256,13 +322,37 @@ function lookup(job, target, slot, log) {
 }
 
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+
+// A resumed gate may finish publication after the original process died before
+// persisting local topic consumption. Only a confirmed smoke success can consume.
+export function consumeResumedBlogTopic(root, target, slot, request, result) {
+  if (!result?.success || result.id == null || request?.topic) return false;
+  const selectedPath = path.join(root, 'topics', `${slot}.json`);
+  if (!fs.existsSync(selectedPath)) return false;
+  const topic = readJson(selectedPath);
+  if (!topic?.key) return false;
+  recordTopic(path.join(root, 'topic-state.json'), target, topic, true);
+  return true;
+}
+
 function runJob(job, target, slot, request, log) {
   if (job === 'weekly-growth-report') {
     source('scripts/generate-weekly-growth-report.mjs', ['--out-dir', path.join(stateRoot, 'growth', slot)], job, log);
     return;
   }
-  const previous = job === 'news' && request.dryRun ? null : lookup(job, target, slot, log);
-  if (previous) return previous;
+  let previous;
+  try { previous = job === 'news' && request.dryRun ? null : lookup(job, target, slot, log); }
+  catch (error) {
+    if (job === 'weekly-blog' && error.message === 'gate blocked or rejected') {
+      const selectedPath = path.join(stateRoot, 'topics', `${slot}.json`);
+      if (fs.existsSync(selectedPath)) clearTopicReservation(path.join(stateRoot, 'topic-state.json'), target, readJson(selectedPath), slot);
+    }
+    throw error;
+  }
+  if (previous) {
+    if (job === 'weekly-blog') consumeResumedBlogTopic(stateRoot, target, slot, request, previous);
+    return previous;
+  }
   cli(['export', '--root', '.', '--target', target]);
   logLine(log, 'export');
   if (job === 'topic-discovery') {
@@ -294,8 +384,9 @@ function runJob(job, target, slot, request, log) {
         topic = selectTopic(queue, state, target);
         const unused = (queue.topics ?? []).filter((entry) => entry.kind === 'blog' && !state[target]?.[entry.key]?.consumed);
         if (!topic && unused.length) {
-          logLine(log, 'topic-queue-exhausted', { unused: unused.length });
-          throw new Error('topic queue exhausted; human followup required');
+          const reserved = unused.filter((entry) => state[target]?.[entry.key]?.pendingSlot).length;
+          logLine(log, reserved ? 'topic-publication-pending' : 'topic-queue-exhausted', { unused: unused.length, reserved });
+          throw new Error(reserved ? 'topic publication pending; retry original slot' : 'topic queue exhausted; human followup required');
         }
         if (topic) {
           fs.mkdirSync(path.dirname(selectedPath), { recursive: true });
@@ -314,8 +405,16 @@ function runJob(job, target, slot, request, log) {
       const decision = parseJson(guard.stdout).decision;
       if (decision !== 'submit') return { noChanges: true };
     }
-    const result = submitAndGate(job, target, slot, log);
-    if (topic?.key && result.success && result.id !== null) recordTopic(path.join(stateRoot, 'topic-state.json'), target, topic, true);
+    const topicStatePath = path.join(stateRoot, 'topic-state.json');
+    let result;
+    try {
+      result = submitAndGate(job, target, slot, log, [], topic?.key ? (id) => reserveTopicSubmission(topicStatePath, target, topic, slot, id) : null);
+    } catch (error) {
+      if (topic?.key && error.message === 'gate blocked or rejected') clearTopicReservation(topicStatePath, target, topic, slot);
+      throw error;
+    }
+    if (job === 'weekly-blog' && result.id === null) throw new Error('blog generated no submission');
+    if (topic?.key && result.success && result.id !== null) recordTopic(topicStatePath, target, topic, true);
     return result;
   }
   if (job === 'news') {
@@ -327,16 +426,14 @@ function runJob(job, target, slot, request, log) {
         for (const item of pending) gate(item.id, target, `runner:news#${slot}`, log);
         return { resumed: pending.length };
       }
-      const published = parseJson(cli(['list', '--submissions', '--kind', 'news', '--state', 'published', '--target', target]).stdout);
-      const needsDeploy = published.some((item) => {
-        const shown = parseJson(cli(['show', '--submission', String(item.id), '--target', target]).stdout);
-        return !shown.submission.smoke_passed_at || !shown.submission.notified_at;
-      });
-      if (needsDeploy) {
+      // Query only incomplete propagation, not every historical published row.
+      // The store's indexed pending predicate keeps healthy daily runs constant.
+      const pendingPropagation = parseJson(cli(['pending', '--kind', 'news', '--target', target]).stdout);
+      if (pendingPropagation.length) {
         const resumed = cli(['deploy', '--target', target], repo, [3]);
         logLine(log, 'news-deploy-resume', { exit: resumed.code });
         if (resumed.code === 3) throw new Error('news propagation pending');
-        return { resumed: published.length };
+        return { resumed: pendingPropagation.length };
       }
     }
     const run = path.join(stateRoot, 'news', slot);
@@ -386,8 +483,8 @@ export async function main(argv = process.argv.slice(2)) {
     const result = runJob(job, target, slot, request, log);
     logLine(log, 'success', { sha, result: result && { id: result.id ?? null, dryRun: !!result.dryRun, noChanges: !!result.noChanges } });
   } catch (error) {
-    const reason = error instanceof SyntaxError ? 'invalid-json' : /^(?:runner hold active|topic queue exhausted; human followup required|news resume snapshot changed|news post artifact missing; manual recovery required|no healthy news source|SEO code suggestion; human PR required|blog generated no post|gate blocked or rejected|publish or propagation pending|scratch output outside allowlist|scratch output too large|generator changed pinned commit)$/.test(error?.message) ? error.message : 'operational-error';
-    logLine(log, 'failure', { error: reason });
+    const reason = error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : /^(?:runner hold active|topic queue exhausted; human followup required|topic publication pending; retry original slot|news resume snapshot changed|news post artifact missing; manual recovery required|no healthy news source|SEO code suggestion; human PR required|blog generated no post|blog generated no submission|gate blocked or rejected|publish or propagation pending|scratch output outside allowlist|scratch output too large|generator changed pinned commit)$/.test(error?.message) ? error.message : 'operational-error');
+    logLine(log, 'failure', { error: reason, ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit } : {}) });
     const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required' });
     if (!alerted) logLine(log, 'alert-failed');
     throw new Error(`runner failed: ${job}/${target}/${slot}`);

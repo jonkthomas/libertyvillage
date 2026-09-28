@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, alertFailure, assertTarget, childEnv, changedPaths, copyGenerated, copyScratchTree, generatedPathsForTransfer, allowedGeneratedPath, readScratchHead, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, readScratchHead, selectTopic, recordTopic, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -160,15 +160,64 @@ test('topic attempts stay local and consumption waits for success', (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-topic-test-'));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const statePath = path.join(temp, 'topic-state.json');
-  const queue = { topics: [{ kind: 'blog', title: 'A title', key: 'abc' }] };
+  const queue = { topics: [{ kind: 'blog', title: 'A title', key: 'abc' }, { kind: 'blog', title: 'Another', key: 'def' }] };
+  const slot = '202609281100-topicabc';
   assert.equal(selectTopic(queue, {}, 'staging').key, 'abc');
   recordTopic(statePath, 'staging', queue.topics[0]);
   let state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   assert.deepEqual(state.staging.abc, { attempts: 1, consumed: false });
-  recordTopic(statePath, 'staging', queue.topics[0], true);
+  reserveTopicSubmission(statePath, 'staging', queue.topics[0], slot, 17);
+  state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.deepEqual(state.staging.abc, { attempts: 1, consumed: false, pendingSlot: slot, pendingSubmissionId: 17 });
+  assert.equal(selectTopic(queue, state, 'staging').key, 'def', 'next slot must not duplicate a published-pending topic');
+  const selectedPath = path.join(temp, 'topics', `${slot}.json`);
+  fs.mkdirSync(path.dirname(selectedPath));
+  fs.writeFileSync(selectedPath, JSON.stringify(queue.topics[0]));
+  assert.equal(consumeResumedBlogTopic(temp, 'staging', slot, {}, { id: 17, success: false }), false);
+  assert.equal(consumeResumedBlogTopic(temp, 'staging', slot, {}, { id: null, success: true }), false);
+  assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).staging.abc.consumed, false);
+  assert.equal(consumeResumedBlogTopic(temp, 'staging', slot, {}, { id: 17, success: true }), true);
   state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   assert.deepEqual(state.staging.abc, { attempts: 1, consumed: true });
-  assert.equal(selectTopic(queue, state, 'staging'), null);
+  assert.equal(selectTopic(queue, state, 'staging').key, 'def');
+  recordTopic(statePath, 'staging', queue.topics[1]);
+  reserveTopicSubmission(statePath, 'staging', queue.topics[1], slot, 18);
+  clearTopicReservation(statePath, 'staging', queue.topics[1], 'other-slot');
+  assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).staging.def.pendingSlot, slot);
+  clearTopicReservation(statePath, 'staging', queue.topics[1], slot);
+  state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.deepEqual(state.staging.def, { attempts: 1, consumed: false });
+  assert.equal(selectTopic({ topics: [queue.topics[1]] }, state, 'staging').key, 'def', 'terminal rejection releases reservation');
+});
+
+test('weekly blog requires one new post relative to exported DB, not Git HEAD drift', () => {
+  const exported = [{ slug: 'already-in-db' }];
+  assert.equal(hasOneNewBlogPost(exported, exported), false);
+  assert.equal(hasOneNewBlogPost(exported, [{ slug: 'replacement' }]), false);
+  assert.equal(hasOneNewBlogPost(exported, [{ slug: 'already-in-db' }, { slug: 'already-in-db' }]), false);
+  assert.equal(hasOneNewBlogPost(exported, [{ slug: 'already-in-db' }, { slug: 'new-grounded-post' }]), true);
+});
+
+test('trusted CLI errors preserve safe classes and guidance without raw candidate text', (t) => {
+  const args = ['scripts/content/cli.mjs', 'lookup'];
+  assert.deepEqual(classifyCliFailure('node', args, { status: 2, stdout: JSON.stringify({ error: 'ConflictError', conflicts: [{ key: 'private-slug' }] }) }), { reason: 'cli-conflict', action: 'reload-snapshot', exit: 2 });
+  assert.equal(classifyCliFailure('node', args, { status: 2, stdout: JSON.stringify({ error: 'ValidationError', message: 'private candidate content' }) }).reason, 'cli-validation');
+  assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: 'Error', message: 'HTTP 503 unavailable' }) }).reason, 'cli-server');
+  assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: 'Error', message: 'fetch failed' }) }).reason, 'cli-network');
+  assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: '__proto__' }) }).reason, 'cli-operation');
+  assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: 'Error', message: 'private'.repeat(3000) }) }).reason, 'cli-operation');
+  assert.equal(classifyCliFailure('git', args, { status: 1, stdout: '{}' }), null);
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cli-error-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const binary = path.join(temp, 'node');
+  fs.writeFileSync(binary, '#!/bin/sh\nprintf \'%s\\n\' \'{"error":"ConflictError","message":"private candidate text","conflicts":[{"key":"private-slug"}]}\'\nexit 2\n', { mode: 0o700 });
+  let error;
+  try { command(binary, args, { cwd: temp }); assert.fail('CLI should have failed'); }
+  catch (caught) { error = caught; }
+  assert.equal(error.cliFailure.reason, 'cli-conflict');
+  assert.equal(error.cliFailure.action, 'reload-snapshot');
+  assert.equal(error.cliFailure.exit, 2);
+  assert.doesNotMatch(JSON.stringify(error), /private candidate|private-slug/);
 });
 
 test('news preflight and artifact handoff are ordered before submit', () => {
