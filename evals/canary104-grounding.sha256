@@ -15,7 +15,7 @@
 # A FAILED line means an evaluator-owned artifact was modified. That is an
 # automatic FAIL of the acceptance review — re-verify authorship before
 # accepting any implementation work built against the altered file.
-46a54c5a0f58a3ed831d485a66e57f6b81ba0eb21dc820765a793c9a141b1878  tests/automation/canary104-grounding.eval.mjs
+eec1d592be81472bfef1525a91a8400920d1b29ab02b1f47ae51be7ff7b3d110  tests/automation/canary104-grounding.eval.mjs
 363d6d9b8aa78312854ec70277217cca5dcef00fc0cb34dc69a67b56f9c49dd2  tests/reliability/fixtures/pr104/README.md
 e6cb03b7443e902a951388989a474231e506fd7f06af5de86e8144a95a123759  tests/reliability/fixtures/pr104/gate-audits.json
 a842b148c0e465ba6da0fb2219abdf64953c0aef49c842125aea5be92e385ff9  tests/reliability/fixtures/pr104/businesses-excerpts.json
