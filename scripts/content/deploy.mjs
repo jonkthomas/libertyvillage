@@ -256,15 +256,24 @@ export async function deployContent(db, opts = {}, { env = process.env, deps = {
   }
   const submissions = [];
   for (const id of await listPending(db, { target: db.target })) {
-    const outcome = await withClaim(db, id, owner, async (token) => {
-      const { submission } = await getSubmission(db, id);
-      if (hookFailed && !submission.deploy_requested_at) return { smoke: 'pending', exitCode: 3 };
-      return propagate(db, { submissionId: id, token, actor: owner, env, deps, hookPosted: !hookFailed });
-    });
+    let outcome;
+    try {
+      outcome = await withClaim(db, id, owner, async (token) => {
+        const { submission } = await getSubmission(db, id);
+        if (hookFailed && !submission.deploy_requested_at) return { smoke: 'pending', exitCode: 3 };
+        return propagate(db, { submissionId: id, token, actor: owner, env, deps, hookPosted: !hookFailed });
+      });
+    } catch {
+      // A failed notice (or another per-submission operational failure) stays
+      // pending, but later published submissions must still get their turn.
+      outcome = { smoke: 'error', exitCode: 1 };
+    }
     if (outcome.claimed) submissions.push({ id, smoke: 'claimed', exitCode: 3 });
     else submissions.push({ id, smoke: outcome.smoke, ...(outcome.compensation ? { compensation: outcome.compensation } : {}), exitCode: outcome.exitCode });
   }
-  const exitCode = hookFailed || submissions.some((entry) => entry.exitCode === 3) ? 3 : submissions.some((entry) => entry.exitCode === 2) ? 2 : 0;
+  const exitCode = submissions.some((entry) => entry.exitCode === 1) ? 1
+    : hookFailed || submissions.some((entry) => entry.exitCode === 3) ? 3
+      : submissions.some((entry) => entry.exitCode === 2) ? 2 : 0;
   return {
     result: {
       ...(hookFailed ? { deploy: 'failed' } : {}),

@@ -5,8 +5,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ALL } from '../../scripts/content/canonical.mjs';
 import { seed } from '../../scripts/content/seed.mjs';
+import { deployContent } from '../../scripts/content/deploy.mjs';
+import { listPending, releaseClaim } from '../../scripts/content/store.mjs';
 import { verifyParity } from '../../scripts/content/parity.mjs';
 import { testDb } from './helpers/db.mjs';
+import { FAST_SMOKE, localSite, publishDirect, seedRecords } from './fixtures/content-db.mjs';
 const repo = path.resolve(new URL('../../',import.meta.url).pathname);
 test('all nine seed, idempotency, reorder/update/prune, parity detects mutation', async () => {
   const {db,close}=await testDb();
@@ -30,4 +33,35 @@ test('all nine seed, idempotency, reorder/update/prune, parity detects mutation'
     await writeFile(file,`${JSON.stringify(businesses,null,2)}\n`);
     assert.equal((await verifyParity(db,{from:root})).match,false);
   } finally {await rm(root,{recursive:true,force:true});await close();}
+});
+
+test('real seed is complete for deployment recovery; one failed notice does not starve later submissions', async () => {
+  const { db, close } = await testDb();
+  const site = await localSite(db);
+  try {
+    const seeded = await seed(db, { from: repo }, { apply: true, actor: 'test:seed' });
+    await site.build();
+    const firstDeploy = await deployContent(db, { actor: 'test:deploy' }, { env: site.env });
+    assert.equal(firstDeploy.exitCode, 0);
+    assert.deepEqual(firstDeploy.result.submissions, []);
+    assert.deepEqual(await listPending(db), []);
+
+    const original = seedRecords().businesses[0];
+    const first = await publishDirect(db, { kind: 'manual', idempotencyKey: 'after-seed:first',
+      items: [{ dataset: 'businesses', key: 'after-seed-first', payload: { ...original, slug: 'after-seed-first' }, expectedLiveRev: null }] });
+    const second = await publishDirect(db, { kind: 'manual', idempotencyKey: 'after-seed:second',
+      items: [{ dataset: 'businesses', key: 'after-seed-second', payload: { ...original, slug: 'after-seed-second' }, expectedLiveRev: null }] });
+    await releaseClaim(db, first.submissionId, first.token);
+    await releaseClaim(db, second.submissionId, second.token);
+    let notices = 0;
+    const fetchImpl = (url, options) => {
+      if (url === site.env.SLACK_WEBHOOK_URL && ++notices === 1) return Promise.resolve(new Response('bad notice', { status: 400 }));
+      return fetch(url, options);
+    };
+    const recovered = await deployContent(db, { actor: 'test:deploy' }, { env: site.env, deps: { fetchImpl, smoke: FAST_SMOKE } });
+    assert.equal(recovered.exitCode, 1, JSON.stringify(recovered.result));
+    assert.deepEqual(recovered.result.submissions.map(({ id }) => id), [first.submissionId, second.submissionId]);
+    assert.deepEqual(await listPending(db), [first.submissionId]);
+    assert.equal(notices, 2);
+  } finally { await site.close(); await close(); }
 });

@@ -98,7 +98,8 @@ export async function seed(db, sourceArgs, { apply = false, prune = false, actor
     for (const s of source.datasets['discovery-seen']) seenAdded += (await c.query("insert into content.discovery_seen(name_key,first_seen,outcome) values($1,$2,$3) on conflict(name_key) do nothing", [s.nameKey,s.firstSeen,businessNames.has(s.nameKey)?'added':'seen'])).rowCount;
     changed ||= seenAdded > 0;
     const liveSeq = changed ? Number((await c.query('update content.meta set live_seq=live_seq+1 returning live_seq')).rows[0].live_seq) : Number((await c.query('select live_seq from content.meta')).rows[0].live_seq);
-    const submission = (await c.query("insert into content.submissions(kind,target,actor,idempotency_key,request_sha256,state,decision,live_seq,closed_at) values('seed',$1,$2,$3,$4,'published','admin',$5,now()) returning id", [db.target,actor,idem,hash('sha256',source.sourceSha),liveSeq])).rows[0];
+    // Seed reconciliation has no submission items to smoke or describe in a notice.
+    const submission = (await c.query("insert into content.submissions(kind,target,actor,idempotency_key,request_sha256,state,decision,live_seq,deploy_requested_at,smoke_passed_at,notified_at,closed_at) values('seed',$1,$2,$3,$4,'published','admin',$5,now(),now(),now(),now()) returning id", [db.target,actor,idem,hash('sha256',source.sourceSha),liveSeq])).rows[0];
     for (const a of actionRows) await c.query("insert into content.actions(actor,action,dataset,key,from_rev,to_rev,submission_id,reason,live_seq) values($1,'reconcile',$2,$3,$4,$5,$6,$7,$8)", [actor,a.dataset,a.key,a.fromRev,a.toRev,submission.id,`seed:${source.sourceSha}`,liveSeq]);
     return { existing:false, liveSeq, refused };
   });
