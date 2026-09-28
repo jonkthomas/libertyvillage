@@ -150,6 +150,30 @@ test('no-unit address catches a renamed storefront without conflating unrelated 
   const firstRun = [candidate({ name: 'Craft Brasserie', address: '1 Atlantic Ave, Toronto, ON M6K 1X9' }), renamed, unrelated];
   assert.deepEqual(selectBatch(firstRun, buildDedupeState([], {}), 15).map((b) => b.name),
     ['Craft Brasserie', 'Atlantic Yoga Studio']);
+
+  const directory = [business('Caffino', '1185 King St W, Toronto, ON M6K 1C5')];
+  const caffino = candidate({ name: 'Caffino Restaurant', address: '1185 King Street West, ON M6K 1C5' });
+  assert.equal(isDuplicate(buildDedupeState(directory), caffino), true, 'single-word brand plus descriptor');
+  assert.deepEqual(selectBatch([candidate({ name: 'Caffino', address: directory[0].address }), caffino],
+    buildDedupeState([], {}), 15).map((b) => b.name), ['Caffino']);
+
+  const tenants = [candidate({ name: 'Alpha Hair Salon', address: '51 Hanna Ave, Toronto, ON', phone: '4165550101' }),
+    candidate({ name: 'Beta Hair Salon', address: '51 Hanna Ave, Toronto, ON', phone: '4165550102' })];
+  assert.equal(isDuplicate(buildDedupeState([tenants[0]]), tenants[1]), false);
+  assert.deepEqual(selectBatch(tenants, buildDedupeState([], {}), 15).map((b) => b.name),
+    ['Alpha Hair Salon', 'Beta Hair Salon']);
+});
+
+test('canonical address key detects relocated direction and leading unit notation', () => {
+  const craft = business('Craft Brasserie', '171 E Liberty St, Toronto, ON M6K 3P6');
+  const alternate = candidate({ name: 'The Craft Brasserie & Grille', address: '171 Liberty Street East, ON M6K 3P6' });
+  assert.equal(isDuplicate(buildDedupeState([craft]), alternate), true);
+  assert.deepEqual(selectBatch([craft, alternate], buildDedupeState([], {}), 15).map((b) => b.name), ['Craft Brasserie']);
+
+  const pearle = business('Pearle Vision', '51 Hanna Ave #2, Toronto, ON M6K 1X1', { phone: '4165550199' });
+  const clinician = candidate({ name: 'Dr Rehana Manji', address: 'Unit 2, 51 Hanna Avenue, ON M6K 1X1', phone: '4165550199' });
+  assert.equal(isDuplicate(buildDedupeState([pearle]), clinician), true);
+  assert.deepEqual(selectBatch([pearle, clinician], buildDedupeState([], {}), 15).map((b) => b.name), ['Pearle Vision']);
 });
 
 test('generated records omit transient hours and identify the source of review facts', () => {

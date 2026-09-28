@@ -103,11 +103,18 @@ const priceRange = (p) => (typeof p === "string" && /\$/.test(p) ? p.match(/\$+/
 // Preserve unit numbers: a multi-tenant building is not one business. Normalize
 // common Maps variants so "#2" and "Unit 2" resolve to the same storefront.
 export function addressKey(address) {
-  return String(address || "").split(/,\s*(?:toronto|on|ontario|canada)\b|\b[a-z]\d[a-z]\s*\d[a-z]\d\b/i)[0]
-    .toLowerCase().replace(/\b(?:east|e)\b/g, "e")
-    .replace(/\b(?:west|w)\b/g, "w")
-    .replace(/\bstreet\b/g, "st").replace(/\bavenue\b/g, "ave")
-    .replace(/\b(?:suite|ste|unit)\b|#/g, "unit ")
+  const raw = String(address || "").split(/,\s*(?:toronto|on|ontario|canada)\b|\b[a-z]\d[a-z]\s*\d[a-z]\d\b/i)[0].toLowerCase();
+  const unitPattern = /(?:\b(?:suite|ste|unit)\s*|#\s*)([a-z0-9-]+)/i;
+  const unit = raw.match(unitPattern)?.[1] || "";
+  const withoutUnit = raw.replace(unitPattern, " ");
+  const street = withoutUnit.match(/\b(\d+[a-z]?)\s+(?:(e|east|w|west)\s+)?([a-z' ]+?)\s+(st|street|ave|avenue|rd|road|way|dr|drive|blvd|boulevard)\b(?:\s+(e|east|w|west)\b)?/i);
+  if (street) {
+    const direction = street[2] || street[5] || "";
+    const type = ({ street: "st", avenue: "ave", road: "rd", drive: "dr", boulevard: "blvd" })[street[4]] || street[4];
+    const name = street[3].replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+    return [street[1], direction ? direction[0] : "", name, type, unit ? `unit ${unit.replace(/[^a-z0-9]/g, "")}` : ""].filter(Boolean).join(" ");
+  }
+  return raw.replace(/\b(?:suite|ste|unit)\b|#/g, "unit ")
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 const unitAddressKey = (address) => {
@@ -127,13 +134,15 @@ const locationPhoneKey = ({ address, phone }) => {
 // different title as the same storefront when distinctive name words overlap;
 // a missing/different Maps phone alone must not let a renamed listing through.
 const noUnitAddressKey = (address) => unitAddressKey(address) ? "" : addressKey(address);
-const nameWords = (name) => new Set(String(name || "").toLowerCase().split(/[^a-z0-9]+/)
-  .filter((word) => word.length > 2 && !["the", "and", "liberty", "village", "toronto", "west", "east", "king"].includes(word)));
+const brandKey = (name) => norm(String(name || "").replace(/^\s*the\s+/i, ""));
 const sameBrandName = (a, b) => {
-  const left = nameWords(a);
-  const right = nameWords(b);
-  const shared = [...left].filter((word) => right.has(word));
-  return shared.length >= 2 && shared.length / Math.min(left.size, right.size) >= 0.6;
+  const left = brandKey(a);
+  const right = brandKey(b);
+  const shorter = left.length <= right.length ? left : right;
+  const longer = left.length <= right.length ? right : left;
+  // Match a brand extended with a descriptor (Caffino / Caffino Restaurant),
+  // not two tenants that happen to share category words (Alpha/Beta Hair Salon).
+  return shorter.length >= 7 && longer.startsWith(shorter);
 };
 const addUnunitName = (map, { address, name }) => {
   const key = noUnitAddressKey(address);
