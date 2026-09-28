@@ -7,6 +7,7 @@ export const registry = datasets;
 export const hash = (algorithm, value) => createHash(algorithm).update(value).digest('hex');
 export const recordSha = (record) => hash('sha256', JSON.stringify(record));
 export const blobSha1 = (text) => hash('sha1', Buffer.concat([Buffer.from(`blob ${Buffer.byteLength(text)}\0`), Buffer.from(text)]));
+const keySort = (a,b) => a < b ? -1 : a > b ? 1 : 0;
 export function keyOf(dataset, record) {
   if (dataset === 'guide-hub') return 'guide-hub';
   if (dataset === 'discovery-seen') return record.nameKey;
@@ -15,19 +16,19 @@ export function keyOf(dataset, record) {
 export function fromFile(dataset, value) {
   if (dataset === 'guide-hub') return [value];
   if (dataset === 'topic-queue') return value.topics;
-  if (dataset === 'discovery-seen') return Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([nameKey, firstSeen]) => ({ nameKey, firstSeen }));
+  if (dataset === 'discovery-seen') return Object.entries(value).sort(([a], [b]) => keySort(a,b)).map(([nameKey, firstSeen]) => ({ nameKey, firstSeen }));
   return value;
 }
 export function toFile(dataset, records) {
   if (dataset === 'guide-hub') return records[0] ?? null;
   if (dataset === 'topic-queue') return { version: 1, topics: records };
-  if (dataset === 'discovery-seen') return Object.fromEntries([...records].sort((a, b) => a.nameKey.localeCompare(b.nameKey)).map((r) => [r.nameKey, r.firstSeen]));
+  if (dataset === 'discovery-seen') return Object.fromEntries([...records].sort((a, b) => keySort(a.nameKey,b.nameKey)).map((r) => [r.nameKey, r.firstSeen]));
   return records;
 }
 export const serialize = (dataset, records) => `${JSON.stringify(toFile(dataset, records), null, 2)}\n`;
 export function datasetDigest(dataset, records) {
   return hash('sha256', dataset === 'discovery-seen'
-    ? [...records].sort((a, b) => a.nameKey.localeCompare(b.nameKey)).map((r) => `${r.nameKey}:${r.firstSeen}`).join('\n')
+    ? [...records].sort((a, b) => keySort(a.nameKey,b.nameKey)).map((r) => `${r.nameKey}:${r.firstSeen}`).join('\n')
     : records.map((r) => `${keyOf(dataset, r)}:${recordSha(r)}`).join('\n'));
 }
 export function candidateDigest(items) {

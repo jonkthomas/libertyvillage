@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ALL, SITE_DATASETS, registry, candidateDigest, datasetDigest, hash, keyOf, recordSha } from './canonical.mjs';
+import { ALL, SITE_DATASETS, registry, candidateDigest, datasetDigest, hash, recordSha } from './canonical.mjs';
 import { validateRecord } from './validate.mjs';
 export { openDb, TargetError } from './db.mjs';
 
@@ -162,7 +162,7 @@ export async function addRepairRound(db, id, token, { fromRound, repairs }) {
     return { round: fromRound + 1, items: next };
   });
 }
-export async function publishSubmission(db, id, token, { actor } = {}) {
+export async function publishSubmission(db, id, token) {
   return db.tx(async (c) => {
     const s = await lockedClaim(c, id, token, ['gating', 'published']);
     if (s.state === 'published') return { liveSeq: n(s.live_seq), published: [], existing: true };
@@ -206,7 +206,7 @@ export async function markItemSmoke(db, id, token, items) {
 export async function compensateSubmission(db, id, token, { actor, reason }) {
   if (!actor || !reason) throw new ValidationError('actor and reason required');
   return db.tx(async (c) => {
-    const s = await lockedClaim(c, id, token, ['published']);
+    await lockedClaim(c, id, token, ['published']);
     const items = rows(await c.query('select * from content.submission_items where submission_id=$1 order by dataset,key', [id]));
     await lockDatasets(c, items.map((i) => i.dataset));
     const conflicts = [];
@@ -292,7 +292,8 @@ export async function listEntries(db, { dataset, visibility = 'all' } = {}) {
   const results = rows(await db.query(`select e.dataset,e.key,e.live_rev as "liveRev",e.head_rev as "headRev",e.position,
     exists(select 1 from content.revisions r where r.dataset=e.dataset and r.key=e.key and r.published_at is not null) as ever
     from content.entries e where ($1::text is null or e.dataset=$1) order by e.dataset,e.position nulls last,e.key`, [dataset ?? null]));
-  return results.filter((r) => visibility === 'all' || visibility === 'live' && r.liveRev != null || visibility === 'unpublished' && r.liveRev == null && r.ever || visibility === 'never' && r.liveRev == null && !r.ever).map(({ ever, ...r }) => r);
+  return results.filter((r) => visibility === 'all' || visibility === 'live' && r.liveRev != null || visibility === 'unpublished' && r.liveRev == null && r.ever || visibility === 'never' && r.liveRev == null && !r.ever)
+    .map((r) => ({ dataset:r.dataset,key:r.key,liveRev:r.liveRev,headRev:r.headRev,position:r.position }));
 }
 export async function markDiscoverySeen(db, nameKeys, { outcome, submissionId }) {
   if (!['added', 'rejected'].includes(outcome)) throw new ValidationError('invalid outcome');

@@ -39,7 +39,7 @@ export function validateRecord(dataset, key, record) {
   for (const field of Object.keys(record)) if (!allowed.has(field)) errors.push(`unknown field: ${field}`);
   for (const field of required[dataset].split(' ')) if (record[field] === undefined || record[field] === null) errors.push(`required: ${field}`);
   for (const [field, value] of Object.entries(record)) {
-    const type = numberFields.has(field) ? 'number' : booleanFields.has(field) ? 'boolean' : arrayFields.has(field) ? 'array' : objectFields.has(field) ? 'object' : 'string';
+    const type = field === 'population' && dataset === 'guide-hub' ? 'string' : numberFields.has(field) ? 'number' : booleanFields.has(field) ? 'boolean' : arrayFields.has(field) ? 'array' : objectFields.has(field) ? 'object' : 'string';
     if (type === 'array' ? !Array.isArray(value) : type === 'object' ? !value || typeof value !== 'object' || Array.isArray(value) : typeof value !== type) errors.push(`invalid type: ${field}`);
   }
   return { ok: errors.length === 0, errors };
