@@ -455,3 +455,85 @@ test('bounded read helpers: exact base revision payload bytes and round vector; 
     );
   } finally { await close(); }
 });
+
+// ---------------------------------------------------------------------------
+// D's ingest-db contract, through the real cli.mjs: exact argv, JSON with liveSeq and
+// published[{dataset,url}], exit 0 published / 2 blocked / 3 propagation pending.
+// Only the agent SDK is faked (reviewRows and runStructured run for real).
+// ---------------------------------------------------------------------------
+const { runCli } = await import('../../scripts/content/cli.mjs');
+const BLOG_IMAGE = '/images/blog/best-bars-liberty-village-toronto-guide-2026.jpg';
+
+function blogLivePost(slug, generatedAt) {
+  const day = generatedAt.slice(0, 10);
+  return {
+    slug, title: `Liberty Village park walks ${slug.slice(-4)}`, description: 'A short guide to walking loops through the neighbourhood parks.',
+    content: '## Walking loops\n\nThe neighbourhood has a few short loops that connect its parks and quieter streets.\n',
+    publishedAt: day, updatedAt: day, category: 'lifestyle', tags: ['parks', 'walking', 'liberty village', 'outdoors'],
+    answerBlock: 'Liberty Village has several short walking loops that connect its parks.',
+    faqs: [1, 2, 3, 4].map((n) => ({ question: `Question ${n}?`, answer: `Answer ${n}.` })),
+    image: BLOG_IMAGE, relatedServices: [], relatedTopics: [], relatedPosts: [], keyTakeaways: ['One', 'Two', 'Three', 'Four'], author: 'LibertyVillage.co',
+  };
+}
+
+const passingReview = ({ prompt }) => ({ overall: 8.6, findings: [], model: GATE_MODEL, commit_sha: /set commit_sha exactly ([0-9a-f]{40})/.exec(prompt)[1] });
+const blockingReview = ({ prompt }) => ({ overall: 4, findings: [{ severity: 'critical', path: 'data/posts.json', note: 'slug duplicates an existing post' }], model: GATE_MODEL, commit_sha: /set commit_sha exactly ([0-9a-f]{40})/.exec(prompt)[1] });
+
+async function withCliEnv(site, name, fn) {
+  const saved = {};
+  const env = { ...site.env, CONTENT_DB_NAME: name, CONTENT_TARGET: 'test' };
+  for (const key of [...Object.keys(env), 'GITHUB_ACTIONS']) saved[key] = process.env[key];
+  Object.assign(process.env, env);
+  delete process.env.GITHUB_ACTIONS;
+  try { return await fn(); } finally {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  }
+}
+
+async function ingestRun(name, suffix, { review, dataSha = suffix.padEnd(40, 'a') }) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-ingest-'));
+  const exported = await runCli(['export', '--root', root, '--expect-db', name]);
+  assert.equal(exported.exitCode, 0);
+  const generatedAt = new Date(Date.now() - 3_600_000).toISOString();
+  const candidate = path.join(root, 'candidate.json');
+  fs.writeFileSync(candidate, JSON.stringify(blogLivePost(`liberty-village-park-walks-${suffix}`, generatedAt)));
+  const submit = await runCli(['submit', '--kind', 'blog-live', '--record-file', candidate, '--dataset', 'posts', '--baseline', path.join(root, '.content-export/manifest.json'),
+    '--idempotency-key', `vm:${dataSha}`, '--actor', `ingest:${dataSha}`, '--topic-key', 'b'.repeat(64), '--generated-at', generatedAt, '--target', 'test', '--expect-db', name]);
+  assert.equal(submit.exitCode, 0, JSON.stringify(submit.result));
+  queueAgent(review);
+  const gated = await runCli(['gate', '--submission', String(submit.result.submissionId), '--target', 'test', '--expect-db', name]);
+  return { submit, gated };
+}
+
+test('D ingest-db contract: submit + gate via cli.mjs exit 0 / 2 / 3 with liveSeq and published[{dataset,url}]', async () => {
+  const handle = await seededDb();
+  const site = await localSite(handle.db);
+  await site.build();
+  try {
+    await withCliEnv(site, handle.name, async () => {
+      const ok = await ingestRun(handle.name, '0001', { review: passingReview });
+      assert.equal(ok.gated.exitCode, 0, JSON.stringify(ok.gated.result));
+      assert.equal(typeof ok.gated.result.liveSeq, 'number');
+      assert.deepEqual(ok.gated.result.published.map(({ dataset, url }) => ({ dataset, url })), [{ dataset: 'posts', url: `${site.origin}/blog/liberty-village-park-walks-0001` }]);
+      assert.equal(fakeAgent.calls.length, 1, 'real reviewRows ran against the fake SDK only');
+      const { submission } = await store.getSubmission(handle.db, ok.submit.result.submissionId);
+      assert.equal(submission.claim_token, null, 'claim released');
+      assert.match((await store.getSubmission(handle.db, ok.submit.result.submissionId)).submission.actor, /^ingest:0001/);
+
+      const blocked = await ingestRun(handle.name, '0002', { review: blockingReview });
+      assert.equal(blocked.gated.exitCode, 2, JSON.stringify(blocked.gated.result));
+      assert.deepEqual([blocked.gated.result.state, blocked.gated.result.decision], ['blocked', 'unrepairable']);
+
+      site.state.hook = 500;
+      const pending = await ingestRun(handle.name, '0003', { review: passingReview });
+      assert.equal(pending.gated.exitCode, 3, JSON.stringify(pending.gated.result));
+      assert.equal(typeof pending.gated.result.liveSeq, 'number');
+      assert.equal(pending.gated.result.published[0].dataset, 'posts');
+      // A stale --generated-at is refused before any write.
+      const stale = await runCli(['submit', '--kind', 'blog-live', '--record-file', tempJson(blogLivePost('stale-walks', '2026-01-01T00:00:00Z')), '--dataset', 'posts', '--baseline', await baselineFile(handle.db),
+        '--idempotency-key', 'vm:stale', '--actor', 'ingest:stale', '--topic-key', 'b'.repeat(64), '--generated-at', '2026-01-01T00:00:00Z', '--target', 'test', '--expect-db', handle.name]).catch((error) => error);
+      assert.equal(stale.code, 'ValidationError');
+      assert.match(stale.message, /more than 36 h before submit/);
+    });
+  } finally { await site.close(); await handle.close(); }
+});

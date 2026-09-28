@@ -4,7 +4,7 @@ import path from 'node:path';
 import { candidateDigest, registry } from './canonical.mjs';
 import {
   addRepairRound, ClaimError, claimSubmission, ConflictError, getSubmission, publishSubmission, recordRound,
-  rejectSubmission, releaseClaim, renewClaim,
+  rejectSubmission, releaseClaim, renewClaim, StateError,
 } from './store.mjs';
 import { buildReviewDocument, blobSha1 } from './review-document.mjs';
 import { lensesFor } from './lenses.mjs';
@@ -176,7 +176,16 @@ const loadReviewAgent = () => import('../automation/review-agent.mjs');
 export async function gateContent(db, opts, { env = process.env, deps = {}, checkout = process.cwd() } = {}) {
   const id = Number(opts.submission);
   if (!Number.isInteger(id) || id <= 0) throw new Error('--submission required');
-  const actor = actorFor(opts, env);
+  // D's ingest invokes `gate --submission ID --target X` without --actor; outside GHA the
+  // gate acts as `gate:<the submission's recorded actor>` (e.g. gate:ingest:<sha>).
+  let actor;
+  try {
+    actor = actorFor(opts, env);
+  } catch {
+    const row = (await db.query('select actor from content.submissions where id=$1', [id])).rows[0];
+    if (!row) throw new StateError('submission missing');
+    actor = `gate:${row.actor}`;
+  }
   const owner = opts.owner && opts.owner !== true ? opts.owner : actor;
   const script = opts.script && opts.script !== true ? loadScript(opts.script, { dbName: db.dbName }) : null;
   const onPhase = deps.onPhase ?? (() => {});
