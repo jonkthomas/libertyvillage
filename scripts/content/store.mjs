@@ -241,11 +241,14 @@ export async function adminAction(db, { op, dataset, key, toRev, actor, reason, 
   if (dataset === 'topic-queue' || (op === 'unpublish' && dataset === 'guide-hub')) throw new ValidationError('admin action forbidden for dataset');
   const requestSha = hash('sha256', JSON.stringify({ op, dataset, key, toRev, actor, reason }));
   return db.tx(async (c) => {
+    // Reserve this key before reading it. The dataset lock alone cannot prevent
+    // two callers from both observing a missing idempotency row.
+    await c.query("select pg_advisory_xact_lock(hashtext('content:admin-idem:' || $1))", [idempotencyKey]);
     const old = one(await c.query('select * from content.submissions where idempotency_key=$1', [idempotencyKey]));
     if (old) {
       if (old.request_sha256 !== requestSha) throw new StateError('idempotency-mismatch');
       const item = one(await c.query('select * from content.submission_items where submission_id=$1', [old.id]));
-      return { submissionId: n(old.id), token: old.claim_token, existing: true, liveSeq: n(old.live_seq), fromRev: n(item.expected_live_rev), rev: n(item.published_rev) };
+      return { submissionId: n(old.id), token: null, existing: true, liveSeq: n(old.live_seq), fromRev: n(item.expected_live_rev), rev: n(item.published_rev) };
     }
     await lockDatasets(c, [dataset]);
     const e = one(await c.query('select * from content.entries where dataset=$1 and key=$2 for update', [dataset, key]));

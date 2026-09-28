@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { testDb } from './helpers/db.mjs';
 import * as store from '../../scripts/content/store.mjs';
+import { deployContent } from '../../scripts/content/deploy.mjs';
 import { candidateDigest } from '../../scripts/content/canonical.mjs';
 const template = JSON.parse(await readFile(new URL('../../data/businesses.json', import.meta.url)))[0];
 let serial = 0;
@@ -51,5 +52,62 @@ test('repair round invalidates reviewed vector', async () => {
     await store.recordRound(db,created.submissionId,token,{round:0,candidateDigest:candidateDigest(vector),contentSha:'c'.repeat(40),verdict:{},overall:6,passed:false,blockingCount:1,lint:{},decision:'repair'});
     await store.addRepairRound(db,created.submissionId,token,{fromRound:0,repairs:[{dataset:'businesses',key:'repair-key',payload:{...template,slug:'repair-key',name:'fixed'}}]});
     await assert.rejects(store.publishSubmission(db,created.submissionId,token), (e) => e.code === 'StateError');
+  } finally { await close(); }
+});
+
+test('admin replay cannot share an active lease and can claim after release', async () => {
+  const { db, close } = await testDb();
+  try {
+    const published = await ready(db, make('admin-lease'));
+    await store.publishSubmission(db, published.id, published.token);
+    const opts = { op: 'rollback', dataset: 'businesses', key: 'admin-lease', toRev: 1,
+      actor: 'test', owner: 'test', reason: 'retry', idempotencyKey: 'admin-lease-retry' };
+    const first = await store.adminAction(db, opts);
+    const replay = await store.adminAction(db, opts);
+    assert.equal(replay.existing, true);
+    assert.equal(replay.submissionId, first.submissionId);
+    assert.equal(replay.token, null);
+    assert.deepEqual(await deployContent(db, { submission: replay.submissionId, token: replay.token, actor: 'test' }),
+      { result: { smoke: 'claimed' }, exitCode: 1 });
+    await store.renewClaim(db, first.submissionId, first.token);
+    await store.releaseClaim(db, first.submissionId, first.token);
+    const next = await store.claimSubmission(db, replay.submissionId, { owner: 'replay' });
+    assert.notEqual(next.token, first.token);
+    await store.releaseClaim(db, replay.submissionId, next.token);
+  } finally { await close(); }
+});
+
+test('concurrent admin requests reserve one idempotency key before dataset mutation', async () => {
+  const { db, close } = await testDb();
+  try {
+    const published = await ready(db, make('admin-race'));
+    await store.publishSubmission(db, published.id, published.token);
+    let releaseDataset;
+    let locked;
+    const datasetLocked = new Promise((resolve) => { locked = resolve; });
+    const hold = db.tx(async (client) => {
+      await client.query("select pg_advisory_xact_lock(hashtext('content:' || $1))", ['businesses']);
+      locked();
+      await new Promise((resolve) => { releaseDataset = resolve; });
+    });
+    await datasetLocked;
+    const opts = { op: 'rollback', dataset: 'businesses', key: 'admin-race', toRev: 1,
+      actor: 'test', owner: 'test', reason: 'same', idempotencyKey: 'admin-race-key' };
+    let reads = 0;
+    const wrapper = { ...db, tx: (fn) => db.tx((client) => fn({
+      query: async (sql, params) => {
+        const result = await client.query(sql, params);
+        if (sql === 'select * from content.submissions where idempotency_key=$1') reads += 1;
+        return result;
+      },
+    })) };
+    const requests = [store.adminAction(wrapper, opts), store.adminAction(wrapper, opts)];
+    try {
+      for (let attempt = 0; attempt < 40 && reads < 2; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    } finally { releaseDataset(); await hold; }
+    const results = await Promise.all(requests);
+    assert.deepEqual(results.map((result) => result.existing).sort(), [false, true]);
+    assert.equal(results[0].submissionId, results[1].submissionId);
+    assert.equal((await db.query("select count(*)::int as count from content.submissions where idempotency_key='admin-race-key'")).rows[0].count, 1);
   } finally { await close(); }
 });
