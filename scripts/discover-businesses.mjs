@@ -28,7 +28,7 @@ const args = process.argv.slice(2);
 const DRY = args.includes("--dry");
 const MAX_NEW = Number((args.find((a) => a.startsWith("--max=")) || "--max=15").split("=")[1]);
 
-// Liberty Village geo-box (generous; tightened by the LV-core check below).
+// Liberty Village geo-box (generous; tightened by the street check below).
 const BOX = { latMin: 43.63, latMax: 43.645, lngMin: -79.431, lngMax: -79.409 };
 const CENTER = "@43.6378,-79.4200,15z";
 const MIN_RATING = 4.0;
@@ -81,8 +81,75 @@ export const slugify = (s) =>
 
 const inLV = (lat, lng) =>
   lat != null && lng != null && lat >= BOX.latMin && lat <= BOX.latMax && lng >= BOX.lngMin && lng <= BOX.lngMax;
-const lvCore = (b) => /M6K/.test(b.address || "") || /liberty/i.test((b.address || "") + (b.name || ""));
-const priceRange = (p) => (typeof p === "string" && /\$/.test(p) ? p.match(/\$+/)[0] : "$$");
+// An M6K postal code or "Liberty" in a business name also matches places on
+// Queen Street in Parkdale. Require a numbered address on a known LV street;
+// edge streets are limited to the blocks beside the neighbourhood.
+export function lvCore(address) {
+  const match = String(address || "").match(/\b(\d+)\s+(?:(?:e|east)\s+)?([a-z' ]+?)\s+(?:st(?:reet)?|ave(?:nue)?|rd|road|way|dr|drive|blvd|boulevard)\b/i);
+  if (!match) return false;
+  const number = Number(match[1]);
+  const street = match[2].trim().toLowerCase();
+  if (["liberty", "atlantic", "fraser", "hanna", "jefferson", "mowat", "pardee", "lynn williams", "western battery", "joe shuster", "ordnance"].includes(street)) return true;
+  if (street === "king" && /\b(?:w|west)\b/i.test(address)) return number >= 1000 && number <= 1250;
+  if (street === "dufferin") return number >= 45 && number <= 400;
+  return false;
+}
+export function isDiscoveryLocation(result) {
+  const { latitude, longitude } = result.gps_coordinates || {};
+  return inLV(latitude, longitude) && lvCore(result.address);
+}
+const priceRange = (p) => (typeof p === "string" && /\$/.test(p) ? p.match(/\$+/)[0] : "");
+
+// Preserve unit numbers: a multi-tenant building is not one business. Normalize
+// common Maps variants so "#2" and "Unit 2" resolve to the same storefront.
+export function addressKey(address) {
+  const raw = String(address || "").split(/,\s*(?:toronto|on|ontario|canada)\b|\b[a-z]\d[a-z]\s*\d[a-z]\d\b/i)[0].toLowerCase();
+  const unitPattern = /(?:\b(?:suite|ste|unit)\s*|#\s*)([a-z0-9-]+)/i;
+  const unit = raw.match(unitPattern)?.[1] || "";
+  const withoutUnit = raw.replace(unitPattern, " ");
+  const street = withoutUnit.match(/\b(\d+[a-z]?)\s+(?:(e|east|w|west)\s+)?([a-z' ]+?)\s+(st|street|ave|avenue|rd|road|way|dr|drive|blvd|boulevard)\b(?:\s+(e|east|w|west)\b)?/i);
+  if (street) {
+    const direction = street[2] || street[5] || "";
+    const type = ({ street: "st", avenue: "ave", road: "rd", drive: "dr", boulevard: "blvd" })[street[4]] || street[4];
+    const name = street[3].replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+    return [street[1], direction ? direction[0] : "", name, type, unit ? `unit ${unit.replace(/[^a-z0-9]/g, "")}` : ""].filter(Boolean).join(" ");
+  }
+  return raw.replace(/\b(?:suite|ste|unit)\b|#/g, "unit ")
+    .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+const phoneKey = (phone) => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits.length === 10 ? digits : "";
+};
+const locationPhoneKey = ({ address, phone }) => {
+  const location = addressKey(address);
+  const number = phoneKey(phone);
+  return location && number ? `${location}|${number}` : "";
+};
+// A shared address or unit can host several tenants. Only treat a
+// different title as the same storefront when the brand itself overlaps;
+// a missing/different Maps phone alone must not let a renamed listing through.
+const brandAddressKey = (address) => addressKey(address);
+const brandKey = (name) => norm(String(name || "").replace(/^\s*the\s+/i, ""));
+const sameBrandName = (a, b) => {
+  const left = brandKey(a);
+  const right = brandKey(b);
+  const shorter = left.length <= right.length ? left : right;
+  const longer = left.length <= right.length ? right : left;
+  // Match a brand extended with a descriptor (Caffino / Caffino Restaurant),
+  // not two tenants that happen to share category words (Alpha/Beta Hair Salon).
+  return shorter.length >= 7 && longer.startsWith(shorter);
+};
+const addBrandName = (map, { address, name }) => {
+  const key = brandAddressKey(address);
+  if (!key) return;
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(name);
+};
+const matchesBrandName = (map, { address, name }) => {
+  const key = brandAddressKey(address);
+  return Boolean(key && map.get(key)?.some((existing) => sameBrandName(existing, name)));
+};
 
 // { <normalized business name>: <first-seen YYYY-MM-DD> }. Missing/corrupt file
 // degrades to an empty registry so a bad read can never crash the weekly run.
@@ -114,25 +181,39 @@ export function appendSeenRegistry(names, date, file = SEEN_REGISTRY) {
 export function buildDedupeState(existing, registry = {}) {
   return {
     haveName: new Set([...existing.map((b) => norm(b.name)), ...Object.keys(registry)]),
-    haveAddr: new Set(existing.map((b) => norm(b.address).slice(0, 25))),
+    haveLocationPhone: new Set(existing.map(locationPhoneKey).filter(Boolean)),
+    haveBrandNames: existing.reduce((map, b) => (addBrandName(map, b), map), new Map()),
     haveSlug: new Set(existing.map((b) => b.slug)),
     seen: new Set(),
   };
 }
 
-export function isDuplicate(state, { name, address }) {
+export function isDuplicate(state, { name, address, phone }) {
   const nn = norm(name);
-  return state.haveName.has(nn) || state.haveAddr.has(norm(address).slice(0, 25)) || state.seen.has(nn);
+  const locationPhone = locationPhoneKey({ address, phone });
+  return Boolean(state.haveName.has(nn) || state.seen.has(nn) ||
+    (locationPhone && state.haveLocationPhone.has(locationPhone)) ||
+    matchesBrandName(state.haveBrandNames, { name, address }));
 }
 
 // A slug collision means we already have this business, so skip it. Suffixing
 // (`-2`, `-3`) is what turned re-discovered records into visible duplicates.
 export function selectBatch(found, state, max) {
   const batch = [];
+  const names = new Set();
+  const locationPhones = new Set();
+  const brandNames = new Map();
   for (const rec of found) {
     if (batch.length >= max) break;
-    if (state.haveSlug.has(rec.slug)) continue;
+    const name = norm(rec.name);
+    const locationPhone = locationPhoneKey(rec);
+    if (state.haveSlug.has(rec.slug) || state.haveName.has(name) || names.has(name) ||
+      (locationPhone && (state.haveLocationPhone.has(locationPhone) || locationPhones.has(locationPhone))) ||
+      matchesBrandName(state.haveBrandNames, rec) || matchesBrandName(brandNames, rec)) continue;
     state.haveSlug.add(rec.slug);
+    names.add(name);
+    if (locationPhone) locationPhones.add(locationPhone);
+    addBrandName(brandNames, rec);
     batch.push(rec);
   }
   return batch;
@@ -193,43 +274,44 @@ export async function fetchImage(slug, category, dir = IMAGE_DIR) {
   }
 }
 
-function toRecord(x, categorySlug) {
+export function toRecord(x, categorySlug) {
   const name = x.title;
   const rating = x.rating ?? 0;
   const reviewCount = x.reviews ?? 0;
-  const hours = x.hours || x.open_state || "";
+  const discoveryDate = new Date().toISOString().slice(0, 10);
+  const reviewFact = `On ${discoveryDate}, Google Maps listed a ${rating}-star average from ${reviewCount} reviews`;
   return {
     slug: slugify(name),
     name,
     category: categorySlug,
     subcategory: x.type || "",
     address: x.address || "",
-    description: `${name} is a ${(x.type || categorySlug.replace(/-/g, " "))} in Liberty Village${
+    description: `${name} is listed as a ${(x.type || categorySlug.replace(/-/g, " "))} in Liberty Village${
       x.address ? `, located at ${x.address}` : ""
-    }. It holds a ${rating}-star rating across ${reviewCount} Google reviews.`,
+    }. ${reviewFact}.`,
     rating,
     reviewCount,
     priceRange: priceRange(x.price),
-    hours,
+    hours: "", // Maps open-state text is time-sensitive, not a weekly schedule.
     phone: x.phone || "",
     website: x.website || "",
     tags: [categorySlug.replace(/-/g, " "), "liberty village", "toronto"],
     featured: false,
     proTip: "",
     image: "", // remote Maps thumbnails break next/image; enrich with local/Pexels images later
-    answerBlock: `${name} is a ${rating}-star ${categorySlug.replace(/-/g, " ").replace(/s$/, "")} in Liberty Village${
+    answerBlock: `${name} is listed as a ${categorySlug.replace(/-/g, " ").replace(/s$/, "")} in Liberty Village${
       x.address ? ` at ${x.address}` : ""
-    }, with ${reviewCount} Google reviews.`,
+    }. ${reviewFact}.`,
     bestFor: [],
     categories: [categorySlug],
-    reviewExcerpt: `Reviewers rate ${name} ${rating}/5 across ${reviewCount} Google reviews.`,
+    reviewExcerpt: `${reviewFact}.`,
     reviewFaqs: [
       {
         question: `What do reviews say about ${name}?`,
-        answer: `${name} has a ${rating}-star average from ${reviewCount} Google reviews from Liberty Village locals and visitors.`,
+        answer: `${reviewFact}.`,
       },
     ],
-    _discoveredAt: new Date().toISOString().slice(0, 10),
+    _discoveredAt: discoveryDate,
     _needsEnrichment: true,
   };
 }
@@ -254,11 +336,9 @@ async function main() {
       continue;
     }
     for (const x of results) {
-      const gc = x.gps_coordinates || {};
-      if (!inLV(gc.latitude, gc.longitude)) continue;
-      if (!lvCore({ name: x.title, address: x.address })) continue;
+      if (!isDiscoveryLocation(x)) continue;
       if ((x.rating ?? 0) < MIN_RATING || (x.reviews ?? 0) < MIN_REVIEWS) continue;
-      if (isDuplicate(state, { name: x.title, address: x.address })) continue;
+      if (isDuplicate(state, { name: x.title, address: x.address, phone: x.phone })) continue;
       state.seen.add(norm(x.title));
       found.push(toRecord(x, slug));
     }
