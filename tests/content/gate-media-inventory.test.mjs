@@ -216,6 +216,30 @@ test('negative: hash-mismatched, size-mismatched or prefix-mismatched /media row
   } finally { await close(); }
 });
 
+test('negative: a referenced asset that is also live but fails verification stays out of review and fixer inventory', async () => {
+  const { db, close } = await seededDb();
+  try {
+    const good = jpeg('live-then-corrupted');
+    const livePath = `/media/${sha256(good).slice(0, 16)}/live-corrupted.jpg`;
+    const biz = seedRecords().businesses[1];
+    await publishDirect(db, { kind: 'manual', idempotencyKey: 'live-corrupt', items: [{ dataset: 'businesses', key: 'live-corrupt-biz', payload: { ...biz, slug: 'live-corrupt-biz', image: livePath }, expectedLiveRev: null }], assets: [{ sha256: sha256(good), path: livePath, contentType: 'image/jpeg', bytes: good }] });
+    const post = await submitPost(db, '0009', { heroPath: livePath });
+    // Same length, different bytes: only a byte hash can tell.
+    const corrupted = Buffer.from(good); corrupted[corrupted.length - 1] ^= 0xff;
+    await db.query('update content.assets set bytes=$2 where path=$1', [livePath, corrupted]);
+    const { out, seen } = await gateOnce(db, post.id, crowdedCheckout(), {
+      reviews: (_round, inventory, contentSha) => verdictFor(contentSha, 6.5, inventory.blogImages.includes(livePath) ? [] : [imageFinding(post.key, livePath)]),
+      fix: ({ payload }) => buildRecordRepairPlan({ files: [{ file: 'data/posts.json', records: [{ key: post.key, record: payload[0].records[0] }] }], reason: 'no-op' }),
+    });
+    assert.ok(seen.reviews.length >= 1 && seen.fixes.length >= 1, 'review and fixer both ran');
+    for (const inventory of [...seen.reviews, ...seen.fixes]) assert.ok(!inventory.blogImages.includes(livePath), 'corrupted live+referenced path not listed');
+    assert.notEqual(out.result.state, 'published', JSON.stringify(out.result));
+    const { rounds } = await store.getSubmission(db, post.id);
+    assert.ok(rounds.every((round) => round.passed === false));
+    assert.ok(rounds[0].verdict.findings.some((finding) => finding.note.includes(livePath)), 'image flagged high');
+  } finally { await close(); }
+});
+
 test('negative: a /media path with no stored asset is rejected by g1 before any review', async () => {
   const { db, close } = await seededDb();
   try {

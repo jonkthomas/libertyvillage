@@ -166,6 +166,7 @@ function listing(checkout, dir) {
 // content.assets row's stored bytes hash to its sha256, match byte_size, and the
 // path's <sha16> is that digest's prefix. Which submission stored the row is
 // irrelevant; candidate strings alone never qualify. Order: vector (dataset,key), field.
+// Returns the verified paths and the referenced ones that failed verification.
 export async function currentSubmissionMediaPaths(db, candidates) {
   const referenced = [];
   for (const item of candidates) {
@@ -183,16 +184,19 @@ export async function currentSubmissionMediaPaths(db, candidates) {
     if (mediaPath.split('/')[2] !== digest.slice(0, 16)) continue;
     verified.push(mediaPath);
   }
-  return verified;
+  return { verified, rejected: referenced.filter((mediaPath) => !verified.includes(mediaPath)) };
 }
 
 // Grounded kinds: bounded link/asset inventory — verified current-submission media,
-// then live media, then checkout listings.
-function inventoryFromLive(agent, live, checkout, currentImages) {
+// then live media, then checkout listings. A path the current vector references but
+// that failed verification is withheld from the live source too, so it cannot come
+// back in as "verified" just because a published record also uses it.
+function inventoryFromLive(agent, live, checkout, { verified, rejected }) {
   return agent.inventoryFromData({
     services: live.live.services, topics: live.live.topics, posts: live.live.posts,
     blogImages: listing(checkout, 'public/images/blog'), neighborhoodImages: listing(checkout, 'public/images/neighborhood'),
-    ogImages: listing(checkout, 'public/images/og'), images: live.mediaPaths, currentImages,
+    ogImages: listing(checkout, 'public/images/og'),
+    images: live.mediaPaths.filter((mediaPath) => !rejected.includes(mediaPath)), currentImages: verified,
   });
 }
 
