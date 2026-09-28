@@ -187,7 +187,10 @@ export function readScratchHead(scratch) {
   try {
     const stat = fs.fstatSync(fd);
     if (!stat.isFile() || stat.size < 40 || stat.size > 128) throw new Error('generator changed pinned commit');
-    const head = fs.readFileSync(fd, 'utf8').trim();
+    const bytes = Buffer.alloc(129);
+    const count = fs.readSync(fd, bytes, 0, bytes.length, 0);
+    if (count !== stat.size) throw new Error('generator changed pinned commit');
+    const head = bytes.subarray(0, count).toString('utf8').trim();
     if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('generator changed pinned commit');
     return head;
   } finally { fs.closeSync(fd); }
