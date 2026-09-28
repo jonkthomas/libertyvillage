@@ -144,13 +144,15 @@ test('GREEN: a newly submitted blog JPG (/media) is in review + fixer inventory 
         reason: 'soften walking claim',
       }),
     });
-    assert.equal(resumed.seen.fixes.length, 1, 'fixer ran on resume');
-    assertHeroFirst(resumed.seen.fixes[0], image, 'fixer (resume)');
+    // The first fixer call is the resumed round-0 repair; the walking-route finding then
+    // keeps repairing until the unchanged budget closes the submission.
+    assert.ok(resumed.seen.fixes.length >= 1, 'fixer ran on resume');
+    assert.equal(resumed.seen.reviews.length, resumed.seen.fixes.length);
+    resumed.seen.fixes.forEach((inventory, i) => assertHeroFirst(inventory, image, `fixer call ${i}${i === 0 ? ' (resume)' : ''}`));
+    resumed.seen.reviews.forEach((inventory, i) => assertHeroFirst(inventory, image, `review round ${i + 1}`));
     assert.equal(resumed.seen.fixes[0].blogImages[1], livePath, 'live media follows current-submission media');
     assert.equal(resumed.seen.fixes[0].blogImages[2], '/images/blog/listed-000.jpg', 'checkout listings follow live media');
     assert.ok(!resumed.seen.fixes[0].blogImages.includes(strayPath), 'an unreferenced stored asset is not listed');
-    assert.equal(resumed.seen.reviews.length, 1);
-    assertHeroFirst(resumed.seen.reviews[0], image, 'review round 1');
     const { submission, rounds } = await store.getSubmission(db, post.id);
     assert.equal(submission.state, 'blocked', 'unsupported walking-route claim still blocks');
     assert.equal(submission.published_at ?? null, null);
@@ -190,6 +192,8 @@ test('negative: hash-mismatched, size-mismatched or prefix-mismatched /media row
     const cases = [
       // stored bytes do not hash to the row's digest
       ['0004', { sha: sha256(claimed), path: `/media/${sha256(claimed).slice(0, 16)}/bad-hash.jpg`, bytes: other, size: other.length }],
+      // the path matches the stored bytes but the row's full digest does not
+      ['0008', { sha: sha256(jpeg('row-digest')), path: `/media/${sha256(other).slice(0, 16)}/bad-row-digest.jpg`, bytes: other, size: other.length }],
       // byte_size disagrees with the stored bytes
       ['0005', { sha: sha256(sizeBytes), path: `/media/${sha256(sizeBytes).slice(0, 16)}/bad-size.jpg`, bytes: sizeBytes, size: sizeBytes.length + 1 }],
       // the path's <sha16> is not the digest prefix
