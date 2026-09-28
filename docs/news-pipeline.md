@@ -9,24 +9,19 @@ Human-gated hyperlocal news pipeline for Liberty Village. Discovery builds a **r
 
 ## What it does
 
-| Stage           | Trigger                                     | Output                                                                 | Writes site content?                                  |
-| --------------- | ------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
-| **Discovery**   | Daily schedule + manual `workflow_dispatch` | `report.md`, `candidates.json`, `errors.json` (artifact + job summary) | **No** (reads `data/posts.json` read-only for dedupe) |
-| **Drafting**    | Manual `workflow_dispatch` only             | Draft bundle under `.news-pilot/drafts/` (artifact + job summary)      | **No**                                                |
-| **Autopublish** | After discovery (`workflow_run`) + manual   | Pre-PR Opus review/repair artifact, then optional content-only PR      | **Only after preflight GO** (else no branch or PR)    |
+| Stage           | Trigger                              | Output                                                   | Writes site content?                                          |
+| --------------- | ------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------- |
+| **Discovery**   | Runner `news` job (daily 12:17 UTC)  | Private `candidates.json` run artifact on the runner     | **No** (reads the exported content read-only for dedupe)      |
+| **Autopublish** | Same runner job, after discovery     | At most one strict candidate, then content CLI submit    | **Only after the content gate passes** (then deploy + smoke)  |
 
-Scripts (local or CI):
+Scripts (runner or local):
 
 - `node scripts/news-pilot/run.mjs` — discovery pilot
-- `node scripts/news-pilot/draft.mjs` — evidence-bound draft stage
+- `node scripts/news-pilot/draft.mjs` — evidence-bound draft stage (local only; the manual draft workflow is retired)
 - `node scripts/news-pilot/publish.mjs` — deterministic candidate generation and validation
 - `node scripts/automation/news-preflight.mjs` — independent Opus review + bounded Sonnet repair before any PR
 
-Workflows:
-
-- `.github/workflows/news-discovery.yml`
-- `.github/workflows/news-draft.yml`
-- `.github/workflows/news-autopublish.yml`
+Workflows: none. `news-discovery.yml`, `news-draft.yml` and `news-autopublish.yml` are retired; the runner's `news` job replaces them.
 
 ## Why most days still publish nothing
 
