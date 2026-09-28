@@ -160,6 +160,76 @@
       "addedAt": "2026-09-07T15:36:03.275Z",
       "attempts": 0,
       "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "63c7000b803887d1a794d792366bc78dd203344edf5feb8edc9312d8e29f1b97",
+      "kind": "blog",
+      "title": "34 Hanna Ave Parking Liberty Village Toronto",
+      "source": "gsc",
+      "rationale": "GSC top query (2 clicks, 308 impressions)",
+      "addedAt": "2026-09-14T16:13:41.246Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "516aab57f02471b347e931afba014d178c6e341627dcc05ba3dea0dfd2c368d9",
+      "kind": "blog",
+      "title": "Aroma Espresso Bar Liberty Village",
+      "source": "gsc",
+      "rationale": "GSC top query (2 clicks, 36 impressions)",
+      "addedAt": "2026-09-14T16:13:41.246Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "aa70b1799fd28514aaca7bc9b5a66da3077c3480fbeca94b96938d6da46631db",
+      "kind": "blog",
+      "title": "Green P Parking Liberty Village",
+      "source": "gsc",
+      "rationale": "GSC top query (2 clicks, 49 impressions)",
+      "addedAt": "2026-09-14T16:13:41.246Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "1eab1c19ac5f827d2b064beaf93d6a552b2f321cfc4fc40cc1ac7a082ccf41fe",
+      "kind": "blog",
+      "title": "What To Do In Liberty Village, Toronto?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"Liberty Village Toronto\"",
+      "addedAt": "2026-09-14T16:13:41.246Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "42282268aa874302d625dfe8e3ecea05bcf31666c205bc21450da20ab5eef265",
+      "kind": "blog",
+      "title": "What Is Liberty Village, Toronto Famous For?",
+      "source": "serpapi",
+      "rationale": "People Also Ask cluster for \"things to do in Liberty Village\"",
+      "addedAt": "2026-09-14T16:13:41.246Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "2e22af9e37d0eb620be3bccdbb78ac992e5dbf0ef6efaaeb52167cabb51ef8e5",
+      "kind": "blog",
+      "title": "Liberty Village Gyms",
+      "source": "gsc",
+      "rationale": "GSC top query (3 clicks, 10 impressions)",
+      "addedAt": "2026-09-21T16:19:26.134Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
+    },
+    {
+      "key": "31e0e8c6190e0594d5429114ac1c7fdcaece658551e1cce9a511ff7dd1272414",
+      "kind": "blog",
+      "title": "Liberty Village Spa",
+      "source": "gsc",
+      "rationale": "GSC top query (3 clicks, 29 impressions)",
+      "addedAt": "2026-09-21T16:19:26.134Z",
+      "attempts": 0,
+      "branchPrefix": "blog/auto-"
     }
   ]
 }

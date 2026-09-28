@@ -1,13 +1,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { github, paged } from '../automation/github.mjs';
 import { isExactSha } from '../automation/policy.mjs';
 import {
   matchWeeklyOwnerEnv, parseWeeklyOwnerFile, resolveWeeklyOwner as resolveCanonicalWeeklyOwner,
 } from '../automation/weekly-owner.mjs';
-import { validateIngestDiff, repositoryDispatchBody } from './ingest-contract.mjs';
+import { validateDbIngestDiff, validateIngestDiff, repositoryDispatchBody, workflowDispatchBody } from './ingest-contract.mjs';
+import { monitorContentPublish } from './content-monitor.mjs';
 import { generateWithPi, writeCandidateArtifact } from './pi-session.mjs';
 import { fetchObservation } from './github-monitor.mjs';
 import { contentShipEnabled } from '../automation/promotion-control.mjs';
@@ -20,6 +21,81 @@ import {
 } from './weekly-publication-loop.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const STAGING_CHILD_ENV = [
+  'GITHUB_REPOSITORY', 'GH_TOKEN', 'CONTENT_DB_NAME', 'CONTENT_TARGET',
+  'CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DEPLOY_HOOK_URL',
+  'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'ANTHROPIC_API_KEY', 'SLACK_WEBHOOK_URL',
+];
+
+export function validateHostContentMode(env = process.env) {
+  const store = env.LV_CONTENT_STORE || 'git';
+  if (!['git', 'db'].includes(store)) throw new Error('LV_CONTENT_STORE must be git or db');
+  if (store !== 'db') return { store };
+  const target = env.LV_CONTENT_TARGET;
+  const transport = env.LV_INGEST_TRANSPORT || 'github';
+  if (!['production', 'staging'].includes(target)) throw new Error('LV_CONTENT_TARGET must be production or staging');
+  if (!['github', 'local'].includes(transport)) throw new Error('LV_INGEST_TRANSPORT must be github or local');
+  if (!env.LV_SITE_URL) throw new Error('LV_SITE_URL is required in DB mode');
+  if (target === 'production') {
+    if (transport === 'local') throw new Error('local transport requires staging target');
+    if (env.LV_SITE_BYPASS) throw new Error('site bypass is refused for production');
+    if (env.LV_STATUS_CREATOR) throw new Error('custom status creator requires staging target');
+  } else if (!env.LV_SITE_BYPASS) throw new Error('staging target requires site bypass');
+  return { store, target, transport, siteUrl: env.LV_SITE_URL,
+    allowedCreator: transport === 'local' ? env.LV_STATUS_CREATOR : 'github-actions[bot]' };
+}
+
+function stagingChildEnvironment(repo, env = process.env) {
+  const values = { ...env, GITHUB_REPOSITORY: repo, CONTENT_TARGET: 'staging', CONTENT_SOURCE: 'db' };
+  const missing = STAGING_CHILD_ENV.filter((key) => !values[key]);
+  if (missing.length) throw new Error(`local staging ingest missing operator bindings: ${missing.join(', ')}`);
+  if (!env.LV_STATUS_CREATOR) throw new Error('local staging ingest requires LV_STATUS_CREATOR');
+  return Object.fromEntries(['PATH', 'HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_TERMINAL_PROMPT',
+    'GITHUB_REPOSITORY', ...STAGING_CHILD_ENV, 'CONTENT_SOURCE', 'LV_INGEST_CODE_SHA'].filter((key) => values[key])
+    .map((key) => [key, values[key]]));
+}
+
+export function startLocalStagingIngest({ repoRoot, stateDir, repo, payload, codeSha, env = process.env }) {
+  const childEnv = stagingChildEnvironment(repo, env);
+  command('git', ['fetch', '--no-tags', 'origin', 'staging'], { cwd: repoRoot });
+  const actualSha = command('git', ['rev-parse', 'origin/staging'], { cwd: repoRoot });
+  if (!isExactSha(actualSha) || actualSha !== codeSha || env.LV_INGEST_CODE_SHA !== actualSha) {
+    throw new Error('local ingest code SHA differs from pinned staging SHA');
+  }
+  const stamp = Date.now();
+  const cloneDir = path.join(stateDir, `ingest-${stamp}`);
+  const logFile = path.join(stateDir, `ingest-${stamp}.log`);
+  fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(logFile, `code_sha=${actualSha}\nstatus_creator=${env.LV_STATUS_CREATOR}\n`, { mode: 0o600 });
+  const origin = command('git', ['remote', 'get-url', 'origin'], { cwd: repoRoot });
+  command('git', ['clone', '--no-checkout', origin, cloneDir], { cwd: stateDir });
+  command('git', ['checkout', '--detach', actualSha], { cwd: cloneDir });
+  npm(Array.of('ci'), { cwd: cloneDir, env: childEnv });
+  const fd = fs.openSync(logFile, 'a');
+  try {
+    const child = spawn(process.execPath, ['scripts/supervisor/ingest-db.mjs', '--payload', JSON.stringify(payload)], {
+      cwd: cloneDir, env: childEnv, detached: true, stdio: ['ignore', fd, fd],
+    });
+    if (!child.pid) throw new Error('local ingest child did not start');
+    child.once('error', (error) => { fs.appendFileSync(logFile, `child_start_error=${error.message}\n`); });
+    child.unref();
+    return { codeSha: actualSha, cloneDir, logFile, pid: child.pid };
+  } finally { fs.closeSync(fd); }
+}
+
+export async function monitorDbCandidate({ repo, dataSha, title, siteUrl, allowedCreator, bypass }) {
+  const headers = bypass ? { 'x-vercel-protection-bypass': bypass } : {};
+  const getJson = async (url) => {
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
+    return response.json();
+  };
+  return monitorContentPublish({ dataSha, title, siteUrl, allowedCreator,
+    getStatuses: (sha) => github(`/repos/${repo}/commits/${sha}/statuses`),
+    getManifest: (site) => getJson(new URL('/content-snapshot/manifest.json', site)),
+    getPage: async (url) => { const response = await fetch(url, { headers }); return { status: response.status, text: await response.text() }; },
+  });
+}
 export const COMMAND_OUTPUT_LIMIT = 8 * 1024;
 export const OUTCOME_REASON_LIMIT = 512;
 
@@ -87,12 +163,12 @@ function npm(args, options) {
   return command('npm', args, options);
 }
 
-export function coordinator(repoRoot, args, { repo }) {
+export function coordinator(repoRoot, args, { repo, topicQueuePath } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-supervisor-output-'));
   const output = path.join(directory, 'output');
   try {
     command(process.execPath, [path.join(repoRoot, 'scripts/automation/coordinator.mjs'), ...args, '--repo', repo], {
-      cwd: repoRoot, env: { ...process.env, GITHUB_OUTPUT: output },
+      cwd: repoRoot, env: { ...process.env, GITHUB_OUTPUT: output, ...(topicQueuePath ? { TOPIC_QUEUE_PATH: topicQueuePath } : {}) },
     });
     return Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map((line) => {
       const split = line.indexOf('='); return [line.slice(0, split), line.slice(split + 1)];
@@ -268,6 +344,7 @@ export async function monitorOwnedPr({
 }
 
 export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun = false, onUpdate = async () => {} }) {
+  const contentMode = validateHostContentMode();
   if (resolveHostWeeklyOwner(repoRoot) !== 'exedev') return { terminal: 'SKIPPED_OWNER' };
   if (!contentShipEnabled()) throw new Error('contentShipEnabled is false; refusing autonomous writes to protected branches');
   const trustedStagingSha = command('git', ['rev-parse', 'origin/staging'], { cwd: repoRoot });
@@ -276,6 +353,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
   fs.mkdirSync(path.dirname(workDir), { recursive: true, mode: 0o700 });
   command('git', ['worktree', 'add', '--detach', workDir, 'origin/staging'], { cwd: repoRoot });
   let dataBranch = null;
+  let dbDispatched = false;
   const releaseDataBranch = () => {
     if (!dataBranch) return;
     const branch = dataBranch;
@@ -292,12 +370,22 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     npm(['run', 'test:automation'], { cwd: workDir });
     npm(['run', 'test:supervisor'], { cwd: workDir });
 
+    const hydrateSnapshot = () => {
+      if (contentMode.store !== 'db') return null;
+      command(process.execPath, ['scripts/content/cli.mjs', 'restore-snapshot', '--from', contentMode.siteUrl, '--root', workDir], {
+        cwd: workDir, env: { ...process.env, CONTENT_SITE_BYPASS: process.env.LV_SITE_BYPASS || '' },
+      });
+      return JSON.parse(fs.readFileSync(path.join(workDir, '.content-restore/manifest.json'), 'utf8'));
+    };
+    let liveManifest = hydrateSnapshot();
+
     const excludeFlag = (excludeTopicKeys) => (excludeTopicKeys?.length
       ? ['--exclude-topic-keys', excludeTopicKeys.join(',')] : []);
     const resetWorktree = () => {
       command('git', ['checkout', '--detach', 'origin/staging'], { cwd: workDir });
       command('git', ['reset', '--hard', 'origin/staging'], { cwd: workDir });
       command('git', ['clean', '-fd'], { cwd: workDir });
+      liveManifest = hydrateSnapshot();
     };
     const recordOutcome = async (topicKey, terminal, reason) => {
       if (!topicKey) return;
@@ -313,6 +401,52 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
       const imagePath = path.resolve(path.join(workDir, 'public'), `.${post.image}`);
       if (!imagePath.startsWith(`${path.join(workDir, 'public')}${path.sep}`) || !fs.existsSync(imagePath)) {
         throw new Error(`candidate image does not exist in the staging worktree: ${post.image}`);
+      }
+      if (contentMode.store === 'db') {
+        const imageRef = contentMode.target === 'production' ? 'origin/main' : 'origin/staging';
+        const imageRelative = path.relative(workDir, imagePath);
+        command('git', ['cat-file', '-e', `${imageRef}:${imageRelative}`], { cwd: workDir });
+        await onUpdate({ state: 'LINT', pi_session_file: sessionFile, topic_key: topic.topic_key });
+        const candidateFile = path.join(workDir, 'candidate/post.json');
+        fs.mkdirSync(path.dirname(candidateFile), { recursive: true });
+        fs.writeFileSync(candidateFile, `${JSON.stringify(post, null, 2)}\n`);
+        const postsFile = path.join(workDir, 'data/posts.json');
+        const posts = JSON.parse(fs.readFileSync(postsFile, 'utf8'));
+        fs.writeFileSync(postsFile, `${JSON.stringify([...posts, post], null, 2)}\n`);
+        command(process.execPath, [path.join(repoRoot, 'scripts/blog-lint.mjs'), '--posts', 'data/posts.json', '--businesses', 'data/businesses.json'], { cwd: workDir });
+        await onUpdate({ state: 'PUSH_DATA_BRANCH', topic_key: topic.topic_key });
+        dataBranch = `supervisor/blog-data-${Date.now()}`;
+        command('git', ['checkout', '-b', dataBranch], { cwd: workDir });
+        command('git', ['add', '--', 'candidate/post.json'], { cwd: workDir });
+        command('git', ['-c', 'user.name=exe.dev supervisor', '-c', 'user.email=supervisor@exe.dev', 'commit', '-m', 'blog: supervised DB candidate'], { cwd: workDir });
+        const dataSha = command('git', ['rev-parse', 'HEAD'], { cwd: workDir });
+        const files = command('git', ['diff', '--name-only', 'origin/staging...HEAD'], { cwd: workDir }).split('\n').filter(Boolean);
+        const paths = validateDbIngestDiff(files);
+        if (!paths.ok) throw new Error(`candidate escaped DB policy: ${paths.errors.join('; ')}`);
+        command('git', ['push', 'origin', `HEAD:${dataBranch}`], { cwd: workDir });
+        const payload = {
+          kind: 'blog', data_sha: dataSha, data_branch: dataBranch,
+          topic_key: topic.topic_key, regenerations: Number(candidate?.regenerations || 0),
+          store: 'db', target: contentMode.target,
+        };
+        await onUpdate({ state: 'WAIT_INGEST', data_branch: dataBranch, data_sha: dataSha, topic_key: topic.topic_key });
+        if (contentMode.transport === 'local') {
+          startLocalStagingIngest({ repoRoot, stateDir, repo, payload, codeSha: trustedStagingSha });
+        } else if (contentMode.target === 'staging') {
+          await github(`/repos/${repo}/actions/workflows/supervisor-ingest.yml/dispatches`, {
+            method: 'POST', body: workflowDispatchBody(payload),
+          });
+        } else {
+          await github(`/repos/${repo}/dispatches`, { method: 'POST', body: repositoryDispatchBody(payload) });
+        }
+        dbDispatched = true;
+        await onUpdate({ state: 'MONITORING_CONTENT', data_branch: dataBranch, data_sha: dataSha,
+          topic_key: topic.topic_key, content_title: post.title });
+        const monitored = await monitorDbCandidate({ repo, dataSha, title: post.title,
+          siteUrl: contentMode.siteUrl, allowedCreator: contentMode.allowedCreator,
+          bypass: process.env.LV_SITE_BYPASS });
+        return { terminal: monitored.state, reason: monitored.reason, topic_key: topic.topic_key,
+          dataBranch, dataSha, targetUrl: monitored.targetUrl, liveSeq: monitored.liveSeq };
       }
       writeCandidateArtifact({ postsFile: path.join(workDir, 'data/posts.json'), post });
       await onUpdate({ state: 'LINT', pi_session_file: sessionFile, topic_key: topic.topic_key });
@@ -357,6 +491,7 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
       return { ...monitored, topic_key: topic.topic_key, dataBranch, dataSha };
     };
     const runOneGeneratedCandidate = async ({ topic, candidate }) => {
+      dbDispatched = false;
       const selectedTopic = readSelectedTopic(path.join(workDir, 'data/topic-queue.json'), topic.topic_key);
       if (selectedTopic.title !== topic.topic_title) {
         throw new Error(`selected topic title differs from the staging topic queue: ${topic.topic_key}`);
@@ -375,17 +510,20 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
         const result = await publishStagedPost({
           topic, candidate, post: generated.post, sessionFile: generated.sessionFile,
         });
-        if (result?.terminal && result.terminal !== PUBLISHED_MAIN) {
+        if (result?.terminal && result.terminal !== PUBLISHED_MAIN && result.terminal !== 'PUBLISHED_LIVE') {
           await recordOutcome(topic.topic_key, result.terminal, `weekly candidate ${result.terminal}`);
           releaseDataBranch();
           resetWorktree();
         }
-        return result;
+        return contentMode.store === 'db' && result.terminal === 'PUBLISHED_LIVE'
+          ? { ...result, terminal: PUBLISHED_MAIN, liveTerminal: true } : result;
       } catch (error) {
-        await recordOutcome(topic.topic_key, 'GENERATION_FAILED_PRE_PR', error.message);
+        const terminal = contentMode.store === 'db' && dbDispatched ? 'MONITOR_TIMEOUT'
+          : contentMode.store === 'db' && dataBranch ? 'INGEST_FAILED' : 'GENERATION_FAILED_PRE_PR';
+        await recordOutcome(topic.topic_key, terminal, error.message);
         releaseDataBranch();
         resetWorktree();
-        return { terminal: 'GENERATION_FAILED_PRE_PR', topic_key: topic.topic_key, reason: error.message };
+        return { terminal, topic_key: topic.topic_key, reason: error.message };
       }
     };
 
@@ -399,15 +537,17 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
       fetchTarget: async () => {
         command('git', ['fetch', '--no-tags', 'origin', 'main'], { cwd: repoRoot });
       },
-      readPublicationHistory: async () => branchPublicationHistory(gitAtRepo, 'origin/main'),
+      readPublicationHistory: async () => contentMode.store === 'db'
+        ? [{ sha: liveManifest?.snapshot_id, posts: JSON.parse(fs.readFileSync(path.join(workDir, 'data/posts.json'), 'utf8')), parentPosts: [] }]
+        : branchPublicationHistory(gitAtRepo, 'origin/main'),
       resolveTopic: async ({ excludeTopicKeys }) => coordinator(repoRoot, [
         'resolve-topic', '--kind', 'blog', ...excludeFlag(excludeTopicKeys),
-      ], { repo }),
+      ], { repo, topicQueuePath: contentMode.store === 'db' ? path.join(workDir, 'data/topic-queue.json') : undefined }),
       planCandidate: async (topic, { excludeTopicKeys } = {}) => {
         await onUpdate({ state: 'PLAN_CANDIDATE', topic_key: topic.topic_key });
         return coordinator(repoRoot, [
           'plan-candidate', '--kind', 'blog', '--topic-key', topic.topic_key, ...excludeFlag(excludeTopicKeys),
-        ], { repo });
+        ], { repo, topicQueuePath: contentMode.store === 'db' ? path.join(workDir, 'data/topic-queue.json') : undefined });
       },
       runCandidate: runOneGeneratedCandidate,
       records: async () => recordsFromBusinesses(
@@ -419,7 +559,9 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
         if (contained !== true || !topicKey) return;
         recordSupervisorOutcome({
           repoRoot, repo, runId: run.run_id, topicKey,
-          terminal: PUBLISHED_MAIN, reason: 'intent consumed after fetched remote main containment',
+          terminal: PUBLISHED_MAIN, reason: contentMode.store === 'db'
+            ? 'intent consumed after live DB snapshot and page verification'
+            : 'intent consumed after fetched remote main containment',
         });
       },
       runFallback: async ({ records: fallbackRecords, usedCategories, scheduledAt: fallbackAt }) => {
@@ -439,8 +581,15 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
             post,
             sessionFile: null,
           });
-          if (published?.terminal && published.terminal !== PUBLISHED_MAIN) releaseDataBranch();
-          return { ...published, title: guide.title };
+          if (published?.terminal && published.terminal !== PUBLISHED_MAIN && published.terminal !== 'PUBLISHED_LIVE') releaseDataBranch();
+          if (contentMode.store === 'db' && published.terminal === 'PUBLISHED_LIVE') {
+            recordSupervisorOutcome({ repoRoot, repo, runId: run.run_id,
+              topicKey: `sunday-fallback-${week.key}`, terminal: PUBLISHED_MAIN,
+              reason: 'fallback intent consumed after live DB snapshot and page verification' });
+          }
+          return { ...published, title: guide.title,
+            ...(contentMode.store === 'db' && published.terminal === 'PUBLISHED_LIVE'
+              ? { terminal: PUBLISHED_MAIN, liveTerminal: true } : {}) };
         } catch (error) {
           releaseDataBranch();
           resetWorktree();
@@ -451,7 +600,8 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
     if (lane.terminal === WEEKLY_OBJECTIVE_MET || lane.terminal === DEFERRED_TO_DEADLINE) {
       return { terminal: lane.terminal, topic_key: lane.topic_key || null, week: lane.week };
     }
-    return lane;
+    return contentMode.store === 'db' && lane.liveTerminal
+      ? { ...lane, terminal: 'PUBLISHED_LIVE' } : lane;
   } finally {
     releaseDataBranch();
     try { command('git', ['worktree', 'remove', '--force', workDir], { cwd: repoRoot }); } catch {}

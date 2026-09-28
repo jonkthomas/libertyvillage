@@ -30,6 +30,17 @@ const JUDGE_FLOOR = 7;     // AND the adversarial judge must clear this (it has 
 const isPassed = (j, overall) => overall >= THRESHOLD && (j?.overall ?? 0) >= JUDGE_FLOOR;
 const DRY = process.env.DRY_RUN === 'true';
 
+// Prompt restriction only. Unset or any other value keeps the legacy prompt.
+function seoModeClause() {
+  if (process.env.SEO_MODE === 'data') {
+    return ' SEO_MODE=data: change only files matching data/*.json. Do not edit app, components, lib, public, scripts, or .github. You may still write tasks/seo-improve-summary.md, tasks/seo-improve-runs/, and tasks/seo-scores.json.';
+  }
+  if (process.env.SEO_MODE === 'code') {
+    return ' SEO_MODE=code: do not create or edit anything under data/. Keep every other hard rail.';
+  }
+  return '';
+}
+
 const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json';
 let gaEmail = '', gaKey = '';
 try { const c = JSON.parse(fs.readFileSync(credsPath, 'utf8')); gaEmail = c.client_email || ''; gaKey = c.private_key || ''; } catch {}
@@ -151,7 +162,7 @@ async function main() {
       : '';
     const builder = await runStage('BUILDER', {
       systemPromptPath: P('seo-improve-system.md'),
-      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply.' + topicFocus + ' ' + (DRY ? 'DRESS REHEARSAL (dry run): make your data-backed edits normally — they will NOT be committed or deployed (the runner is discarded). Ensure at least one concrete, justified edit so the judge and reader stages have something real to evaluate. Then write tasks/seo-improve-summary.md.' : ('Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.' + (process.env.FORCE_EDIT === 'true' ? ' Even if wins look marginal this week, make at least one concrete, justified improvement so a reviewable PR is produced.' : ''))),
+      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply.' + topicFocus + ' ' + (DRY ? 'DRESS REHEARSAL (dry run): make your data-backed edits normally — they will NOT be committed or deployed (the runner is discarded). Ensure at least one concrete, justified edit so the judge and reader stages have something real to evaluate. Then write tasks/seo-improve-summary.md.' : ('Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.' + (process.env.FORCE_EDIT === 'true' ? ' Even if wins look marginal this week, make at least one concrete, justified improvement so a reviewable PR is produced.' : ''))) + seoModeClause(),
       mcpServers: MCP.gscGa4,
       settingSources: ['project'],
       skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
@@ -187,7 +198,7 @@ async function main() {
         const issues = JSON.stringify({ judge: j?.blocking_issues || [], judge_suggestions: j?.suggestions || [], reader_problems: r?.problems || [] }, null, 2);
         await runStage('REVISE', {
           systemPromptPath: P('seo-improve-system.md'),
-          prompt: `Your prior changes scored ${overall}/10 overall with judge ${j?.overall} (bar: overall ≥${THRESHOLD} AND judge ≥${JUDGE_FLOOR}). The adversarial judge is the SEO-substance gate — address its blocking issues directly, don't just polish. Stay within the hard rails, then update tasks/seo-improve-summary.md:\n${issues}`,
+          prompt: `Your prior changes scored ${overall}/10 overall with judge ${j?.overall} (bar: overall ≥${THRESHOLD} AND judge ≥${JUDGE_FLOOR}). The adversarial judge is the SEO-substance gate — address its blocking issues directly, don't just polish. Stay within the hard rails, then update tasks/seo-improve-summary.md:\n${issues}` + seoModeClause(),
           mcpServers: MCP.gscGa4, settingSources: ['project'],
           skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
           maxTurns: 80, budget: 3.0
@@ -246,4 +257,8 @@ async function main() {
   process.exit(runLog.success ? 0 : 1);
 }
 
-main().catch(e => { console.error('Fatal:', e); process.exit(1); });
+if (require.main === module) {
+  main().catch(e => { console.error('Fatal:', e); process.exit(1); });
+} else {
+  module.exports = { seoModeClause };
+}

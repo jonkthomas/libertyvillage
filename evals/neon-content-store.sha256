@@ -1,0 +1,7 @@
+# Provisional Neon DB-mode S11a evaluator integrity lock, owned by the eval worker.
+# Scope: deterministic local Git, fake gh/content CLI, injected virtual-clock
+# content monitor. No Neon credentials, live network, or S11c GitHub event claim.
+# Baseline at 29740db: node tests/supervisor/neon-content-acceptance.eval.mjs
+# exits 1 with 3 PASS and 18 RED because Package D/A/B DB implementations
+# are absent. The source hash below freezes the checker, not a green verdict.
+5c52dc73ed7847a1d048cd3186d6e36acf00a1fd9d8f16817caffd51488afe2a  tests/supervisor/neon-content-acceptance.eval.mjs

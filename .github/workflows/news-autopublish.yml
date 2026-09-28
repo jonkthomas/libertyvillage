@@ -34,6 +34,23 @@ on:
         required: false
         type: string
         default: "anthropic"
+      store:
+        description: "Content store. auto reads LV_CONTENT_STORE and defaults to git."
+        required: false
+        type: choice
+        options:
+          - auto
+          - git
+          - db
+        default: auto
+      content_target:
+        description: "DB target. Production is main-only; a staging ref must pass staging."
+        required: false
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
 
 concurrency:
   group: news-autopublish
@@ -44,8 +61,86 @@ permissions:
   actions: read
 
 jobs:
-  autopublish:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+  route:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      store: ${{ steps.decide.outputs.store }}
+      target: ${{ steps.decide.outputs.target }}
+      lane: ${{ steps.decide.outputs.lane }}
+    steps:
+      - name: Resolve content store route
+        id: decide
+        env:
+          INPUT_STORE: ${{ github.event.inputs.store || '' }}
+          INPUT_CONTENT_TARGET: ${{ github.event.inputs.content_target || '' }}
+          INPUT_SEO_LANE: ${{ github.event.inputs.seo_lane || '' }}
+          LV_CONTENT_STORE: ${{ vars.LV_CONTENT_STORE || '' }}
+          LV_CONTENT_CUTOVER_HOLD: ${{ vars.LV_CONTENT_CUTOVER_HOLD || '' }}
+        run: |
+          # route-writer:begin
+          set -euo pipefail
+          fail() {
+            echo "::error::$1" >&2
+            exit 1
+          }
+
+          case "${INPUT_STORE:-}" in
+            git|db) STORE="$INPUT_STORE" ;;
+            auto|"") STORE="${LV_CONTENT_STORE:-git}" ;;
+            *) fail "unknown store input: ${INPUT_STORE}" ;;
+          esac
+          case "$STORE" in
+            git|db) ;;
+            *) fail "unknown store: ${STORE}" ;;
+          esac
+
+          if [ "${LV_CONTENT_CUTOVER_HOLD:-}" = "1" ]; then
+            if [ "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" ] \
+              || [ "${GITHUB_REF:-}" != "refs/heads/staging" ] \
+              || [ "$STORE" != "db" ] \
+              || [ "${INPUT_CONTENT_TARGET:-}" != "staging" ]; then
+              fail "LV_CONTENT_CUTOVER_HOLD refuses this writer event before side effects"
+            fi
+          fi
+
+          case "${GITHUB_REF:-}" in
+            refs/heads/main)
+              TARGET="${INPUT_CONTENT_TARGET:-production}"
+              if [ "$TARGET" != "production" ]; then
+                fail "content-production is main-only and content-staging requires refs/heads/staging"
+              fi
+              ;;
+            refs/heads/staging)
+              if [ "${INPUT_CONTENT_TARGET:-}" != "staging" ] || [ "$STORE" != "db" ]; then
+                fail "staging ref requires store=db and content_target=staging"
+              fi
+              TARGET="staging"
+              ;;
+            *)
+              fail "unknown ref: ${GITHUB_REF:-}"
+              ;;
+          esac
+
+          LANE=""
+          if [ "${ROUTE_SEO:-}" = "1" ] && [ "$STORE" = "db" ]; then
+            LANE="${INPUT_SEO_LANE:-data}"
+            case "$LANE" in
+              data|code) ;;
+              *) fail "unknown seo_lane: ${LANE}" ;;
+            esac
+          fi
+
+          {
+            echo "store=${STORE}"
+            echo "target=${TARGET}"
+            echo "lane=${LANE}"
+          } >> "$GITHUB_OUTPUT"
+          # route-writer:end
+  legacy:
+    needs: route
+    if: ${{ needs.route.outputs.store == 'git' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -348,3 +443,201 @@ jobs:
             ${{ steps.publish.outputs.out_dir }}/
           if-no-files-found: error
           retention-days: 30
+  db:
+    needs: route
+    if: ${{ needs.route.outputs.store == 'db' && needs.route.outputs.lane != 'code' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
+    environment: content-${{ needs.route.outputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CONTENT_DATABASE_URL: ${{ secrets.CONTENT_DATABASE_URL }}
+      CONTENT_DATABASE_URL_UNPOOLED: ${{ secrets.CONTENT_DATABASE_URL_UNPOOLED }}
+      CONTENT_DEPLOY_HOOK_URL: ${{ secrets.CONTENT_DEPLOY_HOOK_URL }}
+      CONTENT_SITE_BYPASS: ${{ secrets.CONTENT_SITE_BYPASS }} # absent in content-production
+      CONTENT_DB_NAME: ${{ vars.CONTENT_DB_NAME }}
+      CONTENT_SITE_URL: ${{ vars.CONTENT_SITE_URL }}
+      CONTENT_TARGET: ${{ needs.route.outputs.target }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.sha }}"
+          fetch-depth: 0
+          persist-credentials: false
+      - run: git fetch --no-tags origin main staging
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: node scripts/content/cli.mjs export --root .
+      - name: Resolve discovery run id
+        id: discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.discovery_run_id }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          RUN_ID=""
+          if [ "${EVENT_NAME}" = "workflow_run" ] && [ -n "${WORKFLOW_RUN_ID:-}" ]; then
+            RUN_ID="${WORKFLOW_RUN_ID}"
+          elif [ -n "${INPUT_RUN_ID// }" ]; then
+            RUN_ID="${INPUT_RUN_ID}"
+          else
+            RUN_ID=$(gh run list --workflow "news-discovery.yml" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            if [ -z "${RUN_ID}" ]; then
+              RUN_ID=$(gh run list --workflow "News Discovery (human review queue)" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            fi
+          fi
+          if [ -z "${RUN_ID}" ]; then
+            echo "No discovery run id available" >&2
+            exit 1
+          fi
+          echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "Using discovery run id: ${RUN_ID}"
+      - name: Download discovery artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: news-discovery-${{ steps.discovery.outputs.run_id }}
+          run-id: ${{ steps.discovery.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .news-pilot/runs/from-ci-${{ steps.discovery.outputs.run_id }}
+      - name: Locate run directory
+        id: run
+        env:
+          DISCOVERY_RUN_ID: ${{ steps.discovery.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          BASE=".news-pilot/runs/from-ci-${DISCOVERY_RUN_ID}"
+          if [ -f "$BASE/candidates.json" ]; then
+            RUN_DIR="$BASE"
+          else
+            CAND=$(find "$BASE" -name candidates.json -type f | head -n 1)
+            if [ -z "$CAND" ]; then
+              echo "candidates.json not found under $BASE" >&2
+              find "$BASE" -maxdepth 3 -type f >&2 || true
+              exit 1
+            fi
+            RUN_DIR=$(dirname "$CAND")
+          fi
+          test -f "$RUN_DIR/candidates.json"
+          echo "run_dir=$RUN_DIR" >> "$GITHUB_OUTPUT"
+          echo "Using run dir: $RUN_DIR"
+      - name: Run autonomous publish gate
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BYTEPLUS_API_KEY: ${{ secrets.BYTEPLUS_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          VENICE_API_KEY: ${{ secrets.VENICE_API_KEY }}
+          KIMI_CODER_API_KEY: ${{ secrets.KIMI_CODER_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          RUN_DIR: ${{ steps.run.outputs.run_dir }}
+          PREFER_MODEL: ${{ inputs.prefer_model }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          OUT_DIR=".news-pilot/publish/ci-${GITHUB_RUN_ID}"
+          mkdir -p "$OUT_DIR"
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+
+          # Concurrency serializes runs. Refuse another autonomous candidate while
+          # an earlier news PR is still pending, because that append is not yet
+          # visible in staging's posts ledger and could bypass the daily cap.
+          LIST=$(node scripts/content/cli.mjs list --submissions --kind news --state open,gating)
+          PENDING=$(printf '%s\n' "$LIST" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s.trim().split(/\n/).pop());if(!Array.isArray(j)){process.stderr.write("list stdout must be an array\n");process.exit(1);}process.stdout.write(String(j.length));});')
+          if [ "$PENDING" -gt 0 ]; then
+            # A dry run must never resume a persisted gate, which can publish and deploy.
+            if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ "${DRY_RUN}" = "true" ]; then
+              pending_status=pending_autopublish_pr
+              pending_message='An earlier news submission is still open or gating. Dry run made no changes.'
+            else
+              IDS=$(printf '%s\n' "$LIST" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s.trim().split(/\n/).pop());const ids=j.map(r=>Number(r.id));if(ids.some(id=>!Number.isSafeInteger(id)||id<=0)){process.stderr.write("invalid pending news submission id\n");process.exit(1);}process.stdout.write(ids.join(" "));});')
+              for ID in $IDS; do
+                echo "Resuming unfinished news submission #$ID"
+                node scripts/content/cli.mjs gate --submission "$ID" --actor "gha:${GITHUB_WORKFLOW}#${GITHUB_RUN_ID}"
+              done
+              pending_status=resumed_news_submission
+              pending_message='Resumed earlier open or gating news submissions; no new candidate was published.'
+            fi
+            node - "$OUT_DIR/result.json" "$pending_status" "$pending_message" <<'NODE'
+          const fs = require('node:fs');
+          const [output, status, message] = process.argv.slice(2);
+          fs.writeFileSync(output, JSON.stringify({
+            ok: true,
+            exitCode: 0,
+            status,
+            published: 0,
+            message,
+          }, null, 2) + '\n');
+          NODE
+          else
+            args=(
+              --run="$RUN_DIR"
+              --out="$OUT_DIR"
+              --vault=/dev/null
+            )
+
+            if [ -n "${PREFER_MODEL// }" ]; then
+              args+=(--prefer-model="$PREFER_MODEL")
+            fi
+
+            # workflow_run path is never a dry-run; workflow_dispatch honors the input.
+            if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ "${DRY_RUN}" = "true" ]; then
+              args+=(--dry-run)
+            fi
+
+            echo "Running: node scripts/news-pilot/publish.mjs --run=... (secrets not printed)"
+            set +e
+            node scripts/news-pilot/publish.mjs "${args[@]}"
+            code=$?
+            set -e
+          fi
+          code=${code:-0}
+          echo "publish_exit=$code" >> "$GITHUB_OUTPUT"
+
+          if [ ! -f "$OUT_DIR/result.json" ]; then
+            echo "Publish produced no result.json" >&2
+            exit 1
+          fi
+
+          PUBLISHED=$(node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(r.published===1?"true":"false")' "$OUT_DIR/result.json")
+          STATUS=$(node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(r.status||""))' "$OUT_DIR/result.json")
+          SLUG=$(node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(r.slug||""))' "$OUT_DIR/result.json")
+          echo "published=${PUBLISHED}" >> "$GITHUB_OUTPUT"
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+          echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+          echo "Publish status=${STATUS} published=${PUBLISHED} slug=${SLUG}"
+
+          # Hard failures only (missing run, model crash). Controlled zero-publish is exit 0.
+          exit "$code"
+      - name: Submit news content
+        if: ${{ success() && steps.publish.outputs.published == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          node scripts/content/cli.mjs submit --dir . --kind news --news-out "${{ steps.publish.outputs.out_dir }}" --idempotency-key "gha:news-autopublish:${{ github.run_id }}:${{ github.run_attempt }}" > submit.json
+      - name: Gate news content
+        if: ${{ success() && steps.publish.outputs.published == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          ID=$(jq -r '.submissionId' submit.json)
+          if [ "$ID" = "null" ]; then
+            exit 0
+          fi
+          node scripts/content/cli.mjs gate --submission "$ID"
+      - name: Alert content DB job failure
+        if: ${{ failure() }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then exit 0; fi
+          text="⚠ ${GITHUB_WORKFLOW} DB content job failed (${CONTENT_TARGET}); https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -cn --arg text "$text" '{text:$text}')
+          curl --fail --silent --show-error --max-time 10 -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null || true

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { github } from '../automation/github.mjs';
 import { acquireAtomicLock, leaseIsLive, newLease, pidAlive, releaseAtomicLock } from './lease.mjs';
 import { readLedger, repairLedger, terminalizeRun, updateLedger } from './ledger.mjs';
-import { cleanupDataBranch, recordSupervisorOutcome, resolveHostWeeklyOwner, runBlogSupervisor } from './host-run.mjs';
+import { cleanupDataBranch, monitorDbCandidate, recordSupervisorOutcome, resolveHostWeeklyOwner, runBlogSupervisor, validateHostContentMode } from './host-run.mjs';
 import { fetchObservation } from './github-monitor.mjs';
 import { smokePiSession } from './pi-session.mjs';
 import { activeOwnedRuns, evaluateSentinel } from './sentinel.mjs';
@@ -37,6 +37,9 @@ function persistRun(runId, changes) {
 }
 
 async function settleTerminal(runRow, terminal, expectedSha, reason) {
+  if (runRow?.content_store === 'db' && terminal === 'PUBLISHED_LIVE') {
+    return { prState: undefined, merged: false };
+  }
   return finalizeSupervisorTerminal({
     repo: REPO, run: runRow, terminal, expectedSha, reason,
     expectedBase: terminal === 'MERGED_STAGING' ? 'staging' : 'main',
@@ -86,6 +89,7 @@ export function resolveSmokeAgentDir(args, fallback) {
 }
 
 async function run(dryRun) {
+  const contentMode = validateHostContentMode(); // Refuse unsafe DB bindings before any Git or GitHub access.
   if (resolveHostWeeklyOwner(REPO_ROOT) !== 'exedev') {
     console.log('SKIPPED_OWNER: trusted remote weekly owner is gha');
     return;
@@ -103,7 +107,19 @@ async function run(dryRun) {
   await recoverUnfinishedRows(pending, {
     reconcile: async (staleRun) => {
       let recoveryTerminal = 'MONITOR_TIMEOUT';
-      if (staleRun.pr_number) {
+      if (staleRun.content_store === 'db' && staleRun.data_sha && staleRun.content_title) {
+        const mode = validateHostContentMode();
+        if (mode.store !== 'db' || mode.target !== staleRun.content_target) throw new Error('DB recovery requires matching content target');
+        const observed = await monitorDbCandidate({ repo: REPO, dataSha: staleRun.data_sha,
+          title: staleRun.content_title, siteUrl: mode.siteUrl, allowedCreator: mode.allowedCreator,
+          bypass: process.env.LV_SITE_BYPASS });
+        recoveryTerminal = observed.state;
+        if (recoveryTerminal === 'PUBLISHED_LIVE' && staleRun.topic_key) {
+          recordSupervisorOutcome({ repoRoot: REPO_ROOT, repo: REPO, runId: staleRun.run_id,
+            topicKey: staleRun.topic_key, terminal: 'PUBLISHED_MAIN',
+            reason: 'recovered after live DB snapshot and page verification' });
+        }
+      } else if (staleRun.pr_number) {
         const pr = await github(`/repos/${REPO}/pulls/${staleRun.pr_number}`);
         if (pr?.merged === true && /^[0-9a-f]{40}$/.test(pr.merge_commit_sha || '')) {
           if (pr.base?.ref === 'main') {
@@ -150,6 +166,7 @@ async function run(dryRun) {
   });
   const row = {
     run_id: runId, kind: 'blog', owner: 'exedev', state: 'CLAIM_LEASE', topic_key: null,
+    ...(contentMode.store === 'db' ? { content_store: 'db', content_target: contentMode.target } : {}),
     pr_number: null, head_sha: null, sha_history: [], budgets: { transient: 0, monitor_redispatch: 0 },
     terminal: null, terminal_at: null, error: null, started_at: now.toISOString(), updated_at: now.toISOString(),
   };
@@ -180,7 +197,8 @@ async function run(dryRun) {
       latest.lease = null; return latest;
     });
     console.log(`${result.terminal}: ${runId}`);
-    if (!['PUBLISHED_MAIN', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE', 'DISCARDED_PRE_PR', 'DRY_RUN', 'WEEKLY_OBJECTIVE_MET', 'DEFERRED_TO_DEADLINE'].includes(result.terminal)) process.exitCode = 1;
+    if (!['PUBLISHED_MAIN', 'PUBLISHED_LIVE', 'SKIPPED_OWNER', 'SKIPPED_CANDIDATE', 'DISCARDED_PRE_PR', 'DRY_RUN', 'WEEKLY_OBJECTIVE_MET', 'DEFERRED_TO_DEADLINE'].includes(result.terminal)) process.exitCode = 1;
+    if (result.terminal === 'BLOCKED_PROPAGATION') console.error('DB publication committed but live propagation did not complete');
   } catch (error) {
     const snapshot = readLedger(LEDGER_FILE);
     const current = snapshot.runs.find((entry) => entry.run_id === runId);

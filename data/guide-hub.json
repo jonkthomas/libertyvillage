@@ -24,16 +24,46 @@
     ]
   },
   "quickFacts": [
-    { "label": "Population", "value": "~7,500 residents" },
-    { "label": "Median Rent (1BR)", "value": "$2,608/month" },
-    { "label": "Walk Score", "value": "88/100" },
-    { "label": "Transit Score", "value": "96/100" },
-    { "label": "Area Size", "value": "0.45 km²" },
-    { "label": "Year Established", "value": "1870s (as Central Prison site)" },
-    { "label": "Notable Landmarks", "value": "BMO Field, Exhibition Place, Liberty Village Park" },
-    { "label": "Median Condo Price", "value": "$625,000 (2025)" },
-    { "label": "Major Employers", "value": "Shopify, Ubisoft, Corus Entertainment" },
-    { "label": "Off-Leash Dog Parks", "value": "2 (Stanley Park, Liberty Village Park)" }
+    {
+      "label": "Population",
+      "value": "~7,500 residents"
+    },
+    {
+      "label": "Median Rent (1BR)",
+      "value": "$2,608/month"
+    },
+    {
+      "label": "Walk Score",
+      "value": "88/100"
+    },
+    {
+      "label": "Transit Score",
+      "value": "96/100"
+    },
+    {
+      "label": "Area Size",
+      "value": "0.45 km²"
+    },
+    {
+      "label": "Year Established",
+      "value": "1870s (as Central Prison site)"
+    },
+    {
+      "label": "Notable Landmarks",
+      "value": "BMO Field, Exhibition Place, Liberty Village Park"
+    },
+    {
+      "label": "Median Condo Price",
+      "value": "$625,000 (2025)"
+    },
+    {
+      "label": "Major Employers",
+      "value": "Shopify, Ubisoft, Corus Entertainment"
+    },
+    {
+      "label": "Off-Leash Dog Parks",
+      "value": "2 (Stanley Park, Liberty Village Park)"
+    }
   ],
   "answerSummary": "Liberty Village is a walkable Toronto neighbourhood with a population of roughly 7,500, a Walk Score of 88, and a Transit Score of 96. Median one-bedroom rent sits at $2,608 per month, while condos average $625,000. The 0.45 km² area is bounded by King Street West, Dufferin, the GO corridor, and Strachan Avenue."
 }
