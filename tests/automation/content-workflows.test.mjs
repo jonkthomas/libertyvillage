@@ -373,6 +373,19 @@ test('S9 and S10 stay a pending cutover gate', () => {
   assert.doesNotMatch(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8'), /execFileSync\(\s*['"]gh['"]/);
 });
 
+test('all DB writer jobs alert on any job failure and ingest posts failure status for startup failures', () => {
+  for (const name of Object.keys(WORKFLOWS)) {
+    const db = jobBlock(readWorkflow(name), 'db');
+    assert.match(db, /- name: Alert content DB job failure\n\s+if: \$\{\{ failure\(\) \}\}/, name);
+    assert.match(db, /SLACK_WEBHOOK_URL: \$\{\{ secrets\.SLACK_WEBHOOK_URL \}\}/, name);
+    assert.match(db, /curl .*SLACK_WEBHOOK_URL/, name);
+  }
+  const ingest = jobBlock(readWorkflow('supervisor-ingest.yml'), 'ingest-db');
+  assert.match(ingest, /- name: Report startup failure[^\n]*\n\s+if: \$\{\{ failure\(\) \}\}/);
+  assert.doesNotMatch(ingest, /steps\.ingest\.outcome == 'failure'/);
+  assert.match(ingest, /-f context=content\/publish -f state=failure/);
+});
+
 test('SEO_MODE only adds a prompt restriction', () => {
   const previous = process.env.SEO_MODE;
   delete process.env.SEO_MODE;

@@ -212,7 +212,7 @@ jobs:
         id: ingest
         run: node scripts/supervisor/ingest-db.mjs --payload "$PAYLOAD"
       - name: Report startup failure if ingest posted no terminal status
-        if: ${{ failure() && steps.ingest.outcome == 'failure' }}
+        if: ${{ failure() }}
         env:
           DATA_SHA: ${{ needs.route.outputs.data_sha }}
         run: |

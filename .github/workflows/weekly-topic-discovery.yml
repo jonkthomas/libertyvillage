@@ -256,3 +256,10 @@ jobs:
             exit 0
           fi
           node scripts/content/cli.mjs gate --submission "$ID"
+      - name: Alert content DB job failure
+        if: ${{ failure() }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then exit 0; fi
+          text="⚠ ${GITHUB_WORKFLOW} DB content job failed (${CONTENT_TARGET}); https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -cn --arg text "$text" '{text:$text}')
+          curl --fail --silent --show-error --max-time 10 -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null || true
