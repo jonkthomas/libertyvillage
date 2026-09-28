@@ -43,6 +43,7 @@ gcp-credentials.json
 /.content-export/
 /.content-restore/
 /public/content-snapshot/
+/public/media/
 
 # typescript
 *.tsbuildinfo

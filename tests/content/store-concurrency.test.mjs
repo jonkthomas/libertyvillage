@@ -31,11 +31,12 @@ test('stale base conflicts and later publish prevents compensation', async () =>
   try {
     const first = await ready(db,make('shared-key'));
     await store.publishSubmission(db,first.id,first.token);
+    const oldExport = await store.readLive(db);
     const next = await ready(db,make('shared-key',1));
     await store.publishSubmission(db,next.id,next.token);
     await assert.rejects(store.compensateSubmission(db,first.id,first.token,{actor:'test',reason:'test'}), (e) => e.code === 'ConflictError');
     assert.equal((await db.query("select live_rev from content.entries where key='shared-key'")).rows[0].live_rev, 2);
-    await assert.rejects(store.createSubmission(db,make('shared-key',1)), (e) => e.code === 'ConflictError');
+    await assert.rejects(store.createSubmission(db,make('shared-key',oldExport.datasets.businesses.entries['shared-key'].rev)), (e) => e.code === 'ConflictError');
     const unaffected = await ready(db,make('other-key'));
     await store.publishSubmission(db,unaffected.id,unaffected.token);
     assert.equal((await db.query("select live_rev from content.entries where key='shared-key'")).rows[0].live_rev, 2);

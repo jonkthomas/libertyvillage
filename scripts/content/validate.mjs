@@ -26,6 +26,24 @@ const numberFields = new Set('rating reviewCount avgRent1BR avgRent2BR transitSc
 const booleanFields = new Set('featured hasParking hasLockers petFriendly _needsEnrichment'.split(' '));
 const arrayFields = new Set('tags categories bestFor reviewFaqs faqs relatedServices relatedTopics relatedPosts keyTakeaways crossLinks alternateNames amenities nearestBusinessSlugs proTips pros cons specificFaqs quickTips definitions sections quickFacts'.split(' '));
 const objectFields = new Set('exploreCta verdict detailedComparison comparisonTable prosCons'.split(' '));
+const stringArrays = new Set('tags categories bestFor relatedServices relatedTopics keyTakeaways alternateNames amenities nearestBusinessSlugs proTips pros cons quickTips'.split(' '));
+const faqArrays = new Set('faqs reviewFaqs specificFaqs'.split(' '));
+const enums = {
+  services: {searchVolume:['high','medium','low'],competitiveness:['easy','medium','hard','low']},
+  topics: {category:['living','transit','lifestyle','safety','real-estate','pets','food']},
+  posts: {category:['news','development','food-drink','events','transit','real-estate','lifestyle','community']},
+  buildings: {buildingType:['loft','condo','rental','townhouse','mixed']},
+  businesses: {priceRange:['$','$$','$$$','$$$$']},
+  'topic-queue': {kind:['blog','seo']},
+};
+const plainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+function objectShape(value, spec) {
+  return plainObject(value) && Object.keys(value).every((field) => field in spec && spec[field](value[field]))
+    && Object.keys(spec).every((field) => field in value);
+}
+const str = (value) => typeof value === 'string';
+const strArray = (value) => Array.isArray(value) && value.every(str);
+const faq = (value) => objectShape(value,{question:str,answer:str});
 export function validateRecord(dataset, key, record) {
   const errors = [];
   if (!registry[dataset] || dataset === 'discovery-seen') return { ok: false, errors: ['unknown dataset'] };
@@ -35,12 +53,31 @@ export function validateRecord(dataset, key, record) {
   if (dataset === 'guide-hub' ? key !== 'guide-hub' || 'slug' in record : dataset === 'topic-queue'
     ? record.key !== key || !['blog', 'seo'].includes(record.kind) || topicKey(record.kind, record.title, record.branchPrefix) !== key
     : record.slug !== key) errors.push('identity mismatch');
+  if (dataset === 'topic-queue' ? !/^[0-9a-f]{64}$/.test(key) : dataset !== 'guide-hub' && !/^[a-z0-9][a-z0-9-]{0,127}$/.test(key)) errors.push('invalid key shape');
   const allowed = new Set(fields[dataset].split(' '));
   for (const field of Object.keys(record)) if (!allowed.has(field)) errors.push(`unknown field: ${field}`);
   for (const field of required[dataset].split(' ')) if (record[field] === undefined || record[field] === null) errors.push(`required: ${field}`);
   for (const [field, value] of Object.entries(record)) {
     const type = field === 'population' && dataset === 'guide-hub' ? 'string' : numberFields.has(field) ? 'number' : booleanFields.has(field) ? 'boolean' : arrayFields.has(field) ? 'array' : objectFields.has(field) ? 'object' : 'string';
     if (type === 'array' ? !Array.isArray(value) : type === 'object' ? !value || typeof value !== 'object' || Array.isArray(value) : typeof value !== type) errors.push(`invalid type: ${field}`);
+    if (enums[dataset]?.[field] && !(field === 'priceRange' && value === '') && !enums[dataset][field].includes(value)) errors.push(`invalid enum: ${field}`);
+    if (stringArrays.has(field) && !strArray(value)) errors.push(`invalid string array: ${field}`);
+    if (faqArrays.has(field) && (!Array.isArray(value) || !value.every(faq))) errors.push(`invalid FAQ array: ${field}`);
   }
+  if (record.crossLinks && (!Array.isArray(record.crossLinks) || !record.crossLinks.every((link) => plainObject(link)
+    && ['service','guide','post','topic'].includes(link.type) && str(link.slug) && (link.label === undefined || str(link.label))
+    && Object.keys(link).every((field) => ['type','slug','label'].includes(field))))) errors.push('invalid crossLinks');
+  if (record.relatedPosts && (!Array.isArray(record.relatedPosts) || !record.relatedPosts.every((item) => str(item) || objectShape(item,{href:str,description:str})))) errors.push('invalid relatedPosts');
+  if (record.exploreCta && !objectShape(record.exploreCta,{label:str,href:str,description:str})) errors.push('invalid exploreCta');
+  if (record.verdict && !objectShape(record.verdict,{summary:str,lvWinsAt:strArray,theyWinAt:strArray})) errors.push('invalid verdict');
+  if (record.detailedComparison && !objectShape(record.detailedComparison,{costOfLiving:str,transitAndCommute:str,foodAndNightlife:str,safetyAndCommunity:str,bestFor:str})) errors.push('invalid detailedComparison');
+  if (record.prosCons && !objectShape(record.prosCons,{pros:strArray,cons:strArray})) errors.push('invalid prosCons');
+  if (record.quickFacts && (!Array.isArray(record.quickFacts) || !record.quickFacts.every((fact) => objectShape(fact,{label:str,value:str})))) errors.push('invalid quickFacts');
+  if (record.sections && (!Array.isArray(record.sections) || !record.sections.every((section) => objectShape(section,{heading:str,content:str})))) errors.push('invalid sections');
+  if (record.definitions && (!Array.isArray(record.definitions) || !record.definitions.every((definition) => objectShape(definition,{term:str,definition:str})))) errors.push('invalid definitions');
+  if (record.comparisonTable && (!plainObject(record.comparisonTable) || !strArray(record.comparisonTable.columns)
+    || !Array.isArray(record.comparisonTable.rows) || !record.comparisonTable.rows.every((row) => plainObject(row) && Object.values(row).every(str))
+    || Object.keys(record.comparisonTable).some((field) => !['columns','rows'].includes(field)))) errors.push('invalid comparisonTable');
+  if (dataset === 'topic-queue' && (!Number.isInteger(record.attempts) || record.attempts < 0)) errors.push('invalid attempts');
   return { ok: errors.length === 0, errors };
 }
