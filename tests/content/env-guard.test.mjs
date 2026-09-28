@@ -24,6 +24,31 @@ test('DB target rejects query routing overrides before constructing a pool',asyn
     assert.equal(pools,0);
   }finally{pg.Pool=OriginalPool;process.env.CONTENT_DATABASE_URL=prior;await close();}
 });
+
+test('DB target refuses hostless, socket, multi-host and nonlocal test routes before constructing a pool',async()=>{
+  const prior=process.env.CONTENT_DATABASE_URL;
+  const priorHost=process.env.PGHOST;
+  const OriginalPool=pg.Pool;
+  let pools=0;
+  pg.Pool=class {constructor(){pools+=1;throw new Error('pool was constructed');}};
+  try {
+    process.env.PGHOST='remote.example.invalid';
+    for(const url of [
+      'postgres:///lv_test_routing',
+      'postgres://probe:dummy@%2Ftmp:55434/lv_test_routing',
+      'postgres://probe:dummy@remote.example.invalid/lv_test_routing',
+      'postgres://probe:dummy@127.0.0.1,remote.example.invalid/lv_test_routing',
+      'postgres://probe:dummy@127.0.0.1:55432',
+    ]){
+      process.env.CONTENT_DATABASE_URL=url;
+      await assert.rejects(openDb({expectDb:'lv_test_routing'}),(error)=>error.code==='TargetError',url);
+    }
+    assert.equal(pools,0);
+  }finally{
+    pg.Pool=OriginalPool;process.env.CONTENT_DATABASE_URL=prior;
+    if(priorHost===undefined)delete process.env.PGHOST;else process.env.PGHOST=priorHost;
+  }
+});
 test('CLI propagates delegated exit codes and holds admin claim through deployment',async()=>{const {db,name,close}=await testDb();try{
   const binding=['--expect-db',name,'--target','test'];
   for(const [command,runner,code] of [['submit','submitContent',2],['gate','gateContent',3],['deploy','deployContent',3]]){

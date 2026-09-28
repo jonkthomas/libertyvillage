@@ -16,7 +16,16 @@ function inspectContentConnection(url) {
   let effective;
   try { effective = parse(url); }
   catch { throw new Error('invalid content database URL'); }
-  return { host: effective.host, port: effective.port, database: effective.database };
+  // A hostless URL lets the driver pick PGHOST; socket paths and comma lists are
+  // not supported routes. Refuse them before any pool is built.
+  const host = effective.host || '';
+  if (!host) throw new Error('content database URL must name its host');
+  if (host.startsWith('/') || host.includes(',')) throw new Error('unsupported content database host');
+  if (!effective.database) throw new Error('content database URL must name its database');
+  if (/^lv_test_/.test(effective.database) && !LOOPBACK.has(host)) {
+    throw new Error(`test database binding refused for host: ${host}`);
+  }
+  return { host, port: effective.port, database: effective.database };
 }
 
 function isLocalTestBinding(url, dbName) {
