@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ALL, SITE_DATASETS, candidateDigest, datasetDigest, hash, keyOf, recordSha } from './canonical.mjs';
+import { ALL, SITE_DATASETS, registry, candidateDigest, datasetDigest, hash, keyOf, recordSha } from './canonical.mjs';
 import { validateRecord } from './validate.mjs';
 export { openDb, TargetError } from './db.mjs';
 
@@ -44,7 +44,10 @@ export async function readLive(db, { datasets = ALL } = {}) {
       const records = found.map((r) => r.payload);
       out[d] = { count: records.length, digest: datasetDigest(d, records), entries: Object.fromEntries(found.map((r) => [r.key, { rev: n(r.rev), sha: r.payload_sha256 ?? recordSha(r.payload) }])), records };
     }
-    const media = rows(await c.query('select path,sha256,byte_size from content.assets order by path')).map((a) => ({ path: a.path, sha256: a.sha256, byte_size: a.byte_size }));
+    const livePaths = [...new Set(Object.entries(out).flatMap(([dataset, value]) =>
+      value.records.flatMap((record) => registry[dataset].imageFields.map((field) => record[field]).filter((path) => typeof path === 'string' && path.startsWith('/media/')))))];
+    const media = livePaths.length ? rows(await c.query('select path,sha256,byte_size from content.assets where path=any($1::text[]) order by path', [livePaths])).map((a) => ({ path: a.path, sha256: a.sha256, byte_size: a.byte_size })) : [];
+    if (media.length !== livePaths.length) throw new ValidationError('live media missing from asset store');
     const snapshotId = hash('sha1', `${liveSeq}\n${Object.entries(out).map(([d, v]) => `${d}:${v.digest}`).join('\n')}`);
     return { schema: 1, db: db.dbName, target: db.target, live_seq: liveSeq, snapshot_id: snapshotId, generated_at: new Date().toISOString(), datasets: out, media };
   }, { isolation: 'repeatable read read only' });
@@ -88,7 +91,7 @@ export async function createSubmission(db, input) {
       await c.query('insert into content.assets(sha256,path,content_type,bytes,byte_size,submission_id) values($1,$2,$3,$4,$5,$6) on conflict(sha256) do nothing', [a.sha256, a.path, a.contentType, a.bytes, a.bytes.length, id]);
     }
     let added = 0;
-    for (const s of discoverySeen) added += (await c.query('insert into content.discovery_seen(name_key,first_seen) values($1,$2) on conflict do nothing', [s.nameKey, s.firstSeen])).rowCount;
+    for (const s of discoverySeen) added += (await c.query('insert into content.discovery_seen(name_key,first_seen,outcome_submission_id) values($1,$2,$3) on conflict(name_key) do nothing', [s.nameKey, s.firstSeen, id])).rowCount;
     return { submissionId: id, existing: false, items: created, discoverySeenAdded: added };
   });
 }
@@ -184,12 +187,13 @@ export async function publishSubmission(db, id, token, { actor } = {}) {
     }
     const liveSeq = await bump(c);
     await c.query("update content.submissions set state='published',decision='go',live_seq=$2,closed_at=now() where id=$1", [id, liveSeq]);
+    await c.query("update content.discovery_seen set outcome='added' where outcome='seen' and outcome_submission_id=$1", [id]);
     return { liveSeq, published, existing: false };
   });
 }
 export async function rejectSubmission(db, id, token, { state, decision }) {
   if (!['rejected', 'error'].includes(state)) throw new ValidationError('invalid rejection state');
-  return db.tx(async (c) => { await lockedClaim(c, id, token, ['open', 'gating']); await c.query('update content.submissions set state=$2,decision=$3,closed_at=now() where id=$1', [id, state, decision]); return { state, decision }; });
+  return db.tx(async (c) => { await lockedClaim(c, id, token, ['open', 'gating']); await c.query('update content.submissions set state=$2,decision=$3,closed_at=now() where id=$1', [id, state, decision]); await c.query("update content.discovery_seen set outcome='rejected' where outcome='seen' and outcome_submission_id=$1", [id]); return { state, decision }; });
 }
 export async function markPhase(db, id, token, phase) {
   const col = { deploy_requested: 'deploy_requested_at', smoke_passed: 'smoke_passed_at', notified: 'notified_at' }[phase];
