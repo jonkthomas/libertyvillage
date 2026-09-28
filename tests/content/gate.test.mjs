@@ -190,7 +190,8 @@ test('B5: review-agent imports with no side effects and its CLI still runs', () 
   const src = fs.readFileSync(path.join(REPO, 'scripts/automation/news-preflight.mjs'), 'utf8');
   assert.match(src, /^export function trimEvidence\(value\) \{$/m);
   assert.match(src, /^export function structuredData\(post\) \{$/m);
-  assert.equal(execFileSync('git', ['diff', '--numstat', '9b23de5', '--', 'scripts/automation/news-preflight.mjs'], { cwd: REPO, encoding: 'utf8' }).trim().split(/\s+/).slice(0, 2).join(' '), '2 2');
+  // History-independent (CI checks out a shallow clone): the direct-run CLI guard is still present.
+  assert.match(src, /^if \(process\.argv\[1\] && path\.resolve\(process\.argv\[1\]\) === fileURLToPath\(import\.meta\.url\)\) \{$/m);
 });
 
 // ---------------------------------------------------------------------------
