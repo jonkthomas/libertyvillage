@@ -56,6 +56,65 @@ test('local staging ingest refuses incomplete operator bindings before cloning',
   /missing operator bindings/);
 });
 
+test('local staging harness clones pinned code absent from the default branch and starts child', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-content-local-'));
+  const origin = path.join(dir, 'origin.git');
+  const seed = path.join(dir, 'seed');
+  const host = path.join(dir, 'host');
+  const stateDir = path.join(dir, 'state');
+  const git = (cwd, ...args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
+    return result.stdout.trim();
+  };
+  try {
+    fs.mkdirSync(seed);
+    git(dir, 'init', '--bare', origin);
+    git(seed, 'init', '--initial-branch=main');
+    git(seed, 'config', 'user.name', 'Local Fixture');
+    git(seed, 'config', 'user.email', 'fixture@example.invalid');
+    fs.writeFileSync(path.join(seed, 'package.json'), '{"name":"local-fixture","version":"1.0.0","private":true}\n');
+    fs.writeFileSync(path.join(seed, 'package-lock.json'), '{"name":"local-fixture","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"local-fixture","version":"1.0.0"}}}\n');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-m', 'default branch without ingest');
+    git(seed, 'remote', 'add', 'origin', origin);
+    git(seed, 'push', '-u', 'origin', 'main');
+    git(dir, '--git-dir', origin, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+    git(seed, 'checkout', '-b', 'staging');
+    fs.mkdirSync(path.join(seed, 'scripts/supervisor'), { recursive: true });
+    fs.writeFileSync(path.join(seed, 'scripts/supervisor/ingest-db.mjs'), 'console.log("fixture-child-pinned-code");\n');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-m', 'staging ingest code');
+    git(seed, 'push', '-u', 'origin', 'staging');
+    const codeSha = git(seed, 'rev-parse', 'HEAD');
+    git(dir, 'clone', origin, host);
+    assert.equal(fs.existsSync(path.join(host, 'scripts/supervisor/ingest-db.mjs')), false);
+    const operatorEnv = { PATH: process.env.PATH, HOME: dir, LV_STATUS_CREATOR: 'fixture-operator',
+      LV_INGEST_CODE_SHA: codeSha, GH_TOKEN: 'fixture-secret', CONTENT_DB_NAME: 'lv_staging',
+        CONTENT_DATABASE_URL: 'postgres://fixture', CONTENT_DATABASE_URL_UNPOOLED: 'postgres://fixture',
+        CONTENT_DEPLOY_HOOK_URL: 'https://fixture.invalid/hook', CONTENT_SITE_URL: 'https://fixture.invalid',
+        CONTENT_SITE_BYPASS: 'fixture-bypass', ANTHROPIC_API_KEY: 'fixture-model-secret',
+        SLACK_WEBHOOK_URL: 'https://fixture.invalid/slack' };
+    assert.throws(() => startLocalStagingIngest({ repoRoot: host, stateDir, repo: 'fixture/local', payload,
+      codeSha, env: { ...operatorEnv, LV_INGEST_CODE_SHA: 'b'.repeat(40) } }), /pinned staging SHA/);
+    const started = startLocalStagingIngest({ repoRoot: host, stateDir, repo: 'fixture/local', payload,
+      codeSha, env: operatorEnv });
+    assert.equal(started.codeSha, codeSha);
+    assert.equal(git(started.cloneDir, 'rev-parse', 'HEAD'), codeSha);
+    assert(fs.existsSync(path.join(started.cloneDir, 'scripts/supervisor/ingest-db.mjs')));
+    let log = '';
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      log = fs.readFileSync(started.logFile, 'utf8');
+      if (log.includes('fixture-child-pinned-code')) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.match(log, /fixture-child-pinned-code/);
+    assert.match(log, new RegExp(`code_sha=${codeSha}`));
+    assert.match(log, /status_creator=fixture-operator/);
+    assert(!log.includes('fixture-secret') && !log.includes('fixture-model-secret'));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('monitor requires latest trusted status and stable fresh render', async () => {
   let tick = 0;
   let reads = 0;
