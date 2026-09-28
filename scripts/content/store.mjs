@@ -68,7 +68,10 @@ export async function createSubmission(db, input) {
     if (!inserted) {
       const old = one(await c.query('select id,request_sha256 from content.submissions where idempotency_key=$1', [idempotencyKey]));
       if (old.request_sha256 !== requestSha) throw new StateError('idempotency-mismatch');
-      return { submissionId: n(old.id), existing: true, items: rows(await c.query('select dataset,key,op,published_rev as rev,expected_live_rev from content.submission_items where submission_id=$1 order by dataset,key', [old.id])) };
+      const oldItems = rows(await c.query(`select i.dataset,i.key,i.op,r.rev,i.expected_live_rev as "expectedLiveRev"
+        from content.submission_items i join content.round_items r on r.submission_id=i.submission_id and r.dataset=i.dataset and r.key=i.key and r.round=0
+        where i.submission_id=$1 order by i.dataset,i.key`, [old.id]));
+      return { submissionId: n(old.id), existing: true, items: oldItems, discoverySeenAdded: 0 };
     }
     const id = n(inserted.id);
     const sorted = [...items].sort((a, b) => `${a.dataset}\t${a.key}`.localeCompare(`${b.dataset}\t${b.key}`));
@@ -116,7 +119,9 @@ export async function getSubmission(db, id) {
   const submission = one(await db.query('select * from content.submissions where id=$1', [id]));
   if (!submission) throw new StateError('submission missing');
   const items = rows(await db.query('select * from content.submission_items where submission_id=$1 order by dataset,key', [id]));
-  const rounds = rows(await db.query('select * from content.gate_rounds where submission_id=$1 order by round', [id]));
+  const rounds = rows(await db.query(`select distinct on (i.round) i.round,g.candidate_digest,g.content_sha,g.verdict,g.overall,g.passed,g.blocking_count,g.lint,g.decision,g.scripted,g.created_at
+    from content.round_items i left join content.gate_rounds g on g.submission_id=i.submission_id and g.round=i.round
+    where i.submission_id=$1 order by i.round`, [id]));
   for (const round of rounds) round.items = rows(await db.query(`select i.dataset,i.key,i.rev,i.payload_sha256,r.payload from content.round_items i join content.revisions r using(dataset,key,rev) where i.submission_id=$1 and i.round=$2 order by i.dataset,i.key`, [id, round.round]));
   return { submission, items, rounds };
 }
@@ -300,7 +305,19 @@ export async function markDiscoverySeen(db, nameKeys, { outcome, submissionId })
   return db.tx(async (c) => { const result = await c.query("update content.discovery_seen set outcome=$2,outcome_submission_id=$3 where name_key=any($1) and outcome='seen'", [nameKeys, outcome, submissionId]); return result.rowCount; });
 }
 export async function stats(db) {
-  const current = one(await db.query('select pg_database_size(current_database()) as bytes'));
+  const sizeRows = rows(await db.query("select datname,pg_database_size(oid) as bytes from pg_database where datname in ('neondb','lv_staging') or datname=current_database()"));
+  const databases = Object.fromEntries(sizeRows.map((r) => [r.datname,n(r.bytes)]));
   const assets = one(await db.query('select count(*) as count,coalesce(sum(byte_size),0) as bytes from content.assets'));
-  return { databases: { [db.dbName]: n(current.bytes) }, projectBytes: n(current.bytes), assets: { count: n(assets.count), bytes: n(assets.bytes), reclaimable: 0 } };
+  const reclaimable = await reclaimableAssets(db);
+  return { databases, projectBytes:Object.values(databases).reduce((a,b) => a+b,0), assets: { count: n(assets.count), bytes: n(assets.bytes), reclaimable: reclaimable.reduce((a,b) => a+b.byte_size,0) } };
+}
+export async function reclaimableAssets(db) {
+  return rows(await db.query(`select a.sha256,a.path,a.byte_size from content.assets a
+    where exists (select 1 from content.revisions r where r.payload::text like '%' || a.path || '%')
+      and not exists (select 1 from content.revisions r left join content.submissions s on s.id=r.submission_id
+        where r.payload::text like '%' || a.path || '%'
+          and (r.published_at is not null or s.id is null or s.state not in ('rejected','blocked','error')
+               or s.closed_at is null or s.closed_at >= now()-interval '14 days'))
+      and not exists (select 1 from content.revisions r join content.entries e
+        on e.dataset=r.dataset and e.key=r.key and e.live_rev=r.rev where r.payload::text like '%' || a.path || '%')`));
 }

@@ -91,3 +91,19 @@ test('snapshot excludes assets referenced only by an unpublished candidate', asy
     assert.deepEqual((await store.readLive(db)).media,[{path,sha256,byte_size:bytes.length}]);
   } finally { await close(); }
 });
+test('new and idempotent submissions expose the current candidate vector', async () => {
+  const { db, close } = await testDb();
+  try {
+    const input = { kind:'manual',target:'test',actor:'test',idempotencyKey:'vector-idem',
+      items:[{dataset:'businesses',key:'vector-test',payload:business('vector-test'),expectedLiveRev:null}] };
+    const first = await store.createSubmission(db,input);
+    const shown = await store.getSubmission(db,first.submissionId);
+    assert.equal(shown.rounds.length,1);
+    assert.equal(shown.rounds[0].round,0);
+    assert.equal(shown.rounds[0].items[0].rev,1);
+    const second = await store.createSubmission(db,input);
+    assert.equal(second.existing,true);
+    assert.equal(second.items[0].rev,1);
+    assert.equal(second.items[0].expectedLiveRev,null);
+  } finally { await close(); }
+});
