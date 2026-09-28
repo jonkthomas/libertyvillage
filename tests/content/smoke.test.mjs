@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import './fixtures/agent-sdk-mock.mjs';
 import { buildDeployment, fakeAlias, fakeLive, virtualClock } from './fixtures/fake-site.mjs';
 import {
   createHttp, escapedMarkers, runSmoke, SMOKE_DEADLINE_MS, SMOKE_INTERVAL_MS,
@@ -236,4 +237,87 @@ test('postSlack posts {text} and refuses a non-2xx or a missing webhook', async 
   assert.deepEqual(sent, [['https://hooks.slack.test/x', 'POST', '{"text":"hi"}', 'application/json']]);
   await assert.rejects(postSlack({ webhookUrl: 'https://hooks.slack.test/x', text: 'hi', fetchImpl: async () => new Response('no', { status: 500 }) }), /slack-webhook-failed: HTTP 500/);
   await assert.rejects(postSlack({ webhookUrl: '', text: 'hi' }), /slack-webhook-missing/);
+});
+
+// ---------------------------------------------------------------------------
+// B4 with the real store: DB current revs drive own/superseded classification.
+// ---------------------------------------------------------------------------
+import { fileURLToPath } from 'node:url';
+import * as store from '../../scripts/content/store.mjs';
+import { submitContent } from '../../scripts/content/submit.mjs';
+import { adminContent, deployContent } from '../../scripts/content/deploy.mjs';
+import { baselineFile, FAST_SMOKE, localSite, seededDb, seedRecords, tempJson } from './fixtures/content-db.mjs';
+
+const REPO = fileURLToPath(new URL('../../', import.meta.url));
+const SEEDED = seedRecords().businesses;
+const PASS_SCRIPT = tempJson({ reviews: [{ overall: 9, findings: [] }] }, 'pass.json');
+const { gateContent } = await import('../../scripts/content/gate.mjs');
+
+async function publishEdit(db, site, record, key) {
+  const { result } = await submitContent(db, { kind: 'manual', idempotencyKey: key, actor: 'uat:test', recordFile: tempJson(record), dataset: 'businesses', baseline: await baselineFile(db) }, { checkout: REPO });
+  return { id: result.submissionId, gate: await gateContent(db, { submission: result.submissionId, script: PASS_SCRIPT, actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE }, checkout: REPO }) };
+}
+
+async function realStore(fn) {
+  const handle = await seededDb();
+  const site = await localSite(handle.db);
+  await site.build();
+  try { await fn(handle.db, site); } finally { await site.close(); await handle.close(); }
+}
+const deploy = (db, site) => deployContent(db, { actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE } });
+const itemSmoke = async (db, id) => (await store.getSubmission(db, id)).items[0].smoke;
+
+test('real store: a still-pending successor keeps A waiting (exit 3, never compensated), then both resolve', async () => {
+  await realStore(async (db, site) => {
+    const biz = SEEDED[4];
+    site.state.hook = 'accept'; // hook accepted, no build lands
+    const a = await publishEdit(db, site, { ...biz, proTip: 'Version A.' }, 'pend-a');
+    assert.equal(a.gate.exitCode, 3);
+    await site.build(); // the build that contains A
+    const b = await publishEdit(db, site, { ...biz, proTip: 'Version B.' }, 'pend-b');
+    assert.equal(b.gate.exitCode, 3);
+    const waiting = await deploy(db, site);
+    assert.equal(waiting.exitCode, 3, JSON.stringify(waiting.result));
+    assert.deepEqual(waiting.result.submissions.map((entry) => entry.smoke), ['pending', 'pending']);
+    assert.equal((await store.getSubmission(db, a.id)).submission.state, 'published', 'A is never compensated');
+    site.state.hook = 'build';
+    const done = await deploy(db, site);
+    assert.equal(done.exitCode, 0, JSON.stringify(done.result));
+    assert.deepEqual([await itemSmoke(db, a.id), await itemSmoke(db, b.id)], ['superseded', 'passed']);
+  });
+});
+
+test('real store: an unpublish successor resolves A as superseded; the admin item smokes absent', async () => {
+  await realStore(async (db, site) => {
+    site.state.hook = 'accept';
+    const a = await publishEdit(db, site, { ...SEEDED[0], slug: 'short-lived', name: 'Short Lived' }, 'short');
+    assert.equal(a.gate.exitCode, 3);
+    site.state.hook = 'build';
+    const unpublish = await adminContent(db, { op: 'unpublish', dataset: 'businesses', key: 'short-lived', reason: 'uat', idempotencyKey: 'u-short', actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE } });
+    assert.equal(unpublish.exitCode, 0, JSON.stringify(unpublish.result));
+    const done = await deploy(db, site);
+    assert.equal(done.exitCode, 0, JSON.stringify(done.result));
+    assert.equal(await itemSmoke(db, a.id), 'superseded');
+    assert.equal(await itemSmoke(db, unpublish.result.submissionId), 'passed');
+    assert.equal((await fetch(`${site.origin}/directory/short-lived`)).status, 404);
+  });
+});
+
+test('real store: independent keys in one build; content deploy replays every pending submission with one hook POST', async () => {
+  await realStore(async (db, site) => {
+    site.state.hook = 'accept';
+    const one = await publishEdit(db, site, { ...SEEDED[1], proTip: 'Independent one.' }, 'ind-1');
+    const two = await publishEdit(db, site, { ...SEEDED[2], proTip: 'Independent two.' }, 'ind-2');
+    assert.deepEqual([one.gate.exitCode, two.gate.exitCode], [3, 3]);
+    const posts = site.state.hookPosts;
+    site.state.hook = 'build';
+    const done = await deploy(db, site);
+    assert.equal(done.exitCode, 0, JSON.stringify(done.result));
+    assert.equal(site.state.hookPosts, posts + 1, 'one hook POST for the whole replay');
+    assert.equal(site.state.builds, 2);
+    assert.deepEqual(done.result.submissions.map((entry) => [entry.id, entry.smoke]), [[one.id, 'passed'], [two.id, 'passed']]);
+    assert.deepEqual([await itemSmoke(db, one.id), await itemSmoke(db, two.id)], ['passed', 'passed']);
+    assert.deepEqual(await store.listPending(db, { target: 'test' }), []);
+    assert.equal(site.state.slack.filter((text) => text.includes(`(#${one.id},`)).length, 1);
+  });
 });
