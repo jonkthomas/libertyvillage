@@ -51,6 +51,9 @@ export async function seed(db, sourceArgs, { apply = false, prune = false, actor
     const prior = (await c.query('select live_seq from content.submissions where idempotency_key=$1', [idem])).rows[0];
     if (prior) return { existing:true, liveSeq:Number(prior.live_seq) };
     for (const d of [...SITE_DATASETS].sort()) await c.query("select pg_advisory_xact_lock(hashtext('content:' || $1))", [d]);
+    // Admin unpublish and compensation retain the old position. Only live rows
+    // occupy source ordering; free those slots before reconciliation moves rows.
+    for (const d of SITE_DATASETS) await c.query('update content.entries set position=null where dataset=$1 and live_rev is null and position is not null', [d]);
     const refused = [];
     let changed = false;
     const actionRows = [];

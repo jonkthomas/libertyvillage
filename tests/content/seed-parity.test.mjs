@@ -6,7 +6,7 @@ import path from 'node:path';
 import { ALL } from '../../scripts/content/canonical.mjs';
 import { seed } from '../../scripts/content/seed.mjs';
 import { deployContent } from '../../scripts/content/deploy.mjs';
-import { listPending, releaseClaim } from '../../scripts/content/store.mjs';
+import { adminAction, listPending, readLive, releaseClaim } from '../../scripts/content/store.mjs';
 import { verifyParity } from '../../scripts/content/parity.mjs';
 import { testDb } from './helpers/db.mjs';
 import { FAST_SMOKE, localSite, publishDirect, seedRecords } from './fixtures/content-db.mjs';
@@ -64,4 +64,26 @@ test('real seed is complete for deployment recovery; one failed notice does not 
     assert.deepEqual(await listPending(db), [first.submissionId]);
     assert.equal(notices, 2);
   } finally { await site.close(); await close(); }
+});
+
+test('reconcile clears an unpublished extra entry position before reusing the source range', async () => {
+  const { db, close } = await testDb();
+  const root = await mkdtemp(path.join(tmpdir(), 'lv-seed-position-'));
+  try {
+    await mkdir(path.join(root, 'data'));
+    for (const dataset of ALL) await copyFile(path.join(repo, 'data', `${dataset}.json`), path.join(root, 'data', `${dataset}.json`));
+    const file = path.join(root, 'data/businesses.json');
+    const businesses = JSON.parse(await readFile(file));
+    const extra = { ...businesses[0], slug: 'seed-position-extra', name: 'Seed position extra' };
+    businesses.splice(1, 0, extra);
+    await writeFile(file, JSON.stringify(businesses));
+    await seed(db, { from: root }, { apply: true, actor: 'test:seed' });
+    const unpublished = await adminAction(db, { op: 'unpublish', dataset: 'businesses', key: extra.slug,
+      actor: 'test:admin', owner: 'test:admin', reason: 'remove extra', idempotencyKey: 'seed-position-unpublish' });
+    await releaseClaim(db, unpublished.submissionId, unpublished.token);
+    const replay = await seed(db, { from: repo }, { apply: true, actor: 'test:seed' });
+    assert.equal(replay.refused.length, 0);
+    assert.equal((await readLive(db, { datasets: ['businesses'] })).datasets.businesses.count, businesses.length - 1);
+    assert.equal((await db.query('select live_rev,position from content.entries where dataset=$1 and key=$2', ['businesses', extra.slug])).rows[0].position, null);
+  } finally { await rm(root, { recursive: true, force: true }); await close(); }
 });
