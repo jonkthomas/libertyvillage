@@ -111,6 +111,13 @@ export function copyGenerated(scratch, trusted, job, paths = changedPaths(scratc
   return paths;
 }
 
+export function acceptGeneratedOutput(scratch, trusted, job, paths, exportedPosts) {
+  // Validate type, symlinks and aggregate bytes before any untrusted JSON read.
+  const changed = copyGenerated(scratch, trusted, job, paths);
+  if (job === 'weekly-blog' && !hasOneNewBlogPost(exportedPosts, readJson(path.join(trusted, 'data', 'posts.json')))) throw new Error('blog generated no post');
+  return changed;
+}
+
 export function selectTopic(queue, state, target) {
   const entries = Array.isArray(queue?.topics) ? queue.topics : [];
   return entries.find((topic) => topic.kind === 'blog' && typeof topic.title === 'string' && typeof topic.key === 'string' && topic.title.trim() && (state[target]?.[topic.key]?.attempts ?? 0) < 3 && !state[target]?.[topic.key]?.consumed && !state[target]?.[topic.key]?.pendingSlot) ?? null;
@@ -275,12 +282,12 @@ function generator(job, slot, topic, dryRun, log) {
   const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
   if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
   const paths = generatedPathsForTransfer(changedPaths(scratch, repo));
-  if (job === 'weekly-blog' && (!paths.includes('data/posts.json') || !hasOneNewBlogPost(exportedPosts, readJson(path.join(scratch, 'data', 'posts.json'))))) throw new Error('blog generated no post');
+  if (job === 'weekly-blog' && !paths.includes('data/posts.json')) throw new Error('blog generated no post');
   if (job === 'seo-improvements' && paths.some((rel) => !allowedGeneratedPath(rel, job))) {
     logLine(log, 'seo-code-suggestion', { paths: paths.filter((rel) => !allowedGeneratedPath(rel, job)).slice(0, 20) });
     throw new Error('SEO code suggestion; human PR required');
   }
-  const changed = copyGenerated(scratch, repo, job, paths);
+  const changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts);
   logLine(log, 'generator-output-accepted', { paths: changed.length });
   fs.rmSync(scratch, { recursive: true, force: true });
   return changed;

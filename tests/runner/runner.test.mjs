@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, readScratchHead, selectTopic, recordTopic, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, readScratchHead, selectTopic, recordTopic, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -144,6 +144,28 @@ test('scratch code poisoning cannot cross into trusted CLI', (t) => {
   assert.deepEqual(copyGenerated(scratch, trusted, 'weekly-blog', transfer), ['data/posts.json']);
   assert.equal(fs.existsSync(path.join(trusted, 'tasks/seo-data-latest.json')), false);
   assert.deepEqual(generatedPathsForTransfer(['scripts/content/cli.mjs', 'tasks/seo-data-latest.json']), ['scripts/content/cli.mjs']);
+});
+
+test('blog acceptance refuses generator FIFO before reading any post JSON', (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-blog-fifo-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const scratch = path.join(temp, 'scratch');
+  const trusted = path.join(temp, 'trusted');
+  for (const root of [scratch, trusted]) fs.mkdirSync(path.join(root, 'data'), { recursive: true });
+  const baseline = [{ slug: 'already-in-db' }];
+  fs.writeFileSync(path.join(trusted, 'data/posts.json'), JSON.stringify(baseline));
+  const fifo = path.join(scratch, 'data/posts.json');
+  const created = spawnSync('mkfifo', [fifo], { encoding: 'utf8' });
+  assert.equal(created.status, 0, created.stderr);
+  const runnerUrl = new URL('../../ops/exedev-runner/runner.mjs', import.meta.url).href;
+  // A regression to reading scratch before copyGenerated must time out, not
+  // hang the test process (or a privileged staging worker) indefinitely.
+  const probe = spawnSync(process.execPath, ['--input-type=module', '-e', `import { acceptGeneratedOutput } from ${JSON.stringify(runnerUrl)}; try { acceptGeneratedOutput(${JSON.stringify(scratch)}, ${JSON.stringify(trusted)}, 'weekly-blog', ['data/posts.json'], [{slug:'already-in-db'}]); process.exit(9); } catch (error) { console.log(error.message); }`], { encoding: 'utf8', timeout: 2000 });
+  assert.equal(probe.error, undefined, 'generator FIFO must never block trusted read');
+  assert.equal(probe.status, 0, probe.stderr);
+  assert.match(probe.stdout, /scratch output is not a regular file/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(trusted, 'data/posts.json'), 'utf8')), baseline);
+  assert.equal(typeof acceptGeneratedOutput, 'function');
 });
 
 test('generator environment is limited and push has an invalid destination', () => {
