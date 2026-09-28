@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly blog UTC schedule
+
+[Timer]
+OnCalendar=Sun,Wed *-*-* 11:00:00 UTC
+Persistent=true
+Unit=lv-runner@weekly-blog:production:scheduled.service
+
+[Install]
+WantedBy=timers.target

@@ -3,15 +3,13 @@ name: News Discovery (human review queue)
 # Shadow-mode discovery only. Builds a human review queue; never publishes,
 # never writes data/posts.json, never opens a PR, never merges.
 #
-# Cadence: daily. Most days the expected outcome is zero publish-worthy
-# candidates ("most days publish nothing"). Daily is enough to catch civic/
-# development stories without over-polling paid search APIs. Manual runs
-# remain available via workflow_dispatch.
+# Cadence: manual (r7 retirement removed the daily schedule). Most days the
+# expected outcome is zero publish-worthy candidates ("most days publish
+# nothing"). Runs remain available via workflow_dispatch.
 
+# r7 retirement: manual-only. Schedule removed; run via workflow_dispatch.
+# The manual news-discovery → news-draft artifact path is unchanged.
 on:
-  schedule:
-    # 12:17 UTC daily — off the hour to reduce shared-runner contention.
-    - cron: "17 12 * * *"
   workflow_dispatch:
     inputs:
       since_hours:
