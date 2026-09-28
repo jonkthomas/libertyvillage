@@ -12,7 +12,13 @@
     "hours": "Mon-Fri 11:30am-10pm, Sat-Sun 10am-3pm (brunch), 5pm-10pm",
     "phone": "(416) 588-5695",
     "website": "https://www.mildreds.ca",
-    "tags": ["brunch", "canadian", "date-night", "patio", "weekend-brunch"],
+    "tags": [
+      "brunch",
+      "canadian",
+      "date-night",
+      "patio",
+      "weekend-brunch"
+    ],
     "featured": true,
     "proTip": "The Saturday brunch gets packed by 10:30am — arrive early or put your name in and grab a coffee at Balzac's while you wait.",
     "image": "/images/businesses/mildreds-temple-kitchen.jpg",
@@ -23,7 +29,9 @@
       "out-of-town guests you want to impress",
       "date night with elevated comfort food"
     ],
-    "categories": ["patios"]
+    "categories": [
+      "patios"
+    ]
   },
   {
     "slug": "nodo-liberty-village",
@@ -38,7 +46,13 @@
     "hours": "Mon-Thu 11:30am-10pm, Fri-Sat 11:30am-11pm, Sun 11:30am-9pm",
     "phone": "(416) 535-6636",
     "website": "https://www.nodorestaurant.com",
-    "tags": ["italian", "pizza", "pasta", "wood-fired", "date-night"],
+    "tags": [
+      "italian",
+      "pizza",
+      "pasta",
+      "wood-fired",
+      "date-night"
+    ],
     "featured": true,
     "proTip": "Ask for the burrata appetizer — it's not always on the menu but they almost always have it, and it pairs perfectly with a glass of their Montepulciano.",
     "image": "/images/businesses/nodo-liberty-village.jpg",
@@ -49,7 +63,9 @@
       "family-friendly Italian dinner",
       "group dinner where everyone shares"
     ],
-    "categories": ["wine-bars"]
+    "categories": [
+      "wine-bars"
+    ]
   },
   {
     "slug": "chiang-mai-thai",
@@ -64,7 +80,13 @@
     "hours": "Mon-Fri 11am-10pm, Sat-Sun 12pm-10pm",
     "phone": "(416) 531-7373",
     "website": "",
-    "tags": ["thai", "lunch-special", "takeout", "affordable", "delivery"],
+    "tags": [
+      "thai",
+      "lunch-special",
+      "takeout",
+      "affordable",
+      "delivery"
+    ],
     "featured": false,
     "proTip": "The weekday lunch combo is the best value meal in Liberty Village — generous portions of curry, rice, spring roll, and soup for under $15.",
     "image": "/images/businesses/chiang-mai-thai.jpg",
@@ -89,7 +111,13 @@
     "hours": "Mon-Sun 11:30am-9pm",
     "phone": "(647) 350-5050",
     "website": "https://www.burgerdrops.com",
-    "tags": ["burgers", "smash-burgers", "fries", "milkshakes", "quick-bite"],
+    "tags": [
+      "burgers",
+      "smash-burgers",
+      "fries",
+      "milkshakes",
+      "quick-bite"
+    ],
     "featured": true,
     "proTip": "Order the double smash with cheese and add their garlic aioli fries — it's the definitive Burger Drops experience.",
     "image": "/images/businesses/burger-drops.jpg",
@@ -114,7 +142,13 @@
     "hours": "Mon-Fri 8am-8pm, Sat-Sun 9am-5pm",
     "phone": "(416) 855-0208",
     "website": "https://www.impactkitchen.ca",
-    "tags": ["healthy", "bowls", "protein", "meal-prep", "juice-bar"],
+    "tags": [
+      "healthy",
+      "bowls",
+      "protein",
+      "meal-prep",
+      "juice-bar"
+    ],
     "featured": true,
     "proTip": "Their weekly meal prep packages are a lifesaver if you work from home — order by Wednesday for Monday delivery and save 15% over individual orders.",
     "image": "/images/businesses/impact-kitchen.jpg",
@@ -139,7 +173,13 @@
     "hours": "Mon-Wed 11am-12am, Thu-Fri 11am-1am, Sat 10am-1am, Sun 10am-11pm",
     "phone": "(416) 588-7288",
     "website": "https://www.localpubliceatery.com",
-    "tags": ["pub-food", "sports-bar", "patio", "craft-beer", "brunch"],
+    "tags": [
+      "pub-food",
+      "sports-bar",
+      "patio",
+      "craft-beer",
+      "brunch"
+    ],
     "featured": true,
     "proTip": "Their daily happy hour from 3-6pm has $7 appetizers and $2 off all draft beers — the best deal for after-work drinks in the neighbourhood.",
     "image": "/images/businesses/local-public-eatery.jpg",
@@ -150,7 +190,9 @@
       "weekend brunch with a Caesar bar",
       "casual group dinner where nobody has to decide on a cuisine"
     ],
-    "categories": ["patios"]
+    "categories": [
+      "patios"
+    ]
   },
   {
     "slug": "school-restaurant",
@@ -182,7 +224,9 @@
       "weekend brunch in a one-of-a-kind space",
       "cocktail-forward evening with inventive drinks"
     ],
-    "categories": ["patios"]
+    "categories": [
+      "patios"
+    ]
   },
   {
     "slug": "oeb-breakfast-co",
@@ -228,7 +272,13 @@
     "hours": "Mon-Sun 11am-2am",
     "phone": "(416) 535-8787",
     "website": "https://www.brazenheadpub.ca",
-    "tags": ["irish-pub", "patio", "trivia", "live-music", "beer"],
+    "tags": [
+      "irish-pub",
+      "patio",
+      "trivia",
+      "live-music",
+      "beer"
+    ],
     "featured": true,
     "proTip": "Wednesday trivia night is the best free entertainment in the neighbourhood — get there by 7pm to claim a good table because teams start forming early.",
     "image": "/images/businesses/brazen-head-irish-pub.jpg",
@@ -239,7 +289,9 @@
       "watching a Premier League match with a Guinness",
       "casual first date at a neighbourhood pub"
     ],
-    "categories": ["patios"]
+    "categories": [
+      "patios"
+    ]
   },
   {
     "slug": "moxies-liberty-village",
@@ -254,7 +306,13 @@
     "hours": "Mon-Thu 11am-11pm, Fri-Sat 11am-12am, Sun 11am-10pm",
     "phone": "(416) 625-5252",
     "website": "https://www.moxies.com",
-    "tags": ["casual-dining", "steaks", "group-dining", "cocktails", "patio"],
+    "tags": [
+      "casual-dining",
+      "steaks",
+      "group-dining",
+      "cocktails",
+      "patio"
+    ],
     "featured": false,
     "proTip": "Their late-night menu kicks in after 9pm with half-price appetizers — great for a post-movie bite if you've been to the nearby cinema.",
     "image": "/images/businesses/moxies-liberty-village.jpg",
@@ -310,7 +368,13 @@
     "hours": "Mon-Wed 11:30am-11pm, Thu-Fri 11:30am-12am, Sat 11am-12am, Sun 11am-10pm",
     "phone": "(416) 792-2337",
     "website": "https://www.libertycommons.ca",
-    "tags": ["brewery", "craft-beer", "beer-hall", "pizza", "group-friendly"],
+    "tags": [
+      "brewery",
+      "craft-beer",
+      "beer-hall",
+      "pizza",
+      "group-friendly"
+    ],
     "featured": true,
     "proTip": "Ask your server about the brewer's small-batch — they always have an experimental beer on tap that's not listed on the main menu.",
     "image": "/images/businesses/liberty-commons-big-rock-brewery.jpg",
@@ -335,7 +399,13 @@
     "hours": "Mon-Wed 11:30am-11pm, Thu-Fri 11:30am-1am, Sat 11am-1am, Sun 11am-10pm",
     "phone": "(416) 535-2337",
     "website": "https://www.craftbeermarket.ca",
-    "tags": ["craft-beer", "100-taps", "patio", "sharing-plates", "sports"],
+    "tags": [
+      "craft-beer",
+      "100-taps",
+      "patio",
+      "sharing-plates",
+      "sports"
+    ],
     "featured": true,
     "proTip": "Grab a seat on the upper mezzanine during Leafs games — you get the atmosphere of a packed bar with more breathing room and a better view of the screens.",
     "image": "/images/businesses/craft-beer-market-liberty-village.jpg",
@@ -360,7 +430,13 @@
     "hours": "Mon-Thu 11:30am-10pm, Fri-Sat 11:30am-11pm, Sun 11:30am-9pm",
     "phone": "(416) 532-8000",
     "website": "https://www.pizzalibretto.com",
-    "tags": ["pizza", "neapolitan", "wood-fired", "italian", "casual"],
+    "tags": [
+      "pizza",
+      "neapolitan",
+      "wood-fired",
+      "italian",
+      "casual"
+    ],
     "featured": true,
     "proTip": "The Nduja pizza isn't always on the regular menu but ask if they have it — the spicy spreadable salami with honey is an absolute flavour bomb.",
     "image": "/images/businesses/pizza-libretto-liberty-village.jpg",
@@ -385,7 +461,13 @@
     "hours": "Mon-Thu 11:30am-10pm, Fri-Sat 11:30am-10:30pm, Sun 11:30am-9:30pm",
     "phone": "(416) 536-3886",
     "website": "https://www.painorthern.com",
-    "tags": ["thai", "khao-soi", "northern-thai", "curry", "popular"],
+    "tags": [
+      "thai",
+      "khao-soi",
+      "northern-thai",
+      "curry",
+      "popular"
+    ],
     "featured": true,
     "proTip": "Order the Khao Soi with crispy egg noodles on the side — you can add them gradually to keep them crunchy throughout the meal.",
     "image": "/images/businesses/pai-northern-thai.jpg",
@@ -410,7 +492,13 @@
     "hours": "Mon-Wed 4pm-11pm, Thu-Fri 12pm-12am, Sat 11am-12am, Sun 11am-10pm",
     "phone": "(416) 535-1135",
     "website": "https://www.cibowinebar.com",
-    "tags": ["italian", "wine-bar", "date-night", "pasta", "happy-hour"],
+    "tags": [
+      "italian",
+      "wine-bar",
+      "date-night",
+      "pasta",
+      "happy-hour"
+    ],
     "featured": false,
     "proTip": "Their Aperitivo hour from 4-6pm on weekdays offers half-price appetizers and $10 cocktails — it's essentially a discounted dinner if you order enough small plates.",
     "image": "/images/businesses/cibo-liberty-village.jpg",
@@ -466,7 +554,13 @@
     "hours": "Mon-Fri 7am-5pm, Sat-Sun 8am-4pm",
     "phone": "(647) 748-1300",
     "website": "",
-    "tags": ["coffee", "espresso", "single-origin", "quick-stop", "latte-art"],
+    "tags": [
+      "coffee",
+      "espresso",
+      "single-origin",
+      "quick-stop",
+      "latte-art"
+    ],
     "featured": false,
     "proTip": "Try whatever their current seasonal latte is — they change it monthly and it's always more interesting than the standard menu options.",
     "image": "/images/businesses/louie-coffee-bar.jpg",
@@ -553,7 +647,13 @@
     "hours": "Mon-Fri 7am-6pm, Sat-Sun 8am-5pm",
     "phone": "(416) 535-0754",
     "website": "https://www.jimmyscoffee.ca",
-    "tags": ["coffee", "independent", "cookies", "cozy", "local-roaster"],
+    "tags": [
+      "coffee",
+      "independent",
+      "cookies",
+      "cozy",
+      "local-roaster"
+    ],
     "featured": false,
     "proTip": "Their peanut butter cookie is legitimately one of the best cookies in Toronto — get one before noon because they sell out on most days.",
     "image": "/images/businesses/jimmys-coffee-liberty-village.jpg",
@@ -578,7 +678,13 @@
     "hours": "Mon-Fri 5am-11pm, Sat-Sun 7am-9pm",
     "phone": "(416) 536-3600",
     "website": "https://www.goodlifefitness.com",
-    "tags": ["gym", "weights", "cardio", "group-classes", "personal-training"],
+    "tags": [
+      "gym",
+      "weights",
+      "cardio",
+      "group-classes",
+      "personal-training"
+    ],
     "featured": false,
     "proTip": "Avoid the 5:30-7:30pm rush when every bench and squat rack is taken — the 6am opening or the 8:30pm window are the sweet spots for actually getting a workout in.",
     "image": "/images/businesses/goodlife-fitness-liberty-village.jpg",
@@ -634,7 +740,13 @@
     "hours": "Mon-Fri 5:30am-10pm, Sat-Sun 7am-8pm",
     "phone": "(416) 531-4444",
     "website": "https://www.alteaactive.com",
-    "tags": ["premium-gym", "pool", "spa", "hot-yoga", "wellness"],
+    "tags": [
+      "premium-gym",
+      "pool",
+      "spa",
+      "hot-yoga",
+      "wellness"
+    ],
     "featured": true,
     "proTip": "The rooftop pool area is almost empty during weekday mornings — you'll feel like you have a private resort in the middle of Liberty Village.",
     "image": "/images/businesses/altea-active.jpg",
@@ -645,7 +757,9 @@
       "weekday morning rooftop pool lap session",
       "treating fitness as self-care, not just exercise"
     ],
-    "categories": ["spas"]
+    "categories": [
+      "spas"
+    ]
   },
   {
     "slug": "orangetheory-fitness-liberty-village",
@@ -691,7 +805,13 @@
     "hours": "Mon-Fri 6am-8pm, Sat-Sun 8am-1pm",
     "phone": "(416) 792-5300",
     "website": "https://www.studiolagree.com",
-    "tags": ["pilates", "lagree", "megaformer", "low-impact", "strength"],
+    "tags": [
+      "pilates",
+      "lagree",
+      "megaformer",
+      "low-impact",
+      "strength"
+    ],
     "featured": false,
     "proTip": "Wear grippy socks — they're required and the studio sells them, but you'll save money by ordering a pair of Toesox online before your first class.",
     "image": "/images/businesses/studio-lagree-liberty-village.jpg",
@@ -747,7 +867,13 @@
     "hours": "Mon-Fri 10am-8pm, Sat 9am-6pm, Sun 10am-5pm",
     "phone": "(647) 748-2297",
     "website": "https://www.bazandbanks.com",
-    "tags": ["barbershop", "fades", "beard-trim", "hot-shave", "mens-grooming"],
+    "tags": [
+      "barbershop",
+      "fades",
+      "beard-trim",
+      "hot-shave",
+      "mens-grooming"
+    ],
     "featured": false,
     "proTip": "Book with one barber and stick with them — they'll remember your cut preferences and you'll save time explaining every visit.",
     "image": "/images/businesses/baz-and-banks-barber.jpg",
@@ -772,7 +898,13 @@
     "hours": "Mon-Sat 10am-7pm, Sun 11am-5pm",
     "phone": "(416) 792-7755",
     "website": "",
-    "tags": ["nails", "manicure", "pedicure", "gel-nails", "walk-in"],
+    "tags": [
+      "nails",
+      "manicure",
+      "pedicure",
+      "gel-nails",
+      "walk-in"
+    ],
     "featured": false,
     "proTip": "Tuesday is the quietest day — you'll get in without a wait and the technicians can take their time instead of rushing between clients.",
     "image": "/images/businesses/tips-and-toes-nail-salon.jpg",
@@ -797,7 +929,13 @@
     "hours": "Mon-Fri 8am-7pm, Sat 9am-3pm, Sun Closed",
     "phone": "(416) 792-2722",
     "website": "https://www.libertyvillagevet.com",
-    "tags": ["veterinarian", "dog", "cat", "vaccinations", "dental"],
+    "tags": [
+      "veterinarian",
+      "dog",
+      "cat",
+      "vaccinations",
+      "dental"
+    ],
     "featured": true,
     "proTip": "Book your annual check-up and vaccinations in January or February when the schedule is lighter — spring and summer appointments can be weeks out.",
     "image": "/images/businesses/liberty-village-animal-hospital.jpg",
@@ -1008,7 +1146,13 @@
     "hours": "Mon-Fri 8am-10pm, Sat 10am-6pm",
     "phone": "(647) 362-1800",
     "website": "",
-    "tags": ["coworking", "startup", "creative", "community", "events"],
+    "tags": [
+      "coworking",
+      "startup",
+      "creative",
+      "community",
+      "events"
+    ],
     "featured": false,
     "proTip": "Attend one of their monthly community dinners before you sign up — you'll get a real feel for the people and decide if the vibe matches your work style.",
     "image": "/images/businesses/the-fueling-station.jpg",
@@ -1033,7 +1177,13 @@
     "hours": "Mon-Fri 7am-9pm (members: 24/7 access)",
     "phone": "(416) 792-5500",
     "website": "https://www.wework.com",
-    "tags": ["coworking", "private-offices", "startup", "tech", "craft-beer"],
+    "tags": [
+      "coworking",
+      "private-offices",
+      "startup",
+      "tech",
+      "craft-beer"
+    ],
     "featured": false,
     "proTip": "The top floor common area is the least crowded and has the best natural light — most people default to the ground floor and miss the best workspace in the building.",
     "image": "/images/businesses/wework-liberty-village.jpg",
@@ -1058,7 +1208,13 @@
     "hours": "Mon-Sun 8am-10pm",
     "phone": "(416) 792-0092",
     "website": "https://www.freshco.com",
-    "tags": ["grocery", "affordable", "produce", "essentials", "convenient"],
+    "tags": [
+      "grocery",
+      "affordable",
+      "produce",
+      "essentials",
+      "convenient"
+    ],
     "featured": false,
     "proTip": "Shop before 10am on weekdays to avoid the cramped aisles — this store serves the entire neighbourhood and it shows during peak hours.",
     "image": "/images/businesses/freshco-liberty-village.jpg",
@@ -1114,7 +1270,13 @@
     "hours": "Mon-Fri 7am-7pm, Sat 9am-5pm",
     "phone": "(416) 531-2233",
     "website": "",
-    "tags": ["dry-cleaning", "alterations", "same-day", "delivery", "suits"],
+    "tags": [
+      "dry-cleaning",
+      "alterations",
+      "same-day",
+      "delivery",
+      "suits"
+    ],
     "featured": false,
     "proTip": "Set up a weekly pickup and delivery schedule if you wear dress shirts to work — they offer a 15% discount on recurring orders.",
     "image": "/images/businesses/king-west-dry-cleaners.jpg",
@@ -1139,7 +1301,13 @@
     "hours": "Mon-Fri 6:30am-9pm, Sat-Sun 8am-6pm",
     "phone": "(416) 792-9642",
     "website": "https://www.yogatree.ca",
-    "tags": ["yoga", "vinyasa", "hot-yoga", "restorative", "meditation"],
+    "tags": [
+      "yoga",
+      "vinyasa",
+      "hot-yoga",
+      "restorative",
+      "meditation"
+    ],
     "featured": false,
     "proTip": "The Sunday evening restorative class is the most underrated class on the schedule — it's never crowded and it's the perfect reset before the work week.",
     "image": "/images/businesses/yoga-tree-liberty-village.jpg",
@@ -1226,7 +1394,13 @@
     "hours": "Mon-Fri 9:30am-5pm, Sat 10am-3pm",
     "phone": "(416) 792-6700",
     "website": "https://www.scotiabank.com",
-    "tags": ["bank", "atm", "mortgage", "personal-banking", "investments"],
+    "tags": [
+      "bank",
+      "atm",
+      "mortgage",
+      "personal-banking",
+      "investments"
+    ],
     "featured": false,
     "proTip": "Skip the branch entirely for routine transactions — their app handles almost everything, and save in-person visits for mortgage or investment consultations.",
     "image": "/images/businesses/scotiabank-liberty-village.jpg",
@@ -1251,7 +1425,13 @@
     "hours": "Mon-Fri 5am-11pm, Sat-Sun 7am-9pm",
     "phone": "(416) 792-4444",
     "website": "https://www.movati.ca",
-    "tags": ["gym", "pool", "hot-yoga", "group-fitness", "athletic-club"],
+    "tags": [
+      "gym",
+      "pool",
+      "hot-yoga",
+      "group-fitness",
+      "athletic-club"
+    ],
     "featured": false,
     "proTip": "The saltwater pool is almost empty between 1-3pm on weekdays — lane swimmers will get uninterrupted laps during this window.",
     "image": "/images/businesses/movati-athletic-liberty-village.jpg",
@@ -1369,7 +1549,13 @@
     "hours": "Mon-Fri 8am-6pm, Sat 9am-5pm, Sun 10am-4pm",
     "phone": "(416) 792-0222",
     "website": "https://www.sweetflour.ca",
-    "tags": ["bakery", "butter-tarts", "custom-cakes", "pies", "from-scratch"],
+    "tags": [
+      "bakery",
+      "butter-tarts",
+      "custom-cakes",
+      "pies",
+      "from-scratch"
+    ],
     "featured": true,
     "proTip": "Order your Thanksgiving and Christmas pies at least two weeks in advance — they cap their orders and sell out every single year without fail.",
     "image": "/images/businesses/sweet-flour-bake-shop.jpg",
@@ -1394,7 +1580,13 @@
     "hours": "Mon-Fri 6am-8pm, Sat-Sun 8am-12pm",
     "phone": "(416) 792-7746",
     "website": "https://www.spinco.ca",
-    "tags": ["spin", "cycling", "cardio", "music", "leaderboard"],
+    "tags": [
+      "spin",
+      "cycling",
+      "cardio",
+      "music",
+      "leaderboard"
+    ],
     "featured": false,
     "proTip": "Bike 3 and Bike 17 have the smoothest resistance dials — regulars know this and book them first, so snag one early if you want the best ride.",
     "image": "/images/businesses/studio-spin-liberty-village.jpg",
@@ -1419,7 +1611,13 @@
     "hours": "Wed-Fri 3pm-11pm, Sat 12pm-11pm, Sun 12pm-9pm",
     "phone": "(647) 346-5001",
     "website": "https://www.leftfieldbrewery.ca",
-    "tags": ["brewery", "craft-beer", "taproom", "patio", "local"],
+    "tags": [
+      "brewery",
+      "craft-beer",
+      "taproom",
+      "patio",
+      "local"
+    ],
     "featured": true,
     "proTip": "Grab a seat on the patio early on Saturday and order a flight — the four-pour sampler lets you try their seasonals without committing to a full pint of something adventurous.",
     "image": "/images/businesses/left-field-brewery.jpg",
@@ -1444,7 +1642,13 @@
     "hours": "Mon-Fri 9am-6pm, Sat 10am-5pm",
     "phone": "(647) 352-5656",
     "website": "https://www.tonicblooms.com",
-    "tags": ["florist", "bouquets", "wedding-flowers", "seasonal", "delivery"],
+    "tags": [
+      "florist",
+      "bouquets",
+      "wedding-flowers",
+      "seasonal",
+      "delivery"
+    ],
     "featured": false,
     "proTip": "Subscribe to their weekly flower delivery for your home — it's cheaper per arrangement than buying individual bouquets and you'll always have fresh flowers.",
     "image": "/images/businesses/florist-liberty-village.jpg",
@@ -1500,7 +1704,13 @@
     "hours": "Mon-Fri 9:30am-5pm, Sat 10am-3pm",
     "phone": "(416) 792-6800",
     "website": "https://www.rbc.com",
-    "tags": ["bank", "mortgage", "investments", "small-business", "atm"],
+    "tags": [
+      "bank",
+      "mortgage",
+      "investments",
+      "small-business",
+      "atm"
+    ],
     "featured": false,
     "proTip": "Book mortgage appointments for Tuesday or Wednesday mornings — advisors are less rushed and can spend more time finding you the best rate.",
     "image": "/images/businesses/liberty-village-rbc.jpg",
@@ -1525,7 +1735,13 @@
     "hours": "Tue-Fri 10am-8pm, Sat 9am-5pm",
     "phone": "(416) 792-8800",
     "website": "",
-    "tags": ["hair-salon", "balayage", "colour", "extensions", "keratin"],
+    "tags": [
+      "hair-salon",
+      "balayage",
+      "colour",
+      "extensions",
+      "keratin"
+    ],
     "featured": false,
     "proTip": "Ask for a consultation before booking your first colour appointment — the stylists prefer to see your hair in person to give an accurate quote and timeline.",
     "image": "/images/businesses/lavish-hair-studio.jpg",
@@ -1674,7 +1890,13 @@
     "hours": "Mon-Fri 6am-8pm, Sat-Sun 8am-12pm",
     "phone": "(416) 792-2273",
     "website": "https://www.purebarre.com",
-    "tags": ["barre", "low-impact", "strength", "ballet-inspired", "community"],
+    "tags": [
+      "barre",
+      "low-impact",
+      "strength",
+      "ballet-inspired",
+      "community"
+    ],
     "featured": false,
     "proTip": "Take the foundations class first even if you're fit — barre technique is specific and learning the form early will make every subsequent class more effective.",
     "image": "/images/businesses/pure-barre-liberty-village.jpg",
@@ -1730,7 +1952,13 @@
     "hours": "Mon-Fri 9am-8pm, Sat 9am-6pm, Sun 11am-5pm",
     "phone": "(416) 792-4500",
     "website": "https://www.rexall.ca",
-    "tags": ["pharmacy", "prescriptions", "health", "beauty", "convenient"],
+    "tags": [
+      "pharmacy",
+      "prescriptions",
+      "health",
+      "beauty",
+      "convenient"
+    ],
     "featured": false,
     "proTip": "Transfer your prescription here from Shoppers if the wait times there frustrate you — Rexall is consistently less busy and fills prescriptions faster.",
     "image": "/images/businesses/rexall-liberty-village.jpg",
@@ -1755,7 +1983,13 @@
     "hours": "Mon-Fri 7am-6pm",
     "phone": "(416) 792-2525",
     "website": "",
-    "tags": ["daycare", "infant", "toddler", "play-based", "licensed"],
+    "tags": [
+      "daycare",
+      "infant",
+      "toddler",
+      "play-based",
+      "licensed"
+    ],
     "featured": false,
     "proTip": "Get on the waitlist the moment you find out you're expecting — seriously, the wait can be 12-18 months and planning early is the only way to secure a spot.",
     "image": "/images/businesses/liberty-village-daycare.jpg",
@@ -1780,7 +2014,13 @@
     "hours": "Mon-Fri 8am-5pm (events: flexible)",
     "phone": "(647) 748-3278",
     "website": "",
-    "tags": ["catering", "corporate", "events", "custom-menus", "delivery"],
+    "tags": [
+      "catering",
+      "corporate",
+      "events",
+      "custom-menus",
+      "delivery"
+    ],
     "featured": false,
     "proTip": "For office lunches, order by 10am the day before and ask about their weekly rotating menu — it keeps your team fed without menu fatigue.",
     "image": "/images/businesses/caterers-liberty-village.jpg",
@@ -1836,7 +2076,13 @@
     "hours": "Mon-Thu 11:30am-10pm, Fri-Sat 11:30am-10:30pm, Sun 5pm-9:30pm",
     "phone": "(416) 363-6458",
     "website": "https://www.mikutoronto.com",
-    "tags": ["sushi", "japanese", "aburi", "waterfront", "special-occasion"],
+    "tags": [
+      "sushi",
+      "japanese",
+      "aburi",
+      "waterfront",
+      "special-occasion"
+    ],
     "featured": false,
     "proTip": "Order the Aburi Salmon Oshi — it's the dish that made Miku famous and the one thing every first-timer should try before exploring the rest of the menu.",
     "image": "/images/businesses/sushi-liberty-village.jpg",
@@ -1861,7 +2107,13 @@
     "hours": "Mon-Sat 10am-9pm, Sun 12pm-6pm",
     "phone": "(416) 792-6874",
     "website": "",
-    "tags": ["music-lessons", "guitar", "piano", "drums", "voice"],
+    "tags": [
+      "music-lessons",
+      "guitar",
+      "piano",
+      "drums",
+      "voice"
+    ],
     "featured": false,
     "proTip": "Book a trial lesson before committing to a package — instructor fit is everything in music education and you want someone whose teaching style clicks.",
     "image": "/images/businesses/music-lessons-liberty-village.jpg",
@@ -1951,7 +2203,14 @@
     "hours": "Self check-in 3 PM, Check-out 11 AM",
     "phone": "",
     "website": "https://www.airbnb.com/rooms/1576885939846485649",
-    "tags": ["airbnb", "townhouse", "loft", "wifi", "self-check-in", "stylish"],
+    "tags": [
+      "airbnb",
+      "townhouse",
+      "loft",
+      "wifi",
+      "self-check-in",
+      "stylish"
+    ],
     "featured": false,
     "proTip": "The mezzanine layout makes this feel much larger than a typical one-bedroom. Great for couples.",
     "image": "/images/businesses/chic-1br-loft-townhouse-liberty-village.jpg",
@@ -2008,7 +2267,13 @@
     "hours": "Self check-in 4 PM, Check-out 10 AM",
     "phone": "",
     "website": "https://www.airbnb.com/rooms/1233529284737772574",
-    "tags": ["airbnb", "townhouse", "spacious", "family-friendly", "wifi"],
+    "tags": [
+      "airbnb",
+      "townhouse",
+      "spacious",
+      "family-friendly",
+      "wifi"
+    ],
     "featured": false,
     "proTip": "Good option if you're visiting with kids — more space than a typical condo rental and the neighbourhood is very walkable.",
     "image": "/images/businesses/spacious-private-townhouse-loft-lv.jpg",
@@ -2065,7 +2330,13 @@
     "hours": "Self check-in 3 PM, Check-out 11 AM",
     "phone": "",
     "website": "https://www.airbnb.com/rooms/889870893678449185",
-    "tags": ["airbnb", "condo", "affordable", "wifi", "building-amenities"],
+    "tags": [
+      "airbnb",
+      "condo",
+      "affordable",
+      "wifi",
+      "building-amenities"
+    ],
     "featured": false,
     "proTip": "Budget-friendly option that works well for solo travellers. The building gym saves you from needing a day pass elsewhere.",
     "image": "/images/businesses/downtown-toronto-condo-liberty-village.jpg",
@@ -2090,7 +2361,13 @@
     "hours": "Self check-in 4 PM, Check-out 11 AM",
     "phone": "",
     "website": "https://www.airbnb.com/rooms/851453481116182275",
-    "tags": ["airbnb", "apartment", "affordable", "transit-accessible", "wifi"],
+    "tags": [
+      "airbnb",
+      "apartment",
+      "affordable",
+      "transit-accessible",
+      "wifi"
+    ],
     "featured": false,
     "proTip": "Solid no-fuss option if you just need a clean place to sleep and plan to spend most of your time out exploring.",
     "image": "/images/businesses/apartment-in-liberty-village.jpg",
@@ -2115,7 +2392,12 @@
     "hours": "Mon 1:30pm-12am, Tue-Fri 11:30am-2am, Sat 11am-2am, Sun 11am-12am",
     "phone": "(416) 504-3939",
     "website": "https://cibo.menu/kingwest",
-    "tags": ["italian", "wine-bar", "date-night", "king-west"],
+    "tags": [
+      "italian",
+      "wine-bar",
+      "date-night",
+      "king-west"
+    ],
     "featured": true,
     "proTip": "Their weekend brunch is underrated — most people come for dinner, but the daytime atmosphere is more relaxed with the same excellent wine list.",
     "answerBlock": "Cibo Wine Bar on King St W is an award-winning Italian wine bar just a 5-minute walk from Liberty Village. Holding the Ospitalita Italiana seal from the Italian government, Cibo pairs authentic rustic Italian dishes with an extensive wine list in a vibrant King West setting perfect for date nights and celebrations.",
@@ -2140,7 +2422,12 @@
     "hours": "Mon-Sun 3pm-2am",
     "phone": "(416) 533-7745",
     "website": "https://barpiquette.com",
-    "tags": ["natural-wine", "small-plates", "patio", "queen-west"],
+    "tags": [
+      "natural-wine",
+      "small-plates",
+      "patio",
+      "queen-west"
+    ],
     "featured": true,
     "proTip": "Ask for the mortadella sandwich — it's legendary among regulars and pairs perfectly with whatever the staff recommends from the chalkboard.",
     "answerBlock": "Bar Piquette on Queen St W is a top-rated wine bar with a 4.7 rating, just a 10-minute walk from Liberty Village. The regularly rotating chalkboard menu features natural wines paired with European-inspired small plates, served by genuinely knowledgeable staff in a warm space with a sunroom patio.",
@@ -2165,7 +2452,12 @@
     "hours": "Mon-Thu 11:30am-10pm, Fri-Sat 11:30am-11pm, Sun 12pm-9pm",
     "phone": "(647) 347-7002",
     "website": "https://mauryaindianrestaurants.com",
-    "tags": ["roti", "indian", "butter-chicken", "affordable"],
+    "tags": [
+      "roti",
+      "indian",
+      "butter-chicken",
+      "affordable"
+    ],
     "featured": true,
     "proTip": "The butter chicken roti is the crowd favourite, but the lamb roti with extra hot sauce is the real move for spice lovers.",
     "answerBlock": "Maurya East Indian Roti on E Liberty St is Liberty Village's go-to for authentic Indian cuisine, rated 4.5 stars. This family-owned spot serves traditional rotis, butter chicken, saag paneer, and veg biryani at affordable prices. It's widely considered the best Indian roti in the neighbourhood.",
@@ -2190,7 +2482,12 @@
     "hours": "Mon-Thu 11:30am-10:30pm, Fri 11:30am-11pm, Sat 4pm-11pm, Sun 4pm-10pm",
     "phone": "(416) 971-7242",
     "website": "https://aromafineindian.com",
-    "tags": ["fine-dining", "indian", "pre-theatre", "king-west"],
+    "tags": [
+      "fine-dining",
+      "indian",
+      "pre-theatre",
+      "king-west"
+    ],
     "featured": false,
     "proTip": "Book a table before a show at the nearby TIFF Bell Lightbox or Royal Alexandra Theatre — the pre-theatre timing works perfectly.",
     "answerBlock": "Aroma Fine Indian Cuisine on King St W offers upscale Indian dining just 5 minutes from Liberty Village. With over 2,200 reviews, this elegant restaurant serves refined Indian dishes perfect for special occasions and pre-theatre dinners in the King West entertainment corridor.",
@@ -2215,7 +2512,12 @@
     "hours": "Mon-Wed 5pm-11pm, Thu-Fri 12pm-11pm, Sat 11am-11pm, Sun 11am-10pm",
     "phone": "(416) 392-7837",
     "website": "https://curryishtavern.ca",
-    "tags": ["modern-indian", "chef-driven", "seasonal", "queen-west"],
+    "tags": [
+      "modern-indian",
+      "chef-driven",
+      "seasonal",
+      "queen-west"
+    ],
     "featured": true,
     "proTip": "Sit at the bar for a front-row seat to Chef Miheer's kitchen — the energy is infectious and you'll often get tasting extras.",
     "answerBlock": "Curryish Tavern on Queen St W is a chef-driven Indian restaurant rated 4.8 stars, an 8-minute walk from Liberty Village. Chef Miheer Shete's innovative menu fuses traditional Indian flavours with seasonal Canadian ingredients, creating dishes you won't find anywhere else in Toronto.",
@@ -2240,7 +2542,12 @@
     "hours": "By appointment, Mon-Sat",
     "phone": "(416) 889-9948",
     "website": "https://beautyroom.ca",
-    "tags": ["medical-aesthetics", "facials", "laser-treatments", "massage"],
+    "tags": [
+      "medical-aesthetics",
+      "facials",
+      "laser-treatments",
+      "massage"
+    ],
     "featured": true,
     "proTip": "Book a consultation first to build a personalized skincare plan — the team creates custom treatment schedules that deliver much better results than one-off visits.",
     "answerBlock": "Beauty Room on Atlantic Ave is Liberty Village's premier boutique medical aesthetics studio, rated 4.9 stars with 220+ reviews. Offering facials, microneedling, laser treatments, permanent makeup, and massage therapy, it's the neighbourhood's all-in-one destination for beauty and wellness.",
@@ -2265,7 +2572,12 @@
     "hours": "Mon-Fri 10am-7pm, Sat 9:30am-3pm",
     "phone": "(647) 350-2932",
     "website": "https://kinglibertyhealthcentre.com",
-    "tags": ["massage-therapy", "osteopathy", "chiropractic", "wellness"],
+    "tags": [
+      "massage-therapy",
+      "osteopathy",
+      "chiropractic",
+      "wellness"
+    ],
     "featured": false,
     "proTip": "Book massage therapy through your extended health benefits — most Liberty Village tech workers have coverage that makes visits here effectively free.",
     "answerBlock": "King Liberty Health Centre on Jefferson Ave has been Liberty Village's trusted wellness clinic since 2008, rated 4.9 stars. Offering registered massage therapy, osteopathy, and chiropractic care, their integrative approach treats the whole person rather than just symptoms.",
@@ -2290,7 +2602,12 @@
     "hours": "Tue-Sat 10am-8pm",
     "phone": "(416) 792-2265",
     "website": "https://heartlessink.ca",
-    "tags": ["custom-tattoos", "realism", "fine-line", "cover-ups"],
+    "tags": [
+      "custom-tattoos",
+      "realism",
+      "fine-line",
+      "cover-ups"
+    ],
     "featured": true,
     "proTip": "Book a free design consultation well in advance — Esteban's calendar fills up fast, especially for large custom realism pieces.",
     "answerBlock": "Heartless Ink on East Liberty St is Liberty Village's award-winning boutique tattoo studio, rated 4.8 stars. Founded by Esteban Rodríguez, the studio specializes in black and grey realism, colour realism, and fine line tattoos with free design consultations in a premium setting.",
@@ -2315,7 +2632,12 @@
     "hours": "Tue-Sun 11am-8pm",
     "phone": "(437) 604-6665",
     "website": "https://icontattoo.ca",
-    "tags": ["tattoo", "piercing", "neo-traditional", "mandalas"],
+    "tags": [
+      "tattoo",
+      "piercing",
+      "neo-traditional",
+      "mandalas"
+    ],
     "featured": false,
     "proTip": "Walk-ins are welcome for smaller pieces and piercings — but book ahead for anything that needs a custom design session.",
     "answerBlock": "Icon Tattoo on King St W is a vibrant studio just 5 minutes from Liberty Village, offering diverse tattoo styles from mandalas to neo-traditional designs plus professional piercings. The welcoming atmosphere and affordable pricing make it accessible for both first-timers and seasoned collectors.",
@@ -2340,7 +2662,12 @@
     "hours": "Tue-Sat 11am-7pm",
     "phone": "(416) 410-0777",
     "website": "https://timelessinktoronto.com",
-    "tags": ["custom-tattoos", "piercing", "contemporary", "king-west"],
+    "tags": [
+      "custom-tattoos",
+      "piercing",
+      "contemporary",
+      "king-west"
+    ],
     "featured": false,
     "proTip": "Check their Instagram portfolio before booking to find the artist whose style matches your vision — each artist has distinct specialties.",
     "answerBlock": "Timeless Ink on King St W is a highly-rated contemporary tattoo studio with a 4.8-star rating, an 8-minute walk from Liberty Village. Their experienced artists cover diverse styles in a modern, professional environment that takes both walk-ins and custom appointments.",
@@ -2395,7 +2722,12 @@
     "hours": "Mon-Sat 8am-8pm, Sun 9am-6pm",
     "phone": "(647) 478-5422",
     "website": "https://cargocabbie.ca",
-    "tags": ["boutique-moving", "flat-rate", "condo-moves", "junk-removal"],
+    "tags": [
+      "boutique-moving",
+      "flat-rate",
+      "condo-moves",
+      "junk-removal"
+    ],
     "featured": true,
     "proTip": "Their 'man with a van' service is perfect for small condo moves and single-item deliveries — much cheaper than booking a full crew.",
     "answerBlock": "Cargo Cabbie is a boutique moving company rated 4.7 stars with 1,200+ reviews, popular among Liberty Village condo residents. Their flat-rate pricing eliminates surprise charges, and the 'man with a van' small-move option is ideal for condo-sized relocations and furniture deliveries.",
@@ -2420,7 +2752,12 @@
     "hours": "Mon-Sat 8am-7pm",
     "phone": "(416) 850-2609",
     "website": "https://youmoveme.com/toronto",
-    "tags": ["full-service", "packing-service", "condo-moves", "insured"],
+    "tags": [
+      "full-service",
+      "packing-service",
+      "condo-moves",
+      "insured"
+    ],
     "featured": false,
     "proTip": "Add their packing service if you're short on time — the crew comes the day before to pack everything, so move day is just loading and driving.",
     "answerBlock": "You Move Me Toronto is a full-service moving company rated 4.6 stars with 680+ reviews. Their uniformed crews provide upfront pricing and handle everything from packing to unloading with a satisfaction guarantee, making them a stress-free option for Liberty Village condo moves.",
@@ -2445,7 +2782,12 @@
     "hours": "Mon-Fri 9am-6pm",
     "phone": "(416) 362-2031",
     "website": "https://www.dickinson-wright.com",
-    "tags": ["corporate-law", "real-estate", "M&A", "intellectual-property"],
+    "tags": [
+      "corporate-law",
+      "real-estate",
+      "M&A",
+      "intellectual-property"
+    ],
     "featured": true,
     "proTip": "Their real estate team is particularly strong for condo transactions — useful for Liberty Village residents buying or selling units.",
     "answerBlock": "Dickinson Wright LLP at 199 Bay St is one of Toronto's top law firms with 144 lawyers, recognized in The Globe & Mail's 2026 Best Law Firms for corporate, IP, M&A, and real estate. Their breadth of practice areas makes them a one-stop firm for Liberty Village businesses and residents.",
@@ -2470,7 +2812,12 @@
     "hours": "Mon-Fri 9am-5:30pm",
     "phone": "(416) 595-8500",
     "website": "https://www.millerthomson.com",
-    "tags": ["full-service", "corporate", "real-estate", "litigation"],
+    "tags": [
+      "full-service",
+      "corporate",
+      "real-estate",
+      "litigation"
+    ],
     "featured": false,
     "proTip": "They have a strong small business and startup practice — more approachable pricing than Bay Street mega-firms for everyday legal needs.",
     "answerBlock": "Miller Thomson LLP at 40 King St W is a national law firm established in 1957, just minutes from Liberty Village. Their Platinum Client Champion award reflects strong client service across corporate, real estate, family, and litigation practice areas at competitive rates.",
@@ -2495,7 +2842,12 @@
     "hours": "Mon-Fri 9am-5pm",
     "phone": "(416) 850-7474",
     "website": "https://hgrlaw.ca",
-    "tags": ["real-estate-law", "condo-closings", "flat-fees", "boutique"],
+    "tags": [
+      "real-estate-law",
+      "condo-closings",
+      "flat-fees",
+      "boutique"
+    ],
     "featured": false,
     "proTip": "Ask about their flat-fee condo closing package — it's straightforward and avoids the surprise disbursement charges larger firms tack on.",
     "answerBlock": "HGR Graham Partners LLP is a boutique Toronto law firm rated 4.6 stars, specializing in residential and commercial real estate transactions. Their flat-fee condo closing packages and personalized service make them a smart choice for Liberty Village buyers and sellers.",
@@ -2610,7 +2962,12 @@
     "hours": "24/7 support, Mon-Fri 8:30am-5pm office",
     "phone": "(877) 895-2474",
     "website": "https://gibraltarsolutions.com",
-    "tags": ["managed-it", "cybersecurity", "SOC2-certified", "24-7-support"],
+    "tags": [
+      "managed-it",
+      "cybersecurity",
+      "SOC2-certified",
+      "24-7-support"
+    ],
     "featured": true,
     "proTip": "Ask about their fixed monthly pricing — it's predictable budgeting vs. the surprise bills of break-fix IT support.",
     "answerBlock": "Gibraltar Solutions is a SOC 2 Type II certified managed IT provider with 25+ years serving Toronto businesses. Their proactive monitoring, cybersecurity, and 24/7 helpdesk support make them ideal for Liberty Village tech startups and creative agencies needing enterprise-grade IT without an in-house team.",
@@ -2695,7 +3052,12 @@
     "hours": "Mon-Fri 11am-7pm, Sat 11am-4pm",
     "phone": "(416) 361-0831",
     "website": "https://studio-kim.com",
-    "tags": ["alterations", "wedding-dress", "tailoring", "queen-west"],
+    "tags": [
+      "alterations",
+      "wedding-dress",
+      "tailoring",
+      "queen-west"
+    ],
     "featured": true,
     "proTip": "Book ahead for complex alterations during wedding season (May-October) — Kim's calendar fills up fast due to her stellar reputation.",
     "answerBlock": "Studio Kim on Queen St W is a family-run alteration shop rated 4.8 stars, a 5-minute walk from Liberty Village. Kim's exceptional craftsmanship handles everything from simple hemming to complex wedding dress alterations with free quotes and personalized attention.",
@@ -2720,7 +3082,12 @@
     "hours": "Tue-Thu 10am-6pm, Fri 11am-7pm, Sat 11am-5pm",
     "phone": "(647) 873-8811",
     "website": "https://3rdfloortailors.com",
-    "tags": ["luxury-alterations", "wedding-gowns", "custom-design", "premium"],
+    "tags": [
+      "luxury-alterations",
+      "wedding-gowns",
+      "custom-design",
+      "premium"
+    ],
     "featured": false,
     "proTip": "Prices are premium but reflect the quality — bring your most valuable garments here and save the basics for a budget tailor.",
     "answerBlock": "3rd Floor Tailors on Queen St W offers premium tailoring with 30+ years of experience, specializing in wedding gowns and high-end garments. Located an 8-minute walk from Liberty Village, their meticulous craftsmanship justifies the premium pricing for valuable pieces.",
@@ -2805,7 +3172,12 @@
     "hours": "Mon-Thu 7:30am-5:30pm, Fri 7:30am-5pm",
     "phone": "(416) 864-9092",
     "website": "https://centralimport.ca",
-    "tags": ["european-imports", "BMW", "Mercedes", "warranty-approved"],
+    "tags": [
+      "european-imports",
+      "BMW",
+      "Mercedes",
+      "warranty-approved"
+    ],
     "featured": false,
     "proTip": "Don't pay dealership prices for your BMW or Audi — Central Import provides the same quality service at independent shop rates.",
     "answerBlock": "Central Import on King St E is Toronto's premier independent European auto specialist, rated 4.7 stars. Warranty-approved for BMW, Audi, Mercedes, Porsche, and Volvo, they deliver dealership-quality service since 1978 at independent pricing — perfect for Liberty Village luxury car owners.",
@@ -2860,7 +3232,12 @@
     "hours": "Flexible scheduling, 7 days a week",
     "phone": "(416) 423-3030",
     "website": "https://tutorbright.com/tutoring-toronto",
-    "tags": ["one-on-one", "all-subjects", "K-12", "online-tutoring"],
+    "tags": [
+      "one-on-one",
+      "all-subjects",
+      "K-12",
+      "online-tutoring"
+    ],
     "featured": true,
     "proTip": "No contracts — try them for a few sessions to see if the tutor-student match works before committing long-term.",
     "answerBlock": "TutorBright is Toronto's top-rated tutoring service with 498 reviews, offering personalized in-home and online sessions for K-12 students. Their no-contract, flat-rate model ($68/hr) with tutor-student matching makes them ideal for Liberty Village families seeking flexible academic support.",
@@ -2885,7 +3262,12 @@
     "hours": "Mon-Thu 9am-8pm, Fri 9am-5pm, Sat-Sun 9am-4pm",
     "phone": "(647) 494-3100",
     "website": "https://oxfordlearning.com/locations/toronto-high-park-tutoring",
-    "tags": ["learning-centre", "cognitive-skills", "methodology", "all-ages"],
+    "tags": [
+      "learning-centre",
+      "cognitive-skills",
+      "methodology",
+      "all-ages"
+    ],
     "featured": false,
     "proTip": "Oxford's approach goes deeper than subject tutoring — ideal for students who struggle with study habits and organization, not just content.",
     "answerBlock": "Oxford Learning in High Park is a premier tutoring centre rated 4.8 stars, 15 minutes from Liberty Village. Their proven cognitive learning methodology teaches students how to learn — building study skills, organization, and academic confidence alongside subject-specific help.",
@@ -2910,7 +3292,12 @@
     "hours": "Weekday afternoons, weekend mornings",
     "phone": "(416) 767-6700",
     "website": "https://kumon.com/toronto-jane-and-bloor",
-    "tags": ["math", "reading", "self-paced", "mastery-based"],
+    "tags": [
+      "math",
+      "reading",
+      "self-paced",
+      "mastery-based"
+    ],
     "featured": false,
     "proTip": "Kumon requires 15-20 minutes of daily home practice — the commitment builds discipline, but make sure your family is ready for the routine.",
     "answerBlock": "Kumon at Jane & Bloor offers the globally proven math and reading program 15 minutes from Liberty Village. Their self-paced, mastery-based approach builds strong fundamentals through daily practice, developing both academic skills and learning discipline.",
@@ -2965,7 +3352,12 @@
     "hours": "By appointment",
     "phone": "(416) 904-9887",
     "website": "https://neilta.ca",
-    "tags": ["wedding-photography", "events", "mixed-genre", "award-winning"],
+    "tags": [
+      "wedding-photography",
+      "events",
+      "mixed-genre",
+      "award-winning"
+    ],
     "featured": true,
     "proTip": "Neil only books one event per day for complete focus — reserve your date early for peak wedding season (May-October).",
     "answerBlock": "Neil Ta Photography on King St W is Yelp's #1 rated Toronto photographer, a 5-minute walk from Liberty Village. His mixed-genre approach to wedding and event photography creates richer storytelling, and his one-event-per-day policy ensures every client gets complete creative attention.",
@@ -2990,7 +3382,12 @@
     "hours": "By appointment",
     "phone": "(647) 281-7979",
     "website": "https://daveabreuphotography.com",
-    "tags": ["candid", "documentary-style", "wedding", "liberty-village"],
+    "tags": [
+      "candid",
+      "documentary-style",
+      "wedding",
+      "liberty-village"
+    ],
     "featured": false,
     "proTip": "Dave's documentary approach means fewer posed shots and more genuine moments — perfect for couples who hate being told where to stand.",
     "answerBlock": "David Abreu Photography on Atlantic Ave is a Liberty Village-based wedding photographer rated 4.6 stars. His candid, documentary-style approach captures authentic moments without forced poses, perfect for couples who want their real story told naturally.",
@@ -3015,7 +3412,12 @@
     "hours": "By appointment",
     "phone": "(416) 566-7755",
     "website": "https://mazstudios.ca",
-    "tags": ["portrait", "headshots", "family-photos", "studio"],
+    "tags": [
+      "portrait",
+      "headshots",
+      "family-photos",
+      "studio"
+    ],
     "featured": false,
     "proTip": "Perfect for professional LinkedIn headshots — the studio is right in Liberty Village so you can pop in during a lunch break.",
     "answerBlock": "Maz Images Studios on Atlantic Ave is a Liberty Village portrait studio rated 5.0 stars. Specializing in professional headshots, family portraits, and event photography, the welcoming studio environment and local convenience make it ideal for neighbourhood residents and professionals.",
@@ -3040,7 +3442,12 @@
     "hours": "Mon-Fri 7am-7pm, Sat 8am-5pm",
     "phone": "(416) 596-0559",
     "website": "https://kingwestvillagecleaners.ca",
-    "tags": ["dry-cleaning", "alterations", "king-west", "professional"],
+    "tags": [
+      "dry-cleaning",
+      "alterations",
+      "king-west",
+      "professional"
+    ],
     "featured": true,
     "proTip": "Build a relationship with the staff — they'll remember your preferences and give priority turnaround on rush jobs.",
     "answerBlock": "King West Village Cleaners at 1000 King St W is the neighbourhood's go-to dry cleaner, rated 4.6 stars. Adjacent to Liberty Village, they offer dry cleaning, washing, and alterations with detail-oriented service and legendary customer care that keeps locals coming back.",
@@ -3065,7 +3472,12 @@
     "hours": "24/7 drop-off lockers, 48-hour turnaround",
     "phone": "(647) 528-6379",
     "website": "https://laundry-concierge.com",
-    "tags": ["pickup-delivery", "wash-and-fold", "dry-cleaning", "shoe-care"],
+    "tags": [
+      "pickup-delivery",
+      "wash-and-fold",
+      "dry-cleaning",
+      "shoe-care"
+    ],
     "featured": false,
     "proTip": "Use their 24/7 lockers for maximum flexibility — drop off and pick up at any hour without waiting for business hours.",
     "answerBlock": "Laundry Concierge offers premium pickup and delivery laundry service to Liberty Village with 40+ years of experience. Free contactless delivery, 24/7 drop-off lockers, and 48-hour turnaround make them ideal for busy condo residents without in-suite laundry.",
@@ -3090,7 +3502,12 @@
     "hours": "Daily 7am-9pm",
     "phone": "(416) 533-9274",
     "website": "https://washworldlaundry.com",
-    "tags": ["self-service", "coin-laundry", "budget-friendly", "king-west"],
+    "tags": [
+      "self-service",
+      "coin-laundry",
+      "budget-friendly",
+      "king-west"
+    ],
     "featured": false,
     "proTip": "Bring your debit card — unlike most laundromats they accept both card and coins, so no scrambling for quarters.",
     "answerBlock": "Wash World on King St W is a budget-friendly self-service laundromat adjacent to Liberty Village, open daily 7am-9pm. They accept both debit cards and coins, have friendly staff, and offer a simple no-fuss option for residents who prefer to do their own laundry.",
@@ -3115,7 +3532,12 @@
     "hours": "Mon-Fri 9am-8pm",
     "phone": "(888) 667-0067",
     "website": "https://jukeboxprint.com",
-    "tags": ["same-day-printing", "stickers", "business-cards", "24-7-pickup"],
+    "tags": [
+      "same-day-printing",
+      "stickers",
+      "business-cards",
+      "24-7-pickup"
+    ],
     "featured": true,
     "proTip": "Order stickers by 10 AM for same-day pickup from their 24/7 locker — no need to wait for business hours.",
     "answerBlock": "Jukebox Print Toronto on Dufferin St (Liberty Village) is Canada's highest-rated online printing company with over 1,100 five-star Trustpilot reviews. Same-day sticker printing when ordered by 10 AM, 24/7 pickup locker, and fast turnaround on business cards, posters, and custom prints make them the go-to for Toronto businesses and creators.",
@@ -3200,7 +3622,12 @@
     "hours": "By appointment",
     "phone": "(416) 850-9911",
     "website": "https://bkdp.ca",
-    "tags": ["condo-design", "lofts", "design-build", "award-winning"],
+    "tags": [
+      "condo-design",
+      "lofts",
+      "design-build",
+      "award-winning"
+    ],
     "featured": true,
     "proTip": "Their design-build model means one trusted partner manages everything — no coordinating between designer, architect, and contractor yourself.",
     "answerBlock": "BKDP on King St E is a 12-time Best of Houzz winner specializing in condo and loft design in downtown Toronto. Their design-build approach streamlines renovations from concept to construction, making them ideal for Liberty Village condo owners wanting a single trusted partner.",
@@ -3225,7 +3652,12 @@
     "hours": "Mon-Fri 9am-5pm",
     "phone": "(416) 848-3108",
     "website": "https://luxdesign.ca",
-    "tags": ["luxury", "commercial", "residential", "press-featured"],
+    "tags": [
+      "luxury",
+      "commercial",
+      "residential",
+      "press-featured"
+    ],
     "featured": false,
     "proTip": "Come prepared with inspiration images — their process for creating unique concepts works best when you have a clear vision to build from.",
     "answerBlock": "LUX Design on Wellington St W is a press-featured interior design studio near Liberty Village, established in 2004. Featured in Canadian Interiors Magazine and the New York Times, they create unique, luxurious concepts for both commercial and residential spaces.",
@@ -3250,7 +3682,12 @@
     "hours": "By appointment",
     "phone": "(416) 574-0552",
     "website": "https://swisterski.com",
-    "tags": ["consultations", "residential", "commercial", "experienced"],
+    "tags": [
+      "consultations",
+      "residential",
+      "commercial",
+      "experienced"
+    ],
     "featured": false,
     "proTip": "Start with their $250 consultation to get professional direction on scope and budget before committing to a full project.",
     "answerBlock": "Swisterski Design offers 15+ years of Toronto interior design expertise with a perfect 5-star rating. Their $250 consultation entry point makes professional design guidance accessible for Liberty Village condo owners, with full-service options for new construction and large-scale renovations.",
@@ -3275,7 +3712,12 @@
     "hours": "24/7, 365 days a year",
     "phone": "(647) 370-2520",
     "website": "https://tbc-locksmith.ca",
-    "tags": ["24-7", "emergency", "fast-response", "security-systems"],
+    "tags": [
+      "24-7",
+      "emergency",
+      "fast-response",
+      "security-systems"
+    ],
     "featured": true,
     "proTip": "Save their number in your phone now — when you're locked out at midnight, you'll be glad you have a 15-minute response locksmith on speed dial.",
     "answerBlock": "TBC Locksmith is one of Toronto's top-rated locksmiths with 572+ reviews and a 4.8-star rating, offering 24/7 service with 15-30 minute response times. Their mobile fleet serves Liberty Village around the clock for lockouts, key cutting, and security installations.",
@@ -3300,7 +3742,12 @@
     "hours": "24/7 service",
     "phone": "(416) 831-2828",
     "website": "https://matrixlocksmith.ca",
-    "tags": ["security-systems", "24-7", "established", "top-rated"],
+    "tags": [
+      "security-systems",
+      "24-7",
+      "established",
+      "top-rated"
+    ],
     "featured": false,
     "proTip": "Check their website for fair pricing estimates before calling — their transparency and 440+ five-star reviews demonstrate consistent reliability.",
     "answerBlock": "Matrix Locksmith has been serving Toronto since 2002 with a perfect 5-star rating and 440+ reviews. Their 25-minute average response time and specialization in both emergency lockouts and security installations make them a trusted choice for Liberty Village condo residents.",
@@ -3325,7 +3772,12 @@
     "hours": "24/7 emergency service",
     "phone": "(416) 223-6667",
     "website": "https://asaplock.com",
-    "tags": ["emergency", "licensed", "30-year-history", "mobile"],
+    "tags": [
+      "emergency",
+      "licensed",
+      "30-year-history",
+      "mobile"
+    ],
     "featured": false,
     "proTip": "Their 30+ year track record means reliability when emergencies strike — save their number alongside TBC for backup options.",
     "answerBlock": "ASAP Emergency Lock Service has served Toronto for 30+ years with licensed technicians and fully equipped mobile service trucks. Their decades of experience in residential, commercial, and automotive locksmith work provide the reliability Liberty Village residents need in emergencies.",
@@ -3350,13 +3802,22 @@
     "hours": "Mon-Sun 11:30 AM - 10 PM",
     "phone": "(416) 551-8882",
     "website": "",
-    "tags": ["ramen", "japanese", "noodles", "lunch"],
+    "tags": [
+      "ramen",
+      "japanese",
+      "noodles",
+      "lunch"
+    ],
     "featured": false,
     "proTip": "The spicy garlic tonkotsu with extra chashu is the move.",
     "image": "",
     "answerBlock": "Kinton Ramen on East Liberty Street serves rich Japanese ramen bowls with tonkotsu broth, karaage chicken, and customizable toppings. Popular lunch spot in Liberty Village.",
-    "bestFor": ["Quick ramen lunch"],
-    "categories": ["restaurants"]
+    "bestFor": [
+      "Quick ramen lunch"
+    ],
+    "categories": [
+      "restaurants"
+    ]
   },
   {
     "slug": "fox-and-john-liberty-village",
@@ -3371,13 +3832,23 @@
     "hours": "Mon-Fri 4 PM - 2 AM, Sat-Sun 12 PM - 2 AM",
     "phone": "(416) 792-4400",
     "website": "",
-    "tags": ["bar", "cocktails", "pub", "patio", "nightlife"],
+    "tags": [
+      "bar",
+      "cocktails",
+      "pub",
+      "patio",
+      "nightlife"
+    ],
     "featured": false,
     "proTip": "The patio is one of the best-kept secrets in LV — perfect for after-work drinks.",
     "image": "",
     "answerBlock": "Fox & John is a neighbourhood pub on East Liberty Street with craft cocktails, local beers, a cozy patio, and weekend DJ nights.",
-    "bestFor": ["After-work drinks and patio season"],
-    "categories": ["bars"]
+    "bestFor": [
+      "After-work drinks and patio season"
+    ],
+    "categories": [
+      "bars"
+    ]
   },
   {
     "slug": "longos-liberty-village",
@@ -3392,13 +3863,22 @@
     "hours": "Mon-Sun 7 AM - 10 PM",
     "phone": "(416) 535-8855",
     "website": "",
-    "tags": ["grocery", "supermarket", "fresh-food", "deli"],
+    "tags": [
+      "grocery",
+      "supermarket",
+      "fresh-food",
+      "deli"
+    ],
     "featured": false,
     "proTip": "Their prepared meals section is a lifesaver on busy weeknights.",
     "image": "",
     "answerBlock": "Longo's on Dufferin Street near Liberty Village offers fresh produce, a deli counter, and prepared meals. The closest premium grocery store to the neighbourhood.",
-    "bestFor": ["Premium groceries and prepared meals"],
-    "categories": ["grocery"]
+    "bestFor": [
+      "Premium groceries and prepared meals"
+    ],
+    "categories": [
+      "grocery"
+    ]
   },
   {
     "slug": "egg-club-liberty-village",
@@ -3413,13 +3893,23 @@
     "hours": "Mon-Fri 7 AM - 3 PM, Sat-Sun 8 AM - 4 PM",
     "phone": "(416) 792-3344",
     "website": "",
-    "tags": ["breakfast", "brunch", "eggs", "coffee"],
+    "tags": [
+      "breakfast",
+      "brunch",
+      "eggs",
+      "coffee"
+    ],
     "featured": false,
     "proTip": "Weekday mornings are the sweet spot — same food, no line.",
     "image": "",
     "answerBlock": "Egg Club on Hanna Avenue serves creative egg sandwiches and specialty coffee. A trendy brunch spot in Liberty Village — arrive before 10 AM on weekends to skip the line.",
-    "bestFor": ["Weekend brunch and egg sandwiches"],
-    "categories": ["restaurants", "brunch-spots"]
+    "bestFor": [
+      "Weekend brunch and egg sandwiches"
+    ],
+    "categories": [
+      "restaurants",
+      "brunch-spots"
+    ]
   },
   {
     "slug": "ono-poke-liberty-village",
@@ -3434,13 +3924,22 @@
     "hours": "Mon-Sun 11 AM - 9 PM",
     "phone": "(416) 792-7653",
     "website": "",
-    "tags": ["poke", "healthy", "lunch", "quick-service"],
+    "tags": [
+      "poke",
+      "healthy",
+      "lunch",
+      "quick-service"
+    ],
     "featured": false,
     "proTip": "Add the crispy onions and spicy mayo — trust us.",
     "image": "",
     "answerBlock": "Ono Poke on King Street West offers build-your-own poke bowls with fresh fish and customizable toppings. A quick, healthy lunch option near Liberty Village.",
-    "bestFor": ["Healthy lunch"],
-    "categories": ["restaurants"]
+    "bestFor": [
+      "Healthy lunch"
+    ],
+    "categories": [
+      "restaurants"
+    ]
   },
   {
     "slug": "kitchen-hub-food-hall-liberty-village",
@@ -3455,13 +3954,22 @@
     "hours": "Mon-Sun 11 AM - 11 PM",
     "phone": "(416) 792-8800",
     "website": "",
-    "tags": ["food-hall", "delivery", "multi-cuisine", "ghost-kitchen"],
+    "tags": [
+      "food-hall",
+      "delivery",
+      "multi-cuisine",
+      "ghost-kitchen"
+    ],
     "featured": false,
     "proTip": "Great for groups who cannot agree on a cuisine — everyone orders from a different vendor.",
     "image": "",
     "answerBlock": "Kitchen Hub Food Hall on Fraser Avenue is a multi-vendor food hall and ghost kitchen. Order burgers, sushi, Thai, and more from multiple brands with delivery and pickup.",
-    "bestFor": ["Group orders and delivery"],
-    "categories": ["restaurants"]
+    "bestFor": [
+      "Group orders and delivery"
+    ],
+    "categories": [
+      "restaurants"
+    ]
   },
   {
     "slug": "local-public-eatery-liberty-village",
@@ -3475,12 +3983,18 @@
     "hours": "Mon-Wed 11 AM-1 AM; Thu-Fri 11 AM-2 AM; Sat 10 AM-2 AM; Sun 10 AM-1 AM",
     "phone": "+1 416-901-8351",
     "website": "https://localpubliceatery.com/neighbourhoods/liberty-village/",
-    "tags": ["restaurants", "liberty village", "toronto"],
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "Reservations are accepted seven days a week. Email the restaurant for large-party bookings.",
     "image": "/images/businesses/local-public-eatery-liberty-village.jpg",
     "answerBlock": "LOCAL Public Eatery Liberty Village is a 4.5-star restaurant at Unit 100, 171 E Liberty St in Liberty Village, with 5144 Google reviews.",
-    "categories": ["restaurants"],
+    "categories": [
+      "restaurants"
+    ],
     "_discoveredAt": "2026-08-05"
   },
   {
@@ -3515,7 +4029,9 @@
       "self-care before an event",
       "first-timers wanting a highly-rated salon"
     ],
-    "categories": ["spas"],
+    "categories": [
+      "spas"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the friendly, attentive staff and clean, relaxing atmosphere, with detailed nail work and spa services earning it a standout 4.8-star average.",
     "reviewFaqs": [
       {
@@ -3564,7 +4080,10 @@
       "Group dining on shareable plates",
       "Curry and noodle cravings"
     ],
-    "categories": ["restaurants", "thai-restaurants"],
+    "categories": [
+      "restaurants",
+      "thai-restaurants"
+    ],
     "reviewExcerpt": "With a 4.6-star average across more than 2,200 reviews, diners consistently praise the authentic Northern Thai flavours, generous portions, and friendly service.",
     "reviewFaqs": [
       {
@@ -3613,7 +4132,10 @@
       "Walk-in friendly weekday appointments",
       "Trying a well-reviewed neighbourhood nail spot"
     ],
-    "categories": ["nail-salons", "spas"],
+    "categories": [
+      "nail-salons",
+      "spas"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the friendly service, clean space, and long-lasting results, reflected in an exceptional 4.8-star average across more than 1,800 reviews.",
     "reviewFaqs": [
       {
@@ -3662,7 +4184,10 @@
       "Sashimi and maki cravings",
       "Affordable Japanese dining"
     ],
-    "categories": ["sushi", "restaurants"],
+    "categories": [
+      "sushi",
+      "restaurants"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the fresh, generously portioned sushi and dependable service, reflected in a strong 4.5-star rating from over 1,400 visitors.",
     "reviewFaqs": [
       {
@@ -3692,7 +4217,13 @@
     "hours": "Open today until 8 PM",
     "phone": "+1 416-570-1866",
     "website": "http://somethingbrewing.ca/",
-    "tags": ["tacos", "craft beer", "brewpub", "brewery", "casual dining"],
+    "tags": [
+      "tacos",
+      "craft beer",
+      "brewpub",
+      "brewery",
+      "casual dining"
+    ],
     "featured": false,
     "proTip": "Come for the tacos but stay for the house brews. Since Ghost Taco operates inside Something in the Water Brewing Co., you can pair each taco with a beer poured steps from where it's made. Note the early 8 PM close, so plan for a dinner rather than a late night.",
     "image": "/images/businesses/ghost-taco-at-something-in-the-water-brewing-co.jpg",
@@ -3704,7 +4235,11 @@
       "Trying local brewpub eats",
       "Relaxed weeknight outings"
     ],
-    "categories": ["restaurants", "breweries", "bars"],
+    "categories": [
+      "restaurants",
+      "breweries",
+      "bars"
+    ],
     "reviewExcerpt": "Reviewers consistently rave about the flavorful tacos and fresh house beers, giving it a near-perfect 4.9 rating for both food quality and the laid-back brewpub atmosphere.",
     "reviewFaqs": [
       {
@@ -3753,7 +4288,9 @@
       "Loose-leaf tea lovers",
       "A morning coffee before exploring Liberty Village"
     ],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the quality coffee and the bright, welcoming atmosphere, with the strong 4.4-star average reflecting a dependable neighbourhood cafe most visitors are happy to return to.",
     "reviewFaqs": [
       {
@@ -3802,7 +4339,9 @@
       "customizable comfort food for solo diners or small groups",
       "an affordable Japanese fix without leaving the neighbourhood"
     ],
-    "categories": ["sushi"],
+    "categories": [
+      "sushi"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the rich, flavourful broths, generous toppings and friendly service, giving it a standout 4.7 rating across nearly 1,000 reviews.",
     "reviewFaqs": [
       {
@@ -3851,7 +4390,9 @@
       "catching the game over a pint",
       "a relaxed weeknight meal in the neighbourhood"
     ],
-    "categories": ["bars"],
+    "categories": [
+      "bars"
+    ],
     "reviewExcerpt": "Reviewers consistently praise it as a friendly, lively neighbourhood spot with good food and drinks, reflected in its strong 4.7-star average across more than 900 reviews.",
     "reviewFaqs": [
       {
@@ -3900,7 +4441,10 @@
       "registered massage therapy with insurance receipts",
       "coordinated multidisciplinary treatment in one clinic"
     ],
-    "categories": ["health", "wellness"],
+    "categories": [
+      "health",
+      "wellness"
+    ],
     "reviewExcerpt": "Reviewers consistently give this clinic a perfect 5-star rating, praising its knowledgeable, attentive practitioners and the convenience of getting physio, massage, and chiropractic care in one place.",
     "reviewFaqs": [
       {
@@ -3949,7 +4493,11 @@
       "Classic Italian pasta",
       "Patio dining"
     ],
-    "categories": ["pizza", "italian-restaurants", "restaurants"],
+    "categories": [
+      "pizza",
+      "italian-restaurants",
+      "restaurants"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the authentic Southern Italian cooking, generous portions, and warm service, earning Caffino a strong 4.5-star average across more than 800 reviews.",
     "reviewFaqs": [
       {
@@ -3998,7 +4546,11 @@
       "Italian pasta",
       "Weekend gatherings"
     ],
-    "categories": ["restaurants", "italian-restaurants", "pizza"],
+    "categories": [
+      "restaurants",
+      "italian-restaurants",
+      "pizza"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the fresh pasta, wood-fired pizza, and inviting atmosphere, giving it a solid 4.4-star rating, with a few noting service can slow down during peak hours.",
     "reviewFaqs": [
       {
@@ -4047,7 +4599,9 @@
       "Relaxed weekend dining",
       "Comfort food cravings"
     ],
-    "categories": ["restaurants"],
+    "categories": [
+      "restaurants"
+    ],
     "reviewExcerpt": "Reviewers consistently praise Liberty Eats for its generous portions, friendly service, and solid value, reflected in its strong 4.7-star average.",
     "reviewFaqs": [
       {
@@ -4096,7 +4650,10 @@
       "Casual catch-ups over a latte",
       "Sweet treats near Liberty Village"
     ],
-    "categories": ["bakeries", "coffee-shops"],
+    "categories": [
+      "bakeries",
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the fresh baked goods, friendly service, and welcoming cafe atmosphere, earning it a strong 4.5-star average.",
     "reviewFaqs": [
       {
@@ -4145,7 +4702,9 @@
       "After-work appointments on King West",
       "Regular nail maintenance"
     ],
-    "categories": ["nail-salons"],
+    "categories": [
+      "nail-salons"
+    ],
     "reviewExcerpt": "With over 600 reviews and a 4.2 rating, reviewers generally praise it as a reliable, convenient King West nail spot, while a minority note inconsistency depending on the technician.",
     "reviewFaqs": [
       {
@@ -4194,7 +4753,10 @@
       "Casual mid-range Japanese cravings",
       "Takeout sushi near Atlantic Ave"
     ],
-    "categories": ["sushi", "restaurants"],
+    "categories": [
+      "sushi",
+      "restaurants"
+    ],
     "reviewExcerpt": "Reviewers consistently praise INJapan as a dependable Liberty Village sushi spot, reflected in its strong 4.6-star average across 636 reviews.",
     "reviewFaqs": [
       {
@@ -4243,7 +4805,10 @@
       "Weekend bakery runs",
       "Quality-focused espresso drinks"
     ],
-    "categories": ["coffee-shops", "bakeries"],
+    "categories": [
+      "coffee-shops",
+      "bakeries"
+    ],
     "reviewExcerpt": "Reviewers consistently praise Brodflour for its exceptional fresh-milled breads and pastries and quality coffee, reflected in its strong 4.7-star average.",
     "reviewFaqs": [
       {
@@ -4291,7 +4856,9 @@
       "Remote work or a laptop session",
       "Quick bakery and breakfast stop"
     ],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers give it a solid 4.2 stars, praising the reliable espresso, the signature chocolate-on-the-side touch, and the broad bakery and lunch menu, while a few note service can slow down at peak times.",
     "reviewFaqs": [
       {
@@ -4340,7 +4907,9 @@
       "Liberty Village locals",
       "A trusted regular salon"
     ],
-    "categories": ["hair-salons"],
+    "categories": [
+      "hair-salons"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the skilled stylists, friendly service and reliable results, reflected in a strong 4.7-star average across more than 540 reviews.",
     "reviewFaqs": [
       {
@@ -4389,7 +4958,9 @@
       "Busy professionals needing early appointments",
       "Family dental care"
     ],
-    "categories": ["dentists"],
+    "categories": [
+      "dentists"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the friendly, professional staff and gentle, thorough care, reflected in an outstanding 4.8-star average across more than 530 reviews.",
     "reviewFaqs": [
       {
@@ -4437,7 +5008,9 @@
       "beard trim and shape-up alongside a cut",
       "finding a go-to barber close to the East Liberty strip"
     ],
-    "categories": ["barbers"],
+    "categories": [
+      "barbers"
+    ],
     "reviewExcerpt": "With a 4.8 rating from over 500 reviews, reviewers consistently praise the skilled, friendly barbers and the dependable, high-quality cuts visit after visit.",
     "reviewFaqs": [
       {
@@ -4486,7 +5059,9 @@
       "Exploring pet adoption",
       "Walkable pet shopping in Liberty Village"
     ],
-    "categories": ["pet-stores"],
+    "categories": [
+      "pet-stores"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the friendly, knowledgeable staff and convenient neighbourhood location, reflected in its strong 4.6-star average.",
     "reviewFaqs": [
       {
@@ -4535,7 +5110,9 @@
       "fresh fish without a sit-down commitment",
       "customizable meals for dietary preferences"
     ],
-    "categories": ["takeout"],
+    "categories": [
+      "takeout"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the fresh ingredients, generous customization, and good value, giving it a solid 4.3-star average across nearly 500 reviews.",
     "reviewFaqs": [
       {
@@ -4584,7 +5161,9 @@
       "A daytime glass of wine",
       "Weekend coffee runs"
     ],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the quality coffee and inviting, well-designed space, giving it a strong 4.5-star average across more than 450 reviews.",
     "reviewFaqs": [
       {
@@ -4633,7 +5212,11 @@
       "Acupuncture and naturopathic care close to home",
       "Post-surgical or post-travel lymphatic drainage"
     ],
-    "categories": ["spas", "massage-therapy", "chiropractors"],
+    "categories": [
+      "spas",
+      "massage-therapy",
+      "chiropractors"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the knowledgeable, attentive practitioners and effective therapeutic treatments, reflected in a strong 4.7 rating across 448 reviews.",
     "reviewFaqs": [
       {
@@ -4682,7 +5265,11 @@
       "Mixing Thai, Middle Eastern, and pizza in one order",
       "Affordable solo meals near work"
     ],
-    "categories": ["restaurants", "thai-restaurants", "pizza"],
+    "categories": [
+      "restaurants",
+      "thai-restaurants",
+      "pizza"
+    ],
     "reviewExcerpt": "Reviewers give it a strong 4.7 stars, praising the variety of cuisines under one roof, generous portions, and convenient ordering for both dine-in and delivery.",
     "reviewFaqs": [
       {
@@ -4731,7 +5318,10 @@
       "chiropractic adjustments for back and neck pain",
       "coordinated assessment for a stubborn or complex injury"
     ],
-    "categories": ["chiropractors", "massage-therapy"],
+    "categories": [
+      "chiropractors",
+      "massage-therapy"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the clinic's knowledgeable, attentive practitioners and effective treatment, reflected in an exceptional 4.9-star rating across more than 400 reviews.",
     "reviewFaqs": [
       {
@@ -4780,7 +5370,9 @@
       "an emergency dental visit close to home",
       "Invisalign or orthodontic consultations"
     ],
-    "categories": ["dentists"],
+    "categories": [
+      "dentists"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the clinic's gentle, professional staff and modern facilities, reflected in a strong 4.7-star rating across more than 420 reviews.",
     "reviewFaqs": [
       {
@@ -4829,7 +5421,11 @@
       "Insurance direct-billed RMT sessions",
       "Injury recovery near Liberty Village"
     ],
-    "categories": ["massage-therapy", "chiropractors", "physiotherapy"],
+    "categories": [
+      "massage-therapy",
+      "chiropractors",
+      "physiotherapy"
+    ],
     "reviewExcerpt": "Reviewers consistently give it a perfect 5 stars, praising the attentive, knowledgeable therapists and noticeable relief from chronic pain and tension.",
     "reviewFaqs": [
       {
@@ -4878,7 +5474,9 @@
       "an early afternoon group hang",
       "pre-event drinks near Exhibition Place"
     ],
-    "categories": ["brunch-spots"],
+    "categories": [
+      "brunch-spots"
+    ],
     "reviewExcerpt": "With a solid 4.1-star average across roughly 400 reviews, guests generally praise the brunch dishes, cocktails and the social second-floor atmosphere, while a few note inconsistency typical of a busy all-day spot.",
     "reviewFaqs": [
       {
@@ -4927,7 +5525,10 @@
       "sports and recurring injury rehab",
       "registered massage therapy for recovery"
     ],
-    "categories": ["chiropractors", "massage-therapy"],
+    "categories": [
+      "chiropractors",
+      "massage-therapy"
+    ],
     "reviewExcerpt": "Reviewers give it a flawless 5-star average across 376 reviews, consistently praising the attentive, knowledgeable practitioners and the personalized, hands-on treatment.",
     "reviewFaqs": [
       {
@@ -4976,7 +5577,10 @@
       "casual catch-up with friends over boba",
       "quick takeaway order via online ordering"
     ],
-    "categories": ["coffee-shops", "bakeries"],
+    "categories": [
+      "coffee-shops",
+      "bakeries"
+    ],
     "reviewExcerpt": "Reviewers consistently rate it 4.8 stars, praising the consistently well-made drinks, friendly service, and convenient late hours.",
     "reviewFaqs": [
       {
@@ -5025,7 +5629,11 @@
       "Casual meals with friends",
       "Vegetarian-friendly pizza"
     ],
-    "categories": ["pizza", "restaurants", "italian-restaurants"],
+    "categories": [
+      "pizza",
+      "restaurants",
+      "italian-restaurants"
+    ],
     "reviewExcerpt": "Reviewers consistently praise Pi Co for its fresh, fully customizable pizzas, fast service, and solid value, earning it a strong 4.5-star average across 355 reviews.",
     "reviewFaqs": [
       {
@@ -5074,7 +5682,10 @@
       "Group orders and combos",
       "No-fuss casual meals"
     ],
-    "categories": ["pizza", "restaurants"],
+    "categories": [
+      "pizza",
+      "restaurants"
+    ],
     "reviewExcerpt": "With a solid 4.0-star average across more than 350 reviews, diners generally praise Pizzaville as a reliable, value-priced spot for familiar pizza and quick takeout.",
     "reviewFaqs": [
       {
@@ -5123,7 +5734,10 @@
       "Casual catch-ups with friends",
       "Beer lovers exploring Liberty Village"
     ],
-    "categories": ["breweries", "bars"],
+    "categories": [
+      "breweries",
+      "bars"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the quality and variety of the house beers and the laid-back, welcoming taproom vibe, adding up to a strong 4.5-star rating.",
     "reviewFaqs": [
       {
@@ -5171,7 +5785,9 @@
       "a weekend stroll stop near Parkdale and the lake",
       "an afternoon caffeine break before 6 PM"
     ],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers consistently praise The Abbott for excellent coffee and a warm, welcoming atmosphere, reflected in its strong 4.7 star average.",
     "reviewFaqs": [
       {
@@ -5220,7 +5836,9 @@
       "Walkable workouts for Liberty Village locals",
       "Building a regular cycling community"
     ],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers consistently give RISE CYCLE a perfect 5-star rating, praising its energetic rhythm rides, motivating instructors, and welcoming community feel.",
     "reviewFaqs": [
       {
@@ -5269,7 +5887,10 @@
       "date night on a budget",
       "group meals close to the condos"
     ],
-    "categories": ["restaurants", "thai-restaurants"],
+    "categories": [
+      "restaurants",
+      "thai-restaurants"
+    ],
     "reviewExcerpt": "Reviewers consistently rave about the authentic, flavorful Thai dishes and friendly service, earning the spot an exceptional 4.9-star average.",
     "reviewFaqs": [
       {
@@ -5318,7 +5939,9 @@
       "A quick quality coffee on King St W",
       "Budget-friendly caffeine fix"
     ],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers consistently praise the quality espresso, friendly service, and good value, reflected in its strong 4.7-star average across more than 330 reviews.",
     "reviewFaqs": [
       {
@@ -5367,7 +5990,10 @@
       "casual solo dining",
       "Japanese-style sandwiches"
     ],
-    "categories": ["sushi", "restaurants"],
+    "categories": [
+      "sushi",
+      "restaurants"
+    ],
     "reviewExcerpt": "With a near-perfect 4.9-star average across 272 reviews, guests consistently praise Naomi for its quality, friendly service, and standout value for a small neighbourhood spot.",
     "reviewFaqs": [
       {
@@ -5397,13 +6023,19 @@
     "hours": "Closed · Opens 10 AM Mon",
     "phone": "+1 416-889-9948",
     "website": "http://www.beautyroom.ca/",
-    "tags": ["hair salons", "liberty village", "toronto"],
+    "tags": [
+      "hair salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/beauty-room-liberty-village-2.jpg",
     "answerBlock": "Beauty Room Liberty Village is a 4.9-star hair salon in Liberty Village at 17 Atlantic Ave Unit 2, Toronto, ON M6K 3E7, Canada, with 264 Google reviews.",
     "bestFor": [],
-    "categories": ["hair-salons"],
+    "categories": [
+      "hair-salons"
+    ],
     "reviewExcerpt": "Reviewers rate Beauty Room Liberty Village 4.9/5 across 264 Google reviews.",
     "reviewFaqs": [
       {
@@ -5426,13 +6058,19 @@
     "hours": "Closed · Opens 11 AM Mon",
     "phone": "+1 647-347-5533",
     "website": "http://www.skinplusbeauty.ca/",
-    "tags": ["nail salons", "liberty village", "toronto"],
+    "tags": [
+      "nail salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/skin-beauty-clinic.jpg",
     "answerBlock": "Skin+ Beauty Clinic is a 4.5-star nail salon in Liberty Village at 171 E Liberty St Unit 141, Toronto, ON M6K 3P6, Canada, with 261 Google reviews.",
     "bestFor": [],
-    "categories": ["nail-salons"],
+    "categories": [
+      "nail-salons"
+    ],
     "reviewExcerpt": "Reviewers rate Skin+ Beauty Clinic 4.5/5 across 261 Google reviews.",
     "reviewFaqs": [
       {
@@ -5455,13 +6093,19 @@
     "hours": "Open · Closes 6 PM",
     "phone": "+1 416-534-7368",
     "website": "http://libertyvillage.globalpetfoods.com/",
-    "tags": ["pet stores", "liberty village", "toronto"],
+    "tags": [
+      "pet stores",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/global-pet-foods.jpg",
     "answerBlock": "Global Pet Foods is a 4.6-star pet store in Liberty Village at 75 Hanna Ave #4, Toronto, ON M6K 3N7, Canada, with 253 Google reviews.",
     "bestFor": [],
-    "categories": ["pet-stores"],
+    "categories": [
+      "pet-stores"
+    ],
     "reviewExcerpt": "Reviewers rate Global Pet Foods 4.6/5 across 253 Google reviews.",
     "reviewFaqs": [
       {
@@ -5484,13 +6128,19 @@
     "hours": "Closed · Opens 10 AM Mon",
     "phone": "+1 437-324-1423",
     "website": "http://www.bazandbanks.com/",
-    "tags": ["hair salons", "liberty village", "toronto"],
+    "tags": [
+      "hair salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/baz-and-banks.jpg",
     "answerBlock": "Baz and Banks is a 4.9-star hair salon in Liberty Village at 51 E Liberty St #3, Toronto, ON M6K 3P2, Canada, with 239 Google reviews.",
     "bestFor": [],
-    "categories": ["hair-salons"],
+    "categories": [
+      "hair-salons"
+    ],
     "reviewExcerpt": "Reviewers rate Baz and Banks 4.9/5 across 239 Google reviews.",
     "reviewFaqs": [
       {
@@ -5513,13 +6163,19 @@
     "hours": "Open · Closes 7 PM",
     "phone": "+1 647-475-9288",
     "website": "http://spa.hotelxtoronto.com/",
-    "tags": ["spas", "liberty village", "toronto"],
+    "tags": [
+      "spas",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/guerlain-spa-at-hotel-x-toronto.jpg",
     "answerBlock": "Guerlain Spa at Hotel X Toronto is a 4.6-star spa in Liberty Village at 111 Princes' Blvd, Toronto, ON M6K 3C3, Canada, with 239 Google reviews.",
     "bestFor": [],
-    "categories": ["spas"],
+    "categories": [
+      "spas"
+    ],
     "reviewExcerpt": "Reviewers rate Guerlain Spa at Hotel X Toronto 4.6/5 across 239 Google reviews.",
     "reviewFaqs": [
       {
@@ -5542,13 +6198,19 @@
     "hours": "Closed · Opens 5 PM Wed",
     "phone": "+1 416-535-8787",
     "website": "https://fabrestaurants.ca/restaurant/black-sheep/",
-    "tags": ["bars", "liberty village", "toronto"],
+    "tags": [
+      "bars",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/black-sheep.jpg",
     "answerBlock": "Black Sheep is a 4.4-star bar in Liberty Village at 165 E Liberty St 3rd Floor, Toronto, ON M6K 3K4, Canada, with 238 Google reviews.",
     "bestFor": [],
-    "categories": ["bars"],
+    "categories": [
+      "bars"
+    ],
     "reviewExcerpt": "Reviewers rate Black Sheep 4.4/5 across 238 Google reviews.",
     "reviewFaqs": [
       {
@@ -5571,13 +6233,19 @@
     "hours": "Open · Closes 10 PM",
     "phone": "+1 647-560-3189",
     "website": "https://thindi.ca/",
-    "tags": ["restaurants", "liberty village", "toronto"],
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/thindi-cafe-liberty-village.jpg",
     "answerBlock": "Thindi Cafe - Liberty Village is a 4.7-star restaurant in Liberty Village at 153 E Liberty St, Toronto, ON M6K 3K4, Canada, with 225 Google reviews.",
     "bestFor": [],
-    "categories": ["restaurants"],
+    "categories": [
+      "restaurants"
+    ],
     "reviewExcerpt": "Reviewers rate Thindi Cafe - Liberty Village 4.7/5 across 225 Google reviews.",
     "reviewFaqs": [
       {
@@ -5600,13 +6268,19 @@
     "hours": "Open · Closes 11 PM",
     "phone": "+1 647-846-4287",
     "website": "https://nrghaus.com/",
-    "tags": ["bars", "liberty village", "toronto"],
+    "tags": [
+      "bars",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/nrg-haus-social-wellness-club.jpg",
     "answerBlock": "NRG Haus | Social Wellness Club is a 4.8-star bar in Liberty Village at 171 E Liberty St #113, Toronto, ON M6K 3P6, Canada, with 218 Google reviews.",
     "bestFor": [],
-    "categories": ["bars"],
+    "categories": [
+      "bars"
+    ],
     "reviewExcerpt": "Reviewers rate NRG Haus | Social Wellness Club 4.8/5 across 218 Google reviews.",
     "reviewFaqs": [
       {
@@ -5629,13 +6303,19 @@
     "hours": "Open · Closes 7 PM",
     "phone": "+1 416-814-7597",
     "website": "https://www.renspets.com/stores-liberty-village.html?utm_source=G&utm_medium=local&utm_campaign=google-local",
-    "tags": ["pet stores", "liberty village", "toronto"],
+    "tags": [
+      "pet stores",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/ren-s-pets.jpg",
     "answerBlock": "Ren's Pets is a 4.7-star pet store in Liberty Village at 99 Atlantic Ave Store entrance on Liberty Street, beside Scotiabank, Toronto, ON M6K 3J8, Canada, with 218 Google reviews.",
     "bestFor": [],
-    "categories": ["pet-stores"],
+    "categories": [
+      "pet-stores"
+    ],
     "reviewExcerpt": "Reviewers rate Ren's Pets 4.7/5 across 218 Google reviews.",
     "reviewFaqs": [
       {
@@ -5658,13 +6338,19 @@
     "hours": "Closed · Opens 9 AM Mon",
     "phone": "+1 647-436-3831",
     "website": "http://www.mercimonami.ca/",
-    "tags": ["bars", "liberty village", "toronto"],
+    "tags": [
+      "bars",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/merci-mon-ami.jpg",
     "answerBlock": "Merci Mon Ami is a 4.6-star bar in Liberty Village at 171 E Liberty St, Toronto, ON M6K 3P6, Canada, with 214 Google reviews.",
     "bestFor": [],
-    "categories": ["bars"],
+    "categories": [
+      "bars"
+    ],
     "reviewExcerpt": "Reviewers rate Merci Mon Ami 4.6/5 across 214 Google reviews.",
     "reviewFaqs": [
       {
@@ -5687,13 +6373,19 @@
     "hours": "Closed · Opens 9 AM Mon",
     "phone": "+1 416-598-0100",
     "website": "https://archdental.ca/",
-    "tags": ["dentists", "liberty village", "toronto"],
+    "tags": [
+      "dentists",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/arch-king-west-dental.jpg",
     "answerBlock": "Arch King West Dental is a 4.8-star dentist in Liberty Village at 1010 King St W, Toronto, ON M6K 3N2, Canada, with 212 Google reviews.",
     "bestFor": [],
-    "categories": ["dentists"],
+    "categories": [
+      "dentists"
+    ],
     "reviewExcerpt": "Reviewers rate Arch King West Dental 4.8/5 across 212 Google reviews.",
     "reviewFaqs": [
       {
@@ -5716,13 +6408,19 @@
     "hours": "Open · Closes 6:30 PM",
     "phone": "+1 647-907-6248",
     "website": "https://www.ohawellness.com/",
-    "tags": ["gyms", "liberty village", "toronto"],
+    "tags": [
+      "gyms",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/oha-wellness-toronto.jpg",
     "answerBlock": "Oha Wellness Toronto is a 5-star gym in Liberty Village at 107 Atlantic Ave 2nd floor, Toronto, ON M6K 1Y2, Canada, with 200 Google reviews.",
     "bestFor": [],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers rate Oha Wellness Toronto 5/5 across 200 Google reviews.",
     "reviewFaqs": [
       {
@@ -5745,13 +6443,19 @@
     "hours": "Open · Closes 3 PM",
     "phone": "+1 437-608-1177",
     "website": "http://www.morestudio.ca/",
-    "tags": ["hair salons", "liberty village", "toronto"],
+    "tags": [
+      "hair salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/more-studio.jpg",
     "answerBlock": "More Studio is a 5-star hair salon in Liberty Village at 17 Atlantic Ave, Toronto, ON M6K 3E7, Canada, with 199 Google reviews.",
     "bestFor": [],
-    "categories": ["hair-salons"],
+    "categories": [
+      "hair-salons"
+    ],
     "reviewExcerpt": "Reviewers rate More Studio 5/5 across 199 Google reviews.",
     "reviewFaqs": [
       {
@@ -5774,13 +6478,19 @@
     "hours": "Open · Closes 6 PM",
     "phone": "+1 416-539-8988",
     "website": "http://katnailstudio.com/",
-    "tags": ["nail salons", "liberty village", "toronto"],
+    "tags": [
+      "nail salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/kat-nail-studio.jpg",
     "answerBlock": "Kat Nail Studio is a 4.9-star nail salon in Liberty Village at 139 Jefferson Ave, Toronto, ON M6K 3E4, Canada, with 196 Google reviews.",
     "bestFor": [],
-    "categories": ["nail-salons"],
+    "categories": [
+      "nail-salons"
+    ],
     "reviewExcerpt": "Reviewers rate Kat Nail Studio 4.9/5 across 196 Google reviews.",
     "reviewFaqs": [
       {
@@ -5803,13 +6513,19 @@
     "hours": "Open · Closes 11 PM",
     "phone": "(866) 310-0001",
     "website": "http://www.panago.com/",
-    "tags": ["pizza", "liberty village", "toronto"],
+    "tags": [
+      "pizza",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/panago-pizza.jpg",
     "answerBlock": "Panago Pizza is a 4.1-star pizza in Liberty Village at 120 Lynn Williams St, Toronto, ON M6K 3P6, Canada, with 196 Google reviews.",
     "bestFor": [],
-    "categories": ["pizza"],
+    "categories": [
+      "pizza"
+    ],
     "reviewExcerpt": "Reviewers rate Panago Pizza 4.1/5 across 196 Google reviews.",
     "reviewFaqs": [
       {
@@ -5832,13 +6548,19 @@
     "hours": "Open · Closes 8 PM",
     "phone": "+1 416-536-2828",
     "website": "http://www.oxygenlv.com/",
-    "tags": ["gyms", "liberty village", "toronto"],
+    "tags": [
+      "gyms",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/oxygen-yoga-and-fitness-liberty-village.jpg",
     "answerBlock": "Oxygen Yoga and Fitness Liberty Village is a 4.8-star gym in Liberty Village at 171 E Liberty St #126, Toronto, ON M6K 3K4, Canada, with 189 Google reviews.",
     "bestFor": [],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers rate Oxygen Yoga and Fitness Liberty Village 4.8/5 across 189 Google reviews.",
     "reviewFaqs": [
       {
@@ -5861,13 +6583,19 @@
     "hours": "Closed · Opens 9 AM Mon",
     "phone": "+1 416-536-2626",
     "website": "https://blattfamilydentistry.com/",
-    "tags": ["dentists", "liberty village", "toronto"],
+    "tags": [
+      "dentists",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/blatt-family-dentistry.jpg",
     "answerBlock": "Blatt Family Dentistry is a 4.9-star dentist in Liberty Village at 1244 King St W, Toronto, ON M6K 1G5, Canada, with 184 Google reviews.",
     "bestFor": [],
-    "categories": ["dentists"],
+    "categories": [
+      "dentists"
+    ],
     "reviewExcerpt": "Reviewers rate Blatt Family Dentistry 4.9/5 across 184 Google reviews.",
     "reviewFaqs": [
       {
@@ -5890,13 +6618,19 @@
     "hours": "Closed · Opens 12 PM Tue",
     "phone": "+1 416-953-8710",
     "website": "http://www.bsuite.ca/",
-    "tags": ["hair salons", "liberty village", "toronto"],
+    "tags": [
+      "hair salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/b-suite-salon.jpg",
     "answerBlock": "b.suite SALON is a 4.7-star hair salon in Liberty Village at 132 Atlantic Ave, Toronto, ON M6K 1X9, Canada, with 182 Google reviews.",
     "bestFor": [],
-    "categories": ["hair-salons"],
+    "categories": [
+      "hair-salons"
+    ],
     "reviewExcerpt": "Reviewers rate b.suite SALON 4.7/5 across 182 Google reviews.",
     "reviewFaqs": [
       {
@@ -5919,13 +6653,19 @@
     "hours": "Open · Closes 9 PM",
     "phone": "+1 416-828-9339",
     "website": "http://havenwellness.ca/",
-    "tags": ["spas", "liberty village", "toronto"],
+    "tags": [
+      "spas",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/haven-wellness.jpg",
     "answerBlock": "Haven Wellness is a 4.9-star spa in Liberty Village at 15 Ordnance St, Toronto, ON M6K 0G6, Canada, with 171 Google reviews.",
     "bestFor": [],
-    "categories": ["spas"],
+    "categories": [
+      "spas"
+    ],
     "reviewExcerpt": "Reviewers rate Haven Wellness 4.9/5 across 171 Google reviews.",
     "reviewFaqs": [
       {
@@ -5948,13 +6688,19 @@
     "hours": "Open · Closes 3 PM",
     "phone": "",
     "website": "http://almaygil.com/",
-    "tags": ["brunch spots", "liberty village", "toronto"],
+    "tags": [
+      "brunch spots",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/alma-gil.jpg",
     "answerBlock": "ALMA+GIL is a 4.8-star brunch spot in Liberty Village at 392 Dufferin St, Toronto, ON M6K 0G3, Canada, with 168 Google reviews.",
     "bestFor": [],
-    "categories": ["brunch-spots"],
+    "categories": [
+      "brunch-spots"
+    ],
     "reviewExcerpt": "Reviewers rate ALMA+GIL 4.8/5 across 168 Google reviews.",
     "reviewFaqs": [
       {
@@ -5977,13 +6723,19 @@
     "hours": "Closed · Opens 9 AM Mon",
     "phone": "+1 437-367-0437",
     "website": "https://www.torontolibertydental.ca/site/home?utm_source=G&utm_medium=LPM&utm_campaign=DentalCorp",
-    "tags": ["dentists", "liberty village", "toronto"],
+    "tags": [
+      "dentists",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/toronto-liberty-dental.jpg",
     "answerBlock": "Toronto Liberty Dental is a 4.6-star dentist in Liberty Village at 28 Joe Shuster Way, Toronto, ON M6K 0A3, Canada, with 148 Google reviews.",
     "bestFor": [],
-    "categories": ["dentists"],
+    "categories": [
+      "dentists"
+    ],
     "reviewExcerpt": "Reviewers rate Toronto Liberty Dental 4.6/5 across 148 Google reviews.",
     "reviewFaqs": [
       {
@@ -6006,13 +6758,19 @@
     "hours": "Open · Closes 6 PM",
     "phone": "+1 647-348-9990",
     "website": "http://woofgangbakery.com/kingwestvillageon",
-    "tags": ["pet stores", "liberty village", "toronto"],
+    "tags": [
+      "pet stores",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/woof-gang-bakery-grooming-king-west-village.jpg",
     "answerBlock": "Woof Gang Bakery & Grooming King West Village is a 4.8-star pet store in Liberty Village at 1005 King St W, Toronto, ON M6K 3M8, Canada, with 143 Google reviews.",
     "bestFor": [],
-    "categories": ["pet-stores"],
+    "categories": [
+      "pet-stores"
+    ],
     "reviewExcerpt": "Reviewers rate Woof Gang Bakery & Grooming King West Village 4.8/5 across 143 Google reviews.",
     "reviewFaqs": [
       {
@@ -6035,13 +6793,19 @@
     "hours": "Closed · Opens 6 AM Mon",
     "phone": "",
     "website": "http://www.deltatrain.ca/",
-    "tags": ["gyms", "liberty village", "toronto"],
+    "tags": [
+      "gyms",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/deltatrain.jpg",
     "answerBlock": "DeltaTrain is a 5-star gym in Liberty Village at 37A Mowat Ave, Toronto, ON M6K 3E9, Canada, with 139 Google reviews.",
     "bestFor": [],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers rate DeltaTrain 5/5 across 139 Google reviews.",
     "reviewFaqs": [
       {
@@ -6064,13 +6828,19 @@
     "hours": "Open · Closes 2:30 PM",
     "phone": "+1 437-747-6486",
     "website": "https://strongpilates.ca/liberty-village/",
-    "tags": ["gyms", "liberty village", "toronto"],
+    "tags": [
+      "gyms",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/strong-pilates-liberty-village.jpg",
     "answerBlock": "STRONG Pilates Liberty Village is a 4.9-star gym in Liberty Village at 171 E Liberty St #101, Toronto, ON M6K 3P6, Canada, with 125 Google reviews.",
     "bestFor": [],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers rate STRONG Pilates Liberty Village 4.9/5 across 125 Google reviews.",
     "reviewFaqs": [
       {
@@ -6093,13 +6863,19 @@
     "hours": "Closes soon · 12:30 PM · Reopens 3 PM",
     "phone": "+1 416-840-4262",
     "website": "http://www.goodspacetoronto.ca/",
-    "tags": ["yoga studios", "liberty village", "toronto"],
+    "tags": [
+      "yoga studios",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/good-space.jpg",
     "answerBlock": "good space is a 4.9-star yoga studio in Liberty Village at 360 Dufferin St #106, Toronto, ON M6K 3G1, Canada, with 124 Google reviews.",
     "bestFor": [],
-    "categories": ["yoga-studios"],
+    "categories": [
+      "yoga-studios"
+    ],
     "reviewExcerpt": "Reviewers rate good space 4.9/5 across 124 Google reviews.",
     "reviewFaqs": [
       {
@@ -6122,13 +6898,19 @@
     "hours": "Open · Closes 6 PM",
     "phone": "",
     "website": "https://www.instagram.com/tonton.matcha.coffee?igsh=MWpnYTJpeTN3anFi",
-    "tags": ["coffee shops", "liberty village", "toronto"],
+    "tags": [
+      "coffee shops",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/tonton-matcha-coffee.jpg",
     "answerBlock": "TonTon Matcha + Coffee is a 4.4-star coffee shop in Liberty Village at 100 Western Battery Rd #1, Toronto, ON M6K 3S2, Canada, with 111 Google reviews.",
     "bestFor": [],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers rate TonTon Matcha + Coffee 4.4/5 across 111 Google reviews.",
     "reviewFaqs": [
       {
@@ -6151,13 +6933,19 @@
     "hours": "Opens soon · 12 PM",
     "phone": "+1 416-574-9871",
     "website": "http://www.bbwl.ca/",
-    "tags": ["spas", "liberty village", "toronto"],
+    "tags": [
+      "spas",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/bbwl-medi-spa.jpg",
     "answerBlock": "BBWL MEDI SPA is a 5-star spa in Liberty Village at 39 Mowat Ave, Toronto, ON M6K 3P6, Canada, with 110 Google reviews.",
     "bestFor": [],
-    "categories": ["spas"],
+    "categories": [
+      "spas"
+    ],
     "reviewExcerpt": "Reviewers rate BBWL MEDI SPA 5/5 across 110 Google reviews.",
     "reviewFaqs": [
       {
@@ -6180,13 +6968,19 @@
     "hours": "Open · Closes 5 PM",
     "phone": "+1 647-341-7250",
     "website": "",
-    "tags": ["nail salons", "liberty village", "toronto"],
+    "tags": [
+      "nail salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/x-nail-spa-salon.jpg",
     "answerBlock": "X-Nail & Spa Salon is a 4.1-star nail salon in Liberty Village at 111 Jefferson Ave, Toronto, ON M6K 3E4, Canada, with 107 Google reviews.",
     "bestFor": [],
-    "categories": ["nail-salons"],
+    "categories": [
+      "nail-salons"
+    ],
     "reviewExcerpt": "Reviewers rate X-Nail & Spa Salon 4.1/5 across 107 Google reviews.",
     "reviewFaqs": [
       {
@@ -6209,13 +7003,19 @@
     "hours": "Closed · Opens 10 AM Tue",
     "phone": "+1 416-537-8500",
     "website": "http://lstudiosalon.com/",
-    "tags": ["hair salons", "liberty village", "toronto"],
+    "tags": [
+      "hair salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/l-studio-salon.jpg",
     "answerBlock": "L Studio Salon is a 4.6-star hair salon in Liberty Village at 39 Mowat Ave, Toronto, ON M6K 3G3, Canada, with 103 Google reviews.",
     "bestFor": [],
-    "categories": ["hair-salons"],
+    "categories": [
+      "hair-salons"
+    ],
     "reviewExcerpt": "Reviewers rate L Studio Salon 4.6/5 across 103 Google reviews.",
     "reviewFaqs": [
       {
@@ -6238,13 +7038,19 @@
     "hours": "Closed · Opens 7 AM Mon",
     "phone": "+1 647-284-0956",
     "website": "https://atomathletics.ca/locations/personal-trainer-liberty-village-queen-west-toronto/",
-    "tags": ["gyms", "liberty village", "toronto"],
+    "tags": [
+      "gyms",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/atom-athletics.jpg",
     "answerBlock": "Atom Athletics is a 5-star gym in Liberty Village at 38 Joe Shuster Way, Toronto, ON M6K 0A5, Canada, with 97 Google reviews.",
     "bestFor": [],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers rate Atom Athletics 5/5 across 97 Google reviews.",
     "reviewFaqs": [
       {
@@ -6267,13 +7073,19 @@
     "hours": "Open · Closes 6 PM",
     "phone": "+1 437-992-7397",
     "website": "https://purpel.ca/home",
-    "tags": ["restaurants", "liberty village", "toronto"],
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/purpel.jpg",
     "answerBlock": "Purpel is a 4.8-star restaurant in Liberty Village at B01004A, 61 Hanna Ave, Toronto, ON M6K 3N7, Canada, with 92 Google reviews.",
     "bestFor": [],
-    "categories": ["restaurants"],
+    "categories": [
+      "restaurants"
+    ],
     "reviewExcerpt": "Reviewers rate Purpel 4.8/5 across 92 Google reviews.",
     "reviewFaqs": [
       {
@@ -6296,13 +7108,19 @@
     "hours": "Open · Closes 9 PM",
     "phone": "",
     "website": "http://www.sundayspastalab.ca/",
-    "tags": ["restaurants", "liberty village", "toronto"],
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/sundays-pasta-lab.jpg",
     "answerBlock": "Sundays Pasta Lab is a 4.6-star restaurant in Liberty Village at 171 E Liberty St Ste 125, Toronto, ON M6K 3P6, Canada, with 92 Google reviews.",
     "bestFor": [],
-    "categories": ["restaurants"],
+    "categories": [
+      "restaurants"
+    ],
     "reviewExcerpt": "Reviewers rate Sundays Pasta Lab 4.6/5 across 92 Google reviews.",
     "reviewFaqs": [
       {
@@ -6325,13 +7143,19 @@
     "hours": "Opens soon · 12 PM",
     "phone": "+1 416-218-5551",
     "website": "",
-    "tags": ["tattoo parlors", "liberty village", "toronto"],
+    "tags": [
+      "tattoo parlors",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/the-arcade-tattoos.jpg",
     "answerBlock": "The Arcade Tattoos is a 4.8-star tattoo parlor in Liberty Village at 219 Dufferin St #309B, Toronto, ON M6K 3J1, Canada, with 92 Google reviews.",
     "bestFor": [],
-    "categories": ["tattoo-parlors"],
+    "categories": [
+      "tattoo-parlors"
+    ],
     "reviewExcerpt": "Reviewers rate The Arcade Tattoos 4.8/5 across 92 Google reviews.",
     "reviewFaqs": [
       {
@@ -6354,13 +7178,19 @@
     "hours": "Closed · Opens 7 AM Mon",
     "phone": "+1 416-628-9875",
     "website": "https://www.dogtopia.com/toronto-liberty-village/",
-    "tags": ["dog groomers", "liberty village", "toronto"],
+    "tags": [
+      "dog groomers",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/dogtopia-of-liberty-village.jpg",
     "answerBlock": "Dogtopia of Liberty Village is a 4.9-star dog groomer in Liberty Village at 120 Lynn Williams St 2nd Floor, Toronto, ON M6K 3N6, Canada, with 82 Google reviews.",
     "bestFor": [],
-    "categories": ["dog-groomers"],
+    "categories": [
+      "dog-groomers"
+    ],
     "reviewExcerpt": "Reviewers rate Dogtopia of Liberty Village 4.9/5 across 82 Google reviews.",
     "reviewFaqs": [
       {
@@ -6383,13 +7213,19 @@
     "hours": "Closed · Opens 7 AM Mon",
     "phone": "+1 416-588-7297",
     "website": "http://www.packofpaws.ca/",
-    "tags": ["dog groomers", "liberty village", "toronto"],
+    "tags": [
+      "dog groomers",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/pack-of-paws.jpg",
     "answerBlock": "Pack of Paws is a 4.8-star dog groomer in Liberty Village at 105 Jefferson Ave, Toronto, ON M6K 3E4, Canada, with 76 Google reviews.",
     "bestFor": [],
-    "categories": ["dog-groomers"],
+    "categories": [
+      "dog-groomers"
+    ],
     "reviewExcerpt": "Reviewers rate Pack of Paws 4.8/5 across 76 Google reviews.",
     "reviewFaqs": [
       {
@@ -6412,13 +7248,19 @@
     "hours": "Open · Closes 3 PM",
     "phone": "+1 647-920-7873",
     "website": "http://www.pureyogatoronto.com/",
-    "tags": ["yoga studios", "liberty village", "toronto"],
+    "tags": [
+      "yoga studios",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/pure-yoga-toronto.jpg",
     "answerBlock": "Pure Yoga Toronto is a 4.5-star yoga studio in Liberty Village at 47 Fraser Ave, Toronto, ON M6K 1Y6, Canada, with 73 Google reviews.",
     "bestFor": [],
-    "categories": ["yoga-studios"],
+    "categories": [
+      "yoga-studios"
+    ],
     "reviewExcerpt": "Reviewers rate Pure Yoga Toronto 4.5/5 across 73 Google reviews.",
     "reviewFaqs": [
       {
@@ -6441,13 +7283,19 @@
     "hours": "Open 24 hours",
     "phone": "+1 647-691-7735",
     "website": "http://fusionkinetics.ca/",
-    "tags": ["gyms", "liberty village", "toronto"],
+    "tags": [
+      "gyms",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/fk-personal-training-ltd.jpg",
     "answerBlock": "FK Personal Training Ltd. is a 4.8-star gym in Liberty Village at 31 Atlantic Ave, Toronto, ON M6K 3E7, Canada, with 55 Google reviews.",
     "bestFor": [],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers rate FK Personal Training Ltd. 4.8/5 across 55 Google reviews.",
     "reviewFaqs": [
       {
@@ -6470,13 +7318,19 @@
     "hours": "",
     "phone": "+1 416-516-4759",
     "website": "http://www.madbatterbakers.com/",
-    "tags": ["bakeries", "liberty village", "toronto"],
+    "tags": [
+      "bakeries",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/mad-batter-bakers.jpg",
     "answerBlock": "Mad Batter Bakers is a 4.8-star bakerie in Liberty Village at 135 Jefferson Ave, Toronto, ON M6K 3E5, Canada, with 50 Google reviews.",
     "bestFor": [],
-    "categories": ["bakeries"],
+    "categories": [
+      "bakeries"
+    ],
     "reviewExcerpt": "Reviewers rate Mad Batter Bakers 4.8/5 across 50 Google reviews.",
     "reviewFaqs": [
       {
@@ -6499,13 +7353,19 @@
     "hours": "Temporarily closed",
     "phone": "+1 647-221-9603",
     "website": "https://familypooch.ca/",
-    "tags": ["dog groomers", "liberty village", "toronto"],
+    "tags": [
+      "dog groomers",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/family-pooch-canada.jpg",
     "answerBlock": "Family Pooch Canada is a 5-star dog groomer in Liberty Village at 64 Fraser Ave, Toronto, ON M6K 1Y6, Canada, with 47 Google reviews.",
     "bestFor": [],
-    "categories": ["dog-groomers"],
+    "categories": [
+      "dog-groomers"
+    ],
     "reviewExcerpt": "Reviewers rate Family Pooch Canada 5/5 across 47 Google reviews.",
     "reviewFaqs": [
       {
@@ -6528,13 +7388,19 @@
     "hours": "Open · Closes 5 PM",
     "phone": "",
     "website": "",
-    "tags": ["coffee shops", "liberty village", "toronto"],
+    "tags": [
+      "coffee shops",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/savoir-coffee.jpg",
     "answerBlock": "Savoir Coffee is a 4.9-star coffee shop in Liberty Village at 15 Atlantic Ave, Toronto, ON M6K 3E7, Canada, with 45 Google reviews.",
     "bestFor": [],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers rate Savoir Coffee 4.9/5 across 45 Google reviews.",
     "reviewFaqs": [
       {
@@ -6557,13 +7423,19 @@
     "hours": "Open · Closes 7 PM",
     "phone": "+1 416-536-0505",
     "website": "https://www.hellocoffee.ca/",
-    "tags": ["coffee shops", "liberty village", "toronto"],
+    "tags": [
+      "coffee shops",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/hello-coffee-liberty-village.jpg",
     "answerBlock": "Hello Coffee (Liberty Village) is a 4.5-star coffee shop in Liberty Village at 80 Western Battery Rd #1, Toronto, ON M6K 3S1, Canada, with 44 Google reviews.",
     "bestFor": [],
-    "categories": ["coffee-shops"],
+    "categories": [
+      "coffee-shops"
+    ],
     "reviewExcerpt": "Reviewers rate Hello Coffee (Liberty Village) 4.5/5 across 44 Google reviews.",
     "reviewFaqs": [
       {
@@ -6586,13 +7458,19 @@
     "hours": "Open · Closes 1 PM",
     "phone": "+1 647-920-7873",
     "website": "https://frameworktoronto.com/",
-    "tags": ["gyms", "liberty village", "toronto"],
+    "tags": [
+      "gyms",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/framework-toronto.jpg",
     "answerBlock": "Framework Toronto is a 4.8-star gym in Liberty Village at 47 Fraser Ave, Toronto, ON M6K 1Y6, Canada, with 36 Google reviews.",
     "bestFor": [],
-    "categories": ["gyms"],
+    "categories": [
+      "gyms"
+    ],
     "reviewExcerpt": "Reviewers rate Framework Toronto 4.8/5 across 36 Google reviews.",
     "reviewFaqs": [
       {
@@ -6615,13 +7493,19 @@
     "hours": "Open · Closes 6 PM",
     "phone": "+1 416-537-7564",
     "website": "http://www.drthuynguyendental.ca/",
-    "tags": ["dentists", "liberty village", "toronto"],
+    "tags": [
+      "dentists",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/dr-thuy-nguyen-dental.jpg",
     "answerBlock": "Dr Thuy Nguyen Dental is a 4.6-star dentist in Liberty Village at 1224 King St W Ste 200, Toronto, ON M6K 1G4, Canada, with 32 Google reviews.",
     "bestFor": [],
-    "categories": ["dentists"],
+    "categories": [
+      "dentists"
+    ],
     "reviewExcerpt": "Reviewers rate Dr Thuy Nguyen Dental 4.6/5 across 32 Google reviews.",
     "reviewFaqs": [
       {
@@ -6644,13 +7528,19 @@
     "hours": "Closed · Opens 12 PM Tue",
     "phone": "+1 416-953-8710",
     "website": "https://www.bsuite.ca/",
-    "tags": ["hair salons", "liberty village", "toronto"],
+    "tags": [
+      "hair salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/bae-beauty-bar-laser.jpg",
     "answerBlock": "bae beauty bar + laser is a 4.7-star hair salon in Liberty Village at 132 Atlantic Ave, Toronto, ON M6K 1X9, Canada, with 31 Google reviews.",
     "bestFor": [],
-    "categories": ["hair-salons"],
+    "categories": [
+      "hair-salons"
+    ],
     "reviewExcerpt": "Reviewers rate bae beauty bar + laser 4.7/5 across 31 Google reviews.",
     "reviewFaqs": [
       {
@@ -6673,13 +7563,19 @@
     "hours": "Open · Closes 8 PM",
     "phone": "+1 437-566-1053",
     "website": "",
-    "tags": ["nail salons", "liberty village", "toronto"],
+    "tags": [
+      "nail salons",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/nails-toronto-elina.jpg",
     "answerBlock": "Nails Toronto Elina is a 5-star nail salon in Liberty Village at 295 Dufferin St, Toronto, ON M6K 3G2, Canada, with 26 Google reviews.",
     "bestFor": [],
-    "categories": ["nail-salons"],
+    "categories": [
+      "nail-salons"
+    ],
     "reviewExcerpt": "Reviewers rate Nails Toronto Elina 5/5 across 26 Google reviews.",
     "reviewFaqs": [
       {
@@ -6702,13 +7598,19 @@
     "hours": "Open · Closes 10 PM",
     "phone": "",
     "website": "https://www.bypatri.com/",
-    "tags": ["bakeries", "liberty village", "toronto"],
+    "tags": [
+      "bakeries",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/bypatri-bakehouse.jpg",
     "answerBlock": "BYPATRI Bakehouse is a 5-star bakerie in Liberty Village at 15 Laidlaw St, Toronto, ON M6K 1X3, Canada, with 24 Google reviews.",
     "bestFor": [],
-    "categories": ["bakeries"],
+    "categories": [
+      "bakeries"
+    ],
     "reviewExcerpt": "Reviewers rate BYPATRI Bakehouse 5/5 across 24 Google reviews.",
     "reviewFaqs": [
       {
@@ -6731,13 +7633,19 @@
     "hours": "",
     "phone": "+1 416-516-2020",
     "website": "http://www.seeandbeseeneyecare.com/",
-    "tags": ["optometrists", "liberty village", "toronto"],
+    "tags": [
+      "optometrists",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/see-be-seen-eyecare-liberty-village-optometrists.jpg",
     "answerBlock": "See & Be Seen Eyecare - Liberty Village Optometrists is an optometry business at 171 E Liberty St, Suite 136, Toronto, ON M6K 3P6, Canada. At discovery time Google Maps listed 929 reviews with a 4.9/5 average.",
     "bestFor": [],
-    "categories": ["optometrists"],
+    "categories": [
+      "optometrists"
+    ],
     "reviewExcerpt": "",
     "reviewFaqs": [],
     "_discoveredAt": "2026-09-21",
@@ -6756,13 +7664,19 @@
     "hours": "",
     "phone": "",
     "website": "",
-    "tags": ["restaurants", "liberty village", "toronto"],
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/mozy-s.jpg",
     "answerBlock": "Mozy's is a restaurant at 114 Atlantic Ave, Toronto, ON M6K 1X9, Canada. At discovery time Google Maps listed 548 reviews with a 4.8/5 average.",
     "bestFor": [],
-    "categories": ["restaurants"],
+    "categories": [
+      "restaurants"
+    ],
     "reviewExcerpt": "",
     "reviewFaqs": [],
     "_discoveredAt": "2026-09-21",
@@ -6781,13 +7695,19 @@
     "hours": "",
     "phone": "+1 416-588-3937",
     "website": "https://www.pearlevision.ca/pv-ca/stores/on/toronto/7744/?cid=Yext_7744&y_source=1_MTE2MTQxMi03MTUtbG9jYXRpb24ud2Vic2l0ZQ%3D%3D",
-    "tags": ["optometrists", "liberty village", "toronto"],
+    "tags": [
+      "optometrists",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/pearle-vision.jpg",
     "answerBlock": "Pearle Vision is an optometry business at 51 Hanna Ave #2, Toronto, ON M6K 3N7, Canada. At discovery time Google Maps listed 265 reviews with a 4.8/5 average.",
     "bestFor": [],
-    "categories": ["optometrists"],
+    "categories": [
+      "optometrists"
+    ],
     "reviewExcerpt": "",
     "reviewFaqs": [],
     "_discoveredAt": "2026-09-21",
@@ -6806,13 +7726,19 @@
     "hours": "",
     "phone": "",
     "website": "http://wilburstacoshop.com/",
-    "tags": ["restaurants", "liberty village", "toronto"],
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
     "featured": false,
     "proTip": "",
     "image": "/images/businesses/wilbur-s-taco-shop.jpg",
     "answerBlock": "Wilbur's Taco Shop is a restaurant at 50 Atlantic Ave, Toronto, ON M6K 1X8, Canada. At discovery time Google Maps listed 118 reviews with a 4.9/5 average.",
     "bestFor": [],
-    "categories": ["restaurants"],
+    "categories": [
+      "restaurants"
+    ],
     "reviewExcerpt": "",
     "reviewFaqs": [],
     "_discoveredAt": "2026-08-31",
