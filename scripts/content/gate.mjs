@@ -192,6 +192,13 @@ export async function gateContent(db, opts, { env = process.env, deps = {}, chec
   }
   try {
     return await drive({ db, id, token, actor, script, env, deps, checkout, rt });
+  } catch (error) {
+    if (!(error instanceof ClaimError)) {
+      const reason = error?.name === 'TimeoutError' ? 'timeout' : error instanceof StateError ? 'state-error' : 'operational-error';
+      try { await slack(`#${id} gate error: ${reason} — rerun: content gate --submission ${id}`); }
+      catch { /* Preserve the original gate error and exit 1 when Slack is down. */ }
+    }
+    throw error;
   } finally {
     await releaseClaim(db, id, token).catch(() => {});
   }

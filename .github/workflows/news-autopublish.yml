@@ -556,15 +556,20 @@ jobs:
           LIST=$(node scripts/content/cli.mjs list --submissions --kind news --state open,gating)
           PENDING=$(printf '%s\n' "$LIST" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s.trim().split(/\n/).pop());if(!Array.isArray(j)){process.stderr.write("list stdout must be an array\n");process.exit(1);}process.stdout.write(String(j.length));});')
           if [ "$PENDING" -gt 0 ]; then
+            IDS=$(printf '%s\n' "$LIST" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s.trim().split(/\n/).pop());const ids=j.map(r=>Number(r.id));if(ids.some(id=>!Number.isSafeInteger(id)||id<=0)){process.stderr.write("invalid pending news submission id\n");process.exit(1);}process.stdout.write(ids.join(" "));});')
+            for ID in $IDS; do
+              echo "Resuming unfinished news submission #$ID"
+              node scripts/content/cli.mjs gate --submission "$ID" --actor "gha:${GITHUB_WORKFLOW}#${GITHUB_RUN_ID}"
+            done
             node - "$OUT_DIR/result.json" <<'NODE'
           const fs = require('node:fs');
           const output = process.argv[2];
           fs.writeFileSync(output, JSON.stringify({
             ok: true,
             exitCode: 0,
-            status: 'pending_autopublish_pr',
+            status: 'resumed_news_submission',
             published: 0,
-            message: 'An earlier news submission is still open or gating. Publishing zero is success.',
+            message: 'Resumed earlier open or gating news submissions; no new candidate was published.',
           }, null, 2) + '\n');
           NODE
           else

@@ -57,6 +57,15 @@ test('workflow parses relative result.json as data and serializes pending news P
   assert.match(workflow, /cancel-in-progress: false/);
 });
 
+test('DB news guard resumes unfinished submissions and reports an active claim as failure', () => {
+  const dbJob = workflow.slice(workflow.indexOf('\n  db:\n'));
+  assert.match(dbJob, /for ID in \$IDS; do/);
+  assert.match(dbJob, /cli\.mjs gate --submission "\$ID" --actor/);
+  assert.match(dbJob, /status: 'resumed_news_submission'/);
+  assert.doesNotMatch(dbJob, /Publishing zero is success/);
+  assert.match(dbJob, /set -euo pipefail/);
+});
+
 test('preflight GO and exact content binding are mandatory before PR creation', () => {
   const preflight = workflow.indexOf('scripts/automation/news-preflight.mjs');
   const create = workflow.indexOf('gh pr create');

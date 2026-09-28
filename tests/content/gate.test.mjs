@@ -552,6 +552,26 @@ test('gate requires an explicit operator actor off GitHub Actions before claimin
   } finally { await close(); }
 });
 
+test('gate exception after claim sends a safe nonempty recovery notice and releases the claim', async () => {
+  const handle = await seededDb();
+  const site = await localSite(handle.db);
+  const secret = 'sk-' + 'a'.repeat(24);
+  try {
+    const original = seedRecords().businesses[0];
+    const { result } = await submitContent(handle.db, { kind: 'manual', actor: 'test:gate-error',
+      idempotencyKey: 'gate-error-notice', recordFile: tempJson({ ...original, slug: 'gate-error-notice' }),
+      dataset: 'businesses', baseline: await baselineFile(handle.db) }, { checkout: REPO });
+    const id = result.submissionId;
+    await assert.rejects(gateContent(handle.db, { submission: id, actor: 'test:gate-error' },
+      { env: site.env, deps: { review: async () => { throw new Error(`model unavailable ${secret}`); } } }), /model unavailable/);
+    assert.equal((await store.getSubmission(handle.db, id)).submission.claim_token, null);
+    assert.equal((await store.getSubmission(handle.db, id)).submission.state, 'open');
+    assert.equal(site.state.slack.length, 1);
+    assert.match(site.state.slack[0], new RegExp(`#${id} gate error: .+ — rerun: content gate --submission ${id}`));
+    assert.equal(site.state.slack[0].includes(secret), false);
+  } finally { await site.close(); await handle.close(); }
+});
+
 test('ingest retry resumes the published submission after a fixer repair and missed status write', async () => {
   const handle = await seededDb();
   const site = await localSite(handle.db);
