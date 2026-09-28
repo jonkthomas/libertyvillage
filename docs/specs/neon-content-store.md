@@ -1,821 +1,564 @@
-# Spec: Neon content store for libertyvillage.co
+# Spec: Neon content store for libertyvillage.co (r1)
 
-Status: DRAFT for one independent review, then 5 parallel build packages.
-Repo: `jonkthomas/libertyvillage`. Base for build: `origin/staging` @ `1a651b3`.
-Author role: plan only. This doc changes no code or DB.
+Status: r1. It resolves the independent review of e709fa9 (REJECT) under owner decisions D1–D3 (2026-09-28). This is a builder contract.
+Repo `jonkthomas/libertyvillage`, build base `origin/staging` @ `1a651b3`, Next.js 16.1.6 on Vercel. Plan only: no code, DB or settings change.
 
----
+## 1. Outcome, decisions, non-goals
 
-## 1. Outcome and non-goals
+**Outcome.** Content publishes with a DB transaction after the existing automated gate: Opus review, pass = numeric `overall ≥ SCORE_THRESHOLD` (8) and no critical/high finding, plus the bounded fixer (`MAX_REPAIRS`=3). There is no PR, merge or promotion. The page is live within minutes via a Vercel deploy hook. Gate failures stay unpublished and notify Slack. Every successful publish posts one Slack line (title + URL).
 
-### Outcome
-1. The site reads all runtime content from Neon Postgres. That means 7 site datasets: businesses, posts, buildings, neighborhoods, services, topics and guide-hub.
-2. Automation state also lives in the DB: topic-queue and discovery-seen.
-3. Content publishes with one DB transaction after the existing automated gate. The gate is Opus review, pass = score ≥ 8 and no critical/high findings, plus the bounded Sonnet fixer. There is no PR, merge, promotion or deploy for content.
-4. A publish is visible on the live site within minutes, via on-demand `revalidateTag`.
-5. Every record has revision history. Unpublish and rollback are single CLI commands.
-6. SEO does not regress. URLs, HTML/metadata/JSON-LD and the sitemap URL set stay identical. Pages stay prerendered (ISR); none become dynamic.
-7. Code changes keep the staging→main PR flow. It is untouched.
+**Binding decisions**
+- **D1, read path = build-time export.** Publish = DB transaction + `POST CONTENT_DEPLOY_HOOK_URL` of the target. `prebuild` (`scripts/content/build-export.mjs`) writes live DB content into the build workspace as canonical `data/*.json`, plus `public/media/**` and `public/content-snapshot/**`.
+  - **`lib/data.ts`, `lib/links.ts`, pages and components stay unchanged and synchronous.** There is no runtime DB read, `unstable_cache`, `revalidateTag`, revalidate route or media route.
+  - DB down → the prebuild fails → the previous deployment keeps serving.
+- **D2.** The 4 businesses, 7 topic-queue entries, 7 discovery-seen entries and 4 images stranded on `staging` already passed the Opus gate (#168, #170, #171). They go live with the code promotion staging→main and are seeded from that exact main SHA, with **no re-gate**.
+- **D3.** Cut the `content-mirror` branch, `content-admin.yml` and a generic events table. The VM keeps its GitHub transport and reads the public `/content-snapshot/*`. SEO v1 is data-only via the DB, with a separate code-only PR lane; mixed output is blocked. The legacy path stays behind `LV_CONTENT_STORE=git|db` until cutover. Locked evals (`evals/*.sha256`) stay byte-identical; DB-mode acceptance evals are new files.
 
-### Non-goals (v1)
-- No admin web UI. The CLI plus one `workflow_dispatch` wrapper is the manual surface (§4.9).
-- No `cacheComponents` / `"use cache"` migration.
-- No change to URL structure, page templates, `lib/meta.ts` or `lib/schema.ts`.
-- Existing images under `public/images/**` do not move.
-- The candidate-ladder state stays in its GitHub issue (`scripts/automation/candidate-state.mjs`).
-- No retries, rate limits or scale work beyond what correctness needs.
-- Retiring the dead PR machinery is a later phase (§7.4). v1 is additive, and the legacy git path stays runnable behind a flag until then.
+**History scope.** Every site-dataset and topic-queue record has revision history (`content.revisions` + `content.actions`). `discovery_seen` is insert-only operational memory: its only mutable field, `outcome`, records the submission that set it, and it has no revision history by design.
 
----
+**Non-goals (v1):** admin UI or workflow (the CLI is the surface); changes to URLs, templates, `lib/meta.ts` or `lib/schema.ts`; moving `public/images/**` (it stays in git); retiring the legacy machinery (§7.4).
 
-## 2. Current state (evidence)
+## 2. Verified current state (authoritative for builders)
 
-### 2.1 Readers
-- `lib/data.ts:1-150`: a synchronous `readFileSync` loader. It is the only place that reads `data/*.json` (`loadJSON`, lines 7-10).
-- Importers (20):
-  - `app/page.tsx`
-  - `app/sitemap.ts`
-  - `app/{best,blog,buildings,directory,guide,vs}/page.tsx`
-  - `app/{best/[service],blog/[slug],buildings/[slug],directory/[slug],guide/[topic],vs/[neighborhood]}/page.tsx`
-  - `app/news/page.tsx`
-  - `app/world-cup/page.tsx`
-  - `components/Header.tsx` (server component, rendered on every page)
-  - `lib/links.ts:1-11` (9 importers of its own)
-- Six dynamic routes use `generateStaticParams`. None sets `revalidate` or `dynamicParams`. Pages are fully static today, and `dynamicParams` defaults to true.
-- There are no RSS/feed routes. `app/sitemap.ts` reads 6 datasets and uses `now` for most `lastModified` values.
-- `tests/news-pilot/publish.test.mjs:531-532` regex-asserts `export function getNewsPosts` / `selectNewsPosts` in `lib/data.ts`.
+**Readers.** `lib/data.ts` `loadJSON` reads 7 files: services, topics, neighborhoods, businesses, posts, buildings and guide-hub. No other code under `app/`, `lib/` or `components/` reads `data/`.
 
-### 2.2 Data
+**Canonical form.** Files already in `JSON.stringify(x,null,2)+'\n'` form: businesses, posts, topics, topic-queue, discovery-seen. Neighborhoods is canonical but lacks the trailing `\n`. Services, buildings and guide-hub are not canonical. **A normalizes all 9** in one code-flow commit, with a `JSON.parse` deep-equal proof, so "export == source" is byte equality everywhere.
 
-| file | shape | count main / staging | key | canonical `JSON.stringify(x,null,2)`? |
-|---|---|---|---|---|
-| businesses | array | 215 / 219 | slug | yes + `\n` |
-| posts | array | 70 / 70 | slug | yes + `\n` |
-| services | array | 60 | slug | **no** |
-| topics | array | 24 | slug | yes + `\n` |
-| neighborhoods | array | 15 | slug | yes, no `\n` |
-| buildings | array | 20 | slug | **no** |
-| guide-hub | object (singleton) | 1 | — | **no** |
-| topic-queue | `{version:1,topics:[]}` | 16 / 23 | `topics[].key` | yes + `\n` |
-| discovery-seen | map `normName → "YYYY-MM-DD"` | 214 / 221 | map key | yes + `\n` |
+**Keys.** Site arrays use `slug`; `guide-hub` is a slug-less singleton (`lib/types.ts:144`). topic-queue is `{version:1,topics}`, keyed by `topics[].key` = `topicKey(kind,title,branchPrefix)` (`topic-queue.mjs:57`, 64-hex). discovery-seen is a key-sorted map `norm(name)→"YYYY-MM-DD"` (`discover-businesses.mjs:101-109`).
 
-- Records carry fields outside `lib/types.ts`: `_discoveredAt`, `_needsEnrichment`. Key order must be preserved (§3.1).
-- `origin/main..origin/staging` differs only in content: +4 businesses and their images, +7 discovery-seen entries, +7 topic-queue entries. This is the "stranded" content.
+**Gate functions (exact)**
 
-### 2.3 Writers today
-All writers rewrite whole files, open a PR, and then run `autonomous-coordinator.yml`.
+| function | contract |
+|---|---|
+| `preflightDecision` | `({verdict, contentSha, attempts, maxRepairs, kind, changedFiles}) → 'go'\|'block'\|'unrepairable'\|'repair'`. It calls `evaluateVerdict` then `classifyFindings`; repairability comes from `KIND_POLICIES[kind].repairablePaths`; topic-discovery is `noFixer`. |
+| `validateRecordRepair` | `(file, orig, repaired, {maxBytes}) → {ok, errors, changedFields}`. Explicit rules only for posts, businesses and topics (`RECORD_FILES`, asserted by `record-repair.test.mjs:78`); others get the default (slug immutable). |
+| `review-agent.planRecordRepair` (not exported) | `({kind, gateVerdict, payload:[{file,records}], validate, references, inventory, lintFindings}) → {plan, check, attempts, bytes}`. `validate(plan)` must return `{ok, errors}`; schema file enum = `RECORD_FILES`. |
+| `evaluateRepairProgress` | `({history:[{attempt, overall, blockingCount}]}) → {decision:'continue'\|'abandon', reason}` |
+| `evaluateVerdict` | `(raw, sha) → {ok, passed, errors, hasBlocking}`. `overall` is any number 0–10 (fractional). |
+| `lintPost` | `(post, {businesses, now}) → {ok, findings}`. `resolveLintMode(env)` gives fail\|warn. |
+| news checks | `validateDraft({post, newsArticleStructuredData, evidencePack, siteIndex, nowMs, imageExists})` then `evaluatePublishReadyDraft({validation, post, root, nowMs, posts, imageExists, config: AUTO_PUBLISH_CONFIG})`. `siteIndex = loadSiteLinkIndex(root)` reads `root/data/*.json`. News images must be `/images/…`. |
+| `inventoryFromData` | `({services, topics, posts, blogImages, neighborhoodImages, ogImages, images})`. `selectReferenceRecords(source, businesses)` is in `scripts/lib/referenced-businesses.mjs`. |
 
-| writer | trigger | files | PR base |
-|---|---|---|---|
-| `scripts/discover-businesses.mjs` via `discover-businesses.yml` | Mon 13:00 UTC | businesses, discovery-seen, `public/images/businesses/<slug>.jpg` (Pexels) | staging, `--kind business` |
-| exe.dev VM `scripts/supervisor/host-run.mjs`, then `supervisor-ingest.yml` (`blog-live`) | Sun/Wed 11:00 UTC timer | posts only; image must already exist | **main**, the only kind that ships while `owner.txt=exedev` |
-| `weekly-blog.yml` / `weekly-blog-agent.js` | Sun/Wed, only when owner=`gha` (currently skipped) | posts, `public/images/blog/` | staging |
-| `seo-improve-agent.js` via `weekly-seo-improvements.yml` | Mon | any `data/*.json` plus `app/ components/ lib/ public/images/` | staging, `--kind seo` (mixed code+content) |
-| `topic-queue.mjs discover` via `weekly-topic-discovery.yml` | Mon | topic-queue (append-only, `policy.mjs:162-193`) | staging |
-| news: `publish.mjs` + `news-preflight.mjs` via `news-autopublish.yml` | after daily discovery | posts | staging |
-| manual one-offs (`generate-*-aeo.js`, `capture-*.js`, `populate-empty-categories.js`, `fix-broken-refs.js`, `generate-images.js`, `generate-service-faqs.js`, `generate-blog-*.js`, `generate-placeholder-images.mjs`) | manual | various | none |
+`review-agent.mjs` has no main guard (lines 540-555 run the CLI on import), and `MAX_FIXER_ATTEMPTS`=4 is at line 67. Locked evals slice its source between `function recordRepairPrompt`…`async function planRecordRepair` and `async function review(`…`async function reviewContent`, and forbid the literal `>= 8`.
 
-Under exedev, cumulative promotion is off (`promotion-control.mjs:6-10`). Business, seo, topic and news PRs therefore stop at staging.
+**Ingest and VM.** `validateIngestPayload` allows only `kind, data_sha, data_branch, topic_key, regenerations`. `supervisor-ingest.yml` is repository_dispatch only, checks out `main`, lacks `statuses: write`, maps no Anthropic secret and has a 10 min timeout. `host-run` diffs against `origin/staging`; its history is `branchPublicationHistory(git,'origin/main')`, consumed as `[{sha, posts, parentPosts}]` by `findQualifyingPublication`. Locked evals regex `host-run.mjs`, `supervisor-ingest.yml` (`blog-live`, `origin/main`, `--base main`), `autonomous-coordinator.yml` and `weekly-blog.yml`, so all edits to them are additive.
 
-### 2.4 Gate and fixer building blocks to reuse
-- `review-agent.mjs review-content` (lines 364-385) is already PR-free. It takes a diff file, an evidence file and a 40-hex content SHA. It is hard-coded to `kind=news`.
-- `planRecordRepair` (426-445) is PR-agnostic. It takes a payload `[{file,records}]` and an injected `validate`.
-- `news-preflight.mjs runPreflight` (76-184) is the working PR-free review→repair loop, capped at `MAX_REPAIRS`=3. It is the template.
-- Pure functions to reuse:
-  - `policy.evaluateVerdict`
-  - `preflight.{preflightDecision,classifyFindings,validateRecordRepair}`
-  - `record-rules.RECORD_REPAIR_RULES`
-  - `recovery.evaluateRepairProgress`
-  - `constants.{GATE_MODEL,FIXER_MODEL,SCORE_THRESHOLD,BLOCKING_SEVERITIES,MAX_REPAIRS}`
-- Import hazard: `review-agent.mjs:540-555` runs its CLI at module top level with no main guard.
+**Dispatch.** `main` already has `workflow_dispatch` on discover-businesses, weekly-topic-discovery, news-autopublish, weekly-seo-improvements and weekly-blog.
 
-### 2.5 Locked evaluator artifacts
-These must stay byte-identical and green in v1:
-- `evals/full-autonomous-content-loop.sha256`
-- `evals/weekly-grounded-publication-loop.sha256`
-- `evals/canary104-grounding.sha256`
-- `evals/topic-rotation.sha256`
-- `evals/local-supervisor-acceptance.sha256` (16 files)
-- `evals/weekly-growth-resilience.sha256`
+## 3. Schema (A: `scripts/content/migrations/0001_content.sql`)
 
-They assert the git/PR mechanics this project replaces. v1 therefore **adds** the DB path next to the legacy path and does not edit them. Retiring them is §7.4 and belongs to the eval owner.
-
-`docs/autonomous-promotion-acceptance-spec.md:199-200` (B1, "no new databases") is superseded by John's decision; the eval owner records that at retirement.
-
----
-
-## 3. Schema
-
-Target: the Neon project `lib_village` (PG 18).
-- Database `neondb` holds production content.
-- Database `lv_staging` holds staging content.
-- The schema is identical in both. Everything lives in a dedicated schema `content`, away from `public` and `neon_auth`.
-- Migrations live in `scripts/content/migrations/NNNN_*.sql`. They are applied by `content migrate` over `CONTENT_DATABASE_URL_UNPOOLED`.
-
-### 3.1 Payload type decision
-Record bodies are stored as **`json`, not `jsonb`**.
-- `jsonb` reorders object keys. `json` keeps the exact key order, so a DB→JSON export round-trips and per-record hashes match the files.
-- Nothing queries inside the payload. Filtering (category, featured, …) stays in app code, exactly as `lib/data.ts` does today.
-- Indexed identity and state live in typed columns.
-
-### 3.2 DDL (contract: Package A owns it; everyone codes against it)
+Neon project `lib_village`, PG 18. `neondb` = production and `lv_staging` = staging, with an identical `content` schema applied by `content migrate` over `CONTENT_DATABASE_URL_UNPOOLED`. Payloads are `json`, not `jsonb`, to keep key order; nothing queries inside them.
 
 ```sql
 create schema if not exists content;
-
-create table content.schema_migrations (
-  version text primary key,
-  applied_at timestamptz not null default now()
-);
-
--- Dataset registry is also in lib/content/datasets.json (§3.4).
+create table content.schema_migrations (version text primary key, applied_at timestamptz not null default now());
+create table content.meta (id boolean primary key default true check (id), live_seq bigint not null default 0);
+insert into content.meta default values;
 create table content.entries (
-  dataset     text not null check (dataset in
-               ('businesses','posts','buildings','neighborhoods','services','topics','guide-hub','topic-queue')),
-  key         text not null check (key ~ '^[a-z0-9][a-z0-9-]{0,127}$'),  -- slug | 'guide-hub' | 64-hex topic key
-  position    integer not null,          -- array order from JSON; new entries = max+1 (append semantics)
-  status      text not null check (status in ('draft','in_review','published','rejected','unpublished')),
-  head_rev    integer not null,          -- newest revision
-  live_rev    integer,                   -- revision the site serves; NULL = not on site
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  first_published_at timestamptz,
+  dataset text not null check (dataset in ('businesses','posts','buildings','neighborhoods','services','topics','guide-hub','topic-queue')),
+  key text not null, position integer,              -- position NULL until first publish; max+1 under the dataset lock
+  live_rev integer, head_rev integer not null default 0,   -- live_rev is the ONLY visibility bit
+  first_published_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   primary key (dataset, key),
-  check ((status = 'published') = (live_rev is not null))
-);
-create unique index entries_dataset_position on content.entries (dataset, position);
-
+  constraint entries_key_shape check ((dataset='guide-hub' and key='guide-hub') or (dataset='topic-queue' and key ~ '^[0-9a-f]{64}$')
+    or (dataset not in ('guide-hub','topic-queue') and key ~ '^[a-z0-9][a-z0-9-]{0,127}$')),
+  constraint entries_position unique (dataset, position) deferrable initially deferred,
+  check (live_rev is null or position is not null));
 create table content.submissions (
-  id              bigserial primary key,
-  kind            text not null check (kind in
-                   ('seed','business','blog','blog-live','news','seo','topic-discovery','manual')),
-  actor           text not null,         -- e.g. 'gha:discover-businesses#<run_id>', 'vm:blog-live:<data_sha>', 'cli:john'
-  idempotency_key text not null unique,
-  state           text not null check (state in
-                   ('draft','in_review','published','rejected','blocked','error')),
-  decision        text,                  -- go|block|unrepairable|exhausted|not-converging|validation|lint|conflict|smoke-failed|error
-  content_sha     text,                  -- 40-hex binding of the CURRENT round (§4.3)
-  repairs         integer not null default 0,
-  created_at      timestamptz not null default now(),
-  closed_at       timestamptz
-);
-
-create table content.revisions (
-  dataset        text not null,
-  key            text not null,
-  rev            integer not null,
-  payload        json not null,
-  payload_sha256 text not null,          -- sha256(JSON.stringify(payload)) — compact, key order preserved
-  state          text not null check (state in ('draft','in_review','published','rejected','superseded')),
-  source         text not null check (source in ('seed','writer','fixer','rollback','manual')),
-  actor          text not null,
-  submission_id  bigint references content.submissions(id),
-  parent_rev     integer,                -- live_rev at creation time (base for diff/CAS)
-  published_at   timestamptz,            -- set when it went live; rollback targets require NOT NULL
-  note           text,
-  created_at     timestamptz not null default now(),
-  primary key (dataset, key, rev),
-  foreign key (dataset, key) references content.entries (dataset, key)
-);
-alter table content.entries
-  add constraint entries_live_fk foreign key (dataset, key, live_rev)
-  references content.revisions (dataset, key, rev) deferrable initially deferred;
-
-create table content.submission_items (
-  submission_id bigint not null references content.submissions(id),
-  dataset text not null, key text not null,
-  rev integer not null,                  -- current candidate revision (advances with fixer rounds)
-  base_live_rev integer,                 -- entries.live_rev when submitted; CAS on publish
-  op text not null check (op in ('insert','update')),
-  primary key (submission_id, dataset, key),
-  foreign key (dataset, key, rev) references content.revisions (dataset, key, rev)
-);
-
-create table content.gate_rounds (
-  submission_id  bigint not null references content.submissions(id),
-  round          integer not null,       -- 0 = first review, n = after n-th repair
-  content_sha    text not null,
-  verdict        json,                   -- raw VERDICT_SCHEMA output
-  overall        integer,
-  passed         boolean not null,
-  blocking_count integer not null default 0,
-  lint           json,                   -- deterministic findings (blog-lint / validators)
-  decision       text not null,          -- output of preflightDecision or a validation/lint code
-  created_at     timestamptz not null default now(),
-  primary key (submission_id, round)
-);
-
-create table content.discovery_seen (
-  name_key   text primary key,           -- norm(name) exactly as scripts/discover-businesses.mjs computes it
-  first_seen date not null,
-  outcome    text not null default 'seen' check (outcome in ('seen','added','rejected')),
-  submission_id bigint references content.submissions(id),
-  created_at timestamptz not null default now()
-);
-
-create table content.assets (
-  path          text primary key check (path ~ '^/media/[0-9a-f]{16}/[a-z0-9][a-z0-9._-]{0,120}$'),
-  sha256        text not null unique,
-  content_type  text not null check (content_type in ('image/jpeg','image/png','image/webp')),
-  bytes         bytea not null,
-  byte_size     integer not null check (byte_size between 1 and 2000000),
-  submission_id bigint references content.submissions(id),
-  created_at    timestamptz not null default now()
-);
-
-create table content.events (           -- append-only audit trail for manual + automated actions
   id bigserial primary key,
-  at timestamptz not null default now(),
-  actor text not null,
-  action text not null check (action in
-    ('seed','submit','gate_round','publish','reject','unpublish','rollback','revalidate','smoke_failed','auto_revert')),
-  submission_id bigint, dataset text, key text, rev integer,
-  detail json
-);
+  kind text not null check (kind in ('seed','business','blog','blog-live','news','seo','topic-discovery','manual')),
+  target text not null check (target in ('production','staging','test')),
+  actor text not null, idempotency_key text not null unique, request_sha256 text not null,
+  base_snapshot_id text,            -- export manifest the writer generated from (§4.3)
+  state text not null check (state in ('open','gating','published','rejected','blocked','error','compensated')),
+  decision text,  -- go|validation|lint|conflict|unrepairable|exhausted|not-converging|block|mixed-blocked|smoke-failed|error
+  round integer not null default 0, repairs integer not null default 0, claim_token uuid, claimed_until timestamptz,
+  live_seq bigint, deploy_requested_at timestamptz, smoke_passed_at timestamptz, notified_at timestamptz,
+  created_at timestamptz not null default now(), closed_at timestamptz);
+create table content.revisions (
+  dataset text not null, key text not null, rev integer not null,
+  payload json not null, payload_sha256 text not null check (payload_sha256 ~ '^[0-9a-f]{64}$'),
+  source text not null check (source in ('seed','writer','fixer','rollback','manual')),
+  actor text not null, submission_id bigint references content.submissions(id),
+  parent_rev integer, published_at timestamptz,   -- rollback targets require published_at NOT NULL
+  created_at timestamptz not null default now(),
+  primary key (dataset, key, rev), foreign key (dataset, key) references content.entries (dataset, key));
+alter table content.entries add constraint entries_live_fk foreign key (dataset, key, live_rev)
+  references content.revisions (dataset, key, rev) deferrable initially deferred;
+create table content.submission_items (
+  submission_id bigint not null references content.submissions(id), dataset text not null, key text not null,
+  op text not null check (op in ('insert','update')),
+  expected_live_rev integer,   -- from the base snapshot; NULL = insert; compared IS NOT DISTINCT FROM
+  published_rev integer,       -- set by publish; compensation compares against it
+  primary key (submission_id, dataset, key));
+create table content.gate_rounds (
+  submission_id bigint not null references content.submissions(id), round integer not null,
+  candidate_digest text not null,  -- sha256 of sorted "dataset\tkey\trev\tpayload_sha256" lines
+  content_sha text not null check (content_sha ~ '^[0-9a-f]{40}$'),
+  verdict json, overall numeric(4,2), passed boolean not null, blocking_count integer not null default 0,
+  lint json, decision text not null, scripted boolean not null default false,
+  created_at timestamptz not null default now(), primary key (submission_id, round));
+create table content.round_items (  -- immutable candidate vector per round
+  submission_id bigint not null, round integer not null, dataset text not null, key text not null,
+  rev integer not null, payload_sha256 text not null, primary key (submission_id, round, dataset, key),
+  foreign key (dataset, key, rev) references content.revisions (dataset, key, rev));
+create table content.actions (      -- only what revisions cannot express
+  id bigserial primary key, at timestamptz not null default now(), actor text not null,
+  action text not null check (action in ('unpublish','rollback','compensate','reconcile')),
+  dataset text not null, key text not null, from_rev integer, to_rev integer,
+  submission_id bigint, reason text not null, live_seq bigint not null);
+create table content.discovery_seen (
+  name_key text primary key, first_seen date not null,
+  outcome text not null default 'seen' check (outcome in ('seen','added','rejected')),
+  outcome_submission_id bigint references content.submissions(id), created_at timestamptz not null default now());
+create table content.assets (
+  sha256 text primary key check (sha256 ~ '^[0-9a-f]{64}$'),
+  path text not null unique check (path ~ '^/media/[0-9a-f]{16}/[a-z0-9][a-z0-9._-]{0,120}\.(jpg|png|webp)$'),
+  content_type text not null check (content_type in ('image/jpeg','image/png','image/webp')),
+  bytes bytea not null, byte_size integer not null check (byte_size between 1 and 2000000),
+  submission_id bigint references content.submissions(id), created_at timestamptz not null default now());
+-- Triggers: BEFORE UPDATE OR DELETE on revisions, gate_rounds, round_items, actions -> raise;
+-- BEFORE DELETE on entries, discovery_seen -> raise (only `content reset` drops the schema).
 ```
 
-### 3.3 Status model (entries) and revision states
+**Derived states**
+- An entry is *live* iff `live_rev is not null`; *unpublished* iff it is not live but has a revision with `published_at`; otherwise *never published*.
+- Submission states: `open→gating→published(→compensated)` or `gating→rejected|blocked|error`.
+- A live entry's `live_rev` changes only at publish. A rejected edit leaves the old revision live and is listed by `content list --submissions --state rejected,blocked`, not by entry listings.
 
-```
-entry:    (new) ─submit→ draft ─gate start→ in_review ─pass→ published ─unpublish→ unpublished
-                                             └─fail→ rejected          └─rollback→ published (new rev)
-revision: draft → in_review → published → superseded
-                           ↘ rejected       (fixer: old in_review rev → superseded, new rev in_review)
-```
+**Registry** `lib/content/datasets.json` (scripts only, `with {type:'json'}`). Columns: file · key · route · smoke marker (HTML-escaped) · image fields:
 
-- **Site visibility is only `entries.live_rev IS NOT NULL`**, which is equivalent to `status='published'`.
-- An edit to an already-published entry (seo kind, manual resubmit) creates a revision with `rev > live_rev`. The entry stays `published`, so the site keeps serving `live_rev` until the edit passes. A rejected edit leaves the entry `published` on its old revision.
-- An `unpublished` entry keeps all revisions. Re-publishing it is `rollback --to-rev <n>`.
-- Rollback creates a new revision (`source='rollback'`) that copies the payload of a revision with `published_at IS NOT NULL`. It publishes without a gate: that content was already gated or seeded.
-- `topic-queue` entries are insert-only. `submit` refuses a new revision of an existing topic key, which replaces `validateTopicQueueAppendOnly`.
-- `guide-hub` is a single entry with key `guide-hub`.
-- No automated path ever DELETEs rows. Deletion-style intent is `unpublish`. This replaces `validateDestructiveDiff`.
-- All state transitions happen inside one transaction per operation in `scripts/content/store.mjs`.
-
-### 3.4 Dataset registry (shared file, Package A)
-`lib/content/datasets.json` is imported by the app (TS `resolveJsonModule`) and by scripts (`import … with {type:'json'}`):
-
-```json
-{
-  "site": {
-    "businesses":    {"route": "/directory/:key", "titleField": "name",  "file": "data/businesses.json"},
-    "posts":         {"route": "/blog/:key",      "titleField": "title", "file": "data/posts.json"},
-    "buildings":     {"route": "/buildings/:key", "titleField": "name",  "file": "data/buildings.json"},
-    "neighborhoods": {"route": "/vs/:key",        "titleField": "name",  "file": "data/neighborhoods.json"},
-    "services":      {"route": "/best/:key",      "titleField": "pluralName", "file": "data/services.json"},
-    "topics":        {"route": "/guide/:key",     "titleField": "title", "file": "data/topics.json"},
-    "guide-hub":     {"route": "/guide",          "titleField": null,    "file": "data/guide-hub.json", "singleton": true}
-  },
-  "state": {
-    "topic-queue":    {"file": "data/topic-queue.json", "wrapper": {"version": 1, "arrayField": "topics"}, "keyField": "key"},
-    "discovery-seen": {"file": "data/discovery-seen.json", "table": "discovery_seen"}
-  }
-}
-```
-
----
+| dataset | file | key | route | smoke marker | image fields |
+|---|---|---|---|---|---|
+| businesses | businesses.json | slug | `/directory/:key` | `name` | `image` |
+| posts | posts.json | slug | `/blog/:key` | `title` | `image` |
+| buildings | buildings.json | slug | `/buildings/:key` | `name` | `image` |
+| neighborhoods | neighborhoods.json | slug | `/vs/:key` | `name` | — |
+| services | services.json | slug | `/best/:key` | `pluralName` | `image` |
+| topics | topics.json | slug | `/guide/:key` | `title` | `image` |
+| guide-hub | guide-hub.json | singleton `guide-hub` | `/guide` | first 60 chars of `answerSummary` | — |
+| topic-queue | topic-queue.json | `key` in wrapper `{version:1,topics}` | — | — | — |
+| discovery-seen | discovery-seen.json | map key (sorted) | — | — | — |
 
 ## 4. Contracts
 
-### 4.1 App data-access layer (Package B)
+### 4.1 Canonical helpers and validators (A: `canonical.mjs`, `validate.mjs`)
+- `recordSha(r)=sha256(JSON.stringify(r))`.
+- `datasetDigest(d,records)=sha256(records.map(r=>keyOf(d,r)+':'+recordSha(r)).join('\n'))`; for discovery-seen it is computed over sorted `name:date` pairs.
+- `blobSha1(t)=sha1("blob "+byteLen+"\0"+t)`.
+- `serialize(d,records)` returns the canonical file text in its original shape.
 
-**Files:**
-- `lib/content/db.ts` (`import "server-only"`): one lazily created `pg.Pool` from `process.env.CONTENT_DATABASE_URL`, with `max: 3`.
-  - Code must never read `DATABASE_URL` or `POSTGRES_*`. Those are the Neon integration's variables, shared across Vercel envs. A test greps for this.
-- `lib/content/source.ts` (`server-only`):
+**`validateRecord(dataset, key, record) → {ok, errors}`** checks storage validity only:
+- **Identity:** `record.slug===key`. guide-hub must have no `slug` and key `guide-hub`. topic-queue requires `record.key===key` and, for inserts, `key===topicKey(kind,title,branchPrefix)`.
+- **Fields:** required fields and types from `lib/types.ts`, plus the queue schema `key, kind∈{blog,seo}, title, source, rationale, addedAt, attempts, branchPrefix`.
+- **Allowlist:** type fields plus keys observed at seed (`_discoveredAt`, `_needsEnrichment`); an unknown field fails.
+- **Budget and safety:** ≤ 200 KB; the `SECRET_FINGERPRINT` check from `pi-session.mjs`.
 
-  ```ts
-  export type SiteDataset = 'businesses'|'posts'|'buildings'|'neighborhoods'|'services'|'topics'|'guide-hub';
-  export class ContentUnavailableError extends Error {}
-  export async function loadSiteDataset<T>(name: SiteDataset): Promise<T[]>;
-  ```
+Generation policy (dates, author, counts) lives per kind in §4.4.
 
-  - `CONTENT_SOURCE` is read at call time: `json` (the default when unset) or `db`.
-  - In `json` mode it reads `data/<file>` with `readFileSync`, exactly as today. Singletons come back as a 1-element array.
-  - In `db` mode:
-
-    ```sql
-    select r.payload from content.entries e
-      join content.revisions r on (r.dataset,r.key,r.rev)=(e.dataset,e.key,e.live_rev)
-     where e.dataset=$1 and e.live_rev is not null order by e.position
-    ```
-
-    - Wrapped in `unstable_cache(fn, ['content', name, 'v1'], { tags: ['content:'+name, 'content:all'], revalidate: 3600 })`, then in React `cache()` for per-render dedupe.
-    - DB errors: 3 attempts with 0.5s / 2s / 5s backoff (this covers Neon scale-to-zero wake), then throw `ContentUnavailableError`.
-    - **Zero rows for any site dataset throws.** An empty result is never cached or rendered.
-- `lib/data.ts`: **same export names and parameters. Every accessor becomes `async` and returns `Promise<…>`.**
-  - Exceptions: `selectNewsPosts` stays a pure sync function, and `getGuideHubData` keeps its fallback object only in `json` mode.
-  - Filtering and sorting logic is copied unchanged.
-- `lib/links.ts`: every exported function becomes `async` (same names and params).
-- All 20 importers add `await`, including `generateStaticParams`, `generateMetadata`, `components/Header.tsx` (async server component) and `app/sitemap.ts` (async default export). Templates are otherwise untouched.
-- `tests/news-pilot/publish.test.mjs:531-532`: the regex becomes `/export (async )?function getNewsPosts/`. This file is not locked.
-
-**Caching and revalidation:**
-- The 3600s `revalidate` is only a self-healing backstop. The primary path is on-demand invalidation.
-- Pages stay prerendered at build via `generateStaticParams`. New slugs render on first request (`dynamicParams` default) and are then cached.
-- Build output must still show the six `[param]` routes as SSG/ISR (●), not dynamic (ƒ).
-- Data-cache entries are per dataset. posts at ~857KB fits under Vercel's ~2MB per-item cache limit. If a dataset ever exceeds it, the result goes uncached but stays correct; that is noted for the future.
-
-**DB-unavailable behaviour (chosen):**
-- **Build:** after retries, the build fails loudly. Vercel keeps serving the previous deployment, so there is no outage, only a blocked deploy.
-- **Runtime ISR regeneration:** the error propagates and Next keeps serving the last good page.
-- **Never:** render or cache an empty or partial list.
-- Escape hatch during the transition: `CONTENT_SOURCE=json` (§7.3).
-
-### 4.2 Revalidate route (Package B)
-`app/api/content/revalidate/route.ts`, `runtime='nodejs'`, POST only:
-
-- Request:
-  - Header `Authorization: Bearer <CONTENT_REVALIDATE_SECRET>`, compared with `crypto.timingSafeEqual`.
-  - Body `{"datasets": ["businesses", ...]}`, a non-empty subset of the site datasets.
-- Action: `revalidateTag('content:'+d, { expire: 0 })` for each dataset. Immediate expiry means the next request renders fresh data. Every page that read a dataset carries its tag, including the sitemap, and all pages carry `content:services` through the Header.
-- Responses:
-  - `200 {"ok":true,"revalidated":["content:businesses"],"at":"<iso>"}`
-  - `401` on a bad token
-  - `400` on an unknown dataset
-  - `503` if the secret is unset
-- The route revalidates only the deployment it runs on. The prod domain maps to the prod deployment; the staging alias maps to the staging preview.
-
-### 4.3 Media route (Package B) and images decision
-**Decision:** new images are stored in `content.assets` (bytea) and served by `app/media/[...path]/route.ts` at content-addressed URLs `/media/<sha256[0:16]>/<slug>.<ext>`.
-- Response: `200` with the stored `Content-Type` and `Cache-Control: public, max-age=31536000, immutable`, or `404`.
-- The existing `vercel.json` immutable rule for `*.jpg` also matches these paths, which is safe because the URLs are content-addressed.
-- `next/image` already handles local paths, and no config change is needed. Package B verifies this in UAT.
-
-**Why this option:**
-- Committing images still needs a deploy before the page image exists, which defeats the goal.
-- Vercel Blob needs a new store plus a `BLOB_READ_WRITE_TOKEN` on every writer, and its upload is not atomic with the record.
-- The DB asset is written in the same transaction as the submission. It adds no vendor and no secret.
-- Volume is about 6 business images per week at roughly 100-200KB, well within Neon storage.
-- **Tradeoff:** a cold image miss costs a function call plus a DB read, but the edge caches it forever. Blob stays a drop-in later option: only the URL prefix changes.
-- Existing `public/images/**` stay in git with unchanged URLs.
-
-### 4.4 Script-side store API (Package A): `scripts/content/store.mjs`
-ESM, uses `pg`. Every function takes `db` (a client from `scripts/content/db.mjs`) first, and every mutating function runs in one transaction.
-
+### 4.2 Store API (A: `scripts/content/store.mjs`, `pg`; each mutator = one transaction)
 ```js
-openDb({ unpooled=false, expectDb })          // reads CONTENT_DATABASE_URL[_UNPOOLED]; asserts current_database()===expectDb when given; returns {query, tx, close, dbName}
-liveDataset(db, dataset)                      // → records[] in position order (state datasets: topic-queue → entries[]; discovery-seen → {name:date})
-exportAll(db, outDir, {datasets})             // writes data/<file> canonical JSON.stringify(x,null,2)+'\n', original shapes (§2.2)
-createSubmission(db, {kind, actor, idempotencyKey, items:[{dataset,key,payload,op}], discoverySeen:[{nameKey,firstSeen}], assets:[{path,sha256,contentType,bytes}]})
-                                              // idempotent on idempotencyKey (returns existing); inserts entries/revisions(state 'draft', parent_rev=live_rev)
-                                              // → {submissionId, items:[{dataset,key,rev,op,baseLiveRev}], existing:boolean}
-beginReview(db, submissionId, contentSha)     // draft→in_review (submission, revisions, new entries)
-addRepairRevision(db, submissionId, {dataset,key,payload,round})   // old rev→superseded, new rev (source 'fixer') in_review; updates submission_items.rev, submissions.repairs
-recordGateRound(db, submissionId, {round, contentSha, verdict, overall, passed, blockingCount, lint, decision})
-publishSubmission(db, submissionId, actor)    // CAS: entries.live_rev === item.base_live_rev for every item, else throw ConflictError (no partial publish)
-                                              // sets live_rev, status 'published', revisions.published_at, prior live rev→superseded, events
-rejectSubmission(db, submissionId, {state:'rejected'|'blocked', decision})
-revertSubmission(db, submissionId, actor)     // smoke-failure auto-revert: restore each item's base_live_rev (or unpublish if insert)
-unpublish(db, {dataset,key,actor,reason})
-rollback(db, {dataset,key,toRev,actor,reason}) // toRev must have published_at not null
-history(db, {dataset,key})                    // revisions + events
-listEntries(db, {status, dataset, kind, since})
-putAsset / getAsset
-markDiscoverySeen(db, rows, {outcome, submissionId})  // insert-only; never overwrites first_seen; may upgrade outcome seen→added|rejected
+openDb({unpooled=false, expectDb}) -> {query, tx(fn,{isolation}), close, dbName, target}
+  // TargetError unless current_database()===expectDb and dbName ∈ {neondb→production, lv_staging→staging,
+  // lv_test_* on 127.0.0.1|localhost→test}. Never reads DATABASE_URL/POSTGRES_*/PG*. connect 10s, statement_timeout 30s.
+readLive(db, {datasets=ALL}) -> Snapshot        // one REPEATABLE READ READ ONLY tx
+  // {schema:1, db, target, live_seq, snapshot_id:<40-hex sha1(live_seq+digests)>, generated_at,
+  //  datasets:{[d]:{count, digest, entries:{[key]:{rev, sha}}, records}}, media:[paths referenced by live payloads]}
+resolveAssets(db, [{sha256}]) -> [{sha256, path|null}]
+createSubmission(db, {kind, target, actor, idempotencyKey, baseSnapshotId,
+    items:[{dataset,key,op,payload,expectedLiveRev}], assets:[{sha256,path,contentType,bytes}], discoverySeen:[{nameKey,firstSeen}]})
+  -> {submissionId, existing, items:[{dataset,key,op,rev,expectedLiveRev}], discoverySeenAdded}
+  // Same key + same request_sha256 -> existing:true, no writes; different sha -> StateError('idempotency-mismatch').
+  // Entries inserted if absent, then SELECT … ORDER BY dataset,key FOR UPDATE; rev=head_rev+1.
+  // Precheck live_rev IS NOT DISTINCT FROM expectedLiveRev, else ConflictError{conflicts}, nothing written.
+  // Writes revisions (source writer|manual, parent_rev=expected), submission_items, round-0 round_items;
+  // assets ON CONFLICT (sha256) DO NOTHING; discovery_seen ON CONFLICT DO NOTHING.
+claimSubmission(db, id, {owner, leaseSeconds=2700}) -> {token}      // ClaimError if held and unexpired
+releaseClaim(db, id, token)
+getSubmission(db, id) -> {submission, items, rounds:[{…, items:[{dataset,key,rev,payload,payload_sha256}]}]}
+recordRound(db, id, token, {round, contentSha, candidateDigest, verdict, overall, passed, blockingCount, lint, decision, scripted})
+  // round===submissions.round; open->gating; StateError if the row exists.
+addRepairRound(db, id, token, {fromRound, repairs:[{dataset,key,payload}]}) -> {round, items}
+  // needs gate_rounds(fromRound).decision==='repair' and fromRound===current; fixer revisions; next round vector = previous
+  // with the repaired entries replaced; round+=1, repairs+=1.
+publishSubmission(db, id, token, {actor}) -> {liveSeq, published:[{dataset,key,op,rev}]}
+  // Idempotent when already published. Otherwise: (1) submission row FOR UPDATE, state gating, claim matches;
+  // (2) latest round passed && decision 'go' && candidate_digest recomputed from round_items matches;
+  // (3) pg_advisory_xact_lock(hashtext('content:'||dataset)) sorted, then entries ORDER BY dataset,key FOR UPDATE;
+  // (4) every live_rev IS NOT DISTINCT FROM expected_live_rev, else ConflictError (tx rolls back);
+  // (5) live_rev:=round rev, insert position=coalesce(max,-1)+1, published_at, published_rev, meta.live_seq+=1, state published.
+rejectSubmission(db, id, token, {state:'rejected'|'blocked'|'error', decision})   // discovery_seen outcome 'rejected'
+markPhase(db, id, 'deploy_requested'|'smoke_passed'|'notified')
+compensateSubmission(db, id, {actor, reason}) -> {liveSeq, reverted:[{dataset,key,fromRev,toRev}]}
+  // publish's locks; only if EVERY item live_rev===published_rev: restore expected_live_rev (NULL for insert),
+  // actions('compensate'), live_seq+=1, state compensated. Else ConflictError{conflicts}, nothing changes.
+unpublish(db, {dataset,key,actor,reason}) -> {liveSeq, fromRev}
+rollback(db, {dataset,key,toRev,actor,reason}) -> {liveSeq, rev}   // toRev.published_at NOT NULL; new rev source 'rollback'
+  // copies the payload and publishes ungated (already gated/seeded); refused for topic-queue
+history(db, {dataset,key}) -> {entry, revisions:[{rev,source,actor,submissionId,payloadSha256,publishedAt,createdAt,live}], actions}
+listSubmissions(db, {state, kind, target, dataset, key, since}) -> [{id,kind,state,decision,round,repairs,createdAt,closedAt,items:[{dataset,key,op}]}]
+listEntries(db, {dataset, visibility:'live'|'unpublished'|'never'|'all'}) -> [{dataset,key,liveRev,headRev,position}]
+markDiscoverySeen(db, nameKeys, {outcome:'added'|'rejected', submissionId})   // seen -> added|rejected only
+stats(db) -> {databases:{[name]:bytes}, assets:{count, bytes, unreferenced}}
+```
+Error classes carry `.code`: `TargetError`, `ConflictError`, `StateError`, `ClaimError`, `ValidationError`. The CLI exits 2 for Conflict/Validation and 1 for the others.
+
+### 4.3 Export, build-export, snapshot (A)
+
+`content export --root <dir> --expect-db D` writes one `readLive` snapshot:
+```
+<dir>/data/{businesses,posts,buildings,neighborhoods,services,topics,guide-hub,topic-queue,discovery-seen}.json  (canonical)
+<dir>/.content-export/manifest.json          (Snapshot minus records: the submit baseline, §4.4)
+<dir>/public/media/<sha16>/<file>            (only with --with-assets)
 ```
 
-`scripts/content/canonical.mjs`:
-- `recordSha(record)` = `sha256(JSON.stringify(record))`
-- `datasetDigest(records, keyOf)` = `sha256(records.map(r => keyOf(r)+':'+recordSha(r)).join('\n'))`
-- `blobSha1(text)` = git-blob-style `sha1("blob "+len+"\0"+text)`, used for the 40-hex binding.
+**Build export.** `package.json` gets `"prebuild": "node scripts/content/build-export.mjs"`; Vercel's `npm run build` runs it. It is a no-op unless `CONTENT_SOURCE=db`. Otherwise:
+- It reads pooled `CONTENT_DATABASE_URL` and binds the target: `VERCEL_ENV=production` requires `neondb`, `preview`/`development` require `lv_staging`, and a mismatch exits 1.
+- 3 attempts total (waits 2s, 5s), each with a 10s connect timeout and a 30s statement timeout, and no cache.
+- Any error, empty site dataset or `validateRecord` failure exits 1, so the build fails.
+- It writes `data/*.json` (all 9), `public/media/<sha16>/<file>` for `snapshot.media`, and `public/content-snapshot/manifest.json` (the Snapshot without records, plus `files` and `media`).
+- It also writes `public/content-snapshot/<file>` for all 9, byte-identical to `data/<file>`. This is the public, live-only L2 backup: no drafts, verdicts or evidence.
 
-### 4.5 CLI contract (Package A shell; C implements `submit`/`gate`): `node scripts/content/cli.mjs <cmd>`
+Media is served as static files by the Vercel CDN. The existing `vercel.json` immutable browser caching is safe because paths are content-addressed.
 
-**General rules:**
-- stdout carries exactly one final JSON line.
-- stderr starts with `{"target":{"db":"<current_database()>","host":"<host>"}}`.
-- Exit codes: `0` ok; `2` expected negative (rejected, blocked, validation, conflict); `1` error.
-- Every mutating command requires `--expect-db <neondb|lv_staging>` and aborts if it differs from `current_database()`.
-- Workflows pass `--expect-db ${{ vars.CONTENT_DB_NAME }}` from their GitHub Environment.
+### 4.4 `content submit` (B: `submit.mjs`, `images.mjs`)
 
-| cmd | args | result |
-|---|---|---|
-| `migrate` | `--expect-db` | applied versions |
-| `seed` | `--from <dir>` \| `--from-ref <gitref>`; `--apply` (default: dry-run plan); `--prune` | see §5 |
-| `verify-parity` | `--from <dir>` \| `--from-ref <ref>` | per-dataset `{count, digest, match}`; exit 1 on any mismatch |
-| `export` | `--out <dir> [--datasets a,b] [--with-assets]` | writes files; `--with-assets` also writes `public/media/<hash>/<file>` |
-| `submit` | `--kind K --actor S --idempotency-key S --expect-db D` plus one of: `--dir <workspace>` (diffs workspace `data/*` vs DB live, §4.6); `--record-file <f> --dataset posts`; `--from-ref <ref> --only-new` | `{submissionId, items, discoverySeenAdded, assets}`; `submissionId:null` if there is nothing to submit |
-| `gate` | `--submission N --expect-db D [--evidence <file>] [--site-url URL]` | `{submissionId, state, decision, overall, repairs, published:[{dataset,key,rev,url}], revalidated, smoke:[{url,status}]}`; exit 0 = published, 2 = rejected/blocked/smoke-failed; resumable if re-run |
-| `resubmit` | `--dataset d --key k --payload-file f --actor S` | a kind-`manual` submission; then run `gate` |
-| `unpublish` / `rollback` | `--dataset d --key k [--to-rev n] --reason S --actor S` | performs the change, then revalidates |
-| `history` / `list` / `show` | read-only | JSON |
-| `revalidate` | `--datasets a,b [--site-url URL]` | calls the §4.2 route |
+**Input modes**
+- **`--dir <root>`** diffs `data/*` against `<root>/.content-export/manifest.json`, the immutable baseline and never the DB's current state. An unchanged `recordSha` is **skipped** (no spurious updates). A changed sha becomes `update` with `expectedLiveRev` = the manifest rev; a new key becomes `insert` with NULL. A manifest key missing from the workspace → `ValidationError` (no deletes). DB keys absent from the manifest (concurrent inserts) are ignored. `baseSnapshotId` = the manifest's `snapshot_id`.
+- **`--record-file f --dataset d`** is a single record; `--baseline <manifest>` supplies the expected rev and is required for updates.
 
-The site URL comes from `CONTENT_SITE_URL`. The optional `CONTENT_SITE_BYPASS` sends `x-vercel-protection-bypass` if staging previews are protected.
+**Kind policy** (checked before any write; the same deterministic checks run at round 0 and after every repair):
 
-### 4.6 `submit` semantics (Package C)
-
-**`--dir` mode:**
-- For each dataset the kind allows, it reads the workspace file, fetches the DB live set, and matches records by key.
-  - A new key becomes `insert`.
-  - A changed `recordSha` becomes `update`.
-  - A key present in the DB but **missing from the workspace fails with exit 2** (`decision:'validation'`). No deletes.
-- Discovery-seen: keys in the workspace but not in the DB are inserted immediately with outcome `seen`. That is ops memory; it is not gated.
-
-Kind policy:
-
-| kind | datasets | constraints |
-|---|---|---|
-| business | businesses (+ discovery-seen) | inserts or updates, ≤ 25 records |
-| blog, blog-live, news | posts | **exactly 1 insert**, no updates (same as `assertAppendOnlyPostsChange`) |
-| topic-discovery | topic-queue | inserts only; existing keys byte-identical |
-| seo | services, topics, neighborhoods, buildings, guide-hub, businesses, posts | ≤ 15 records, ≤ 2 inserts (the current rails in `seo-improve-system.md` and `weekly-seo-improvements.yml:132-150`) |
-| manual | any site dataset | exactly 1 record |
-
-Validation before anything is written:
-- Each payload passes `scripts/content/validate.mjs`.
-  - The strict per-dataset field allowlist is the `lib/types.ts` fields plus the extra keys observed at seed time (`_discoveredAt`, `_needsEnrichment`).
-  - Required fields and types are checked, and `key === record.slug`.
-  - Posts additionally go through `validateSubmittedPost`-equivalent checks.
-- An unknown field is rejected, so content can never depend on code that has not shipped.
-
-Images:
-- An `image` value that points at a workspace file under `public/images/**` that is **not tracked in the trusted `main` checkout** (`git ls-files`) is read and size-checked (≤ 2MB, jpeg/png/webp). It becomes an asset, and the record's `image` is rewritten to its `/media/...` path.
-- Images already tracked on main are left alone. A missing file fails validation.
-
-### 4.7 `gate` semantics (Package C): port of `news-preflight.runPreflight` to rows
-
-1. **Deterministic checks, round 0:**
-   - validators (§4.6);
-   - posts only: `blog-lint` via the new flag `--baseline <file>`, with the baseline from `exportAll` of live posts instead of `git show HEAD:`.
-
-   A failure rejects the submission with `decision:'lint'|'validation'`. No model is called.
-2. **Build the review document.** For each item, a unified diff:
-   - of pretty JSON of the base live payload (empty for inserts) against the candidate;
-   - with headers `--- a/data/<dataset>.json#<key>` and `+++ b/data/<dataset>.json#<key>`.
-
-   Findings must use the path `data/<dataset>.json`; the gate strips any `#key` before calling `classifyFindings`. So `RECORD_REPAIR_RULES` (keyed by file), `classifyFindings` and the per-kind `LENSES` work unchanged.
-
-   `content_sha` = `blobSha1(document)`. That keeps `VERDICT_SCHEMA.commit_sha` (40-hex) and `evaluateVerdict` unmodified.
-3. **Review.** Uses the generalized `review-agent.mjs` `reviewContent`: any content kind, plus optional `references` and `inventory`.
-   - Grounded kinds (blog, blog-live, news) get `selectReferenceRecords` over the DB live businesses, and `inventoryFromData` over the DB live services/topics/posts plus image listings (trusted checkout plus `content.assets`).
-   - News passes `--evidence`.
-   - Gate model, budget and pass bar are unchanged.
-   - Each round is written with `recordGateRound`.
-4. **Decision** comes from `preflightDecision({verdict, contentSha, attempts: repairs, maxRepairs: MAX_REPAIRS, kind, changedFiles})` plus `evaluateRepairProgress` over the `gate_rounds` history.
-   - `go` → step 6.
-   - `repair`, if the kind has a fixer (topic-discovery has none) → step 5.
-   - Anything else → reject (`blocked` for unrepairable/exhausted/not-converging).
-5. **Fixer.** `planRecordRepair({kind, gateVerdict, payload:[{file:'data/<dataset>.json', records}], validate: (f,o,r)=>validateRecordRepair(f,o,r) && validate.mjs, references, inventory, lintFindings})`.
-   - Each repaired record goes through `addRepairRevision`, then back to step 2.
-   - At most 3 repairs (`MAX_REPAIRS`), each with at most 4 fixer plans (`MAX_FIXER_ATTEMPTS`), exactly as today.
-6. **Publish.** `publishSubmission`, then `POST /api/content/revalidate` for the touched site datasets.
-   - A revalidate failure is retried once. If it still fails, the result reports `revalidated:false` and posts a Slack warning. The 1h backstop then applies. The content is still published.
-7. **Smoke** (site datasets only). GET `CONTENT_SITE_URL + route` for each item, retried for up to 180s. It expects `200` and the HTML-escaped `titleField` value in the body.
-   - On failure: `revertSubmission`, revalidate, `decision:'smoke-failed'`, Slack, exit 2.
-   - This replaces the `npm run build` / e2e that content PRs got in `generator-ci`.
-8. **Notify.** On any non-publish outcome, post one Slack message via `SLACK_WEBHOOK_URL`: kind, submission id, decision, score and the top 3 findings, plus `content show --submission N`. Rejected content stays visible via `content list --status rejected`.
-9. **Mirror.** On a publish, send `repository_dispatch` `content-published` with `{target}` using `GITHUB_TOKEN`, which triggers the mirror (§4.8).
-
-Changes to `review-agent.mjs` (Package C):
-- Add a main guard: `if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)`.
-- Export `runStructured, VERDICT_SCHEMA, LENSES, GATE_BAR, planRecordRepair, reviewContent`.
-- `review-content` accepts `--kind` in `{business, blog, blog-live, news, seo, topic-discovery}` plus optional `--references` and `--inventory`.
-- `review()` and `fix()` (the PR paths) are **not modified**, because locked evals regex their source.
-
-### 4.8 Content mirror (Package A)
-`.github/workflows/content-mirror.yml`:
-- Triggers: `repository_dispatch: content-published`, `workflow_dispatch`, and a daily cron.
-- Job: in the environment named by the target (`content-production` / `content-staging`), run `content export --out data/`. Then commit to branch **`content-mirror/<target>`**, but only when something changed. The branch is never merged and has no PR or CI.
-
-Purposes:
-- (a) The secret-free exe.dev VM reads current content from it (§4.10).
-- (b) It is the JSON source for rollback (§7.3).
-- (c) Git history of published content keeps the "free history" property.
-
-### 4.9 Manual surface
-- The CLI can be run locally with env pulled from Vercel.
-- `.github/workflows/content-admin.yml` (Package A) is a `workflow_dispatch` wrapper:
-  - inputs: `action` in `list|show|history|unpublish|rollback|resubmit-gate|revalidate`, plus `target`, `dataset`, `key`, `to_rev`, `reason`;
-  - it runs in the matching environment, so John can act from GitHub on a phone with no local secrets.
-
-### 4.10 VM (exe.dev supervisor) write path: decision
-**Decision:** the VM stays secret-free. It keeps using GitHub as its transport, and GHA performs the DB write and the gate.
-
-Rejected alternatives:
-- A direct DB credential would be the VM's first real secret. The VM is the zone that runs model-generated content, and a credential there breaks the no-token contract (`tests/supervisor/sentinel-ops.test.mjs:77,103,108`).
-- An authenticated app API route also needs a bearer secret on the VM.
-- In both cases the gate would still have to run in GHA, because the VM has no Anthropic key.
-
-The ingest workflow already exists and already holds `ANTHROPIC_API_KEY`.
-
-DB mode is selected by the non-secret `LV_CONTENT_STORE=db` in `/etc/lv-supervisor.env`. The legacy path stays the default until cutover.
-
-1. Worktree from `origin/staging` (code), then `git checkout origin/content-mirror/production -- data/`, so generation context, duplicate-slug checks and topic selection use current DB content.
-2. The weekly-objective check reads `data/posts.json` from the mirror instead of the git history of `origin/main` (`branchPublicationHistory`). It checks for a published post whose `publishedAt` falls in this ISO week.
-3. Generate and lint with `blog-lint --baseline <mirror posts>` as today.
-4. Commit only `candidate/post.json` (the single record) on `supervisor/blog-data-<ms>` and push through the exe.dev proxy. Then dispatch `supervisor-ingest-blog` with the existing payload plus `store:"db"`.
-5. `supervisor-ingest.yml`, DB branch, environment `content-production`:
-   - verify `DATA_SHA`, read `candidate/post.json`;
-   - `content submit --kind blog-live --record-file … --idempotency-key vm:<data_sha>`;
-   - `content gate`;
-   - set commit status **`content/publish`** on `DATA_SHA`: `success` with `target_url` = the live URL, or `failure` with the decision in the description;
-   - run `coordinator record-candidate-outcome` for rejections, as today.
-6. The VM polls the `content/publish` status on `DATA_SHA` for up to 40 minutes. The status must be created by `github-actions[bot]`.
-7. On success the VM **independently GETs the public live URL** (no secret) and checks for the post title. Terminal state is the new ledger state `PUBLISHED_LIVE`, followed by `consumeIntent`.
-8. Failure maps to the existing `BLOCKED_*` states. The data branch is deleted as today.
-
----
-
-## 5. Seeding / migration
-
-`content seed` (Package A) is idempotent and dry-run by default:
-
-1. **Read the source.** `--from-ref <ref>` uses `git show <ref>:data/<file>`; `--from <dir>` uses files.
-2. **Per record,** using `position` = array index:
-   - key absent in DB → insert entry plus revision 1 (`source:'seed'`, `state:'published'`, `published_at=now()`, actor `seed:<ref>@<sha>`, `submission_id` = one kind-`seed` submission per run, idempotency key `seed:<target>:<sha>`);
-   - same `recordSha` as the live revision → no-op;
-   - different → a new revision `source:'seed'`, published (sync mode). This is refused if the entry has any `source in ('writer','fixer','manual','rollback')` revision newer than its last seed, so a re-seed can never clobber gated DB edits. The refusal is reported and exits 2.
-3. **Keys in DB but absent from the source** are reported only. `--prune` unpublishes them; it never deletes.
-4. **Positions** are rewritten to match the source order for seed-owned entries. Entries created by writers after cutover keep their appended positions.
-5. **State datasets:**
-   - topic-queue: entries keyed by `key`, in the same order.
-   - discovery-seen: inserted into `content.discovery_seen` with `outcome='added'` if the name maps to a business, else `'seen'`. `first_seen` is never overwritten.
-6. **Verify.** `verify-parity --from-ref <ref>` compares, per dataset:
-   - count;
-   - ordered key list;
-   - per-record `recordSha`;
-   - `datasetDigest`.
-
-   discovery-seen compares the map, and guide-hub compares the singleton. Exit 1 on any mismatch. The output table is pasted as evidence.
-
-**Tonight (allowed, prod unread until cutover):** both DBs are currently empty (the 219-business probe was dropped).
-
-```
-# staging DB ← origin/staging content (219 businesses, 23 topic-queue)
-CONTENT_DATABASE_URL_UNPOOLED=<lv_staging> content migrate --expect-db lv_staging
-content seed --from-ref origin/staging --apply --expect-db lv_staging && content verify-parity --from-ref origin/staging
-
-# prod DB ← origin/main content (215 businesses, 16 topic-queue) — matches what is live
-CONTENT_DATABASE_URL_UNPOOLED=<neondb> content migrate --expect-db neondb
-content seed --from-ref origin/main --apply --expect-db neondb && content verify-parity --from-ref origin/main
-```
-
-Blog-live keeps shipping posts into `main` JSON until cutover. The cutover runbook therefore re-runs seed in sync mode from `origin/main` immediately before the flip (§7.2 step 3).
-
----
-
-## 6. Secrets / credentials matrix
-
-Infra is live:
-- One Vercel-Neon store `lib_village` (Neon project, PG 18, us-east-1), bound to Production and Preview.
-- **The integration's `DATABASE_URL` / `POSTGRES_*` / `PG*` variables are shared across envs, so nothing may use them.** A test in Package B greps `app lib scripts components` for them.
-- Isolation is by database inside the project.
-
-| where | name | value | status |
+| kind | datasets / ops | limits | deterministic checks |
 |---|---|---|---|
-| Vercel Production | `CONTENT_DATABASE_URL` / `CONTENT_DATABASE_URL_UNPOOLED` | `neondb` pooled / unpooled | **set** (per John) |
-| Vercel Preview + Development | same two | `lv_staging` | **set** |
-| Vercel Production | `CONTENT_SOURCE` | unset (= `json`) until cutover, then `db` | cutover step |
-| Vercel Preview | `CONTENT_SOURCE` | `db` | Phase 1 |
-| Vercel Production / Preview | `CONTENT_REVALIDATE_SECRET` | 32-byte random, **different per env** | new |
-| GitHub Environment **`content-production`** (deployment branch policy: `main` only, so staging-branch runs cannot read it) | secrets `CONTENT_DATABASE_URL`, `CONTENT_DATABASE_URL_UNPOOLED`, `CONTENT_REVALIDATE_SECRET`; vars `CONTENT_DB_NAME=neondb`, `CONTENT_SITE_URL=https://libertyvillage.co` | | new (repo is public, so Environments are available) |
-| GitHub Environment **`content-staging`** (any branch) | same names → `lv_staging`, the staging revalidate secret, `CONTENT_DB_NAME=lv_staging`, `CONTENT_SITE_URL=<staging branch alias>`; optional `CONTENT_SITE_BYPASS` if previews are protected | | new |
-| GitHub repo | `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, `SERPAPI_API_KEY`, `PEXELS_API_KEY`, … | unchanged | exists |
-| GitHub repo var | `LV_CONTENT_STORE` = `git` (legacy PR paths) \| `db` | `git` until cutover | new |
-| exe.dev VM `/etc/lv-supervisor.env` | `LV_CONTENT_STORE=db`, `LV_SITE_URL=https://libertyvillage.co` (**non-secret**) | **no DB or revalidate secret** (§4.10) | cutover step |
-| Local dev / tests | `.env.local` via `vercel env pull --environment=development` → `lv_staging`. Tests use `CONTENT_TEST_DATABASE_URL` = local docker `postgres:18`; the harness refuses non-localhost hosts | | — |
+| business | businesses insert, plus discovery-seen rows `outcome='seen'` | 1–25 | validators, images |
+| blog, blog-live | posts insert | exactly 1 | validators, `lintPost` (mode from `resolveLintMode`), images |
+| news | posts insert | exactly 1 | validators, `lintPost`, `validateDraft` + `evaluatePublishReadyDraft` with evidence; image must be `/images/…` (no conversion) |
+| topic-discovery | topic-queue insert | 1–25 | validators, duplicate key/title against the live queue |
+| seo | services, topics, neighborhoods, buildings, guide-hub, businesses, posts; insert/update | ≤ 15 records, ≤ 2 inserts (**new DB policy**; the legacy rail caps files) | validators, images |
+| manual | one site record, insert/update | exactly 1 | validators, images |
+
+**Images** (each registry image field; `deployedRef` = `origin/main` for production, `origin/staging` for staging):
+1. `/media/<sha16>/<f>` must exist in `content.assets`.
+2. `/images/<p>` with a workspace file: the realpath must stay inside `<root>/public/images`. Tracked at `deployedRef` with an identical git blob → unchanged. Otherwise it becomes an asset: magic bytes JPEG `FFD8FF` / PNG `89504E47` / WebP `RIFF…WEBP`, size 1..2,000,000, name sanitized to `[a-z0-9._-]`, path `/media/<sha256[0:16]>/<name>` (or the existing path from `resolveAssets`), and the field is rewritten.
+3. `/images/<p>` with no workspace file must be tracked at `deployedRef`, else `ValidationError('image-missing')`.
+
+**Output:** `{"submissionId":17,"existing":false,"items":[{"dataset":"businesses","key":"wilbur-s-taco-shop","op":"insert","rev":1,"expectedLiveRev":null}],"assets":[{"sha256":"…","path":"/media/3f2a…/wilbur-s-taco-shop.jpg","deduped":false}],"discoverySeenAdded":1}`. Nothing to submit gives `{"submissionId":null,"reason":"no-changes"}` with exit 0.
+
+### 4.5 CLI (A: `cli.mjs`; `submit|gate|deploy|resubmit` dynamic-import B's modules)
+
+- `node scripts/content/cli.mjs <cmd>` writes one JSON line to stdout; stderr starts with `{"target":{"db":"…","host":"…"}}`.
+- Exit codes: 0 ok; 2 expected negative (rejected, blocked, conflict, validation, compensated); 3 published but propagation pending; 1 error.
+- Mutators require `--expect-db`.
+- `CONTENT_SITE_URL` must equal `https://libertyvillage.co` iff target=production, else TargetError.
+
+| cmd | args | stdout (exit 0) |
+|---|---|---|
+| `migrate` | `--expect-db` | `{"applied":["0001"]}` |
+| `seed` | `--from-ref <sha>`\|`--from <dir>`, `--apply` (else dry-run), `--prune` | `{"inserted":n,"updated":n,"unchanged":n,"unpublished":[…],"repositioned":n,"refused":[…],"liveSeq":n}` |
+| `verify-parity` | `--from-ref <sha>`\|`--from <dir>` | `{"match":true,"datasets":{"posts":{"count":70,"digest":"…","match":true},…}}`; exit 1 on mismatch |
+| `export` | `--root <dir> [--with-assets]` | `{"snapshotId":"…","liveSeq":n,"files":[…]}` |
+| `submit` | §4.4 + `--kind --actor --idempotency-key --target` | §4.4 |
+| `gate` | `--submission N [--evidence f] [--script f]` | §4.6 |
+| `deploy` | `--target T` | re-POSTs the hook, then smokes every published submission of T with `smoke_passed_at` NULL: `{"submissions":[{"id":17,"smoke":"passed"}]}` |
+| `resubmit` | `--dataset d --key k --payload-file f --baseline <manifest> --actor S` | kind `manual` submission; then `gate` |
+| `unpublish`, `rollback` | `--dataset d --key k [--to-rev n] --reason S --actor S` | `{"liveSeq":n,…}`, then deploy + smoke |
+| `history` / `show` | `--dataset d --key k` / `--submission N` | store `history` / `getSubmission` minus payloads, plus `url` per item |
+| `list` | `--submissions [--state a,b] [--kind k]` \| `--entries --dataset d [--visibility v]` | arrays per §4.2 |
+| `stats`, `gc-assets [--apply]` | gc deletes assets referenced by no revision whose submission closed unpublished > 14 days ago | `{"deleted":n,"bytes":n}` |
+| `reset` | `--confirm-reset <dbName>` | drop + re-migrate; **refused unless `lv_staging` or `lv_test_*`** |
+| `restore-snapshot` | `--from <siteUrl> --root <dir>` | L2: fetch `/content-snapshot/*` + media, verify digests; no DB |
+
+### 4.6 `content gate` (B: `gate.mjs`, `review-document.mjs`, `repair-rules.mjs`, `repair-adapter.mjs`, `lenses.mjs`, `deploy.mjs`, `smoke.mjs`, `notify.mjs`)
+
+Resumable from DB state; concurrent runs are serialized by `claimSubmission`.
+- **g0 claim:** held elsewhere → exit 1 `claimed`. Terminal state → re-notify if `notified_at` is NULL, exit 2. `published` → g6.
+- **g1 deterministic** (round n = `submissions.round`): the §4.4 checks on the round vector. Context is a temp export root (`readLive`); for news, `siteIndex=loadSiteLinkIndex(tmp)` minus the candidate slug and `imageExists=createLocalImageExists(checkout)`. Failure → `recordRound(decision validation|lint)` → `rejected`, notify, exit 2.
+- **g2 document:** header `content submission <id> round <n> kind <kind> target <target>`, then per item in `(dataset,key)` order `--- a/data/<dataset>.json#<key>` / `+++ b/data/<dataset>.json#<key>` and a 3-context unified diff of `JSON.stringify(base,null,2)` (empty for insert) against the candidate. `contentSha=blobSha1(doc)`; ≤ 500,000 bytes.
+- **g3 review:** reuse an existing `gate_rounds(n)` (never re-review). Otherwise `reviewRows` (§4.7) with `lenses = kind==='manual' ? MANUAL_LENSES[dataset] : LENSES[kind]`. Grounded kinds (blog, blog-live, news) add `references=selectReferenceRecords(doc, liveBusinesses)` and `inventory=inventoryFromData({services,topics,posts,blogImages,neighborhoodImages,ogImages, images: liveMediaPaths})`, with listings from the checkout. News adds `evidence`.
+- **g4 decision:** cut finding paths at `#`, then `d=preflightDecision({verdict: normalized, contentSha, attempts: repairs, maxRepairs: MAX_REPAIRS, kind: POLICY_KIND[kind], changedFiles: distinct 'data/<dataset>.json'})`. `POLICY_KIND` maps each automated kind to itself and `manual→'seo'`.
+  - For n ≥ 1, also run `evaluateRepairProgress({history: rounds.map(r=>({attempt:r.round, overall:Number(r.overall), blockingCount:r.blocking_count}))})`; `abandon` → `blocked/not-converging`.
+  - `recordRound` stores the raw verdict and a numeric overall.
+  - Routing: `go`→g5; `repair`→fixer; `unrepairable`→`blocked/unrepairable`; `block`→`blocked/exhausted` if `repairs===MAX_REPAIRS`, else `blocked/block`.
+- **Fixer:** `planRecordRepair({kind: POLICY_KIND[kind], gateVerdict: raw, payload: [{file:'data/<dataset>.json', records}] per file, validate: makeRowRepairValidator(…), references, inventory, lintFindings, schema: rowRepairSchema(files), describeContract: describeRowContract})`. Consume `result.plan` → `addRepairRound` → g1 (the checks rerun after every repair). A fixer exception → `blocked/unrepairable`.
+- **g5 publish:** `publishSubmission`. `ConflictError` → `rejected/conflict`, notify, exit 2.
+- **g6 deploy:** if `deploy_requested_at` is NULL, POST `CONTENT_DEPLOY_HOOK_URL` (2 attempts, 10s timeout, 2xx), then `markPhase`.
+- **g7 smoke** (`x-vercel-protection-bypass: $CONTENT_SITE_BYPASS` when set):
+  1. Freshness: poll `$CONTENT_SITE_URL/content-snapshot/manifest.json` every 20s for ≤ 15 min until `live_seq ≥ submission.live_seq` (coalesced builds satisfy it).
+  2. Per item: skip if `manifest…entries[key].rev` ≠ the DB's current `live_rev` (superseded by a later publish). Otherwise require `entries[key].sha === recordSha(published payload)`; `GET route` → 200 containing the marker; `/sitemap.xml` contains `https://libertyvillage.co<route>` (slug datasets); each image URL → 200 `image/*`. Each GET gets 3 tries, 10s apart.
+  3. Pass → `markPhase('smoke_passed')`.
+  4. Hook failure or freshness timeout = **propagation** failure: content stays published, Slack warns, exit 3, resume with `content deploy`.
+  5. Fresh data plus a failing page = **proven bad render** → `compensateSubmission`. Ok → deploy + smoke of the prior state (insert → 404), exit 2 `smoke-failed`. `ConflictError` → keep the newer content, Slack `compensation-conflict`, exit 2.
+- **g8 notify** (`SLACK_WEBHOOK_URL`, idempotent via `notified_at`): success = `✅ <target> published: <title> — <url>` (one line per item, ≤ 10) + `(#id, kind, score, repairs)`; failure = kind, id, decision, score, top 3 findings, `content show --submission <id>`.
+
+**stdout:** `{"submissionId":17,"state":"published","decision":"go","overall":8.5,"repairs":1,"liveSeq":42,"published":[{"dataset":"businesses","key":"wilbur-s-taco-shop","rev":2,"url":"https://…/directory/wilbur-s-taco-shop"}],"deploy":"requested","smoke":"passed","notified":true}`.
+
+**`--script f` seam:** `{"reviews":[{overall,findings}],"fixes":[{files,reason}]}`, **refused unless dbName ∈ {lv_staging, lv_test_*}**. `model`/`commit_sha` are filled with `GATE_MODEL` and the real `contentSha`; `evaluateVerdict` and all deterministic checks still apply. Rounds are stored `scripted=true`; Slack lines are prefixed `[scripted]`.
+
+### 4.7 Review/fixer adapters (B)
+
+**`scripts/automation/review-agent.mjs`**: additive only, nothing inside the eval-sliced ranges, no literal `>= 8`.
+- **Main guard** around lines 540-555: `if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))`.
+- **`planRecordRepair` params:** optional `schema = RECORD_REPAIR_SCHEMA` and `describeContract = describeRepairContract`. The latter is passed to `recordRepairPrompt` as an optional param with an unchanged default; only its `payload.map(({file}) => describeContract(file))` call site changes.
+- **New after `fixContent`:** `export async function reviewRows({kind, lenses, document, contentSha, references=[], inventory=null, evidence=null}) → raw`. It uses `reviewContent`'s prompt structure (`GROUNDING_LENS`/`INVENTORY_LENS` when present, `GATE_BAR`, the model/commit_sha line, DATA markers) and `runStructured(GATE_MODEL, VERDICT_SCHEMA, budget 4)`, and throws unless `evaluateVerdict(raw, contentSha).ok`.
+- **New `rowRepairSchema(files)`:** RECORD_REPAIR_SCHEMA with file `enum=files`, `maxItems=files.length`, and records `{key, record}`.
+- **Also export** `planRecordRepair`, `LENSES`, `VERDICT_SCHEMA` and `MAX_FIXER_ATTEMPTS`.
+- **Unchanged:** `review()`, `fix()`, `fixRecords()`, `RECORD_FILES`, `RECORD_REPAIR_RULES`.
+
+**`repair-rules.mjs`**: `CONTENT_REPAIR_RULES[file]`:
+
+| file | immutable | repairable |
+|---|---|---|
+| posts, businesses, topics | **exactly** the legacy `RECORD_REPAIR_RULES` (not weakened) | legacy |
+| services | `slug, name, pluralName, icon, image, searchVolume, competitiveness` | the rest |
+| buildings | `slug, name, alternateNames, address, postalCode, latitude, longitude, yearBuilt, units, image` | the rest |
+| neighborhoods | `slug, name` + every numeric stat (`avgRent1BR, avgRent2BR, transitScore, walkScore, bikeScore, population, medianAge, medianIncome`) | the rest |
+| guide-hub | `population, medianRent, walkScore, transitScore`; identity = singleton key | `boundaries, history, prosCons, quickFacts, answerSummary` |
+| topic-queue | no fixer | — |
+
+Builders re-check these lists against `lib/types.ts` in the file header. `validateRowRepair(dataset, o, r)` delegates to `validateRecordRepair` for the legacy three (keeping the premise check) and runs the same algorithm over `CONTENT_REPAIR_RULES` for the others. `describeRowContract` renders `describeRepairContract`'s sentence shape.
+
+**`repair-adapter.mjs`**: `makeRowRepairValidator({kind, candidates, ctx}) → (plan) → {ok, errors, repaired:[{dataset,key,payload}]}`.
+The plan must be `isRecordRepairPlan`, target only candidate files and keys, and have no duplicate `(file,key)`. Per entry: `validateRowRepair`, then `validateRecord`; posts also get `lintPost`; news also gets `validateDraft` + `evaluatePublishReadyDraft`. Errors are prefixed `file: key:`; `ok` iff zero errors (never object truthiness).
+
+**`lenses.mjs`**: `MANUAL_LENSES` for each of the 7 site datasets (DATA: supportable facts; CONTENT: neutral, no unsupported claims; SHAPE: fields and links match the dataset). Automated kinds reuse `LENSES[kind]` verbatim.
+
+### 4.8 Workflows: writers (C), ingest (D)
+
+**`route` job** (bash, no secrets), prepended to the 5 writers:
+- store = `inputs.store` if it is `git|db`, else `vars.LV_CONTENT_STORE||'git'`.
+- ref `refs/heads/main` → target = `inputs.content_target||'production'`.
+- ref `refs/heads/staging` → target **must** be `staging` and store `db`, else fail. Any other ref fails.
+- `content-staging` has no GitHub branch policy, so this is the hard restriction; `content-production`'s main-only policy is a second guard.
+
+The existing steps move byte-for-byte into job `legacy` (`if: store=='git'`). Each writer's `workflow_dispatch` gains `store` (`auto|git|db`) and `content_target` (`production|staging`). The new job:
+```yaml
+  db:
+    needs: route
+    if: needs.route.outputs.store == 'db'
+    environment: content-${{ needs.route.outputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions: { contents: read }
+    env:
+      CONTENT_DATABASE_URL: ${{ secrets.CONTENT_DATABASE_URL }}
+      CONTENT_DATABASE_URL_UNPOOLED: ${{ secrets.CONTENT_DATABASE_URL_UNPOOLED }}
+      CONTENT_DEPLOY_HOOK_URL: ${{ secrets.CONTENT_DEPLOY_HOOK_URL }}
+      CONTENT_SITE_BYPASS: ${{ secrets.CONTENT_SITE_BYPASS }}   # absent in content-production
+      CONTENT_DB_NAME: ${{ vars.CONTENT_DB_NAME }}
+      CONTENT_SITE_URL: ${{ vars.CONTENT_SITE_URL }}
+      CONTENT_TARGET: ${{ needs.route.outputs.target }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.sha }}", fetch-depth: 0, persist-credentials: false }
+      - run: git fetch --no-tags origin main staging
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: npm ci
+      - run: node scripts/content/cli.mjs export --root . --expect-db "$CONTENT_DB_NAME"   # all 9 datasets
+      - run: <unchanged generator + its existing env>
+      - run: node scripts/content/cli.mjs submit --dir . --kind <k> --target "$CONTENT_TARGET" --actor "gha:<wf>#${{ github.run_id }}" --idempotency-key "gha:<wf>:${{ github.run_id }}:${{ github.run_attempt }}" --expect-db "$CONTENT_DB_NAME" > submit.json
+      - run: ID=$(jq -r .submissionId submit.json); [ "$ID" = null ] || node scripts/content/cli.mjs gate --submission "$ID" --expect-db "$CONTENT_DB_NAME"
+```
+
+**Per writer.**
+- discover-businesses: `submissionId:null` = success (zero results); after the gate, `markDiscoverySeen` sets added/rejected.
+- weekly-topic-discovery: `topic-queue.mjs discover` runs on the exported queue.
+- news-autopublish: `publish.mjs` unchanged; `submit --kind news`, then `gate --evidence <out_dir>/evidence-<cluster>.json`; `news-preflight` skipped in DB mode; the open-`news/auto-*`-PR guard becomes `content list --submissions --kind news --state open,gating` = [].
+- weekly-blog: only when owner=`gha`.
+- weekly-seo-improvements: `seo-improve-agent.js --mode data` (new flag, C). Any changed path outside `data/` → exit 2 `mixed-blocked`, Slack, no submit. The code-only lane is the legacy PR job with `data/` excluded.
+
+**supervisor-ingest.yml (D, additive).**
+- Top-level `permissions` += `statuses: write`; `on:` += `workflow_dispatch: {inputs: {payload: {type: string, required: true}}}`.
+- New `route` job validates `client_payload` or `fromJSON(inputs.payload)` with `validateIngestPayload` from the checked-out ref. repository_dispatch requires ref main, and store=db requires target production. workflow_dispatch requires `refs/heads/staging` and target staging.
+- Legacy `ingest` gains `&& needs.route.outputs.store != 'db'`, otherwise unchanged.
+- New `ingest-db`: same env block, `environment: content-<target>`, `timeout-minutes: 45`, `permissions: {contents: read, statuses: write, issues: write}`. Steps:
+  1. Fetch `DATA_BRANCH`; require `FETCH_HEAD==DATA_SHA`.
+  2. `git diff --name-only origin/staging...$DATA_SHA` must pass `validateDbIngestDiff`.
+  3. `git show $DATA_SHA:candidate/post.json > candidate.json`; `export --root .`.
+  4. `submit --kind blog-live --record-file candidate.json --dataset posts --baseline .content-export/manifest.json --target <t> --idempotency-key vm:<DATA_SHA>`, then `gate`.
+  5. Status `content/publish` on `DATA_SHA` (`gh api repos/$REPO/statuses/$DATA_SHA`): exit 0 → `success` with `target_url` = live URL; exit 3 → `success` "published; propagation pending"; exit 2 → `failure` `decision=<d> submission=<id>`. An `if: failure()` step posts `failure` `ingest-error:<step>` for any earlier failure.
+  6. Rejections run `coordinator.mjs record-candidate-outcome` as today.
+
+**`ingest-contract.mjs` (D).** `allowedKeys` += `store` (optional `git|db`) and `target` (required for db: `production|staging`). New `validateDbIngestDiff(files)`: exactly `candidate/post.json`. `repositoryDispatchBody` refuses target staging. New `workflowDispatchBody(p)` = `{ref:'staging', inputs:{payload: JSON.stringify(p)}}`.
+
+### 4.9 VM / host-run DB mode (D)
+**Selection:** non-secret `LV_CONTENT_STORE=db`, `LV_CONTENT_TARGET=production|staging`, `LV_SITE_URL`. target=staging requires `LV_SITE_BYPASS`, allowed only on a local host-run and never in `/etc/lv-supervisor.env`; host-run refuses it for production. An unset store keeps legacy byte-for-byte.
+
+**Steps**
+1. Worktree from `origin/staging` (code).
+2. `content-snapshot.mjs fetchSnapshot({siteUrl, bypass})` GETs the manifest and 9 files, verifies each `datasetDigest`, and writes them to `<worktree>/data/` (uncommitted).
+3. `readPublicationHistory=()=>[{sha: manifest.snapshot_id, posts, parentPosts: []}]`, so `findQualifyingPublication` counts any snapshot post published this ISO week.
+4. Generation and `blog-lint` as today. The image must be tracked at `origin/main` (production) or `origin/staging` (staging), else `BLOCKED_VALIDATION`.
+5. Commit only `candidate/post.json` on `supervisor/blog-data-<ms>`; push via the proxy.
+6. Dispatch: production `repositoryDispatchBody({…, store:'db', target:'production'})`; staging `POST /repos/{repo}/actions/workflows/supervisor-ingest.yml/dispatches` with `workflowDispatchBody`.
+7. `content-monitor.mjs` polls `content/publish` for ≤ 60 min (creator `github-actions[bot]` only). On success it GETs `target_url` for ≤ 30 min, requiring 200 + title.
+8. Terminals: new `PUBLISHED_LIVE`; existing `BLOCKED_*` by decision; new `BLOCKED_PROPAGATION` (published, never visible). Then `consumeIntent` and branch cleanup as today. `ledger.mjs` `TERMINALS` gains both new states.
+
+### 4.10 Staging-ref entrypoints (B6)
+- **Writers:** `gh workflow run <wf>.yml --ref staging -f store=db -f content_target=staging [-f max=2]` runs the **staging** version of a file that already exists on main with `workflow_dispatch`, checking out the staging code (`github.sha`) in `content-staging`.
+- **Ingest:** `supervisor-ingest.yml` exists on main without `workflow_dispatch`; staging adds it.
+  - **Hour-0 probe (C):** confirm `gh workflow run supervisor-ingest.yml --ref <throwaway branch>` starts, then delete the branch.
+  - If GitHub refuses, staging ingest acceptance runs the `ingest-db` steps from the operator CLI (§9 S11b), and production ingest is first proven by the first live post-cutover run. There is no early promotion.
+- **Production** DB runs only from `main` (schedule, repository_dispatch, or `--ref main`).
+- **Operator staging runs** use an uncommitted `.env.content-staging.local` with no prod credentials: lv_staging URLs, the staging hook, `CONTENT_SITE_URL`, `CONTENT_SITE_BYPASS`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`.
+
+## 5. Seeding and reconciliation (A)
+
+`content seed` is dry-run by default. Each run is one kind-`seed` submission with idempotency key `seed:<target>:<sha>`. Per source record:
+
+| source record vs live DB | action |
+|---|---|
+| key absent | rev 1, source seed, published |
+| same sha | no-op |
+| different | new seed rev, published — **refused** if the entry has a non-seed revision newer than its last seed (exit 2, listed in `refused`) |
+
+- **`--prune`** unpublishes live **seed-owned** keys (all revisions seed) absent from the source; it never deletes.
+- **Positions** are rewritten to source order in the same transaction; the deferrable unique constraint makes swaps safe.
+- **State datasets:** topic-queue keeps `key` and order. discovery-seen rows get `outcome='added'` if the name maps to a business, else `seen`.
+- **Audit:** each change writes `actions('reconcile')`, and `live_seq` increments once per run.
+- **`verify-parity`** compares count, ordered keys, per-record sha and digest for all 9 datasets, then byte-compares the serialized files; exit 1 on mismatch.
+
+**Authorized now (N1).** Migrating and seeding both DBs before cutover needs no further go:
+```
+content migrate --expect-db lv_staging && content seed --from-ref <origin/staging sha> --apply --expect-db lv_staging && content verify-parity --from-ref <same>
+content migrate --expect-db neondb     && content seed --from-ref <origin/main sha>    --apply --expect-db neondb     && content verify-parity --from-ref <same>
+```
+The production cutover reconciliation (§7.2 step 4) needs John's go.
+
+## 6. Secrets and bindings (infra live; exact names)
+
+| where | names / values | status |
+|---|---|---|
+| Vercel Production | `CONTENT_DATABASE_URL[_UNPOOLED]`→neondb; `CONTENT_SOURCE` unset until cutover, then `db` | set / cutover |
+| Vercel Preview + Development | `CONTENT_DATABASE_URL[_UNPOOLED]`→lv_staging; Preview `CONTENT_SOURCE=db` | set / P1 |
+| Vercel deploy hooks | `content-publish-production` (ref main), `content-publish-staging` (ref staging); the staging alias always tracks the latest staging deployment, hook builds included | exist |
+| GH env `content-production` (main only) | secrets `CONTENT_DATABASE_URL`, `CONTENT_DATABASE_URL_UNPOOLED`, `CONTENT_DEPLOY_HOOK_URL`; vars `CONTENT_DB_NAME=neondb`, `CONTENT_SITE_URL=https://libertyvillage.co` | exists |
+| GH env `content-staging` (no branch policy → §4.8 route guard) | same 3 secrets (lv_staging, staging hook) + `CONTENT_SITE_BYPASS`; vars `CONTENT_DB_NAME=lv_staging`, `CONTENT_SITE_URL=https://libertyvillage-git-staging-voxtur.vercel.app` | exists |
+| GH repo | `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, `SERPAPI_API_KEY`, `PEXELS_API_KEY`; var `LV_CONTENT_STORE=git` until cutover | var new |
+| VM `/etc/lv-supervisor.env` | `LV_CONTENT_STORE=db`, `LV_CONTENT_TARGET=production`, `LV_SITE_URL=https://libertyvillage.co` (non-secret) | cutover |
+| tests | `CONTENT_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres` | harness refuses non-localhost |
 
 Rules:
-- Prod creds reach a laptop only through an explicit `vercel env pull --environment=production`.
-- Any prod-mutating command needs John's go for that action. This includes `content seed/migrate --expect-db neondb`, `unpublish` or `rollback` on prod, and Vercel env changes.
-- GitHub Environments named `Production` and `Preview` already exist, created by Vercel deployments. Do not reuse them.
+- Environment secrets reach a process only via an explicit job `env:`.
+- Nothing reads the integration's `DATABASE_URL`, `POSTGRES_*` or `PG*` (`tests/content/env-guard.test.mjs` greps `app lib scripts components`).
+- Prod credentials reach a laptop only via an explicit `vercel env pull --environment=production`.
+- Every prod mutation after P0 (cutover steps, prod unpublish/rollback, Vercel env) needs John's go for that action.
 
----
+## 7. Phases, cutover, rollback
 
-## 7. Phases, cutover runbook, rollback
+**Phases**
+- **P0:** seed both DBs (authorized).
+- **P1:** A–D land via PRs into `staging`; Preview `CONTENT_SOURCE=db`; run §9 on staging; prod writers stay `git`.
+- **P2:** cutover on John's go.
+- **P3:** retirement.
 
-### 7.1 Phases
-- **P0 (tonight):** migrate and seed both DBs (§5). No reader uses them.
-- **P1 (build):** Packages A–E land on a feature branch, then go by PR into `staging` (the code flow).
-  - Preview gets `CONTENT_SOURCE=db`, so the staging preview reads `lv_staging`.
-  - UAT (§9) runs on staging.
-  - The prod writers stay on the legacy path (`LV_CONTENT_STORE=git`).
-- **P2 (cutover):** only on John's explicit go (§7.2).
-- **P3 (retire):** at least 14 days after cutover, once the §7.4 criteria are met.
+**7.2 Cutover** (the whole runbook needs John's go; ⚠ = prod-mutating)
+1. **Freeze and drain.** `gh workflow disable` the 5 writers. VM: `sudo systemctl disable --now lv-supervisor.timer`, then wait until `systemctl is-active lv-supervisor.service` ≠ active. Require no `in_progress` runs of the writers, `supervisor-ingest` or `autonomous-coordinator`, and no open PR into main/staging with head `auto/*`, `blog/auto-*`, `news/auto-*`, `seo/auto-*` or `supervisor/*`.
+2. ⚠ **Merge staging→main.** Production `CONTENT_SOURCE` is unset, so the prebuild is a no-op. Per D2 the stranded businesses, queue and seen entries and images go live here via JSON.
+3. **Baseline A.** `MAIN_SHA=$(git rev-parse origin/main)`; `node scripts/content/parity-crawl.mjs --base https://libertyvillage.co --out /tmp/cutover-A.json`.
+4. ⚠ **Reconcile.** `content seed --from-ref $MAIN_SHA --apply --prune --expect-db neondb`, then `content verify-parity --from-ref $MAIN_SHA` → PASS, output pasted (includes the 7 seen entries).
+5. **SHA recheck.** Require `origin/main == $MAIN_SHA`, else go back to step 4.
+6. ⚠ **Flip.** Set Production `CONTENT_SOURCE=db` (check with `vercel env ls production | grep CONTENT_`) and trigger `content-publish-production`. Require the live manifest `live_seq` = the step-4 `liveSeq`, and every `/content-snapshot/<file>` byte-equal to `git show $MAIN_SHA:data/<file>`.
+7. **Parity B.** Crawl B and compare with A: titles, meta, canonical, JSON-LD, `<main>` text, hrefs and the sitemap set are identical.
+8. ⚠ **Switch writers.** Set `LV_CONTENT_STORE=db` and the VM env (§6); re-enable workflows and the timer; observe the first automated publish end to end.
 
-### 7.2 Cutover runbook (every step needs John's go; prod-mutating steps are marked ⚠)
-0. **Pre:**
-   - UAT is all green on staging with evidence.
-   - ⚠ Merge staging→main with Production `CONTENT_SOURCE` still unset. Prod keeps reading JSON, and the new code must be a no-op there.
-   - Capture baseline A: `scripts/content/parity-crawl.mjs --base https://libertyvillage.co --out /tmp/cutover-A.json`.
-1. **Freeze writers.**
-   - On the VM: `sudo systemctl disable --now lv-supervisor.timer`.
-   - `gh workflow disable` for discover-businesses, weekly-topic-discovery, news-autopublish, weekly-seo-improvements and weekly-blog.
-   - Confirm no open `blog/auto-*` PR into main.
-2. `git fetch origin` and record the `origin/main` SHA.
-3. ⚠ `content seed --from-ref origin/main --apply --expect-db neondb`, then `content verify-parity --from-ref origin/main`. It must PASS, with the output pasted.
-4. ⚠ Set Vercel Production `CONTENT_SOURCE=db`. Confirm the other vars with `vercel env ls production | grep CONTENT_`. Then redeploy production from the same main SHA. The build now reads `neondb`.
-5. Capture B with the parity crawl, then compare A against B. Titles, meta, canonical, JSON-LD, `<main>` text and link hrefs must be identical, and the sitemap URL set must be identical.
-6. ⚠ `content revalidate --datasets services --expect-db neondb`. Expect `200`.
-7. **Switch writers.**
-   - ⚠ Set repo var `LV_CONTENT_STORE=db`.
-   - Run `content-mirror.yml` for production.
-   - On the VM, set `LV_CONTENT_STORE=db` in `/etc/lv-supervisor.env`.
-   - Re-enable the workflows and the VM timer.
-8. ⚠ **Stranded staging content** (open question Q1): `content submit --kind business --from-ref origin/staging --only-new …` plus `gate`, and the same with `--kind topic-discovery`. The 4 businesses' images are not tracked on main, so `submit` turns them into assets automatically.
-9. **Observe the first live automated publish**, e.g. `gh workflow run discover-businesses.yml -f max=1`. The page must be live without a deploy.
+**7.3 Rollback**
 
-### 7.3 Rollback
+| level | trigger | action |
+|---|---|---|
+| L1 | bad record | `unpublish` / `rollback --to-rev n` (prod needs a go); deploy + smoke automatic |
+| L2 | read path broken or DB down | freeze writers; `content restore-snapshot --from https://libertyvillage.co --root .` on a branch from main (no DB; digests verified); commit `data/` + `public/media/` via the code flow; ⚠ Production `CONTENT_SOURCE=json` + redeploy; ⚠ `LV_CONTENT_STORE=git`, VM store unset. The DB side is covered by Neon PITR. |
+| L3 | JSON path regression | revert the reader PR via the code flow |
 
-| level | trigger | action | time |
-|---|---|---|---|
-| L1: bad record | wrong or embarrassing content | `content unpublish` or `content rollback --to-rev n` (CLI or `content-admin.yml`); auto-revalidates | minutes |
-| L2: DB read path broken or long outage | site errors, blocked deploys | (a) if anything was published since cutover, `git checkout origin/content-mirror/production -- data/` and `content export --with-assets` output onto a branch, then a PR to main (`/media/*` URLs are served statically from `public/media`; UAT verifies static files win over the dynamic route); (b) ⚠ Production `CONTENT_SOURCE=json` plus redeploy; (c) ⚠ `LV_CONTENT_STORE=git` and VM `LV_CONTENT_STORE` unset, so the legacy PR paths resume | < 1h |
-| L3: code regression in the JSON path | L2 fails | revert the reader PR on main | code flow |
+**7.4 Retirement (P3).** All must hold:
+- ≥ 14 days in prod on db;
+- one DB publish per active writer kind;
+- the L1 and L2 drills passed (§9 S5, S13);
+- no prod L2.
 
-**When the JSON files are removed:** in P3 only. §7.4 lists the criteria.
-
-### 7.4 Retirement (P3; separate PRs, allowed only when every criterion holds)
-
-**Criteria (all must hold):**
-- at least 14 days in prod on `db`;
-- at least one successful DB publish from each active writer kind (business, blog-live, topic-discovery; news if it ran);
-- one L1 and one L2 drill executed on staging;
-- no L2 in prod.
-
-**Retire:**
-- `data/*.json` and the `json` branch of `lib/content/source.ts` / `CONTENT_SOURCE`. Tests that read live data (`blog-lint.test.mjs:288`, `discovery-dedupe.test.mjs:149,162`) move to `tests/fixtures/content/`.
-- `heal-base.mjs`, the `heal-generator-base` job, the heal labels and `MAX_HEALS`.
-- `content-sync.mjs`, `observe-and-sync-staging`, `wait-for-blog-live-head`, the `content-main` concurrency group, `contentShipEnabled` / `LV_CONTENT_SHIP_ENABLED`, and `blogLiveParityPaths` / `validateContentTreeParity` / `validateSyncDelta`.
-- The content kinds in `KIND_POLICIES` (blog, blog-live, news, business, topic-discovery), `data/` in `seo`/`promotion` allowed paths, and their PR-diff `LENSES` wording.
-- The git-splice parts of `record-repair.mjs` (`diffRecordsBySlug`, `applyRecordRepairPlan`, `readRecordFile`, `serializeRecords`), `coordinator applyRecordFix` and `review-agent fixRecords`. Keep `RECORD_REPAIR_RULES` and `validateRecordRepair`.
-- `policy.validateDestructiveDiff` / `ALLOW_RECORD_DELETION_LABEL` and `validateTopicQueueAppendOnly`.
-- `news-preflight.mjs` (ported into `gate.mjs`), the news PR steps, and the `supervisor-ingest` PR branch.
-- The supervisor PR monitoring for blog (`sha-monitor`/`terminal-pr` PR logic, `PUBLISHED_MAIN`).
-- Promotion-sweep's content role; it stays only if code promotion is re-enabled. Blocked-sentinel's content reach.
-- The legacy one-off writers in §2.3: delete them, or convert to `export` → edit → `submit --kind manual`.
-- **Locked evals** asserting the retired mechanics (`full-autonomous-loop`, `weekly-grounded-publication-loop`, `local-supervisor-acceptance`) are re-frozen or retired **by the eval owner, never by a builder**. `docs/autonomous-promotion-acceptance-spec.md` B1 is superseded.
-
----
+Then retire `data/*.json` as the source and the legacy PR paths. Locked evals are re-frozen or retired by the **eval owner only**. `docs/autonomous-promotion-acceptance-spec.md` B1 is superseded by John's decision, recorded by the eval owner.
 
 ## 8. Build packages
 
-**Shared contract (frozen before build):** §3.2 DDL, §3.4 `datasets.json`, §4.4 store API, §4.5 CLI contract, §4.2 revalidate route contract, `canonical.mjs`.
-- Package A ships the DDL, `datasets.json`, `canonical.mjs` and **stubbed** `store.mjs` signatures in its first commit (hour 0). Other packages branch from that commit.
-- B, C, D and E code against the contract and use a local docker Postgres seeded by A's `seed`.
-- `package.json` is owned by A: deps `pg`, `server-only`, dev `@types/pg`; scripts `test:content`, `content`. Others request additions through A.
+**All packages pass:** `npm run lint`; `npm run build` with `CONTENT_SOURCE` unset; `test:automation`, `test:supervisor`, `test:supervisor:acceptance`, `test:news-pilot`, `test:content`; `shasum -a 256 -c evals/*.sha256`. Content tests use `tests/content/helpers/db.mjs`: create `lv_test_<pid>_<rand>` on local `postgres:18`, migrate, drop on exit, refuse non-localhost.
 
-Every package must also pass:
-- `npm run lint`, `npm run build` (`CONTENT_SOURCE=json`)
-- `npm run test:automation`, `npm run test:supervisor`, `npm run test:news-pilot`
-- `shasum -a 256 -c evals/*.sha256` (all OK; no locked file touched)
+**Parallelism:** at hour 0 A starts and B/C/D do only their DB-free work (listed below). **Milestone A1 "store landed"** = migration + `db.mjs` + `canonical.mjs` + `validate.mjs` + a **fully working** `store.mjs` with its concurrency tests, merged to the feature branch. B, C and D rebase on A1 before any DB-touching code; no stubs. No file has two owners.
 
-### Package A: Schema, store, seed/parity/export, mirror, admin
-- **Owns:**
-  - `scripts/content/{migrations/0001_content.sql, db.mjs, canonical.mjs, store.mjs, cli.mjs, seed.mjs, parity.mjs, export.mjs, revalidate-client.mjs}`
-  - `lib/content/datasets.json`
-  - `.github/workflows/{content-mirror.yml, content-admin.yml}`
-  - `tests/content/{store,seed-parity,export}.test.mjs`
-  - `tests/content/helpers/db.mjs`: creates a throwaway database per run on local docker, runs migrations, drops it; refuses non-localhost
-  - `package.json`
-- `cli.mjs` dispatches `submit` → `scripts/content/submit.mjs#main` and `gate` → `scripts/content/gate.mjs#main`. Those files are owned by C; A stubs them.
-- **Acceptance:**
-  - Status-model transitions tested, including CAS conflict, rollback-target rule, topic-queue insert-only and no-delete.
-  - `seed` is idempotent: a second run is all no-op.
-  - `verify-parity` PASSes against `origin/staging` and `origin/main` on local docker and fails on a 1-byte mutation.
-  - `export` round-trips: export → `verify-parity --from <export dir>` PASS; posts, businesses, topics and topic-queue exports byte-equal the canonical source files.
-  - Paste the parity output from the real `lv_staging` seed.
+**Package A: foundation.**
+- Owns: `scripts/content/{migrations/0001_content.sql, db, canonical, validate, store, cli, seed, parity, export, build-export, restore-snapshot, parity-crawl}.mjs`; `lib/content/datasets.json`; the `data/*.json` canonicalization; `package.json` + `package-lock.json` (dep `pg`; scripts `prebuild`, `content`, `test:content`); `.github/workflows/content-ci.yml` (pull_request, `postgres:18` service); `tests/content/{helpers/db.mjs, store, store-concurrency, seed-parity, export, build-export, validate, env-guard}.test.mjs`; `docs/runbooks/content-store.md`.
+- A1: every §4.2 function's I/O and errors; immutability triggers; the rollback-target rule; topic-queue insert-only; no deletes.
+- A2 concurrency (two real connections): a double publish → one publish; a repair added after review → the stale publish fails the digest check; publish A then B on one key, then compensate A → `ConflictError` and B stays live; parallel inserts get unique positions; a crash after commit resumes at deploy.
+- A3 interleaving (B3): export → another publish updates X → submit from the old export touching X → `ConflictError`; not touching X → X is not updated.
+- A4 seed: idempotent; add/update/delete/reorder reconcile with `--prune`; parity PASSes for `origin/main` and `origin/staging`, fails on a 1-byte mutation.
+- A5 export: byte-equal for all 9; `CONTENT_SOURCE=db npm run build` on local PG succeeds with the route table unchanged from json mode (● for the 6 param routes); an unreachable DB (`postgres://127.0.0.1:1/x`) fails the build within timeouts, cold and with a warm `.next/cache`; `VERCEL_ENV=production` + lv_staging fails; manifest schema checked.
+- A6: paste the real lv_staging and neondb `verify-parity` output.
 
-### Package B: Site read path
-- **Owns:**
-  - `lib/content/{db.ts,source.ts}`, `lib/data.ts`, `lib/links.ts`
-  - the 20 importers in §2.1, including `components/Header.tsx` and `app/sitemap.ts`
-  - `app/api/content/revalidate/route.ts`, `app/media/[...path]/route.ts`
-  - `scripts/content/parity-crawl.mjs`
-  - `tests/content/{dal,routes,env-guard}.test.mjs`
-  - `tests/news-pilot/publish.test.mjs` (lines 531-532 only)
-  - `playwright.config.ts` (`baseURL` from `E2E_BASE_URL`, and skip `webServer` when it is set)
-- **Acceptance:**
-  1. `next build` with `CONTENT_SOURCE=db` against local docker seeded from `origin/staging` succeeds. The route table shows the dynamic routes as ●, not ƒ.
-  2. `parity-crawl` of `next start` in json mode against db mode over every sitemap URL shows zero diffs (normalized: build IDs, chunk hashes and the sitemap `now` stripped).
-  3. With the DB stopped, `next build` fails after retries with `ContentUnavailableError`. It does not emit empty pages.
-  4. Against a running `next start` in db mode:
-     - revalidate route: `401`/`400`/`200`;
-     - after a direct `publishSubmission` plus revalidate, the new slug page is `200` and appears in `/sitemap.xml` with no rebuild;
-     - after `unpublish` plus revalidate, it is `404`.
-  5. The `/media/...` route serves bytes with immutable headers, and `next/image` renders it.
-  6. The env-guard test fails if code references `DATABASE_URL` / `POSTGRES_`.
+**Package B: submit, gate, deploy/smoke, notify.**
+- Owns: `scripts/content/{submit, images, gate, review-document, repair-rules, repair-adapter, lenses, deploy, smoke, notify, resubmit}.mjs`; `scripts/automation/review-agent.mjs` (additive, §4.7); `tests/content/{submit, images, gate, gate-resume, review-document, repair-adapter, smoke}.test.mjs`; `tests/content/fixtures/**` (§9 candidates and scripts).
+- Hour 0: document, repair rules/adapter, lenses, review-agent changes, image checks, smoke (fake HTTP), notify.
+- B1: every §4.4 kind, including refusal of a deletion, 2 post inserts, a queue mutation, an unknown field and a bad image; unchanged-row skip; idempotent replay and mismatch; asset dedupe.
+- B2 real-function adapter tests (`preflightDecision`, `validateRecordRepair`, `evaluateRepairProgress`; only `runStructured` mocked): a non-candidate key is rejected; a guide-hub repair validates; a news publish-ready failure blocks; 7.2→6.5 gives `not-converging`; fractional overall round-trips.
+- B3 scripted gate: pass → publish → deploy → smoke → one Slack line (not repeated on re-run); repair→pass; unrepairable / exhausted / not-converging; conflict; propagation (hook 500; freshness timeout) → exit 3, then `deploy` → 0; bad render → compensate; resume after each phase.
+- B4: `review-agent.mjs` imports with no side effects; its CLI and every locked eval stay green. B5: one real-model lv_staging gate; paste the `gate_rounds` row.
 
-### Package C: Submit + gate on rows
-- **Owns:**
-  - `scripts/content/{submit.mjs, gate.mjs, validate.mjs, review-document.mjs, notify.mjs}`
-  - `scripts/automation/review-agent.mjs` (main guard, exports, generalized `review-content`/`fix-content`; `review()`/`fix()` untouched)
-  - `scripts/blog-lint.mjs` (`--baseline`)
-  - `tests/content/{submit,gate,validate,review-document}.test.mjs`
-- Model calls are injected (`reviewFn`, `fixFn`) as in `news-preflight`, so tests are offline.
-- **Acceptance:**
-  1. Submit, for each kind:
-     - happy path;
-     - a deletion is refused (exit 2);
-     - posts kinds with 2 inserts are refused;
-     - a topic-queue mutation is refused;
-     - an unknown field is refused;
-     - an untracked image becomes an asset and its path is rewritten;
-     - idempotency-key replay returns the same submission.
-  2. Gate, with fake review/fix:
-     - pass → published + revalidate called + smoke;
-     - fail→repair→pass (revisions show `fixer` rows);
-     - unrepairable → blocked + Slack payload;
-     - non-converging → blocked;
-     - 3 repairs exhausted → blocked;
-     - smoke failure → auto-revert to the prior live revision;
-     - a CAS conflict leaves nothing published.
-  3. `review-agent.mjs` can be imported with no side effects, and its existing CLI behaviour is unchanged (existing `trusted-tooling.test.mjs` stays green).
-  4. **One real-model gate run** on `lv_staging` for a business submission. Paste the `gate_rounds` row.
+**Package C: GHA writers + staging entrypoints.**
+- Owns: `.github/workflows/{discover-businesses, weekly-topic-discovery, news-autopublish, weekly-seo-improvements, weekly-blog}.yml`; `scripts/seo-improve-agent.js` (`--mode data`); new `tests/automation/content-workflows.test.mjs`.
+- Hour 0: route job, YAML, §4.10 probe.
+- Acceptance: workflow tests (staging ref + production target fails; unknown ref fails; env bindings present; legacy steps byte-identical; mixed SEO blocked); §9 S9/S10 run URLs.
 
-### Package D: GHA writers → DB mode
-- **Owns:**
-  - `.github/workflows/{discover-businesses,weekly-blog,weekly-seo-improvements,weekly-topic-discovery,news-autopublish,autonomous-coordinator}.yml`
-  - `scripts/automation/constants.mjs` (`seo` policy: drop `data/` only when `LV_CONTENT_STORE=db`, via a separate `seo` DB-mode path check in the workflow; the `KIND_POLICIES` object is otherwise unchanged in v1)
-  - `tests/automation/{workflow-contract,news-autopublish-workflow}.test.mjs` (unlocked; add DB-branch assertions, keep the legacy ones)
-- **Pattern** for every writer, when `vars.LV_CONTENT_STORE == 'db'` or the dispatch input `store=db`:
-  1. `environment: content-${{ inputs.content_target || 'production' }}`
-  2. Trusted checkout of `main`, `npm ci`
-  3. `content export --out data/ --datasets <needed>`
-  4. Run the **unchanged** generator script
-  5. `content submit --kind <k> --dir . --actor gha:<wf>#${{github.run_id}} --idempotency-key gha:<wf>:${{github.run_id}}:${{github.run_attempt}} --expect-db ${{vars.CONTENT_DB_NAME}}`
-  6. If there is a submission id, `content gate --submission $ID --expect-db …`
+**Package D: VM + supervisor-ingest DB mode.**
+- Owns: `scripts/supervisor/{host-run, ingest-contract, content-snapshot, content-monitor, ledger}.mjs`; `.github/workflows/supervisor-ingest.yml`; `ops/exedev-supervisor/{lv-supervisor.env.example, README.md}`; `tests/supervisor/content-store-mode.test.mjs`. All edits are additive; legacy is unchanged when `LV_CONTENT_STORE` is unset.
+- Hour 0: snapshot fetch/verify, contract, monitor, ledger states.
+- Unit tests: a digest mismatch refuses; history adapter; `candidate/post.json`-only diff; store/target validation (staging cannot use repository_dispatch); only `github-actions[bot]` statuses count; `if: failure()` status; `PUBLISHED_LIVE` needs GET 200 + title; no secret in the env example (`sentinel-ops.test.mjs` green).
+- Acceptance: legacy acceptance evals unchanged and green; §9 S11. **Prerequisite for D's done: a new eval-owner-authored DB-mode acceptance eval (new files + manifest).**
 
-  Exit 2 marks the job as a failure with a summary (Slack is already sent by the gate). The legacy PR steps stay under the `git` branch of the `if`.
-- **Per writer:**
-  - discover-businesses: exports businesses + discovery-seen. After the gate, `markDiscoverySeen` sets the outcome to `added` or `rejected` for the submitted names, which is the rejected-candidate registry.
-  - weekly-blog: runs only when owner=`gha`. Exports posts, services, topics, businesses and topic-queue. The agent's own `npm run build` runs with `CONTENT_SOURCE=json` on the workspace.
-  - weekly-seo-improvements: exports all site datasets. The data changes go to `submit --kind seo`. Code changes (`app components lib`, and `public/images` referenced by code) still go through a PR to staging with `data/` excluded from `git add`.
-  - weekly-topic-discovery: exports topic-queue, then `submit --kind topic-discovery`; the gate has no fixer.
-  - news-autopublish: exports posts; `publish.mjs` stays unchanged; `submit --kind news`; `gate --evidence <file>`. `news-preflight` is skipped in DB mode. The "open `news/auto-*` PR" guard becomes "no `news` submission `in_review`" (via `content list`). Resolve-topic steps run after the export, so `data/topic-queue.json` is current.
-  - autonomous-coordinator.yml: add a `postgres:18` service plus `npm run test:content` to `generator-ci` and `promotion-ci`.
-- **Acceptance:**
-  - `workflow_dispatch` with `content_target=staging store=db` for discover-businesses (`max=2`) and topic-discovery succeeds on `lv_staging` end to end. Paste run URLs, submission rows and the live staging page URL.
-  - The workflow-contract tests are green.
-  - A legacy-mode dry dispatch still takes the PR path.
+## 9. Integrated UAT (staging alias on lv_staging; run in order)
 
-### Package E: exe.dev supervisor DB mode
-- **Owns:**
-  - `scripts/supervisor/{host-run.mjs, weekly-publication-loop.mjs, pi-session.mjs, ledger.mjs}`
-  - new `scripts/supervisor/content-monitor.mjs` (status poll plus public GET)
-  - `.github/workflows/supervisor-ingest.yml`
-  - `ops/exedev-supervisor/{lv-supervisor.env.example, README.md}`
-  - new `tests/supervisor/content-store-mode.test.mjs`
-- The legacy path is byte-for-byte unchanged when `LV_CONTENT_STORE` is unset.
-- **Dependency:** the frozen `local-supervisor-acceptance` evals cover only the legacy path. An **eval-owner-authored** DB-mode acceptance eval (new files, new manifest) is required before E can claim done. A builder never edits the existing eval files.
-- **Acceptance:**
-  - Unit tests cover:
-    - mirror checkout;
-    - the weekly-objective check from the mirror;
-    - `candidate/post.json` commit;
-    - the payload with `store:"db"`;
-    - the status poll, accepting only `github-actions[bot]`;
-    - `PUBLISHED_LIVE` requiring a public GET 200 plus the title;
-    - no secret env added (`sentinel-ops.test.mjs` stays green).
-  - `test:supervisor` is green, the legacy acceptance eval is unchanged and green, and the new DB-mode eval is green.
-  - One staging run: VM (or a local host-run with the proxy env) targets `content_target=staging` and ends `PUBLISHED_LIVE` on the staging URL.
+Evidence per scenario: command, stdout JSON, HTTP status + marker, `show`/`history`. Runs use the operator env (§4.10) unless marked GHA. Revisions come from command output, never assumed. Each scenario deploys itself; nothing relies on warm caches.
+- **S0 Reset:** `content reset --confirm-reset lv_staging --expect-db lv_staging`; `content seed --from-ref $STAGING_SHA --apply --expect-db lv_staging`; `content deploy --target staging`; poll until `manifest.live_seq` = the seed `liveSeq`.
+- **S1 Parity:** each alias `/content-snapshot/<file>` is byte-equal to `git show $STAGING_SHA:data/<file>`. `parity-crawl` of the alias (bypass header; sitemap URLs remapped from `https://libertyvillage.co` to the alias origin) against a local `next start` at `$STAGING_SHA` in json mode → zero diffs.
+- **S2 Insert (scripted):** `content submit --kind manual --record-file tests/content/fixtures/uat-business.json --dataset businesses --target staging …` (untracked JPEG), then `gate --script tests/content/fixtures/pass.json` → exit 0. Record `R1=published[0].rev`. Page 200 with the name, sitemap URL, `/media/…` 200 `image/jpeg`, one `[scripted]` success line.
+- **S3 Rejected edit (scripted):** `resubmit` with a changed description, then `gate --script fixtures/unrepairable.json` → exit 2 `blocked/unrepairable`. The manifest rev is still R1 and the page shows the R1 marker; `list --submissions --state blocked` includes it; failure Slack.
+- **S4 Repair (scripted):** resubmit with a fabricated claim, then `gate --script fixtures/repair-then-pass.json` → exit 0, `repairs:1`. Record R3; `history` shows a `manual` rev then a `fixer` rev.
+- **S5 Unpublish/rollback:** `unpublish` → 404 and gone from the sitemap; `rollback --to-rev $R1` → 200 with the R1 marker, new rev `source rollback`; `history` lists every revision and action.
+- **S6 Conflict:** `export --root /tmp/a`; resubmit+gate on the key; `submit --dir /tmp/a` editing that key → exit 2 `conflict`, live rev unchanged.
+- **S7 Propagation:** `gate` with `CONTENT_DEPLOY_HOOK_URL=https://127.0.0.1:9/x` → exit 3, published, Slack warning; `content deploy --target staging` → exit 0.
+- **S8 Fail-closed:** A5, run locally cold and warm. A failed Vercel build keeping the prior deployment is platform behavior.
+- **S9 Discovery (GHA, real model):** `gh workflow run discover-businesses.yml --ref staging -f store=db -f content_target=staging -f max=2`. Pass = `submissionId:null` (zero results, recorded) or a recorded gate outcome; if published, page 200 + image.
+- **S10 Topics (GHA):** `gh workflow run weekly-topic-discovery.yml --ref staging -f store=db -f content_target=staging` → recorded outcome.
+- **S11 Blog:** (a) local host-run with `LV_CONTENT_STORE=db LV_CONTENT_TARGET=staging LV_SITE_URL=<alias> LV_SITE_BYPASS=…` → staging-ref ingest → `content/publish` success → `PUBLISHED_LIVE`; (b) if the probe failed, the `ingest-db` steps run from the operator CLI.
+- **S12 Isolation:** `--ref staging -f content_target=production` → route fails; `gate --expect-db neondb` in the staging env → TargetError; `CONTENT_SITE_URL=https://libertyvillage.co` with lv_staging → TargetError; env-guard green; `vercel env ls preview | grep CONTENT_` shows names only.
+- **S13 L2 drill** (with `CONTENT_DATABASE_URL*` unset): `restore-snapshot --from <alias> --root /tmp/l2` verifies digests; `CONTENT_SOURCE=json npm run build && next start` in `/tmp/l2`; parity-crawl against the alias → zero diffs, including `/media`.
+- **Cleanup:** repeat S0.
 
----
+## 10. Findings disposition (review of e709fa9)
 
-## 9. Integrated acceptance / UAT (once, combined app, staging: preview on `lv_staging`)
-
-Evidence for every scenario:
-- the exact command or URL;
-- the observed output (HTTP status, JSON line, or DB row via `content show`/`history`);
-- `vercel env ls preview | grep CONTENT_` showing the vars are present.
-
-1. **Render parity.** `parity-crawl` of the staging preview (db) against a local `next start` in json mode on the `origin/staging` JSON. Zero diffs over every sitemap URL, and the sitemap URL sets are equal.
-2. **Business discovery, end to end.**
-   - `gh workflow run discover-businesses.yml -f max=2 -f content_target=staging -f store=db`.
-   - Expect submission → gate round(s) → `published`.
-   - `/directory/<new-slug>` on the staging URL returns `200` with the business name, and appears in `/sitemap.xml`, **with no new deployment**. Check that the Vercel deployments list is unchanged.
-   - The image is served from `/media/...`.
-   - discovery_seen rows show `added`.
-3. **Blog publish.** A supervisor-ingest DB-mode dispatch (or a local host-run) targets staging. The post publishes, `/blog/<slug>` is live, and the `content/publish` status is `success` on `DATA_SHA`. The ledger shows `PUBLISHED_LIVE`.
-4. **Failed gate.**
-   - `content resubmit` of a business record with a fabricated claim (e.g. "Michelin-starred", unsupported) on `lv_staging`.
-   - Expect: gate `rejected`/`blocked`; the page is unchanged (live revision unchanged); a Slack message is received; it appears in `content list --status rejected`.
-   - For an insert, the new slug returns `404`.
-5. **Unpublish / rollback.**
-   - `content unpublish` of the scenario-2 business: the page returns `404` and the slug is gone from the sitemap within about 1 minute.
-   - `content rollback --to-rev 1`: the page returns `200` again.
-   - `content history` shows every revision and event.
-6. **DB outage.** Point a preview env at a wrong `CONTENT_DATABASE_URL` (a throwaway preview branch deploy).
-   - Expect: the build fails with `ContentUnavailableError` and the existing staging deployment keeps serving.
-   - Then, on a running deployment with the DB unreachable, a revalidate followed by a request serves the stale page with no 5xx and no empty lists.
-7. **Isolation.** A `content-production` environment job dispatched from the `staging` branch is refused by the environment branch policy. `--expect-db neondb` against the staging URL aborts.
-
----
-
-## 10. Open questions (user-owned only)
-
-1. **Stranded staging content.** At cutover, should the 4 businesses and 7 topic-queue entries that exist only on `staging` be re-gated and published to prod (§7.2 step 8)? Default: yes.
-2. **Publish visibility.** Without PRs, John loses the passive "merged PR" signal. Should every successful automated publish post a one-line Slack message (title + URL), or only failures, as today? Default: one line per publish.
-
-Implementation choices resolved in this doc, not questions:
-- `json` payload type
-- `content` schema
-- `pg` driver
-- DB-served assets
-- VM via GitHub transport plus a mirror branch
-- unstable_cache + `revalidateTag(..., {expire:0})`
-- fail-closed build
-- the 1h backstop
-- retiring the machinery in P3
+| finding | disposition |
+|---|---|
+| B1 stranded content before gate | Resolved by D2. Already gated (#168/#170/#171); it goes live with the code promotion (§7.2 step 2) and is seeded from that exact `MAIN_SHA` (step 4). The re-gate step is deleted; seen entries are counted in parity. |
+| B2 publish not bound to reviewed bytes; unsafe revert | Resolved in §3 (immutable `round_items`, `candidate_digest`, triggers) and §4.2 (claim lease; publish verifies passing round + digest + expected revs under ordered row locks and advisory locks; rev/position allocated under locks; conditional compensation). Resumable phases in §4.6. Tests: A2, B3. |
+| B3 stale whole-file edits | Resolved in §4.3/§4.4: manifest baseline with per-key rev+sha, unchanged rows skipped, expected revs carried, conflicts rejected at submit and publish, concurrent inserts ignored. Test: A3. |
+| B4 adapters not drop-in | Resolved in §2 (real signatures) and §4.7 (`{ok,errors}` validator adapter; `result.plan` consumed; `rowRepairSchema`; `CONTENT_REPAIR_RULES` for all 7 site datasets incl. the singleton, legacy rules verbatim; `MANUAL_LENSES`; `numeric(4,2)`; round→attempt / blocking_count→blockingCount). Real-function tests: B2. |
+| B5 invalidation vs stale-on-outage | Moot by D1: no runtime DB reads or `revalidateTag`; an outage fails only the build. |
+| B6 staging refs can't run workflows | Resolved in §4.8/§4.10: the route job hard-restricts `--ref staging` to staging; checkout of `github.sha`; production only from main; staging `workflow_dispatch` ingest with an hour-0 probe and a CLI fallback (no early promotion); target threaded through CLI, snapshot, ingest, status and VM. |
+| M1 warm cache defeats fail-closed | Moot by D1 (no data cache). Uncached prebuild with a target binding check; cold and warm tested (A5). |
+| M2 async conversion hazards | Moot by D1: readers unchanged and synchronous. |
+| M3 validators / skipped news checks | Resolved in §4.1 (per-dataset identity incl. guide-hub and queue `key`; storage validity split from generation policy) and §4.4/§4.6 (checks rerun after every repair; news `validateDraft` + `evaluatePublishReadyDraft` on a DB-exported context; `/media` validation). |
+| M4 L2 depends on the DB | Resolved by D3 and §4.3: every deployment carries the full live snapshot + media from one `readLive` boundary; `restore-snapshot` needs no DB; Neon PITR. Drill: S13. |
+| M5 tracked filename ≠ deployed bytes | Resolved in §4.4: blob compare against `deployedRef`, content-addressing, sha dedupe to the existing path, magic/size/containment checks; images in smoke. |
+| M6 smoke can't prove the revision | Resolved in §4.6 g7: `live_seq` freshness + per-key rev/sha from the deployed manifest, per-dataset markers (guide-hub defined), sitemap and image checks; propagation (exit 3, resumable) is distinct from a bad render (conditional compensation). |
+| M7 VM/GHA contracts incomplete | Resolved in §4.8 (ingest-contract `store`/`target`, `validateDbIngestDiff`, `statuses: write`, explicit env bindings, 45 min timeout, `if: failure()` status) and §4.9 (60 min monitor; staging via local host-run with bypass; no VM secrets). |
+| M8 seed-to-flip window | Resolved in §7.2 (drain jobs, services and PRs, then `MAIN_SHA`, `--prune` reconcile, SHA recheck before the flip) and §5 (deferrable unique positions). Test: A4. |
+| M9 exports don't hydrate; mixed SEO | Resolved in §4.8: every writer exports all 9 datasets before generating; SEO `--mode data` blocks mixed output; the code lane is separate. |
+| M10 UAT not repeatable; test wiring | Resolved in §9 (reset/seed freeze, lv_staging-only `--script` fixtures, recorded revs, zero-result discovery accepted, bypass + sitemap remap, negative binding checks) and §8 (`lv_test_*` localhost harness, `content-ci.yml`). |
+| M11 media caching/storage | Mostly moot by D1 (static CDN files, no media route). `stats` + `gc-assets` purge unpublished-candidate assets after 14 days. The capacity decision (upgrade vs retention) is flagged in Slack when the project exceeds 350 MB of the 512 MB free limit. |
+| M12 rejected edits; success notice; seen history | Resolved in §3 (submissions listed apart from entries), §4.6 g8 (idempotent success line, D2) and §1 (discovery-seen scoped as audited insert-only memory). |
+| N1 seed authorization | Resolved in §5/§6: P0 seeding is authorized; the cutover reconciliation and later prod mutations need a go. |
+| N2 inaccurate "unchanged" claims | Resolved in §2 (verified inventory; `MAX_FIXER_ATTEMPTS` location), §4.4 (SEO record cap stated as new policy) and §4.3 (3 total attempts, per-attempt timeouts). |
+| N3 ambiguous CLI/export | Resolved in §4.3 (exact `--root` layout), §4.4–4.6 (JSON I/O), §4.5 (list/show; `resubmit --payload-file`; admin workflow cut) and §8 (A owns package.json + lock). |
+| S1 mirror branch | Accepted cut (D3): the VM reads the public `/content-snapshot/*`. |
+| S2 duplicate bookkeeping; stubs | Accepted cut (D3): only `actions` (unpublish/rollback/compensate/reconcile); history from revisions; milestone A1 lands a working store before dependents. |
+| S3 transition/manual surface | Accepted cut (D3): CLI only; SEO data/code lanes; legacy behind `LV_CONTENT_STORE`; retirement by criteria and a drill (§7.4). |
