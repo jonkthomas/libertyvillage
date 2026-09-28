@@ -51,7 +51,7 @@ function stagingChildEnvironment(repo, env = process.env) {
   if (missing.length) throw new Error(`local staging ingest missing operator bindings: ${missing.join(', ')}`);
   if (!env.LV_STATUS_CREATOR) throw new Error('local staging ingest requires LV_STATUS_CREATOR');
   return Object.fromEntries(['PATH', 'HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_TERMINAL_PROMPT',
-    'GITHUB_REPOSITORY', ...STAGING_CHILD_ENV, 'CONTENT_SOURCE'].filter((key) => values[key])
+    'GITHUB_REPOSITORY', ...STAGING_CHILD_ENV, 'CONTENT_SOURCE', 'LV_INGEST_CODE_SHA'].filter((key) => values[key])
     .map((key) => [key, values[key]]));
 }
 
@@ -76,6 +76,8 @@ export function startLocalStagingIngest({ repoRoot, stateDir, repo, payload, cod
     const child = spawn(process.execPath, ['scripts/supervisor/ingest-db.mjs', '--payload', JSON.stringify(payload)], {
       cwd: cloneDir, env: childEnv, detached: true, stdio: ['ignore', fd, fd],
     });
+    if (!child.pid) throw new Error('local ingest child did not start');
+    child.once('error', (error) => { fs.appendFileSync(logFile, `child_start_error=${error.message}\n`); });
     child.unref();
     return { codeSha: actualSha, cloneDir, logFile, pid: child.pid };
   } finally { fs.closeSync(fd); }

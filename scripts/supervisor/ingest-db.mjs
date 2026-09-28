@@ -34,19 +34,28 @@ export function runDbIngest(payload, { repo = process.env.GITHUB_REPOSITORY } = 
   if (!valid.ok || payload.store !== 'db') throw new Error(`invalid DB ingest payload: ${valid.errors.join('; ')}`);
   if (process.env.CONTENT_TARGET && process.env.CONTENT_TARGET !== payload.target) throw new Error('payload target differs from CONTENT_TARGET');
   const sha = payload.data_sha;
+  console.log(`validated DB ingest sha=${sha} target=${payload.target}`);
   let step = 'pending';
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-ingest-candidate-'));
   const candidateFile = path.join(temporary, 'candidate.json');
   try {
     postStatus(repo, sha, 'pending', 'ingest:pending');
+    step = 'code';
+    const codeSha = execute('git', ['rev-parse', 'HEAD']).stdout.trim();
+    if (!/^[0-9a-f]{40}$/.test(codeSha) || (process.env.LV_INGEST_CODE_SHA && process.env.LV_INGEST_CODE_SHA !== codeSha)) {
+      throw new Error('ingest code SHA differs from pinned staging code');
+    }
+    console.log(`code_sha=${codeSha}`);
     step = 'fetch';
     execute('git', ['fetch', '--no-tags', 'origin', payload.data_branch]);
     if (execute('git', ['rev-parse', 'FETCH_HEAD']).stdout.trim() !== sha) throw new Error('fetched branch SHA differs from payload');
     execute('git', ['fetch', '--no-tags', 'origin', 'staging']);
+    console.log(`fetch/SHA verified ${sha}`);
     step = 'diff';
     const files = execute('git', ['diff', '--name-only', `origin/staging...${sha}`]).stdout.trim().split('\n').filter(Boolean);
     const checked = validateDbIngestDiff(files);
     if (!checked.ok) throw new Error(checked.errors.join('; '));
+    console.log('diff verified: candidate/post.json');
     step = 'candidate';
     fs.writeFileSync(candidateFile, execute('git', ['show', `${sha}:candidate/post.json`]).stdout, { flag: 'wx', mode: 0o600 });
     step = 'export';
@@ -62,6 +71,7 @@ export function runDbIngest(payload, { repo = process.env.GITHUB_REPOSITORY } = 
       ...(process.env.CONTENT_DB_NAME ? ['--expect-db', process.env.CONTENT_DB_NAME] : []),
     ]), step);
     if (!Number.isSafeInteger(Number(submit.submissionId))) throw new Error('submit returned no submission ID');
+    console.log(`submit accepted submission=${submit.submissionId}`);
     step = 'gate';
     const gated = execute(process.execPath, [
       'scripts/content/cli.mjs', 'gate', '--submission', String(submit.submissionId),
@@ -69,6 +79,7 @@ export function runDbIngest(payload, { repo = process.env.GITHUB_REPOSITORY } = 
       ...(process.env.CONTENT_DB_NAME ? ['--expect-db', process.env.CONTENT_DB_NAME] : []),
     ], { allow: [0, 2, 3] });
     const result = jsonResult(gated, step);
+    console.log(`gate completed submission=${submit.submissionId} exit=${gated.status}`);
     if ([0, 3].includes(gated.status)) {
       const liveSeq = Number(result.liveSeq);
       const targetUrl = result.published?.find((item) => item.dataset === 'posts')?.url;
