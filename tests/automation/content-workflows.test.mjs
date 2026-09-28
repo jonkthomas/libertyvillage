@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyDataLane, parsePorcelain } from '../../scripts/content/seo-guard.mjs';
+import { submitContent, unwrapModuleResult } from './fixtures/content-cli-stub.mjs';
 
 const require = createRequire(import.meta.url);
 const { seoModeClause } = require('../../scripts/seo-improve-agent.js');
@@ -443,4 +444,145 @@ test('seo-guard submits data plus runner notes, no-ops, and blocks mixed or code
   assert.match(mixed.stderr, /mixed-blocked/);
   assert.equal(runGuard(cwd, ['code-only']).code, 1);
   assert.match(runGuard(cwd, ['code-only']).stdout, /data\/posts\.json/);
+});
+
+const WRITER_CLI = {
+  'discover-businesses.yml': { kind: 'business', workflow: 'discover-businesses' },
+  'weekly-topic-discovery.yml': { kind: 'topic-discovery', workflow: 'weekly-topic-discovery' },
+  'news-autopublish.yml': { kind: 'news', workflow: 'news-autopublish', newsOut: true },
+  'weekly-seo-improvements.yml': { kind: 'seo', workflow: 'weekly-seo-improvements' },
+  'weekly-blog.yml': { kind: 'blog', workflow: 'weekly-blog' },
+};
+
+function runBlock(yaml, stepName) {
+  const marker = `      - name: ${stepName}\n`;
+  const start = yaml.indexOf(marker);
+  assert.notEqual(start, -1, stepName);
+  const runAt = yaml.indexOf('\n        run: |\n', start);
+  assert.notEqual(runAt, -1, `${stepName} run block`);
+  const body = yaml.slice(runAt + '\n        run: |\n'.length);
+  const lines = [];
+  for (const line of body.split('\n')) {
+    if (line === '') {
+      lines.push('');
+      continue;
+    }
+    if (!line.startsWith('          ')) break;
+    lines.push(line.slice(10));
+  }
+  return lines.join('\n').replaceAll('${{ github.run_id }}', '101').replaceAll('${{ github.run_attempt }}', '1').replaceAll('${{ steps.publish.outputs.out_dir }}', 'news-out');
+}
+
+function stubNode(dir) {
+  const stub = path.join(ROOT, 'tests/automation/fixtures/content-cli-stub.mjs');
+  const bin = path.join(dir, 'bin');
+  fs.mkdirSync(bin);
+  const nodePath = path.join(bin, 'node');
+  fs.writeFileSync(nodePath, `#!/bin/bash
+if [[ "$1" == *cli.mjs ]]; then
+  exec ${JSON.stringify(process.execPath)} ${JSON.stringify(stub)} "$@"
+fi
+exec ${JSON.stringify(process.execPath)} "$@"
+`);
+  fs.chmodSync(nodePath, 0o755);
+  return bin;
+}
+
+function runWriterShell(script, env) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cli-wire-'));
+  const log = path.join(dir, 'calls.jsonl');
+  fs.writeFileSync(log, '');
+  const bin = stubNode(dir);
+  try {
+    const stdout = execFileSync('bash', ['-eo', 'pipefail', '-c', script], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: {
+        PATH: `${bin}:${process.env.PATH}`,
+        LV_STUB_LOG: log,
+        ...env,
+      },
+    });
+    return { code: 0, stdout, calls: readCalls(log) };
+  } catch (error) {
+    return { code: error.status ?? 1, stdout: `${error.stdout || ''}`, stderr: `${error.stderr || ''}`, calls: readCalls(log) };
+  }
+}
+
+function readCalls(log) {
+  return fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
+}
+
+test('writer db jobs call the spec CLI and propagate submit and gate exits', () => {
+  assert.deepEqual(unwrapModuleResult(submitContent('null')), {
+    result: { submissionId: null, reason: 'no-changes' },
+    exitCode: 0,
+  });
+  assert.equal(unwrapModuleResult(submitContent('2')).exitCode, 2);
+  assert.equal(unwrapModuleResult({ submissionId: 17 }).exitCode, 0);
+
+  for (const [name, spec] of Object.entries(WRITER_CLI)) {
+    const db = jobBlock(readWorkflow(name), 'db');
+    assert.equal(db.includes('CONTENT_SLACK_WEBHOOK_URL'), false, name);
+    assert.match(db, /node scripts\/content\/cli\.mjs export --root \./);
+    const submit = runBlock(db, `Submit ${spec.kind} content`);
+    assert.match(submit, new RegExp(`submit --dir \\. --kind ${spec.kind} --`));
+    if (spec.newsOut) assert.match(submit, /--news-out "news-out"/);
+    assert.match(submit, new RegExp(`--idempotency-key "gha:${spec.workflow}:101:1"`));
+    const gate = runBlock(db, `Gate ${spec.kind} content`);
+    assert.match(gate, /jq -r '\.submissionId'/);
+    assert.match(gate, /node scripts\/content\/cli\.mjs gate --submission "\$ID"/);
+
+    const skipped = runWriterShell(`${submit}\n${gate}`, { LV_STUB_SUBMIT: 'null' });
+    assert.equal(skipped.code, 0, `${name} null submit ${skipped.stderr}`);
+    assert.deepEqual(skipped.calls.map((call) => call.command), ['submit']);
+
+    const published = runWriterShell(`${submit}\n${gate}`, { LV_STUB_SUBMIT: 'id', LV_STUB_GATE: '0' });
+    assert.equal(published.code, 0, name);
+    assert.deepEqual(published.calls.map((call) => call.command), ['submit', 'gate']);
+    assert.ok(published.calls[1].args.includes('--submission'));
+    assert.ok(published.calls[1].args.includes('17'));
+
+    const blocked = runWriterShell(`${submit}\n${gate}`, { LV_STUB_SUBMIT: 'id', LV_STUB_GATE: '2' });
+    assert.equal(blocked.code, 2, `${name} gate exit 2`);
+    const pending = runWriterShell(`${submit}\n${gate}`, { LV_STUB_SUBMIT: 'id', LV_STUB_GATE: '3' });
+    assert.equal(pending.code, 3, `${name} gate exit 3`);
+    const rejected = runWriterShell(submit, { LV_STUB_SUBMIT: '2' });
+    assert.equal(rejected.code, 2, `${name} submit exit 2`);
+    assert.deepEqual(rejected.calls.map((call) => call.command), ['submit']);
+  }
+});
+
+test('discover stats --alert uses SLACK_WEBHOOK_URL and news list requires an array', () => {
+  const discover = jobBlock(readWorkflow('discover-businesses.yml'), 'db');
+  const stats = runBlock(discover, 'Weekly content storage check');
+  assert.match(stats, /node scripts\/content\/cli\.mjs stats --alert/);
+  const alert = runWriterShell(stats, {
+    LV_STUB_BYTES: String(400 * 1024 * 1024),
+    SLACK_WEBHOOK_URL: 'https://example.test/slack',
+    CONTENT_SLACK_WEBHOOK_URL: 'https://example.test/draft',
+  });
+  assert.equal(alert.code, 0, alert.stderr);
+  const posted = alert.calls.find((call) => call.slackText);
+  assert.match(posted.slackText, /⚠ Neon content storage 400 MB > 350 MB of 512 MB/);
+  assert.equal(alert.calls.some((call) => call.command === 'stats' && call.slack === 'https://example.test/slack'), true);
+
+  const quiet = runWriterShell(stats, {
+    LV_STUB_BYTES: String(400 * 1024 * 1024),
+    CONTENT_SLACK_WEBHOOK_URL: 'https://example.test/draft',
+  });
+  assert.equal(quiet.calls.some((call) => call.slackText), false);
+
+  const news = readWorkflow('news-autopublish.yml');
+  const listAt = news.indexOf('LIST=$(node scripts/content/cli.mjs list --submissions --kind news --state open,gating)');
+  const pendingAt = news.indexOf('PENDING=$(printf', listAt);
+  const pendingEnd = news.indexOf('\n', news.indexOf("process.stdout.write(String(j.length));});')", pendingAt));
+  const fragment = `set -euo pipefail\n${news.slice(listAt, pendingEnd)}\necho "$PENDING"`;
+  const open = runWriterShell(fragment, { LV_STUB_LIST: 'open' });
+  assert.equal(open.code, 0, open.stderr);
+  assert.equal(open.stdout.trim(), '1');
+  const empty = runWriterShell(fragment, { LV_STUB_LIST: 'empty' });
+  assert.equal(empty.stdout.trim(), '0');
+  const wrapped = runWriterShell('set -euo pipefail\nLIST=\'{"result":[],"exitCode":0}\'\nPENDING=$(printf \'%s\\n\' "$LIST" | node -e \'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s.trim().split(/\\n/).pop());if(!Array.isArray(j)){process.stderr.write("list stdout must be an array\\n");process.exit(1);}process.stdout.write(String(j.length));});\')\necho "$PENDING"', {});
+  assert.equal(wrapped.code, 1);
 });

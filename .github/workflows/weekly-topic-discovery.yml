@@ -245,6 +245,14 @@ jobs:
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
         run: node trusted/scripts/automation/topic-queue.mjs discover
       - name: Submit topic-discovery content
-        run: node scripts/content/cli.mjs submit --dir . --kind topic-discovery --idempotency-key "gha:weekly-topic-discovery:${{ github.run_id }}:${{ github.run_attempt }}" > submit.json
+        run: |
+          set -euo pipefail
+          node scripts/content/cli.mjs submit --dir . --kind topic-discovery --idempotency-key "gha:weekly-topic-discovery:${{ github.run_id }}:${{ github.run_attempt }}" > submit.json
       - name: Gate topic-discovery content
-        run: ID=$(jq -r .submissionId submit.json); [ "$ID" = null ] || node scripts/content/cli.mjs gate --submission "$ID"
+        run: |
+          set -euo pipefail
+          ID=$(jq -r '.submissionId' submit.json)
+          if [ "$ID" = "null" ]; then
+            exit 0
+          fi
+          node scripts/content/cli.mjs gate --submission "$ID"

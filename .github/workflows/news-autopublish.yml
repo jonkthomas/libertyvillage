@@ -554,7 +554,7 @@ jobs:
           # an earlier news PR is still pending, because that append is not yet
           # visible in staging's posts ledger and could bypass the daily cap.
           LIST=$(node scripts/content/cli.mjs list --submissions --kind news --state open,gating)
-          PENDING=$(printf '%s\n' "$LIST" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s.trim().split(/\n/).pop());const rows=Array.isArray(j)?j:(j.submissions||[]);process.stdout.write(String(rows.length));});')
+          PENDING=$(printf '%s\n' "$LIST" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s.trim().split(/\n/).pop());if(!Array.isArray(j)){process.stderr.write("list stdout must be an array\n");process.exit(1);}process.stdout.write(String(j.length));});')
           if [ "$PENDING" -gt 0 ]; then
             node - "$OUT_DIR/result.json" <<'NODE'
           const fs = require('node:fs');
@@ -609,7 +609,15 @@ jobs:
           exit "$code"
       - name: Submit news content
         if: ${{ success() && steps.publish.outputs.published == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
-        run: node scripts/content/cli.mjs submit --dir . --kind news --news-out "${{ steps.publish.outputs.out_dir }}" --idempotency-key "gha:news-autopublish:${{ github.run_id }}:${{ github.run_attempt }}" > submit.json
+        run: |
+          set -euo pipefail
+          node scripts/content/cli.mjs submit --dir . --kind news --news-out "${{ steps.publish.outputs.out_dir }}" --idempotency-key "gha:news-autopublish:${{ github.run_id }}:${{ github.run_attempt }}" > submit.json
       - name: Gate news content
         if: ${{ success() && steps.publish.outputs.published == 'true' && inputs.dry_run != true && inputs.dry_run != 'true' }}
-        run: ID=$(jq -r .submissionId submit.json); [ "$ID" = null ] || node scripts/content/cli.mjs gate --submission "$ID"
+        run: |
+          set -euo pipefail
+          ID=$(jq -r '.submissionId' submit.json)
+          if [ "$ID" = "null" ]; then
+            exit 0
+          fi
+          node scripts/content/cli.mjs gate --submission "$ID"
