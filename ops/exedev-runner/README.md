@@ -32,6 +32,10 @@ sudo ls -l /var/log/lv-runner
 
 The weekly-blog acceptance run must omit `--dry-run` and show a new post through staging gate, deploy, and smoke. The news job resumes any `open` or `gating` news submission, or pending published propagation, before drafting another candidate. At least one healthy source is required. Zero qualified news posts and zero discoveries are normal. `--dry-run` on news does not resume or publish. SEO captures the exported baseline before generation, checks the accepted data lane, and routes code suggestions to the private log and failure Slack for a human PR. Topic attempts and consumed keys are stored only in `/var/lib/lv-runner/topic-state.json`; consumption is marked after gate and smoke. The local state does not survive VM rebuild. [Issue #176](https://github.com/jonkthomas/libertyvillage/issues/176) tracks durable GitHub issue candidate-state integration; do not claim that acceptance until it exists. An unused queue whose attempts are exhausted alerts instead of silently falling back.
 
+## Evaluator retirement
+
+The Git-era `full-autonomous-loop.eval.mjs` and its lock were retired with the autonomous coordinator. The original `canary104-grounding.eval.mjs` and `evals/canary104-grounding.sha256` remain byte-for-byte archived, not relocked; ordinary `test:automation` runs the live canary assertions through `canary104-successor.test.mjs`, superseding only its obsolete coordinator-workflow wiring check. The historical citations in `docs/specs/neon-content-store.md` describe the retired evaluator, not active runner coverage.
+
 ## Negative checks
 
 ```sh
