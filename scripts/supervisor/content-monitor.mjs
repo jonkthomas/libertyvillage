@@ -1,3 +1,5 @@
+import { escapedMarkers } from '../content/smoke.mjs';
+
 const DEFAULT_STATUS_DEADLINE_MS = 3_600_000;
 const DEFAULT_RENDER_DEADLINE_MS = 1_800_000;
 const POLL_MS = 2_000;
@@ -63,7 +65,7 @@ export async function monitorContentPublish({
       if (Number(before?.live_seq) >= published.liveSeq && before?.deployment_url) {
         const page = await getPage(published.targetUrl);
         const after = await getManifest(siteUrl);
-        if (page?.status === 200 && String(page.text || '').includes(title)
+        if (page?.status === 200 && [title, ...escapedMarkers(title)].some((marker) => String(page.text || '').includes(marker))
           && Number(after?.live_seq) >= published.liveSeq
           && after?.deployment_url === before.deployment_url) {
           return { state: 'PUBLISHED_LIVE', ...published };

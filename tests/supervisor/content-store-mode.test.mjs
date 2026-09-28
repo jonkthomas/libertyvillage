@@ -155,3 +155,37 @@ test('monitor requires latest trusted status and stable fresh render', async () 
   assert(reads >= 2 && manifests >= 3);
   assert(tick < 20_000);
 });
+
+test('monitor accepts quotes, ampersands and apostrophes in the actual blog page HTML', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-monitor-render-'));
+  const title = `A "new" café & John's bar`;
+  const slug = 'quoted-monitor-post';
+  try {
+    fs.cpSync(path.join(root, 'data'), path.join(dir, 'data'), { recursive: true });
+    const postsFile = path.join(dir, 'data/posts.json');
+    const posts = JSON.parse(fs.readFileSync(postsFile, 'utf8'));
+    posts.push({ ...posts[0], slug, title });
+    fs.writeFileSync(postsFile, JSON.stringify(posts));
+    const script = `import { renderToStaticMarkup } from 'react-dom/server';
+      import { pathToFileURL } from 'node:url';
+      process.chdir(process.argv[1]);
+      const imported = (await import(pathToFileURL(process.argv[2]).href)).default;
+      const Page = imported.default ?? imported;
+      process.stdout.write(renderToStaticMarkup(await Page({ params: Promise.resolve({ slug: process.argv[3] }) })));`;
+    const rendered = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script,
+      dir, path.join(root, 'app/blog/[slug]/page.tsx'), slug], { cwd: root, encoding: 'utf8' });
+    assert.equal(rendered.status, 0, rendered.stderr);
+    assert.match(rendered.stdout, /<h1[^>]*>A &quot;new&quot; café &amp; John&#x27;s bar<\/h1>/);
+    assert.equal(rendered.stdout.includes(title), false);
+    let now = 0;
+    const outcome = await monitorContentPublish({ dataSha: sha, title, siteUrl: 'https://example.invalid',
+      allowedCreator: 'operator', renderDeadlineMs: 5,
+      getStatuses: async () => [{ sha, context: 'content/publish', state: 'success', creator: { login: 'operator' },
+        created_at: '2026-09-28T00:00:00Z', description: 'published:17:seq:42', target_url: `https://example.invalid/blog/${slug}` }],
+      getManifest: async () => ({ live_seq: 42, deployment_url: 'https://deployment.invalid/current' }),
+      getPage: async () => ({ status: 200, text: rendered.stdout }),
+      now: () => now, wait: async (ms) => { now += ms; },
+    });
+    assert.equal(outcome.state, 'PUBLISHED_LIVE');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
