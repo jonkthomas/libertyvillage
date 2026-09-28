@@ -86,6 +86,12 @@ export function generatedPathsForTransfer(paths, job) {
   return paths.filter((rel) => allowedGeneratedPath(rel, job));
 }
 
+export function seoCodeSuggestionPath(rel) {
+  // Data backups and task notes are scratch-only, not proposals to change code.
+  // Every other off-lane path (including root config/public/CI) needs a human PR.
+  return !rel.startsWith('data/') && (!rel.startsWith('tasks/') || /\.(?:[mc]?js|jsx|tsx?|py|sh|ya?ml)$/.test(rel));
+}
+
 // Compare with the freshly exported DB snapshot, never Git HEAD: exported
 // posts can differ from Git even when an SDK agent produced nothing new.
 export function hasOneNewBlogPost(exported, generated) {
@@ -288,9 +294,9 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
   const discarded = allPaths.filter((rel) => !allowedGeneratedPath(rel, job));
   if (discarded.length) logLine(log, 'generator-output-discarded', { paths: discarded.slice(0, 20).map((rel) => rel.slice(0, 160)), omitted: Math.max(0, discarded.length - 20) });
   if (job === 'weekly-blog' && !paths.includes('data/posts.json')) throw new Error('blog generated no post');
-  if (job === 'seo-improvements' && discarded.some((rel) => /^(?:scripts|app|components|lib)\//.test(rel))) {
+  if (job === 'seo-improvements' && discarded.some(seoCodeSuggestionPath)) {
     notifications.codeSuggestion = true;
-    logLine(log, 'seo-code-suggestion', { paths: discarded.filter((rel) => /^(?:scripts|app|components|lib)\//.test(rel)).slice(0, 20).map((rel) => rel.slice(0, 160)) });
+    logLine(log, 'seo-code-suggestion', { paths: discarded.filter(seoCodeSuggestionPath).slice(0, 20).map((rel) => rel.slice(0, 160)) });
   }
   const changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts);
   logLine(log, 'generator-output-accepted', { paths: changed.length });
@@ -439,7 +445,7 @@ function runJob(job, target, slot, request, log, notifications = {}) {
         return { resumed: pending.length };
       }
       // Query only incomplete propagation, not every historical published row.
-      // The store's indexed pending predicate keeps healthy daily runs constant.
+      // One filtered query avoids per-row CLI calls; the missing index/result cap is #181.
       const pendingPropagation = parseJson(cli(['pending', '--kind', 'news', '--target', target]).stdout);
       if (pendingPropagation.length) {
         const resumed = cli(['deploy', '--target', target], repo, [3]);

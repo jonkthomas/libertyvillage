@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, readScratchHead, selectTopic, recordTopic, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, selectTopic, recordTopic, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -149,6 +149,8 @@ test('scratch code poisoning cannot cross into trusted CLI', (t) => {
   assert.equal(fs.existsSync(path.join(temp, 'evil-ran')), false, 'untrusted script was not executed');
   assert.deepEqual(generatedPathsForTransfer(['data/posts.json', 'data/posts.json.backup', 'tasks/pipeline-summary.txt', 'tasks/blog-draft.json', 'scripts/content/cli.mjs'], 'weekly-blog'), ['data/posts.json'], 'every non-transfer artifact is discarded by policy');
   assert.deepEqual(generatedPathsForTransfer(['data/posts.json.backup', 'tasks/pipeline-summary.txt'], 'seo-improvements'), [], 'policy also applies to SEO');
+  for (const rel of ['scripts/evil.sh', 'app/page.tsx', 'public/robots.txt', '.github/workflows/deploy.yml', 'package.json', 'next.config.ts', 'tasks/evil.sh']) assert.equal(seoCodeSuggestionPath(rel), true, `${rel} needs a human-PR notice`);
+  for (const rel of ['data/posts.json.backup', 'tasks/blog-draft.json', 'tasks/seo-data-latest.json']) assert.equal(seoCodeSuggestionPath(rel), false, `${rel} is a scratch-only data/note artifact`);
 });
 
 test('blog acceptance refuses generator FIFO before reading any post JSON', (t) => {
