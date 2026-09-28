@@ -24,4 +24,7 @@ chmod 0440 /etc/sudoers.d/lv-runner-generator
 visudo -cf /etc/sudoers.d/lv-runner-generator
 for file in "$root"/*.timer "$root/lv-runner@.service"; do install -m 0644 -o root -g root "$file" /etc/systemd/system/; done
 systemctl daemon-reload
-echo 'Installed runner. All six production timers remain disabled.'
+# SEO remains off even on reinstalls after the five accepted lanes are enabled.
+# Its staging fixer has not reached a terminal gate/publish outcome (#182).
+systemctl disable --now lv-runner-seo-improvements.timer
+echo 'Installed runner. SEO timer disabled pending staging acceptance (#182); other timer states unchanged.'

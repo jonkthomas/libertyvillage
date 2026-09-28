@@ -259,6 +259,13 @@ test('news preflight and artifact handoff are ordered before submit', () => {
   assert.match(runner, /if \(request\.dryRun\) return \{ dryRun: true \}/);
 });
 
+test('installer keeps the unaccepted SEO writer disabled without toggling other five timers', () => {
+  const install = fs.readFileSync(new URL('../../ops/exedev-runner/install.sh', import.meta.url), 'utf8');
+  assert.match(install, /systemctl daemon-reload[\s\S]*systemctl disable --now lv-runner-seo-improvements\.timer/);
+  assert.doesNotMatch(install, /systemctl enable/);
+  assert.match(install, /other timer states unchanged/);
+});
+
 test('failure alert contains only a non-secret run reference and reports delivery failure', async () => {
   let body;
   const sent = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging', slot: '202609281100-abcd1234' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
