@@ -4,7 +4,7 @@ umask 077
 mode=$(basename "$0")
 if [[ "$mode" == lv-runner-generator ]]; then
   exec python3 - "$@" <<'PY'
-import json, os, pathlib, pwd, re, subprocess, sys
+import json, os, pathlib, pwd, re, subprocess, sys, time
 if os.geteuid() != 0 or len(sys.argv) != 3:
     sys.exit(2)
 job, slot = sys.argv[1:]
@@ -37,13 +37,45 @@ def ownership(uid, gid):
         os.chown(base, uid, gid)
         for name in dirs + files: os.chown(os.path.join(base, name), uid, gid, follow_symlinks=False)
 ownership(generator.pw_uid, generator.pw_gid)
+CLIENT_TIMEOUT = 45 * 60
+def _quiet(*args):
+    try:
+        return subprocess.run(list(args), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+    except Exception:
+        return None
+def _unit_inactive(unit):
+    proc = _quiet('systemctl', 'is-active', '--quiet', unit)
+    return proc is not None and proc.returncode != 0
+def _stop_unit(unit):
+    # Transient default KillMode=control-group: stop kills the whole unit cgroup.
+    _quiet('systemctl', 'stop', unit)
+    _quiet('systemctl', 'kill', '--kill-all', unit)
+    for _ in range(30):
+        if _unit_inactive(unit):
+            return True
+        time.sleep(1)
+    return _unit_inactive(unit)
+unit = None
+stop_ok = True
 try:
     unit = f'lv-generator-{slot}-{os.urandom(4).hex()}'
-    cmd = ['systemd-run', '--wait', '--pipe', '--collect', '--quiet', f'--unit={unit}', '-p', 'User=lv-generator', '-p', 'NoNewPrivileges=yes', '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes', '-p', 'PrivateTmp=yes', '-p', 'CapabilityBoundingSet=', '-p', 'RestrictSUIDSGID=yes', '-p', f'WorkingDirectory={scratch}', '-p', f'ReadWritePaths={scratch} /var/cache/lv-generator', '-p', f'EnvironmentFile={envfile}', 'node', script]
-    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=45*60)
+    cmd = ['systemd-run', '--wait', '--pipe', '--collect', '--quiet', f'--unit={unit}', '-p', 'User=lv-generator', '-p', 'NoNewPrivileges=yes', '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes', '-p', 'PrivateTmp=yes', '-p', 'CapabilityBoundingSet=', '-p', 'RestrictSUIDSGID=yes', '-p', 'RuntimeMaxSec=40min', '-p', f'WorkingDirectory={scratch}', '-p', f'ReadWritePaths={scratch} /var/cache/lv-generator', '-p', f'EnvironmentFile={envfile}', 'node', script]
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=CLIENT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        stop_ok = _stop_unit(unit)
+        sys.exit(124 if stop_ok else 1)
+    except Exception:
+        stop_ok = _stop_unit(unit) if unit else True
+        sys.exit(1)
+    if result.returncode != 0 and not _unit_inactive(unit):
+        stop_ok = _stop_unit(unit)
+        if not stop_ok:
+            sys.exit(1)
     sys.exit(result.returncode)
 finally:
-    ownership(worker.pw_uid, worker.pw_gid)
+    if stop_ok:
+        ownership(worker.pw_uid, worker.pw_gid)
     envfile.unlink(missing_ok=True)
 PY
 fi
