@@ -29,6 +29,22 @@ export function validateDbIngestDiff(files) {
   return { ok, errors: ok ? [] : ['DB candidate diff must contain exactly candidate/post.json'] };
 }
 
+export function validateIngestRoute(payload, { eventName, ref, hold = false } = {}) {
+  const result = validateIngestPayload(payload);
+  if (!result.ok) throw new Error(`invalid ingest payload: ${result.errors.join('; ')}`);
+  if (eventName === 'repository_dispatch') {
+    if (ref !== 'refs/heads/main' || (payload.store === 'db' && payload.target !== 'production')) {
+      throw new Error('repository dispatch requires main and production DB target');
+    }
+  } else if (eventName === 'workflow_dispatch') {
+    if (ref !== 'refs/heads/staging' || payload.store !== 'db' || payload.target !== 'staging') {
+      throw new Error('workflow dispatch requires staging DB target');
+    }
+  } else throw new Error('unsupported ingest event');
+  if (hold && eventName !== 'workflow_dispatch') throw new Error('LV_CONTENT_CUTOVER_HOLD blocks non-staging events');
+  return { store: payload.store || 'git', target: payload.target || '' };
+}
+
 export function repositoryDispatchBody(payload) {
   const result = validateIngestPayload(payload);
   if (!result.ok) throw new Error(`invalid ingest payload: ${result.errors.join('; ')}`);

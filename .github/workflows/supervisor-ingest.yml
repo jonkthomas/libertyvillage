@@ -41,23 +41,12 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          import { validateIngestPayload } from './scripts/supervisor/ingest-contract.mjs';
+          import { validateIngestRoute } from './scripts/supervisor/ingest-contract.mjs';
           const payload = JSON.parse(process.env.PAYLOAD);
-          const result = validateIngestPayload(payload);
-          if (!result.ok) throw new Error(result.errors.join('; '));
-          const event = process.env.GITHUB_EVENT_NAME;
-          const ref = process.env.GITHUB_REF;
-          if (event === 'repository_dispatch') {
-            if (ref !== 'refs/heads/main' || (payload.store === 'db' && payload.target !== 'production'))
-              throw new Error('repository dispatch requires main and production DB target');
-          } else if (event === 'workflow_dispatch') {
-            if (ref !== 'refs/heads/staging' || payload.store !== 'db' || payload.target !== 'staging')
-              throw new Error('workflow dispatch requires staging DB target');
-          } else throw new Error('unsupported ingest event');
-          if (process.env.CONTENT_HOLD === '1' && event !== 'workflow_dispatch')
-            throw new Error('LV_CONTENT_CUTOVER_HOLD blocks non-staging events');
+          const route = validateIngestRoute(payload, { eventName: process.env.GITHUB_EVENT_NAME,
+            ref: process.env.GITHUB_REF, hold: process.env.CONTENT_HOLD === '1' });
           fs.appendFileSync(process.env.GITHUB_OUTPUT,
-            `store=${payload.store || 'git'}\ntarget=${payload.target || ''}\ndata_sha=${payload.data_sha}\n`);
+            `store=${route.store}\ntarget=${route.target}\ndata_sha=${payload.data_sha}\n`);
           NODE
 
   resolve-owner:

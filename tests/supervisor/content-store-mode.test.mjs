@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { monitorContentPublish } from '../../scripts/supervisor/content-monitor.mjs';
-import { validateDbIngestDiff, validateIngestPayload, repositoryDispatchBody, workflowDispatchBody } from '../../scripts/supervisor/ingest-contract.mjs';
+import { validateDbIngestDiff, validateIngestPayload, validateIngestRoute, repositoryDispatchBody, workflowDispatchBody } from '../../scripts/supervisor/ingest-contract.mjs';
 import { startLocalStagingIngest, validateHostContentMode } from '../../scripts/supervisor/host-run.mjs';
 import { TERMINALS } from '../../scripts/supervisor/ledger.mjs';
 
@@ -24,6 +24,21 @@ test('DB payload and candidate commit stay bound to staging transport', () => {
   assert.throws(() => repositoryDispatchBody(payload), /staging/);
   assert.deepEqual(repositoryDispatchBody({ ...payload, target: 'production' }).client_payload,
     { ...payload, target: 'production' });
+});
+
+test('cutover hold permits only staging workflow dispatch before ingest', () => {
+  assert.deepEqual(validateIngestRoute(payload, { eventName: 'workflow_dispatch', ref: 'refs/heads/staging', hold: true }),
+    { store: 'db', target: 'staging' });
+  for (const route of [
+    { eventName: 'repository_dispatch', ref: 'refs/heads/main', hold: true, target: 'production' },
+    { eventName: 'workflow_dispatch', ref: 'refs/heads/main', hold: true },
+    { eventName: 'workflow_dispatch', ref: 'refs/heads/staging', hold: false, target: 'production' },
+  ]) {
+    const { target, ...options } = route;
+    assert.throws(() => validateIngestRoute(target ? { ...payload, target } : payload, options));
+  }
+  assert.deepEqual(validateIngestRoute({ ...payload, target: 'production' },
+    { eventName: 'repository_dispatch', ref: 'refs/heads/main' }), { store: 'db', target: 'production' });
 });
 
 test('unsafe DB host configuration fails before Git and legacy remains selectable', () => {
