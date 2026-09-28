@@ -1,23 +1,10 @@
 name: Content store
+# Required on every PR (including non-content changes). Do not path-filter a
+# branch-protection check: a skipped workflow leaves its context pending forever.
 on:
   push:
-    paths:
-      - 'scripts/content/**'
-      - 'tests/content/**'
-      - 'lib/content/**'
-      - 'data/*.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/content-ci.yml'
+    branches: [main, staging]
   pull_request:
-    paths:
-      - 'scripts/content/**'
-      - 'tests/content/**'
-      - 'lib/content/**'
-      - 'data/*.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/content-ci.yml'
 jobs:
   content:
     runs-on: ubuntu-latest
@@ -39,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '26'
+          node-version: "26"
           cache: npm
       - run: npm ci
       - run: npx eslint scripts/content tests/content
