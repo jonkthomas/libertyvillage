@@ -210,7 +210,7 @@ function getBusinessFAQs(business: { name: string; category: string; hours: stri
     ],
   };
 
-  return sets[type];
+  return hours?.trim() ? sets[type] : sets[type].filter((faq) => faq !== hoursQ);
 }
 
 export default async function BusinessDetailPage({ params }: Props) {
@@ -308,10 +308,12 @@ export default async function BusinessDetailPage({ params }: Props) {
             <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Address</span>
             <span className="text-sm text-warm-800">{business.address}</span>
           </div>
-          <div>
-            <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Hours</span>
-            <span className="text-sm text-warm-800">{business.hours}</span>
-          </div>
+          {business.hours?.trim() && (
+            <div>
+              <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Hours</span>
+              <span className="text-sm text-warm-800">{business.hours}</span>
+            </div>
+          )}
           {business.phone && (
             <div>
               <span className="block text-xs font-medium text-warm-400 uppercase tracking-wide">Phone</span>

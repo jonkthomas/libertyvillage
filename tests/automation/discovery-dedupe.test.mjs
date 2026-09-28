@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import { validatePaths } from '../../scripts/automation/policy.mjs';
 import {
-  appendSeenRegistry, buildDedupeState, fetchImage, isDuplicate,
-  norm, readSeenRegistry, selectBatch, slugify,
+  appendSeenRegistry, buildDedupeState, fetchImage, isDiscoveryLocation, isDuplicate,
+  norm, readSeenRegistry, selectBatch, slugify, toRecord,
 } from '../../scripts/discover-businesses.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -98,6 +98,58 @@ test('selectBatch stops at the max and never emits a duplicate slug within a run
   const batch = selectBatch(found, buildDedupeState([], {}), 2);
 
   assert.deepEqual(batch.map((b) => b.slug), ['alpha-bar', 'beta-bar']);
+});
+
+test('discovery requires coordinates and a numbered Liberty Village street address', () => {
+  const gps_coordinates = { latitude: 43.638, longitude: -79.42 };
+  const result = (address, name = 'A Business') => ({ title: name, address, gps_coordinates });
+
+  assert.equal(isDiscoveryLocation(result('51 Hanna Ave #2, Toronto, ON M6K 1X1')), true);
+  assert.equal(isDiscoveryLocation(result('171 E Liberty St, Toronto, ON M6K 3P6')), true);
+  assert.equal(isDiscoveryLocation(result('1118 King St W, Toronto, ON M6K 1E4')), true);
+  assert.equal(isDiscoveryLocation(result('1205 Queen St W, Toronto, ON M6K 0B9', 'Parkdale Barbers Liberty Village')), false);
+  assert.equal(isDiscoveryLocation(result('Liberty Village, Toronto, ON M6K')), false);
+  assert.equal(isDiscoveryLocation({ ...result('51 Hanna Ave, Toronto'), gps_coordinates: { latitude: 43.65, longitude: -79.42 } }), false);
+});
+
+test('batch dedupes differently named listings at the same unit and phone after sorting', () => {
+  const address = '51 Hanna Ave #2, Toronto, ON M6K 1X1, Canada';
+  const alternate = '51 Hanna Avenue Unit 2, Toronto, ON M6K 1X1, Canada';
+  const found = [
+    candidate({ name: 'Pearle Vision', address, phone: '+1 416-555-0199', reviewCount: 250 }),
+    candidate({ name: 'Dr Rehana Manji', address: alternate, phone: '(416) 555-0199', reviewCount: 100 }),
+    candidate({ name: 'Different Shop', address: '51 Hanna Ave #3, Toronto, ON M6K 1X1', phone: '(416) 555-0188', reviewCount: 80 }),
+  ];
+  assert.deepEqual(selectBatch(found, buildDedupeState([], {}), 15).map((b) => b.name),
+    ['Pearle Vision', 'Different Shop']);
+
+  const state = buildDedupeState([business('Pearle Vision', address, { phone: '+1 416-555-0199' })], {});
+  assert.equal(isDuplicate(state, { name: 'Dr Rehana Manji', address: alternate, phone: '(416) 555-0199' }), true);
+  assert.equal(isDuplicate(state, { name: 'Different Shop', address: '51 Hanna Ave #3, Toronto', phone: '(416) 555-0188' }), false);
+});
+
+test('batch rejects a shared address and phone without a unit but keeps distinct tenants', () => {
+  const found = [
+    candidate({ name: 'First Clinic', address: '51 Hanna Ave, Toronto, ON', phone: '+1 416-555-0199' }),
+    candidate({ name: 'Second Clinic', address: '51 Hanna Avenue, Toronto, ON', phone: '(416) 555-0199' }),
+    candidate({ name: 'Unrelated Tenant', address: '51 Hanna Ave, Toronto, ON', phone: '(416) 555-0188' }),
+  ];
+  assert.deepEqual(selectBatch(found, buildDedupeState([], {}), 15).map((b) => b.name),
+    ['First Clinic', 'Unrelated Tenant']);
+});
+
+test('generated records omit transient hours and identify the source of review facts', () => {
+  const record = toRecord({
+    title: 'Example Cafe', type: 'Cafe', address: '51 Hanna Ave, Toronto, ON M6K 1X1',
+    rating: 4.5, reviews: 80, hours: 'Open · Closes 5 PM', open_state: 'Open',
+  }, 'coffee-shops');
+
+  assert.equal(record.hours, '');
+  assert.equal(record.priceRange, '');
+  for (const copy of [record.description, record.answerBlock, record.reviewExcerpt, record.reviewFaqs[0].answer]) {
+    assert.match(copy, /Google Maps listed a 4\.5-star average from 80 reviews/);
+    assert.doesNotMatch(copy, /locals and visitors|Open|Closes/);
+  }
 });
 
 test('fetchImage returns the existing image without overwriting it', async () => {
