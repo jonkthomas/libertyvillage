@@ -139,13 +139,16 @@ test('scratch code poisoning cannot cross into trusted CLI', (t) => {
   assert.equal(allowedGeneratedPath('tasks/seo-data-latest.json', 'weekly-blog'), false);
   fs.mkdirSync(path.join(scratch, 'tasks'));
   fs.writeFileSync(path.join(scratch, 'tasks/seo-data-latest.json'), '{"private":"analytics"}');
-  const transfer = generatedPathsForTransfer(['tasks/seo-data-latest.json', 'data/posts.json']);
+  fs.writeFileSync(path.join(scratch, 'tasks/x.json'), 'invalid JSON; never read');
+  fs.writeFileSync(path.join(scratch, 'scripts/evil.sh'), `touch ${path.join(temp, 'evil-ran')}`);
+  const outputs = ['tasks/seo-data-latest.json', 'tasks/x.json', 'scripts/evil.sh', 'data/posts.json'];
+  const transfer = generatedPathsForTransfer(outputs, 'weekly-blog');
   assert.deepEqual(transfer, ['data/posts.json']);
-  assert.deepEqual(copyGenerated(scratch, trusted, 'weekly-blog', transfer), ['data/posts.json']);
-  assert.equal(fs.existsSync(path.join(trusted, 'tasks/seo-data-latest.json')), false);
-  assert.deepEqual(generatedPathsForTransfer(['scripts/content/cli.mjs', 'tasks/seo-data-latest.json']), ['scripts/content/cli.mjs']);
-  assert.deepEqual(generatedPathsForTransfer(['data/posts.json', 'data/posts.json.backup', 'tasks/pipeline-summary.txt', 'scripts/content/cli.mjs'], 'weekly-blog'), ['data/posts.json', 'scripts/content/cli.mjs'], 'discard only exact scratch-only side artifacts, never silently allow code poisoning');
-  assert.deepEqual(generatedPathsForTransfer(['data/posts.json.backup', 'tasks/pipeline-summary.txt'], 'seo-improvements'), ['data/posts.json.backup', 'tasks/pipeline-summary.txt'], 'other jobs retain their strict allowlist');
+  assert.deepEqual(copyGenerated(scratch, trusted, 'weekly-blog', transfer), ['data/posts.json'], 'unexpected scratch files cannot stop a valid transfer');
+  for (const name of ['tasks/seo-data-latest.json', 'tasks/x.json', 'scripts/evil.sh']) assert.equal(fs.existsSync(path.join(trusted, name)), false, `${name} was not copied`);
+  assert.equal(fs.existsSync(path.join(temp, 'evil-ran')), false, 'untrusted script was not executed');
+  assert.deepEqual(generatedPathsForTransfer(['data/posts.json', 'data/posts.json.backup', 'tasks/pipeline-summary.txt', 'tasks/blog-draft.json', 'scripts/content/cli.mjs'], 'weekly-blog'), ['data/posts.json'], 'every non-transfer artifact is discarded by policy');
+  assert.deepEqual(generatedPathsForTransfer(['data/posts.json.backup', 'tasks/pipeline-summary.txt'], 'seo-improvements'), [], 'policy also applies to SEO');
 });
 
 test('blog acceptance refuses generator FIFO before reading any post JSON', (t) => {
@@ -259,5 +262,9 @@ test('failure alert contains only a non-secret run reference and reports deliver
   const sent = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging', slot: '202609281100-abcd1234' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
   assert.equal(sent, true);
   assert.equal(body.text, '⚠ weekly-blog DB content job failed (staging); lv-runner 202609281100-abcd1234');
+  const suggested = await alertFailure({ webhook: 'https://slack.example/secret', job: 'seo-improvements', target: 'staging', slot: '202609281100-abcd1234', codeSuggestion: true }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.equal(suggested, true);
+  assert.match(body.text, /code outside the data lane.*human PR required/);
+  assert.doesNotMatch(body.text, /job failed|slack.example|invalid JSON/);
   assert.equal(await alertFailure({ webhook: 'https://slack.example/secret', job: 'news', target: 'staging', slot: '202609281217-abcd1234' }, async () => { throw new Error('offline'); }), false);
 });

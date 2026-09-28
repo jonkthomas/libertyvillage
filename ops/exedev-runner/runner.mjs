@@ -81,10 +81,9 @@ export function changedPaths(root, trusted) {
 // The blog SDK writes analytics for its own prompting. It is neither a trusted
 // content output nor a reason to reject an otherwise valid generated post.
 export function generatedPathsForTransfer(paths, job) {
-  // These known scratch-only generator notes/backups must never enter the
-  // credentialed checkout. Unknown out-of-allowlist changes still fail closed.
-  return paths.filter((rel) => rel !== 'tasks/seo-data-latest.json'
-    && !(job === 'weekly-blog' && (rel === 'data/posts.json.backup' || rel === 'tasks/pipeline-summary.txt')));
+  // Scratch is disposable: only declared transfer artifacts cross into trusted
+  // code. Never inspect or copy any other generator-created file contents.
+  return paths.filter((rel) => allowedGeneratedPath(rel, job));
 }
 
 // Compare with the freshly exported DB snapshot, never Git HEAD: exported
@@ -205,7 +204,7 @@ export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_EN
 export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false }, fetchImpl = fetch) {
   if (!webhook) return false;
   try {
-    const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}${codeSuggestion ? '; code suggestion requires human PR' : ''}` }), signal: AbortSignal.timeout(10_000) });
+    const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` : `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}` }), signal: AbortSignal.timeout(10_000) });
     return response.ok;
   } catch { return false; }
 }
@@ -269,7 +268,7 @@ export function readScratchHead(scratch) {
   } finally { fs.closeSync(fd); }
 }
 
-function generator(job, slot, topic, dryRun, log) {
+function generator(job, slot, topic, dryRun, log, notifications = {}) {
   const scratch = path.join(stateRoot, 'scratch', slot);
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
@@ -284,11 +283,14 @@ function generator(job, slot, topic, dryRun, log) {
   command('sudo', ['-n', helper, job, slot], { cwd: repo, env: childEnv(process.env, ['PATH', 'HOME', 'LANG', 'TZ']) });
   const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
   if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
-  const paths = generatedPathsForTransfer(changedPaths(scratch, repo), job);
+  const allPaths = changedPaths(scratch, repo);
+  const paths = generatedPathsForTransfer(allPaths, job);
+  const discarded = allPaths.filter((rel) => !allowedGeneratedPath(rel, job));
+  if (discarded.length) logLine(log, 'generator-output-discarded', { paths: discarded.slice(0, 20).map((rel) => rel.slice(0, 160)), omitted: Math.max(0, discarded.length - 20) });
   if (job === 'weekly-blog' && !paths.includes('data/posts.json')) throw new Error('blog generated no post');
-  if (job === 'seo-improvements' && paths.some((rel) => !allowedGeneratedPath(rel, job))) {
-    logLine(log, 'seo-code-suggestion', { paths: paths.filter((rel) => !allowedGeneratedPath(rel, job)).slice(0, 20) });
-    throw new Error('SEO code suggestion; human PR required');
+  if (job === 'seo-improvements' && discarded.some((rel) => /^(?:scripts|app|components|lib)\//.test(rel))) {
+    notifications.codeSuggestion = true;
+    logLine(log, 'seo-code-suggestion', { paths: discarded.filter((rel) => /^(?:scripts|app|components|lib)\//.test(rel)).slice(0, 20).map((rel) => rel.slice(0, 160)) });
   }
   const changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts);
   logLine(log, 'generator-output-accepted', { paths: changed.length });
@@ -345,7 +347,7 @@ export function consumeResumedBlogTopic(root, target, slot, request, result) {
   return true;
 }
 
-function runJob(job, target, slot, request, log) {
+function runJob(job, target, slot, request, log, notifications = {}) {
   if (job === 'weekly-growth-report') {
     source('scripts/generate-weekly-growth-report.mjs', ['--out-dir', path.join(stateRoot, 'growth', slot)], job, log);
     return;
@@ -405,7 +407,7 @@ function runJob(job, target, slot, request, log) {
         }
       }
     } else if (request.topic) topic = { title: request.topic, key: null };
-    const changed = generator(job, slot, topic, !!request.dryRun, log);
+    const changed = generator(job, slot, topic, !!request.dryRun, log, notifications);
     if (request.dryRun) return { dryRun: true, paths: changed.length };
     if (job === 'weekly-blog' && !changed.includes('data/posts.json')) throw new Error('blog generated no post');
     if (job === 'seo-improvements') {
@@ -484,13 +486,14 @@ export async function main(argv = process.argv.slice(2)) {
   fs.mkdirSync(logRoot, { recursive: true, mode: 0o700 });
   const log = path.join(logRoot, `${job}-${target}-${slot}.jsonl`);
   logLine(log, 'start', { job, target, slot });
+  const notifications = {};
   try {
     assertTarget(process.env, target);
     if (fs.existsSync('/etc/lv-runner.hold')) throw new Error('runner hold active');
     const requestPath = path.join(stateRoot, 'requests', `${slot}.json`);
     const request = fs.existsSync(requestPath) ? readJson(requestPath) : {};
     const sha = checkout(target, log);
-    const result = runJob(job, target, slot, request, log);
+    const result = runJob(job, target, slot, request, log, notifications);
     logLine(log, 'success', { sha, result: result && { id: result.id ?? null, dryRun: !!result.dryRun, noChanges: !!result.noChanges } });
   } catch (error) {
     const reason = error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : /^(?:runner hold active|topic queue exhausted; human followup required|topic publication pending; retry original slot|news resume snapshot changed|news post artifact missing; manual recovery required|no healthy news source|SEO code suggestion; human PR required|blog generated no post|blog generated no submission|gate blocked or rejected|publish or propagation pending|scratch output outside allowlist|scratch output too large|generator changed pinned commit)$/.test(error?.message) ? error.message : 'operational-error');
@@ -498,6 +501,11 @@ export async function main(argv = process.argv.slice(2)) {
     const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required' });
     if (!alerted) logLine(log, 'alert-failed');
     throw new Error(`runner failed: ${job}/${target}/${slot}`);
+  } finally {
+    if (notifications.codeSuggestion) {
+      const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: true });
+      logLine(log, alerted ? 'seo-code-suggestion-notified' : 'seo-code-suggestion-alert-failed');
+    }
   }
 }
 
