@@ -44,12 +44,17 @@ def _quiet(*args):
     except Exception:
         return None
 def _unit_inactive(unit):
-    proc = _quiet('systemctl', 'is-active', '--quiet', unit)
-    return proc is not None and proc.returncode != 0
+    # Unknown manager/status output is NOT stopped: require an explicit inactive.
+    try:
+        proc = subprocess.run(['systemctl', 'show', '--property=ActiveState', '--value', unit], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30)
+    except Exception:
+        return False
+    if proc.returncode != 0:
+        return False
+    return proc.stdout.decode('utf-8', 'replace').strip() == 'inactive'
 def _stop_unit(unit):
     # Transient default KillMode=control-group: stop kills the whole unit cgroup.
     _quiet('systemctl', 'stop', unit)
-    _quiet('systemctl', 'kill', '--kill-all', unit)
     for _ in range(30):
         if _unit_inactive(unit):
             return True
@@ -141,7 +146,7 @@ fi
 [[ "$action" == run && $# -ge 1 ]] || usage
 job=$1; shift
 case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog) ;; *) usage;; esac
-target=''; slot=''; topic=''; dry_run=false; approved=false; scheduled=false
+target=''; slot=''; topic=''; dry_run=false; approved=false
 while (($#)); do
   case "$1" in
     --target) target=${2:-}; shift 2;;
@@ -149,21 +154,20 @@ while (($#)); do
     --topic) topic=${2:-}; shift 2;;
     --dry-run) dry_run=true; shift;;
     --production-approved) approved=true; shift;;
-    --scheduled) scheduled=true; shift;;
     *) usage;;
   esac
 done
 [[ "$target" == staging || "$target" == production ]] || usage
 [[ ! -e /etc/lv-runner.hold ]] || { echo 'runner hold active' >&2; exit 1; }
-if [[ "$target" == production && "$scheduled" == false && "$approved" != true ]]; then
+# No --scheduled on-demand flag: timer units invoke lv-runner-service directly
+# with the :scheduled slot, so any --scheduled here is a spoof and hits usage.
+if [[ "$target" == production && "$approved" != true ]]; then
   echo 'production on-demand requires --production-approved after parent/John authorization' >&2; exit 1
 fi
 if [[ -z "$slot" ]]; then
-  if [[ "$scheduled" == true ]]; then slot="$(date -u +%Y%m%d%H%M)-scheduled"
-  else slot="$(date -u +%Y%m%d%H%M%S)-$(openssl rand -hex 4)"; fi
+  slot="$(date -u +%Y%m%d%H%M%S)-$(openssl rand -hex 4)"
 fi
 [[ "$slot" =~ ^[a-zA-Z0-9_-]{8,80}$ ]] || usage
-if [[ "$scheduled" == true && ( -n "$topic" || "$dry_run" == true ) ]]; then usage; fi
 install -d -m 0700 -o lv-runner -g lv-runner /var/lib/lv-runner/requests
 python3 - "$slot" "$topic" "$dry_run" <<'PY'
 import json, os, sys
