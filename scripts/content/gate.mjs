@@ -1,7 +1,9 @@
 // `content gate` (§4.6). Round decision (g4) and the --script seam.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { candidateDigest, registry } from './canonical.mjs';
+import { MEDIA_PATH_PATTERN } from './images.mjs';
 import {
   addRepairRound, ClaimError, claimSubmission, ConflictError, getSubmission, publishSubmission, recordRound,
   rejectSubmission, releaseClaim, renewClaim, StateError,
@@ -159,12 +161,42 @@ function listing(checkout, dir) {
   try { return fs.readdirSync(path.join(checkout, dir)); } catch { return []; }
 }
 
-// Grounded kinds: bounded link/asset inventory from live data + checkout listings.
-function inventoryFromLive(agent, live, checkout) {
+// docs/specs/neon-gate-candidate-media-inventory.md: the distinct /media paths the
+// current round vector's registry image fields reference, kept only when the exact
+// content.assets row's stored bytes hash to its sha256, match byte_size, and the
+// path's <sha16> is that digest's prefix. Which submission stored the row is
+// irrelevant; candidate strings alone never qualify. Order: vector (dataset,key), field.
+// Returns the verified paths and the referenced ones that failed verification.
+export async function currentSubmissionMediaPaths(db, candidates) {
+  const referenced = [];
+  for (const item of candidates) {
+    for (const field of registry[item.dataset]?.imageFields || []) {
+      const value = item.payload?.[field];
+      if (typeof value === 'string' && MEDIA_PATH_PATTERN.test(value) && !referenced.includes(value)) referenced.push(value);
+    }
+  }
+  const verified = [];
+  for (const mediaPath of referenced) {
+    const row = (await db.query('select sha256,byte_size,bytes from content.assets where path=$1', [mediaPath])).rows[0];
+    if (!row || !Buffer.isBuffer(row.bytes)) continue;
+    const digest = createHash('sha256').update(row.bytes).digest('hex');
+    if (digest !== row.sha256 || row.bytes.length !== Number(row.byte_size)) continue;
+    if (mediaPath.split('/')[2] !== digest.slice(0, 16)) continue;
+    verified.push(mediaPath);
+  }
+  return { verified, rejected: referenced.filter((mediaPath) => !verified.includes(mediaPath)) };
+}
+
+// Grounded kinds: bounded link/asset inventory — verified current-submission media,
+// then live media, then checkout listings. A path the current vector references but
+// that failed verification is withheld from the live source too, so it cannot come
+// back in as "verified" just because a published record also uses it.
+function inventoryFromLive(agent, live, checkout, { verified, rejected }) {
   return agent.inventoryFromData({
     services: live.live.services, topics: live.live.topics, posts: live.live.posts,
     blogImages: listing(checkout, 'public/images/blog'), neighborhoodImages: listing(checkout, 'public/images/neighborhood'),
-    ogImages: listing(checkout, 'public/images/og'), images: live.mediaPaths,
+    ogImages: listing(checkout, 'public/images/og'),
+    images: live.mediaPaths.filter((mediaPath) => !rejected.includes(mediaPath)), currentImages: verified,
   });
 }
 
@@ -208,7 +240,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
   const agent = await loadReviewAgent();
   const review = deps.review ?? agent.reviewRows;
   const fix = deps.fix ?? agent.planRecordRepair;
-  const inventoryFor = (live) => inventoryFromLive(agent, live, checkout);
+  const inventoryFor = async (live, candidates) => inventoryFromLive(agent, live, checkout, await currentSubmissionMediaPaths(db, candidates));
   let fixerFailures = 0;
   const closed = ({ submission, rounds }, extra = {}) => {
     const last = rounds.at(-1);
@@ -269,7 +301,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         // g3 review
         const lenses = lensesFor(kind, candidates[0].dataset);
         const references = grounded ? agent.selectReferenceRecords(doc.document, live.live.businesses ?? []) : [];
-        const inventory = grounded ? inventoryFor(live) : null;
+        const inventory = grounded ? await inventoryFor(live, candidates) : null;
         const evidence = kind === 'news' ? trimEvidence(context.evidence) : null;
         rt.onPhase(`review:${n}`);
         const verdict = script
@@ -312,7 +344,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         deps: policyDeps({ kind, context: { root: live.root }, checkout }),
       });
       const references = grounded ? agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []) : [];
-      const inventory = grounded ? inventoryFor(live) : null;
+      const inventory = grounded ? await inventoryFor(live, candidates) : null;
       const lintFindings = KIND_RULES[kind].lint
         ? candidates.flatMap((item) => lintPost(item.payload, { businesses: live.live.businesses ?? [], now: context.now ? new Date(context.now) : undefined }).findings)
         : [];
