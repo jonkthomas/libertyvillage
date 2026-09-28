@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,11 +14,18 @@ import { GATE_MODEL, MAX_REPAIRS, SCORE_THRESHOLD } from '../../scripts/automati
 import { evaluateRepairProgress } from '../../scripts/automation/recovery.mjs';
 import { preflightDecision } from '../../scripts/automation/preflight.mjs';
 import { evaluateVerdict } from '../../scripts/automation/policy.mjs';
-import {
-  assertScriptAllowed, decideRound, fixerPayload, loadScript, POLICY_KIND, scriptedFix, scriptedVerdict,
-} from '../../scripts/content/gate.mjs';
 import { buildReviewDocument } from '../../scripts/content/review-document.mjs';
+import * as store from '../../scripts/content/store.mjs';
+import { submitContent } from '../../scripts/content/submit.mjs';
+import { adminContent, deployContent } from '../../scripts/content/deploy.mjs';
+import { publishDirect, baselineFile, FAST_SMOKE, liveRecord, localSite, seededDb, seedRecords, tempJson } from './fixtures/content-db.mjs';
 
+// gate.mjs reaches review-agent -> the agent SDK, so it is imported only after
+// agent-sdk-mock has redirected the SDK (static imports would link the real one).
+const {
+  assertScriptAllowed, decideRound, fixerPayload, loadScript, POLICY_KIND, scriptedFix, scriptedVerdict, gateContent,
+  toNumeric2, roundVector, basePayloads,
+} = await import('../../scripts/content/gate.mjs');
 const { reviewRows, LENSES, VERDICT_SCHEMA } = await import('../../scripts/automation/review-agent.mjs');
 const { lensesFor, MANUAL_LENSES } = await import('../../scripts/content/lenses.mjs');
 
@@ -181,4 +189,269 @@ test('B5: review-agent imports with no side effects and its CLI still runs', () 
   assert.match(src, /^export function trimEvidence\(value\) \{$/m);
   assert.match(src, /^export function structuredData\(post\) \{$/m);
   assert.equal(execFileSync('git', ['diff', '--numstat', '9b23de5', '--', 'scripts/automation/news-preflight.mjs'], { cwd: REPO, encoding: 'utf8' }).trim().split(/\s+/).slice(0, 2).join(' '), '2 2');
+});
+
+// ---------------------------------------------------------------------------
+// B3 scripted gate against the real store (lv_test_*) and a local site/hook/Slack.
+// ---------------------------------------------------------------------------
+
+const BIZ = seedRecords().businesses[1];
+const scriptFile = (value) => tempJson(value, 'script.json');
+const PASS = scriptFile({ reviews: [{ overall: 8.5, findings: [] }] });
+
+async function withSite(fn) {
+  const handle = await seededDb();
+  const site = await localSite(handle.db);
+  await site.build();
+  try { return await fn(handle.db, site); } finally { await site.close(); await handle.close(); }
+}
+
+async function submitEdit(db, record, key, kind = 'manual', dataset = 'businesses') {
+  const { result } = await submitContent(db, {
+    kind, idempotencyKey: `${key}:${Math.random()}`, actor: 'uat:test', recordFile: tempJson(record), dataset, baseline: await baselineFile(db),
+  }, { checkout: REPO });
+  return result.submissionId;
+}
+
+const gate = (db, site, id, script, extra = {}) => gateContent(db, { submission: id, script, actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE, ...extra }, checkout: REPO });
+
+test('B3 pass -> publish -> deploy -> smoke -> one Slack line, not repeated on re-run', async () => {
+  await withSite(async (db, site) => {
+    const edited = { ...BIZ, description: `${BIZ.description} Now open Sundays.` };
+    const id = await submitEdit(db, edited, 'pass');
+    const out = await gate(db, site, id, PASS);
+    assert.equal(out.exitCode, 0, JSON.stringify(out.result));
+    assert.deepEqual([out.result.state, out.result.decision, out.result.overall, out.result.repairs, out.result.deploy, out.result.smoke, out.result.notified], ['published', 'go', 8.5, 0, 'requested', 'passed', true]);
+    assert.equal(out.result.published[0].url, `${site.origin}/directory/${BIZ.slug}`);
+    assert.equal(typeof out.result.liveSeq, 'number');
+    const lines = site.slackWith(`(#${id},`);
+    assert.deepEqual(lines, [`[scripted] ✅ test published: ${BIZ.name} — ${site.origin}/directory/${BIZ.slug} (#${id}, manual, 8.5, 0)`]);
+    assert.equal(site.state.hookPosts, 1);
+    const again = await gate(db, site, id, PASS);
+    assert.equal(again.exitCode, 0);
+    assert.equal(site.slackWith(`(#${id},`).length, 1, 'no repeat after notified_at');
+    assert.equal(site.state.hookPosts, 1, 'no second hook after deploy_requested_at');
+    const { rounds, items } = await store.getSubmission(db, id);
+    assert.equal(rounds.length, 1);
+    assert.equal(rounds[0].scripted, true);
+    assert.equal(Number(rounds[0].overall), 8.5);
+    assert.equal(items[0].smoke, 'passed');
+    assert.equal((await liveRecord(db, 'businesses', BIZ.slug)).description, edited.description);
+  });
+});
+
+test('B3 repair -> pass: fixer rev lands as round 1 and publishes; history shows manual then fixer', async () => {
+  await withSite(async (db, site) => {
+    const fabricated = { ...BIZ, description: `${BIZ.description} Voted best tacos in Canada by 40,000 readers.` };
+    const id = await submitEdit(db, fabricated, 'repair');
+    const repaired = { ...fabricated, description: BIZ.description };
+    const script = scriptFile({
+      reviews: [{ overall: 6.5, findings: [{ severity: 'high', path: `data/businesses.json#${BIZ.slug}`, note: 'unsupported award claim' }] }, { overall: 8.8, findings: [] }],
+      fixes: [{ files: [{ file: 'data/businesses.json', records: [{ key: BIZ.slug, record: repaired }] }], reason: 'remove unsupported claim' }],
+    });
+    const out = await gate(db, site, id, script);
+    assert.equal(out.exitCode, 0, JSON.stringify(out.result));
+    assert.deepEqual([out.result.state, out.result.repairs, out.result.overall], ['published', 1, 8.8]);
+    const history = await store.history(db, { dataset: 'businesses', key: BIZ.slug });
+    assert.deepEqual(history.revisions.map((rev) => rev.source), ['writer', 'manual', 'fixer']);
+    assert.equal(history.revisions.at(-1).live, true);
+    const { rounds } = await store.getSubmission(db, id);
+    assert.deepEqual(rounds.map((round) => round.decision), ['repair', 'go']);
+  });
+});
+
+test('B3 unrepairable / exhausted / not-converging close blocked with a failure Slack line', async () => {
+  await withSite(async (db, site) => {
+    const cases = [
+      ['unrepairable', { reviews: [{ overall: 5, findings: [{ severity: 'critical', path: `data/businesses.json#${BIZ.slug}`, note: 'slug duplicates another listing' }] }] }],
+      ['not-converging', {
+        reviews: [{ overall: 7.2, findings: [{ severity: 'high', path: `data/businesses.json#${BIZ.slug}`, note: 'claim' }] }, { overall: 6.5, findings: [{ severity: 'high', path: `data/businesses.json#${BIZ.slug}`, note: 'claim' }] }],
+        fixes: [{ files: [{ file: 'data/businesses.json', records: [{ key: BIZ.slug, record: { ...BIZ, description: 'Reworded once.' } }] }], reason: 'r' }],
+      }],
+      ['exhausted', {
+        reviews: [6, 6.5, 7, 7.5].map((overall) => ({ overall, findings: [{ severity: 'high', path: `data/businesses.json#${BIZ.slug}`, note: 'claim' }] })),
+        fixes: [1, 2, 3].map((n) => ({ files: [{ file: 'data/businesses.json', records: [{ key: BIZ.slug, record: { ...BIZ, description: `Reworded ${n}.` } }] }], reason: `r${n}` })),
+      }],
+    ];
+    for (const [decision, script] of cases) {
+      const id = await submitEdit(db, { ...BIZ, description: `Edit for ${decision}.` }, decision);
+      const out = await gate(db, site, id, scriptFile(script));
+      assert.equal(out.exitCode, 2, `${decision}: ${JSON.stringify(out.result)}`);
+      assert.deepEqual([out.result.state, out.result.decision], ['blocked', decision]);
+      assert.equal(site.slackWith(`#${id} ${decision}`).length, 1, decision);
+      assert.equal((await liveRecord(db, 'businesses', BIZ.slug)).description, BIZ.description, 'live rev unchanged');
+    }
+    const blocked = await store.listSubmissions(db, { state: 'blocked' });
+    assert.equal(blocked.length, 3);
+  });
+});
+
+test('B3 g1 validation failure closes rejected before any review', async () => {
+  await withSite(async (db, site) => {
+    const id = await submitEdit(db, { ...BIZ, description: 'ok' }, 'g1');
+    // An operator edits the stored candidate context to force a deterministic failure on rerun of g1.
+    await db.query("update content.submissions set kind='business' where id=$1", [id]);
+    let reviews = 0;
+    const out = await gate(db, site, id, undefined, { review: async () => { reviews += 1; throw new Error('must not review'); } });
+    assert.equal(out.exitCode, 2, JSON.stringify(out.result));
+    assert.deepEqual([out.result.state, out.result.decision], ['rejected', 'validation']);
+    assert.equal(reviews, 0);
+    assert.match(site.slackWith(`#${id} validation`)[0], /business may not update businesses/);
+  });
+});
+
+test('B3 conflict: a newer publish on the key rejects the stale submission at publish', async () => {
+  await withSite(async (db, site) => {
+    const baseline = await baselineFile(db);
+    const first = await submitContent(db, { kind: 'manual', idempotencyKey: 'c1', actor: 'uat:test', recordFile: tempJson({ ...BIZ, proTip: 'First.' }), dataset: 'businesses', baseline }, { checkout: REPO });
+    const second = await submitContent(db, { kind: 'manual', idempotencyKey: 'c2', actor: 'uat:test', recordFile: tempJson({ ...BIZ, proTip: 'Second.' }), dataset: 'businesses', baseline }, { checkout: REPO });
+    assert.equal((await gate(db, site, first.result.submissionId, PASS)).exitCode, 0);
+    const out = await gate(db, site, second.result.submissionId, PASS);
+    assert.equal(out.exitCode, 2);
+    assert.deepEqual([out.result.state, out.result.decision], ['rejected', 'conflict']);
+    assert.equal((await liveRecord(db, 'businesses', BIZ.slug)).proTip, 'First.');
+  });
+});
+
+test('B3 propagation: hook 500 and freshness timeout exit 3, then content deploy exits 0', async () => {
+  await withSite(async (db, site) => {
+    site.state.hook = 500;
+    const hookId = await submitEdit(db, { ...BIZ, proTip: 'Hook failure.' }, 'hook');
+    const failed = await gate(db, site, hookId, PASS);
+    assert.equal(failed.exitCode, 3, JSON.stringify(failed.result));
+    assert.deepEqual([failed.result.state, failed.result.deploy, failed.result.smoke], ['published', 'failed', 'pending']);
+    assert.equal(site.state.hookPosts, 2, 'two attempts');
+    assert.equal(site.slackWith(`#${hookId} published but not yet live (hook-failed)`).length, 1);
+
+    site.state.hook = 'accept'; // hook accepted, the build never lands
+    const staleId = await submitEdit(db, { ...BIZ, answerBlock: 'Freshness.', proTip: 'Hook failure.' }, 'fresh');
+    const stale = await gate(db, site, staleId, PASS);
+    assert.equal(stale.exitCode, 3);
+    assert.equal(stale.result.reason, 'smoke-timeout');
+
+    site.state.hook = 'build';
+    const resumed = await deployContent(db, { actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE } });
+    assert.equal(resumed.exitCode, 0, JSON.stringify(resumed.result));
+    assert.deepEqual(resumed.result.submissions.map((entry) => [entry.id, entry.smoke]), [[hookId, 'passed'], [staleId, 'passed']]);
+    // Coalesced on one key: the older publish is superseded, never page-checked or compensated.
+    assert.equal((await store.getSubmission(db, hookId)).items[0].smoke, 'superseded');
+    assert.equal((await store.getSubmission(db, staleId)).items[0].smoke, 'passed');
+    assert.deepEqual(await store.listPending(db, { target: 'test' }), []);
+    assert.equal(site.slackWith(`(#${hookId},`).length, 1);
+    assert.equal(site.slackWith(`(#${staleId},`).length, 1);
+  });
+});
+
+test('B3 bad render -> compensate -> admin submission smoked absent (insert -> 404), exit 2 smoke-failed', async () => {
+  await withSite(async (db, site) => {
+    const inserted = { ...BIZ, slug: 'uat-render-probe', name: 'UAT Render Probe' };
+    const id = await submitEdit(db, inserted, 'render');
+    site.state.breakRoutes = ['/directory/uat-render-probe'];
+    const out = await gate(db, site, id, PASS);
+    assert.equal(out.exitCode, 2, JSON.stringify(out.result));
+    assert.deepEqual([out.result.state, out.result.decision, out.result.smoke], ['compensated', 'smoke-failed', 'failed']);
+    const adminId = out.result.compensation.adminSubmissionId;
+    assert.equal(out.result.compensation.smoke, 'passed');
+    assert.deepEqual(out.result.compensation.reverted, [{ dataset: 'businesses', key: 'uat-render-probe', fromRev: 1, toRev: null }]);
+    const admin = await store.getSubmission(db, adminId);
+    assert.deepEqual([admin.submission.kind, admin.items[0].op, admin.items[0].smoke], ['admin', 'compensate', 'passed']);
+    assert.ok(admin.submission.smoke_passed_at && admin.submission.notified_at);
+    assert.equal((await fetch(`${site.origin}/directory/uat-render-probe`)).status, 404);
+    assert.equal(site.slackWith(`🔁 test compensate businesses/uat-render-probe (#${adminId})`).length, 1);
+    assert.equal(site.slackWith(`#${id} smoke-failed`).length, 1);
+    assert.equal(await liveRecord(db, 'businesses', 'uat-render-probe'), undefined);
+  });
+});
+
+test('admin unpublish/rollback: hook failure -> exit 3 -> content deploy resumes -> passed; replay is existing', async () => {
+  await withSite(async (db, site) => {
+    const key = seedRecords().businesses[2].slug;
+    site.state.hook = 500;
+    const unpublish = await adminContent(db, { op: 'unpublish', dataset: 'businesses', key, reason: 'uat', idempotencyKey: 'u1', actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE } });
+    assert.equal(unpublish.exitCode, 3, JSON.stringify(unpublish.result));
+    assert.deepEqual([unpublish.result.rev, unpublish.result.smoke], [null, 'pending']);
+    site.state.hook = 'build';
+    const deployed = await deployContent(db, { actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE } });
+    assert.equal(deployed.exitCode, 0, JSON.stringify(deployed.result));
+    assert.equal((await fetch(`${site.origin}/directory/${key}`)).status, 404);
+    const rollback = await adminContent(db, { op: 'rollback', dataset: 'businesses', key, toRev: 1, reason: 'uat', idempotencyKey: 'r1', actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE } });
+    assert.equal(rollback.exitCode, 0, JSON.stringify(rollback.result));
+    assert.deepEqual([rollback.result.fromRev, rollback.result.rev, rollback.result.smoke], [null, 2, 'passed']);
+    assert.equal((await fetch(`${site.origin}/directory/${key}`)).status, 200);
+    const replay = await adminContent(db, { op: 'rollback', dataset: 'businesses', key, toRev: 1, reason: 'uat', idempotencyKey: 'r1', actor: 'uat:test' }, { env: site.env, deps: { smoke: FAST_SMOKE } });
+    assert.deepEqual([replay.exitCode, replay.result.existing, replay.result.rev], [0, true, 2]);
+    assert.deepEqual((await store.history(db, { dataset: 'businesses', key })).revisions.map((rev) => rev.source), ['writer', 'rollback']);
+    await assert.rejects(adminContent(db, { op: 'unpublish', dataset: 'guide-hub', key: 'guide-hub', reason: 'uat', idempotencyKey: 'g1', actor: 'uat:test' }, { env: site.env }), { code: 'ValidationError' });
+    assert.equal(site.slackWith(`🔁 test unpublish businesses/${key}`).length, 1);
+    assert.equal(site.slackWith(`🔁 test rollback businesses/${key}`).length, 1);
+  });
+});
+
+test('3-decimal scores: persisted and compared at numeric(4,2) exactly as PostgreSQL stores them', async () => {
+  // 7.255 is stored as 7.26; an uninterrupted run and a resumed run must agree.
+  const high0 = [high()];
+  const round0 = decideRound({ kind: 'business', verdict: verdict(7.255, high0), contentSha: SHA, repairs: 0, round: 0, datasets: ['businesses'] });
+  assert.equal(round0.overall, 7.26);
+  const resumed = decideRound({ kind: 'business', verdict: verdict(7.255, high0), contentSha: SHA, repairs: 1, round: 1, priorRounds: [{ round: 0, overall: '7.26', blocking_count: 1 }], datasets: ['businesses'] });
+  assert.equal(resumed.decision, 'repair', 'same score is not a regression');
+  // Unaligned comparison (raw 7.255 vs stored 7.26) would have abandoned the candidate.
+  assert.equal(evaluateRepairProgress({ history: [{ attempt: 0, overall: 7.26, blockingCount: 1 }, { attempt: 1, overall: 7.255, blockingCount: 1 }] }).decision, 'abandon');
+  // A real regression at the third decimal still counts once rounded apart.
+  assert.equal(decideRound({ kind: 'business', verdict: verdict(7.244, high0), contentSha: SHA, repairs: 1, round: 1, priorRounds: [{ round: 0, overall: '7.26', blocking_count: 1 }], datasets: ['businesses'] }).decision, 'not-converging');
+  // The gate is not weakened: 7.996 persists as 8.00 but never passes the 8 bar.
+  const near = decideRound({ kind: 'business', verdict: verdict(7.996), contentSha: SHA, repairs: 0, round: 0, datasets: ['businesses'] });
+  assert.deepEqual([near.overall, near.passed], [8, false]);
+  assert.notEqual(near.decision, 'go');
+
+  const { db, close } = await seededDb();
+  try {
+    const values = [7.255, 7.245, 8.335, 0.005, 9.995, 7.2, 8, 6.125, 5.675];
+    for (const [index, value] of values.entries()) {
+      const created = await store.createSubmission(db, { kind: 'manual', target: 'test', actor: 't', idempotencyKey: `num-${index}`, items: [{ dataset: 'businesses', key: `num-probe-${index}`, payload: { ...BIZ, slug: `num-probe-${index}` }, expectedLiveRev: null }] });
+      const { token } = await store.claimSubmission(db, created.submissionId, { owner: 't' });
+      const vector = await roundVector(db, created.submissionId, 0);
+      await store.recordRound(db, created.submissionId, token, { round: 0, candidateDigest: (await import('../../scripts/content/canonical.mjs')).candidateDigest(vector), contentSha: SHA, verdict: verdict(value), overall: toNumeric2(value), passed: false, blockingCount: 0, lint: null, decision: 'block' });
+      const row = (await db.query('select overall from content.gate_rounds where submission_id=$1', [created.submissionId])).rows[0];
+      assert.equal(Number(row.overall), toNumeric2(value), `${value}`);
+      // Sending the raw value lets PostgreSQL round it: same result, so the helper matches the server.
+      assert.equal(Number((await db.query('select $1::numeric(4,2) as v', [value])).rows[0].v), toNumeric2(value), `server rounding of ${value}`);
+    }
+  } finally { await close(); }
+});
+
+test('bounded read helpers: exact base revision payload bytes and round vector; unknown /media refused', async () => {
+  const { db, close } = await seededDb();
+  try {
+    // A key order the canonical data never uses: json keeps it, so the review base must too.
+    const reordered = Object.fromEntries(Object.entries({ ...BIZ, proTip: 'Reordered.' }).reverse());
+    const updated = await publishDirect(db, { kind: 'manual', idempotencyKey: 'reorder', items: [{ dataset: 'businesses', key: BIZ.slug, payload: reordered, expectedLiveRev: 1 }] });
+    assert.equal(updated.published[0].rev, 2);
+    const next = await store.createSubmission(db, { kind: 'manual', target: 'test', actor: 't', idempotencyKey: 'edit-3', items: [{ dataset: 'businesses', key: BIZ.slug, payload: { ...BIZ, proTip: 'Third.' }, expectedLiveRev: 2 }] });
+    const { items } = await store.getSubmission(db, next.submissionId);
+    const bases = await basePayloads(db, items);
+    assert.equal(JSON.stringify(bases.get(`businesses\t${BIZ.slug}`)), JSON.stringify(reordered), 'exact rev 2 payload, key order preserved');
+    const vector = await roundVector(db, next.submissionId, 0);
+    assert.deepEqual(vector.map((row) => [row.dataset, row.key, row.rev]), [['businesses', BIZ.slug, 3]]);
+    assert.equal(vector[0].payload.proTip, 'Third.');
+    assert.deepEqual(await roundVector(db, next.submissionId, 1), []);
+    // Insert items have no base.
+    const insert = await store.createSubmission(db, { kind: 'manual', target: 'test', actor: 't', idempotencyKey: 'ins', items: [{ dataset: 'businesses', key: 'fresh-key', payload: { ...BIZ, slug: 'fresh-key' }, expectedLiveRev: null }] });
+    assert.equal((await basePayloads(db, (await store.getSubmission(db, insert.submissionId)).items)).size, 0);
+
+    // /media presence is an exact path lookup in content.assets.
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 9, 9, 9]);
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    const mediaPath = `/media/${sha.slice(0, 16)}/stored.jpg`;
+    await publishDirect(db, { kind: 'manual', idempotencyKey: 'media', items: [{ dataset: 'businesses', key: 'media-biz', payload: { ...BIZ, slug: 'media-biz', image: mediaPath }, expectedLiveRev: null }], assets: [{ sha256: sha, path: mediaPath, contentType: 'image/jpeg', bytes }] });
+    const { assetExistsIn } = await import('../../scripts/content/submit.mjs');
+    assert.equal(await assetExistsIn(db)(mediaPath), true);
+    assert.equal(await assetExistsIn(db)(`/media/${sha.slice(0, 16)}/other-name.jpg`), false);
+    const baseline = await baselineFile(db);
+    const reuse = await submitContent(db, { kind: 'manual', idempotencyKey: 'm1', actor: 't', recordFile: tempJson({ ...BIZ, slug: 'media-reuse', image: mediaPath }), dataset: 'businesses', baseline }, { checkout: REPO });
+    assert.equal(reuse.exitCode, 0);
+    await assert.rejects(
+      submitContent(db, { kind: 'manual', idempotencyKey: 'm2', actor: 't', recordFile: tempJson({ ...BIZ, slug: 'media-missing', image: `/media/${'0'.repeat(16)}/missing.jpg` }), dataset: 'businesses', baseline }, { checkout: REPO }),
+      (error) => error.code === 'ValidationError' && /^image-missing: /.test(error.message),
+    );
+  } finally { await close(); }
 });

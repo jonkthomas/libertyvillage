@@ -105,7 +105,7 @@ test('assets dedupe against content.assets and within one submission', async () 
   assert.equal(once.items[0].payload.image, once.items[1].payload.image);
   const existingPath = `/media/${sha256(bytes).slice(0, 16)}/earlier-name.webp`;
   const stored = await prepareImages({ items, root, sourceRef: 'origin/staging', registry, ...fakeAssets({ [sha256(bytes)]: existingPath }) });
-  assert.deepEqual(stored.assets, []);
+  assert.deepEqual(stored.assets.map((asset) => asset.path), [existingPath], 'deduped assets are still sent (stable request hash)');
   assert.deepEqual(stored.report, [{ sha256: sha256(bytes), path: existingPath, deduped: true }]);
   assert.equal(stored.items[1].payload.image, existingPath);
   fs.rmSync(root, { recursive: true, force: true });
@@ -114,19 +114,19 @@ test('assets dedupe against content.assets and within one submission', async () 
 test('refusals: missing, outside the images root, wrong type, oversize, bad /media and non-image paths', async () => {
   const root = workspace();
   const run = (image, extra = {}) => prepareImages({ items: [hood('x', image)], root, sourceRef: 'origin/staging', registry, ...fakeAssets(extra) });
-  await assert.rejects(run('/images/neighborhoods/nowhere.jpg'), (error) => error.code === 'image-missing' && error.name === 'ValidationError');
+  await assert.rejects(run('/images/neighborhoods/nowhere.jpg'), (error) => error.code === 'ValidationError' && error.reason === 'image-missing' && /^image-missing: /.test(error.message));
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-outside-'));
   fs.writeFileSync(path.join(outside, 'secret.jpg'), JPEG('outside'));
   fs.symlinkSync(path.join(outside, 'secret.jpg'), path.join(root, 'public/images/neighborhoods/link.jpg'));
-  await assert.rejects(run('/images/neighborhoods/link.jpg'), { code: 'image-outside-root' });
+  await assert.rejects(run('/images/neighborhoods/link.jpg'), { code: 'ValidationError', reason: 'image-outside-root' });
   fs.writeFileSync(path.join(root, 'public/images/neighborhoods/text.jpg'), 'not an image');
-  await assert.rejects(run('/images/neighborhoods/text.jpg'), { code: 'image-type' });
+  await assert.rejects(run('/images/neighborhoods/text.jpg'), { code: 'ValidationError', reason: 'image-type' });
   fs.writeFileSync(path.join(root, 'public/images/neighborhoods/huge.jpg'), Buffer.concat([JPEG(''), Buffer.alloc(MAX_IMAGE_BYTES)]));
-  await assert.rejects(run('/images/neighborhoods/huge.jpg'), { code: 'image-size' });
-  await assert.rejects(run(`/media/${'a'.repeat(16)}/x.jpg`), { code: 'image-missing' });
+  await assert.rejects(run('/images/neighborhoods/huge.jpg'), { code: 'ValidationError', reason: 'image-size' });
+  await assert.rejects(run(`/media/${'a'.repeat(16)}/x.jpg`), { code: 'ValidationError', reason: 'image-missing' });
   await run(`/media/${'a'.repeat(16)}/x.jpg`, { ['a'.repeat(64)]: `/media/${'a'.repeat(16)}/x.jpg` });
-  await assert.rejects(run('https://example.com/x.jpg'), { code: 'image-invalid' });
-  await assert.rejects(run('/images/../../etc/passwd'), { code: 'image-invalid' });
+  await assert.rejects(run('https://example.com/x.jpg'), { code: 'ValidationError', reason: 'image-invalid' });
+  await assert.rejects(run('/images/../../etc/passwd'), { code: 'ValidationError', reason: 'image-invalid' });
   // Empty image fields (six live businesses) and datasets without image fields are skipped.
   const empty = await prepareImages({ items: [{ dataset: 'businesses', key: 'b', op: 'insert', payload: { slug: 'b', image: '' } }, { dataset: 'guide-hub', key: 'guide-hub', op: 'update', payload: { image: 'ignored' } }], root, sourceRef: 'origin/staging', registry, ...fakeAssets() });
   assert.deepEqual(empty.assets, []);

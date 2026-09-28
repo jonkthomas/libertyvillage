@@ -12,17 +12,17 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ValidationError } from './store.mjs';
 
 export const MAX_IMAGE_BYTES = 2_000_000;
 export const MEDIA_PATH_PATTERN = /^\/media\/[0-9a-f]{16}\/[a-z0-9][a-z0-9._-]{0,120}\.(jpg|png|webp)$/;
 const EXTENSIONS = Object.freeze({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' });
 
-export class ImageValidationError extends Error {
-  constructor(code, message, detail = {}) {
-    super(`${code}: ${message}`);
-    this.name = 'ValidationError';
-    this.code = code;
-    this.detail = detail;
+// A store ValidationError (CLI exit 2) whose message starts with the reason code.
+export class ImageValidationError extends ValidationError {
+  constructor(reason, message) {
+    super(`${reason}: ${message}`);
+    this.reason = reason;
   }
 }
 
@@ -58,8 +58,13 @@ export function trackedBlob(root, ref, file) {
 
 // items: [{dataset, key, op, payload}]. resolveAssets([{sha256}]) -> [{sha256, path|null}]
 // and assetExists(path) -> boolean bind content.assets. Returns rewritten items
-// (payloads are copied, never mutated), the new assets to insert and a report.
-export async function prepareImages({ items, root, sourceRef, registry, resolveAssets, assetExists, readTracked = trackedBlob }) {
+// (payloads are copied, never mutated), every converted asset (deduped ones too:
+// createSubmission hashes the asset list into request_sha256, so a replay must send
+// the same list; storage is ON CONFLICT DO NOTHING) and a report.
+// verifyOnly (gate re-checks): /images must be tracked at sourceRef; the workspace is ignored.
+export async function prepareImages({
+  items, root, sourceRef, registry, resolveAssets, assetExists, readTracked = trackedBlob, verifyOnly = false,
+}) {
   if (!root || !sourceRef) throw new Error('image checks require the workspace root and sourceRef');
   const imagesRoot = path.join(root, 'public', 'images');
   const realImagesRoot = fs.existsSync(imagesRoot) ? fs.realpathSync(imagesRoot) : null;
@@ -85,7 +90,7 @@ export async function prepareImages({ items, root, sourceRef, registry, resolveA
       }
       const repoPath = `public${value}`;
       const workspaceFile = path.join(root, repoPath);
-      if (!fs.existsSync(workspaceFile)) {
+      if (verifyOnly || !fs.existsSync(workspaceFile)) {
         if (!readTracked(root, sourceRef, repoPath)) {
           throw new ImageValidationError('image-missing', `${where} ${value} is neither in the workspace nor tracked at ${sourceRef}`);
         }
@@ -117,7 +122,7 @@ export async function prepareImages({ items, root, sourceRef, registry, resolveA
     }
     out.push(payload === item.payload ? item : { ...item, payload });
   }
-  const assets = [...bySha.values()].filter((asset) => !asset.deduped)
+  const assets = [...bySha.values()]
     .map(({ sha256, path: assetPath, contentType, bytes }) => ({ sha256, path: assetPath, contentType, bytes }));
   return { items: out, assets, report };
 }
