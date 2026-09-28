@@ -41,13 +41,22 @@ function objectShape(value, spec) {
   return plainObject(value) && Object.keys(value).every((field) => field in spec && spec[field](value[field]))
     && Object.keys(spec).every((field) => field in value);
 }
-const str = (value) => typeof value === 'string';
+const str = (value) => typeof value === 'string' && value.isWellFormed();
 const strArray = (value) => Array.isArray(value) && value.every(str);
 const faq = (value) => objectShape(value,{question:str,answer:str});
+function checkWellFormed(value, path, errors) {
+  if (typeof value === 'string') {
+    if (!value.isWellFormed()) errors.push(`non-well-formed string: ${path}`);
+  } else if (Array.isArray(value)) value.forEach((item, index) => checkWellFormed(item, `${path}[${index}]`, errors));
+  else if (plainObject(value)) for (const [field, item] of Object.entries(value)) checkWellFormed(item, `${path}.${field}`, errors);
+}
 export function validateRecord(dataset, key, record) {
   const errors = [];
   if (!registry[dataset] || dataset === 'discovery-seen') return { ok: false, errors: ['unknown dataset'] };
   if (!record || typeof record !== 'object' || Array.isArray(record)) return { ok: false, errors: ['record must be an object'] };
+  checkWellFormed(record, 'record', errors);
+  const marker = registry[dataset].marker;
+  if (marker && (typeof record[marker] !== 'string' || !record[marker].trim())) errors.push(`empty smoke marker: ${marker}`);
   if (Buffer.byteLength(JSON.stringify(record)) > 200_000) errors.push('record exceeds 200 KB');
   if (SECRET_FINGERPRINT.test(JSON.stringify(record))) errors.push('credential fingerprint');
   if (dataset === 'guide-hub' ? key !== 'guide-hub' || 'slug' in record : dataset === 'topic-queue'
