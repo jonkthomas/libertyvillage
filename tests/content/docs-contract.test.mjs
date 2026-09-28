@@ -12,3 +12,13 @@ test('L2 instructions force-add verified media while regular writer media stays 
   assert.match(spec, /git add -f public\/media\//);
   assert.match(runbook, /git add -f public\/media\//);
 });
+
+test('runbook covers deploy recovery, unfinished gates and a running L2 server', async () => {
+  const runbook = await source('docs/runbooks/content-store.md');
+  assert.match(runbook, /content deploy --target staging/);
+  assert.match(runbook, /--state open,gating/);
+  assert.match(runbook, /content gate --submission <id>/);
+  const started = runbook.indexOf('next start -p 3200');
+  const crawled = runbook.indexOf('parity-crawl.mjs crawl --base http:\/\/localhost:3200');
+  assert(started > 0 && crawled > started);
+});

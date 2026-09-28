@@ -37,19 +37,28 @@ npm run content -- gc-assets --expect-db lv_staging
 
 `gc-assets` is a dry run unless `--apply`. It reclaims only assets referenced solely by never-published terminal revisions older than 14 days, and never an asset referenced by a published revision or current live record. Run `stats --alert` weekly; the alert threshold is 350 MB of a 512 MB budget. Published revisions are immutable and remain rollback targets. Unpublish and rollback create audit actions and an admin submission for propagation. They require an actor, reason, and idempotency key. Unpublish refuses to empty a dataset, and guide-hub/topic-queue unpublish is forbidden.
 
+If a gate or admin command exits 3, the record is published but deployment, smoke, or notification is pending. Once the deploy hook and site are healthy, run `content deploy --target staging` (or bind production and use `--target production`). Deploy retries every pending submission and reports each result; rerunning it is safe. Check `content show --submission <id>` and the live manifest before declaring recovery complete.
+
+For a gate exception that leaves a submission `open` or `gating`, list it with `content list --submissions --state open,gating`. Inspect `content show --submission <id>` and the original job log, then rerun `content gate --submission <id>` with an operator actor. The gate error notice includes the same ID and command. An active claim refuses another gate; wait for the claimant or its 15-minute lease to expire before retrying. The DB news workflow retries unfinished news gates on its next run and fails visibly if a claim or error prevents recovery.
+
 ## L2 pinned snapshot drill
 
 Fetch a deployment's public manifest, all nine files, and its media through the pinned fetch. It verifies each file hash and dataset digest, every media hash and byte size, then re-reads the manifest. If deployment or snapshot identity changed it retries up to three times; a failed fetch installs nothing. Restore preserves the source manifest locally at `.content-restore/manifest.json`.
 
 ```
 # Run in a fresh worktree with DB URL variables unset.
-env -u CONTENT_DATABASE_URL -u CONTENT_DATABASE_URL_UNPOOLED node scripts/content/cli.mjs restore-snapshot --from "$ALIAS" --root /tmp/lv-content-restore
-L2_MANIFEST=/tmp/lv-content-restore/.content-restore/manifest.json
+env -u CONTENT_DATABASE_URL -u CONTENT_DATABASE_URL_UNPOOLED node scripts/content/cli.mjs restore-snapshot --from "$ALIAS" --root .
+L2_MANIFEST=.content-restore/manifest.json
 L2_SOURCE=$(jq -r .deployment_url "$L2_MANIFEST")
 env -u CONTENT_DATABASE_URL -u CONTENT_DATABASE_URL_UNPOOLED CONTENT_SOURCE=json npm run build
+env -u CONTENT_DATABASE_URL -u CONTENT_DATABASE_URL_UNPOOLED npx next start -p 3200 >/tmp/l2-next.log 2>&1 &
+L2_NEXT_PID=$!
+for i in $(seq 1 60); do curl -fsS http://localhost:3200/ >/dev/null && break; sleep 1; done
+curl -fsS http://localhost:3200/ >/dev/null
 node scripts/content/parity-crawl.mjs crawl --base http://localhost:3200 --media --manifest "$L2_MANIFEST" --out /tmp/l2-local.json
 node scripts/content/parity-crawl.mjs crawl --base "$L2_SOURCE" --bypass-env CONTENT_SITE_BYPASS --remap-origin https://libertyvillage.co --media --manifest "$L2_MANIFEST" --out /tmp/l2-source.json
 node scripts/content/parity-crawl.mjs compare /tmp/l2-source.json /tmp/l2-local.json
+kill "$L2_NEXT_PID"
 ```
 
 For a local restore build, set `CONTENT_SOURCE=json`; never use the DB build flag during the L2 drill. The manifest is live-only and carries no draft, verdict, gate context, or private evidence. A media hash failure or identity drift invalidates the drill.
