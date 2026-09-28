@@ -294,6 +294,11 @@ export async function listSubmissions(db, { state, kind, target, dataset, key, s
 export async function listPending(db, { target } = {}) {
   return rows(await db.query("select id from content.submissions where state='published' and ($1::text is null or target=$1) and (smoke_passed_at is null or notified_at is null) order by id", [target ?? null])).map((r) => n(r.id));
 }
+export async function findSubmissionByIdempotencyKey(db, key) {
+  if (!key || typeof key !== 'string') throw new ValidationError('--idempotency-key required');
+  const row = one(await db.query('select id,kind,actor from content.submissions where idempotency_key=$1 and target=$2', [key, db.target]));
+  return row ? { submissionId: n(row.id), kind: row.kind, actor: row.actor } : { submissionId: null };
+}
 export async function listEntries(db, { dataset, visibility = 'all' } = {}) {
   const results = rows(await db.query(`select e.dataset,e.key,e.live_rev as "liveRev",e.head_rev as "headRev",e.position,
     exists(select 1 from content.revisions r where r.dataset=e.dataset and r.key=e.key and r.published_at is not null) as ever

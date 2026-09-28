@@ -16,8 +16,10 @@ import { preflightDecision } from '../../scripts/automation/preflight.mjs';
 import { evaluateVerdict } from '../../scripts/automation/policy.mjs';
 import { buildReviewDocument } from '../../scripts/content/review-document.mjs';
 import * as store from '../../scripts/content/store.mjs';
+import { candidateDigest } from '../../scripts/content/canonical.mjs';
 import { submitContent } from '../../scripts/content/submit.mjs';
 import { adminContent, deployContent } from '../../scripts/content/deploy.mjs';
+import { runDbIngest } from '../../scripts/supervisor/ingest-db.mjs';
 import { publishDirect, baselineFile, FAST_SMOKE, liveRecord, localSite, seededDb, seedRecords, tempJson } from './fixtures/content-db.mjs';
 
 // gate.mjs reaches review-agent -> the agent SDK, so it is imported only after
@@ -534,6 +536,70 @@ test('D ingest-db contract: submit + gate via cli.mjs exit 0 / 2 / 3 with liveSe
         '--idempotency-key', 'vm:stale', '--actor', 'ingest:stale', '--topic-key', 'b'.repeat(64), '--generated-at', '2026-01-01T00:00:00Z', '--target', 'test', '--expect-db', handle.name]).catch((error) => error);
       assert.equal(stale.code, 'ValidationError');
       assert.match(stale.message, /more than 36 h before submit/);
+    });
+  } finally { await site.close(); await handle.close(); }
+});
+
+test('ingest retry resumes the published submission after a fixer repair and missed status write', async () => {
+  const handle = await seededDb();
+  const site = await localSite(handle.db);
+  await site.build();
+  const dataSha = 'd'.repeat(40);
+  const generatedAt = new Date(Date.now() - 3_600_000).toISOString();
+  const candidate = blogLivePost('ingest-retry-repaired', generatedAt);
+  const repaired = { ...candidate, content: `${candidate.content}\nA corrected detail.\n` };
+  try {
+    await withCliEnv(site, handle.name, async () => {
+      const original = await submitContent(handle.db, {
+        kind: 'blog-live', actor: `ingest:${dataSha}`, idempotencyKey: `vm:${dataSha}`,
+        recordFile: tempJson(candidate), dataset: 'posts', baseline: await baselineFile(handle.db),
+        topicKey: 'b'.repeat(64), generatedAt,
+      }, { checkout: REPO });
+      const id = original.result.submissionId;
+      const token = (await store.claimSubmission(handle.db, id, { owner: 'test:repair' })).token;
+      const vector = async (round) => (await handle.db.query('select * from content.round_items where submission_id=$1 and round=$2', [id, round])).rows;
+      await store.recordRound(handle.db, id, token, { round: 0, candidateDigest: candidateDigest(await vector(0)),
+        contentSha: 'a'.repeat(40), overall: 6, passed: false, blockingCount: 1, decision: 'repair' });
+      await store.addRepairRound(handle.db, id, token, { fromRound: 0,
+        repairs: [{ dataset: 'posts', key: candidate.slug, payload: repaired }] });
+      await store.recordRound(handle.db, id, token, { round: 1, candidateDigest: candidateDigest(await vector(1)),
+        contentSha: 'b'.repeat(40), overall: 8.6, passed: true, blockingCount: 0, decision: 'go' });
+      const published = await store.publishSubmission(handle.db, id, token);
+      await store.releaseClaim(handle.db, id, token);
+      assert.equal((await store.getSubmission(handle.db, id)).rounds.length, 2);
+      assert.equal((await store.readLive(handle.db, { datasets: ['posts'] })).datasets.posts.records.find((post) => post.slug === candidate.slug).content, repaired.content);
+
+      const status = [];
+      const commands = [];
+      const command = (file, args) => {
+        commands.push([file, args]);
+        if (file === 'gh') { status.push(args.find((arg) => arg.startsWith('description='))?.slice(12)); return { status: 0, stdout: '{}' }; }
+        if (file === 'git') {
+          if (args[0] === 'rev-parse') return { status: 0, stdout: `${args[1] === 'HEAD' ? 'a'.repeat(40) : dataSha}\n` };
+          if (args[0] === 'diff') return { status: 0, stdout: 'candidate/post.json\n' };
+          if (args[0] === 'show') return { status: 0, stdout: JSON.stringify(candidate) };
+          return { status: 0, stdout: '' };
+        }
+        if (file === process.execPath) {
+          if (args[1] === 'gate') {
+            assert.equal(args[args.indexOf('--submission') + 1], String(id));
+            return { status: 0, stdout: JSON.stringify({ liveSeq: published.liveSeq,
+              published: [{ dataset: 'posts', url: `${site.origin}/blog/${candidate.slug}` }] }) };
+          }
+          const child = spawnSync(file, args, { cwd: REPO, encoding: 'utf8', env: process.env });
+          if (![0, 2, 3].includes(child.status)) throw new Error(child.stdout || child.stderr);
+          return child;
+        }
+        throw new Error(`unexpected command ${file}`);
+      };
+      const resumed = runDbIngest({ kind: 'blog', data_sha: dataSha, data_branch: 'supervisor/blog-data-retry',
+        topic_key: 'b'.repeat(64), regenerations: 0, store: 'db', target: 'test' }, { repo: 'fixture/local', command });
+      assert.equal(resumed.state, 'published');
+      assert.equal(resumed.submissionId, id);
+      assert.equal(resumed.liveSeq, published.liveSeq);
+      assert(status.includes(`published:${id}:seq:${published.liveSeq}`));
+      assert.deepEqual(commands.filter(([file]) => file === process.execPath).map(([, args]) => args[1]), ['lookup', 'gate']);
+      assert.equal((await handle.db.query('select count(*)::int as count from content.submissions where idempotency_key=$1', [`vm:${dataSha}`])).rows[0].count, 1);
     });
   } finally { await site.close(); await handle.close(); }
 });
