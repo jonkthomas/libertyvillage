@@ -566,6 +566,24 @@ test('writer db jobs call the spec CLI and propagate submit and gate exits', () 
   }
 });
 
+test('news dry-run with an unfinished DB submission never resumes a mutating gate', () => {
+  const db = jobBlock(readWorkflow('news-autopublish.yml'), 'db');
+  const publish = runBlock(db, 'Run autonomous publish gate');
+  const env = {
+    GITHUB_RUN_ID: '101', GITHUB_WORKFLOW: 'News dry-run test',
+    LV_STUB_LIST: 'open', EVENT_NAME: 'workflow_dispatch', DRY_RUN: 'true',
+  };
+  const dry = runWriterShell(`GITHUB_OUTPUT=$(mktemp)\n${publish}`, env);
+  assert.equal(dry.code, 0, dry.stderr);
+  assert.deepEqual(dry.calls.map((call) => call.command), ['list']);
+  assert.match(dry.stdout, /status=pending_autopublish_pr/);
+
+  const live = runWriterShell(`GITHUB_OUTPUT=$(mktemp)\n${publish}`, { ...env, DRY_RUN: 'false' });
+  assert.equal(live.code, 0, live.stderr);
+  assert.deepEqual(live.calls.map((call) => call.command), ['list', 'gate']);
+  assert.match(live.stdout, /status=resumed_news_submission/);
+});
+
 test('discover stats --alert uses SLACK_WEBHOOK_URL and news list requires an array', () => {
   const discover = jobBlock(readWorkflow('discover-businesses.yml'), 'db');
   const stats = runBlock(discover, 'Weekly content storage check');
