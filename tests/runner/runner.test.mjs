@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { JOBS, alertFailure, assertTarget, childEnv, copyGenerated, allowedGeneratedPath, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, alertFailure, assertTarget, childEnv, copyGenerated, generatedPathsForTransfer, allowedGeneratedPath, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -68,6 +68,14 @@ test('scratch code poisoning cannot cross into trusted CLI', (t) => {
   assert.equal(fs.readFileSync(path.join(trusted, 'data/posts.json'), 'utf8'), '[]');
   assert.equal(allowedGeneratedPath('public/images/blog/valid-slug.jpg', 'weekly-blog'), true);
   assert.equal(allowedGeneratedPath('scripts/content/cli.mjs', 'weekly-blog'), false);
+  assert.equal(allowedGeneratedPath('tasks/seo-data-latest.json', 'weekly-blog'), false);
+  fs.mkdirSync(path.join(scratch, 'tasks'));
+  fs.writeFileSync(path.join(scratch, 'tasks/seo-data-latest.json'), '{"private":"analytics"}');
+  const transfer = generatedPathsForTransfer(['tasks/seo-data-latest.json', 'data/posts.json']);
+  assert.deepEqual(transfer, ['data/posts.json']);
+  assert.deepEqual(copyGenerated(scratch, trusted, 'weekly-blog', transfer), ['data/posts.json']);
+  assert.equal(fs.existsSync(path.join(trusted, 'tasks/seo-data-latest.json')), false);
+  assert.deepEqual(generatedPathsForTransfer(['scripts/content/cli.mjs', 'tasks/seo-data-latest.json']), ['scripts/content/cli.mjs']);
 });
 
 test('generator environment is limited and push has an invalid destination', () => {

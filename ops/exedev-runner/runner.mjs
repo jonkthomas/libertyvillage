@@ -72,6 +72,12 @@ export function changedPaths(root) {
   return paths;
 }
 
+// The blog SDK writes analytics for its own prompting. It is neither a trusted
+// content output nor a reason to reject an otherwise valid generated post.
+export function generatedPathsForTransfer(paths) {
+  return paths.filter((rel) => rel !== 'tasks/seo-data-latest.json');
+}
+
 export function copyGenerated(scratch, trusted, job, paths = changedPaths(scratch)) {
   if (paths.length > 100 || paths.some((rel) => !allowedGeneratedPath(rel, job))) throw new Error('scratch output outside allowlist');
   let bytes = 0;
@@ -174,7 +180,7 @@ function generator(job, slot, topic, dryRun, log) {
   command('sudo', ['-n', helper, job, slot], { cwd: repo, env: childEnv(process.env, ['PATH', 'HOME', 'LANG', 'TZ']) });
   const head = (cwd) => command('git', ['rev-parse', 'HEAD'], { cwd, env: gitEnv }).stdout.trim();
   if (head(scratch) !== head(repo)) throw new Error('generator changed pinned commit');
-  const paths = changedPaths(scratch);
+  const paths = generatedPathsForTransfer(changedPaths(scratch));
   if (job === 'seo-improvements' && paths.some((rel) => !allowedGeneratedPath(rel, job))) {
     logLine(log, 'seo-code-suggestion', { paths: paths.filter((rel) => !allowedGeneratedPath(rel, job)).slice(0, 20) });
     throw new Error('SEO code suggestion; human PR required');
