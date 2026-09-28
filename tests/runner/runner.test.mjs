@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, alertFailure, assertTarget, childEnv, copyGenerated, copyScratchTree, generatedPathsForTransfer, allowedGeneratedPath, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, alertFailure, assertTarget, childEnv, changedPaths, copyGenerated, copyScratchTree, generatedPathsForTransfer, allowedGeneratedPath, selectTopic, recordTopic, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -67,6 +68,35 @@ test('scratch npm binary stays bound to scratch instead of loading a second trus
   assert.equal(fs.readlinkSync(copiedLink), '../next/dist/bin/next');
   assert.equal(fs.realpathSync(copiedLink), fs.realpathSync(path.join(scratch, target)));
   assert.equal(fs.readFileSync(copiedLink, 'utf8'), 'local Next binary');
+});
+
+test('trusted diff never executes a generator-poisoned scratch Git fsmonitor', (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-runner-git-trust-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const trusted = path.join(temp, 'trusted');
+  const scratch = path.join(temp, 'scratch');
+  fs.mkdirSync(path.join(trusted, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(trusted, 'data', 'posts.json'), '[]');
+  const git = (cwd, args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  git(temp, ['init', '-q', trusted]);
+  git(trusted, ['add', 'data/posts.json']);
+  git(trusted, ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'baseline']);
+  copyScratchTree(trusted, scratch);
+  fs.writeFileSync(path.join(scratch, 'data', 'posts.json'), '["generated"]');
+  const marker = path.join(temp, 'fsmonitor-ran');
+  git(scratch, ['config', 'core.fsmonitor', `touch ${marker}; false`]);
+  spawnSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: scratch });
+  assert.equal(fs.existsSync(marker), true, 'negative control: vulnerable scratch Git runs fsmonitor');
+  fs.rmSync(marker);
+
+  assert.deepEqual(changedPaths(scratch, trusted), ['data/posts.json']);
+  assert.equal(fs.existsSync(marker), false, 'trusted Git index never reads scratch config');
+  assert.deepEqual(copyGenerated(scratch, trusted, 'weekly-blog'), ['data/posts.json']);
+  assert.equal(fs.existsSync(marker), false, 'default copy path also avoids scratch Git config');
+  assert.equal(fs.readFileSync(path.join(trusted, 'data', 'posts.json'), 'utf8'), '["generated"]');
 });
 
 test('scratch code poisoning cannot cross into trusted CLI', (t) => {

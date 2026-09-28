@@ -59,8 +59,14 @@ export function allowedGeneratedPath(rel, job) {
   return /^tasks\/(?:auto-blog-runs|seo-improve-runs)\/[a-zA-Z0-9_./-]+$/.test(rel) || /^tasks\/(?:seo-improve-summary\.md|seo-scores\.json|auto-blog-dry-run\.json)$/.test(rel);
 }
 
-export function changedPaths(root) {
-  const result = spawnSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: root, encoding: 'utf8', env: childEnv(process.env, BASE_ENV) });
+export function changedPaths(root, trusted) {
+  // The SDK owns scratch/.git: never load its config, hooks, fsmonitor or index
+  // in a trusted process. Compare scratch files against the pinned trusted index.
+  const args = ['--git-dir', path.join(trusted, '.git'), '--work-tree', root,
+    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
+    '--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'];
+  const env = { ...childEnv(process.env, BASE_ENV), GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const result = spawnSync('git', args, { cwd: trusted, encoding: 'utf8', env });
   if (result.status !== 0) throw new Error('git status failed');
   const fields = result.stdout.split('\0').filter(Boolean);
   const paths = [];
@@ -78,7 +84,7 @@ export function generatedPathsForTransfer(paths) {
   return paths.filter((rel) => rel !== 'tasks/seo-data-latest.json');
 }
 
-export function copyGenerated(scratch, trusted, job, paths = changedPaths(scratch)) {
+export function copyGenerated(scratch, trusted, job, paths = changedPaths(scratch, trusted)) {
   if (paths.length > 100 || paths.some((rel) => !allowedGeneratedPath(rel, job))) throw new Error('scratch output outside allowlist');
   let bytes = 0;
   for (const rel of paths) {
@@ -185,9 +191,9 @@ function generator(job, slot, topic, dryRun, log) {
   // transient service as lv-generator with strict filesystem protection.
   const helper = '/usr/local/libexec/lv-runner-generator';
   command('sudo', ['-n', helper, job, slot], { cwd: repo, env: childEnv(process.env, ['PATH', 'HOME', 'LANG', 'TZ']) });
-  const head = (cwd) => command('git', ['rev-parse', 'HEAD'], { cwd, env: gitEnv }).stdout.trim();
-  if (head(scratch) !== head(repo)) throw new Error('generator changed pinned commit');
-  const paths = generatedPathsForTransfer(changedPaths(scratch));
+  const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
+  if (fs.readFileSync(path.join(scratch, '.git', 'HEAD'), 'utf8').trim() !== head) throw new Error('generator changed pinned commit');
+  const paths = generatedPathsForTransfer(changedPaths(scratch, repo));
   if (job === 'seo-improvements' && paths.some((rel) => !allowedGeneratedPath(rel, job))) {
     logLine(log, 'seo-code-suggestion', { paths: paths.filter((rel) => !allowedGeneratedPath(rel, job)).slice(0, 20) });
     throw new Error('SEO code suggestion; human PR required');
