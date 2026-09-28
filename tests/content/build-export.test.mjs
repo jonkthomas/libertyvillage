@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { buildExport, expectedBuildDb } from '../../scripts/content/build-export.mjs';
+import { seed } from '../../scripts/content/seed.mjs';
+import { testDb } from './helpers/db.mjs';
+test('json build writes identity only without touching DB',async()=>{const root=await mkdtemp(path.join(tmpdir(),'lv-build-'));try{const result=await buildExport({rootDir:root,env:{CONTENT_SOURCE:'json',CONTENT_DATABASE_URL:'invalid',VERCEL_URL:'example.vercel.app'}});assert.equal(result.build.content_source,'json');assert.deepEqual(await readdir(path.join(root,'public','content-snapshot')),['build.json']);}finally{await rm(root,{recursive:true,force:true});}});
+test('target binding refuses unexpected build contexts',()=>{assert.throws(()=>expectedBuildDb({CONTENT_SOURCE:'db',VERCEL:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'feature-x'}),/refused/);assert.throws(()=>expectedBuildDb({CONTENT_SOURCE:'db',VERCEL:'1',CONTENT_BUILD_TARGET:'test',VERCEL_ENV:'production'}),/forbidden/);assert.throws(()=>expectedBuildDb({CONTENT_SOURCE:'db'}),/missing/);assert.equal(expectedBuildDb({CONTENT_SOURCE:'db',VERCEL:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'staging'}),'lv_staging');});
+test('test DB build exports verified snapshot',async()=>{const {db,name,url,close}=await testDb();const root=await mkdtemp(path.join(tmpdir(),'lv-build-'));try{await seed(db,{from:process.cwd()},{apply:true,prune:true});const result=await buildExport({rootDir:root,env:{CONTENT_SOURCE:'db',CONTENT_BUILD_TARGET:'test',CONTENT_DATABASE_URL:url}});assert.equal(result.manifest.db,name);assert.equal(result.files.length,9);assert.equal(JSON.parse(await readFile(path.join(root,'public','content-snapshot','build.json'))).content_source,'db');}finally{await rm(root,{recursive:true,force:true});await close();}});

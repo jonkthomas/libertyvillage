@@ -39,6 +39,11 @@ gcp-credentials.json
 # vercel
 .vercel
 
+# generated content snapshots and local content baselines
+/.content-export/
+/.content-restore/
+/public/content-snapshot/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

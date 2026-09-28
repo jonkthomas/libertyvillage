@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/content/build-export.mjs",
+    "content": "node scripts/content/cli.mjs",
+    "test:content": "node --test tests/content/*.test.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

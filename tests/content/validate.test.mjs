@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { ALL, fromFile, keyOf } from '../../scripts/content/canonical.mjs';
+import { SECRET_FINGERPRINT,validateRecord } from '../../scripts/content/validate.mjs';
+test('all source records validate; unknown fields and credentials fail',async()=>{for(const d of ALL){if(d==='discovery-seen')continue;const records=fromFile(d,JSON.parse(await readFile(new URL(`../../data/${d}.json`,import.meta.url))));for(const r of records)assert.deepEqual(validateRecord(d,keyOf(d,r),r).errors,[],`${d}/${keyOf(d,r)}`);}const r=fromFile('businesses',JSON.parse(await readFile(new URL('../../data/businesses.json',import.meta.url))))[0];assert.equal(validateRecord('businesses',r.slug,{...r,unexpected:true}).ok,false);assert.equal(validateRecord('businesses',r.slug,{...r,description:'ghp_12345678901234567890'}).ok,false);});
+test('credential fingerprint is byte-equivalent to pi-session source',async()=>{const source=await readFile(new URL('../../scripts/supervisor/pi-session.mjs',import.meta.url),'utf8');const match=source.match(/const SECRET_FINGERPRINT = (\/.*?\/[a-z]*);/);assert.ok(match);assert.equal(SECRET_FINGERPRINT.toString(),match[1]);});

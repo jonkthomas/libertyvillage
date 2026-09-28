@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { ALL, datasetDigest, fromFile, hash } from '../../scripts/content/canonical.mjs';
+import { fetchPinnedSnapshot } from '../../scripts/content/snapshot-fetch.mjs';
+const files={}; const datasets={};
+for(const d of ALL){const file=`${d}.json`,bytes=await readFile(new URL(`../../data/${file}`,import.meta.url));files[file]=bytes;const records=fromFile(d,JSON.parse(bytes));datasets[d]={count:records.length,digest:datasetDigest(d,records)};}
+const mediaBytes=Buffer.from('verified-media'); const mediaSha=hash('sha256',mediaBytes); const mediaPath=`/media/${mediaSha.slice(0,16)}/photo.webp`;
+const manifest=(id='a'.repeat(40),sha=mediaSha)=>({schema:1,deployment_url:'https://example.test',snapshot_id:id,datasets,files:Object.fromEntries(Object.entries(files).map(([f,b])=>[f,hash('sha256',b)])),media:[{path:mediaPath,sha256:sha,byte_size:mediaBytes.length}]});
+function fake({switches=0,badMedia=false}={}){let manifests=0;return async(url)=>{const p=new URL(url).pathname;if(p.endsWith('/manifest.json')){manifests++;const id=manifests<=switches*2 && manifests%2===0 ? 'b'.repeat(40) : 'a'.repeat(40);return new Response(JSON.stringify(manifest(id)),{status:200});}if(p.startsWith('/content-snapshot/'))return new Response(files[p.split('/').at(-1)],{status:200});if(p===mediaPath)return new Response(badMedia?Buffer.from('wrong'):mediaBytes,{status:200});return new Response('missing',{status:404});};}
+test('identity switch retries, then installs verified files and media',async()=>{const root=await mkdtemp(path.join(tmpdir(),'lv-snap-test-'));const dest=path.join(root,'out');try{const result=await fetchPinnedSnapshot({from:'https://example.test',root:dest,fetchImpl:fake({switches:1})});assert.equal(result.manifest.snapshot_id,'a'.repeat(40));assert.deepEqual(await readFile(path.join(dest,'data','posts.json')),files['posts.json']);assert.deepEqual(await readFile(path.join(dest,'public',mediaPath.slice(1))),mediaBytes);}finally{await rm(root,{recursive:true,force:true});}});
+test('three identity switches and bad media never install partial output',async()=>{const root=await mkdtemp(path.join(tmpdir(),'lv-snap-test-'));const dest=path.join(root,'out');await writeFile(dest,'old');try{await assert.rejects(fetchPinnedSnapshot({from:'https://example.test',root:dest,fetchImpl:fake({switches:3})}),/identity-unstable/);assert.equal(await readFile(dest,'utf8'),'old');await assert.rejects(fetchPinnedSnapshot({from:'https://example.test',root:dest,fetchImpl:fake({badMedia:true})}),/media-mismatch/);assert.equal(await readFile(dest,'utf8'),'old');}finally{await rm(root,{recursive:true,force:true});}});
