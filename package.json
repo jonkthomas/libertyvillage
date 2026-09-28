@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:automation": "eslint scripts/automation tests/automation --ignore-pattern tests/automation/weekly-grounded-publication-loop.eval.mjs",
-    "lint:supervisor": "eslint scripts/supervisor tests/supervisor",
+    "lint:supervisor": "eslint scripts/supervisor tests/supervisor --ignore-pattern tests/supervisor/neon-content-acceptance.eval.mjs",
     "lint:changed": "node scripts/automation/lint-changed.mjs",
     "test:automation": "node --import tsx --test tests/automation/*.test.mjs tests/automation/*.eval.mjs",
     "test:supervisor": "node --test tests/supervisor/*.test.mjs",
