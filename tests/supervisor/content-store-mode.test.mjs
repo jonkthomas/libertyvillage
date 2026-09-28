@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { monitorContentPublish } from '../../scripts/supervisor/content-monitor.mjs';
 import { validateDbIngestDiff, validateIngestPayload, validateIngestRoute, repositoryDispatchBody, workflowDispatchBody } from '../../scripts/supervisor/ingest-contract.mjs';
-import { startLocalStagingIngest, validateHostContentMode } from '../../scripts/supervisor/host-run.mjs';
+import { coordinator, startLocalStagingIngest, validateHostContentMode } from '../../scripts/supervisor/host-run.mjs';
 import { TERMINALS } from '../../scripts/supervisor/ledger.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -24,6 +24,31 @@ test('DB payload and candidate commit stay bound to staging transport', () => {
   assert.throws(() => repositoryDispatchBody(payload), /staging/);
   assert.deepEqual(repositoryDispatchBody({ ...payload, target: 'production' }).client_payload,
     { ...payload, target: 'production' });
+});
+
+test('DB topic coordinator selects a topic only present in the hydrated snapshot queue', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-topic-snapshot-'));
+  const repoRoot = path.join(dir, 'repo');
+  const workDir = path.join(dir, 'work');
+  const gitTopic = { key: 'a'.repeat(64), kind: 'blog', title: 'Git-era topic' };
+  const dbTopic = { key: 'b'.repeat(64), kind: 'blog', title: 'DB-only topic' };
+  try {
+    fs.mkdirSync(path.join(repoRoot, 'scripts/automation'), { recursive: true });
+    fs.mkdirSync(path.join(repoRoot, 'data'), { recursive: true });
+    fs.mkdirSync(path.join(workDir, 'data'), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'package.json'), '{"type":"module"}');
+    fs.writeFileSync(path.join(repoRoot, 'data/topic-queue.json'), JSON.stringify({ version: 1, topics: [gitTopic] }));
+    const snapshotQueue = path.join(workDir, 'data/topic-queue.json');
+    fs.writeFileSync(snapshotQueue, JSON.stringify({ version: 1, topics: [gitTopic, dbTopic] }));
+    fs.writeFileSync(path.join(repoRoot, 'scripts/automation/coordinator.mjs'), `import fs from 'node:fs';
+      import path from 'node:path';
+      const file = process.env.TOPIC_QUEUE_PATH || path.join(process.cwd(), 'data/topic-queue.json');
+      const topic = JSON.parse(fs.readFileSync(file, 'utf8')).topics.at(-1);
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, 'topic_key=' + topic.key + '\\n');`);
+    const args = ['resolve-topic', '--kind', 'blog'];
+    assert.equal(coordinator(repoRoot, args, { repo: 'fixture/local' }).topic_key, gitTopic.key);
+    assert.equal(coordinator(repoRoot, args, { repo: 'fixture/local', topicQueuePath: snapshotQueue }).topic_key, dbTopic.key);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('cutover hold permits only staging workflow dispatch before ingest', () => {

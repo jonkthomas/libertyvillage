@@ -72,7 +72,7 @@ test('supervisor baseline is staging-based and data branches are bounded and cle
   assert.match(host, /worktree.*origin\/staging/s);
   assert.match(host, /npm.*lint:supervisor/s);
   assert.match(host, /npm.*test:supervisor/s);
-  assert.match(host, /env: \{ \.\.\.process\.env, GITHUB_OUTPUT: output \}/,
+  assert.match(host, /env: \{ \.\.\.process\.env, GITHUB_OUTPUT: output, /,
     'host coordinator subprocesses must inherit the exe.dev proxy gate');
   assert.match(coordinatorWorkflow, /npm run lint:supervisor/);
   assert.match(coordinatorWorkflow, /npm run test:supervisor/);

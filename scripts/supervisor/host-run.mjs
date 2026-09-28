@@ -163,12 +163,12 @@ function npm(args, options) {
   return command('npm', args, options);
 }
 
-export function coordinator(repoRoot, args, { repo }) {
+export function coordinator(repoRoot, args, { repo, topicQueuePath } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-supervisor-output-'));
   const output = path.join(directory, 'output');
   try {
     command(process.execPath, [path.join(repoRoot, 'scripts/automation/coordinator.mjs'), ...args, '--repo', repo], {
-      cwd: repoRoot, env: { ...process.env, GITHUB_OUTPUT: output },
+      cwd: repoRoot, env: { ...process.env, GITHUB_OUTPUT: output, ...(topicQueuePath ? { TOPIC_QUEUE_PATH: topicQueuePath } : {}) },
     });
     return Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map((line) => {
       const split = line.indexOf('='); return [line.slice(0, split), line.slice(split + 1)];
@@ -542,12 +542,12 @@ export async function runBlogSupervisor({ repoRoot, stateDir, repo, run, dryRun 
         : branchPublicationHistory(gitAtRepo, 'origin/main'),
       resolveTopic: async ({ excludeTopicKeys }) => coordinator(repoRoot, [
         'resolve-topic', '--kind', 'blog', ...excludeFlag(excludeTopicKeys),
-      ], { repo }),
+      ], { repo, topicQueuePath: contentMode.store === 'db' ? path.join(workDir, 'data/topic-queue.json') : undefined }),
       planCandidate: async (topic, { excludeTopicKeys } = {}) => {
         await onUpdate({ state: 'PLAN_CANDIDATE', topic_key: topic.topic_key });
         return coordinator(repoRoot, [
           'plan-candidate', '--kind', 'blog', '--topic-key', topic.topic_key, ...excludeFlag(excludeTopicKeys),
-        ], { repo });
+        ], { repo, topicQueuePath: contentMode.store === 'db' ? path.join(workDir, 'data/topic-queue.json') : undefined });
       },
       runCandidate: runOneGeneratedCandidate,
       records: async () => recordsFromBusinesses(
