@@ -7619,5 +7619,129 @@
       }
     ],
     "_needsEnrichment": true
+  },
+  {
+    "slug": "see-be-seen-eyecare-liberty-village-optometrists",
+    "name": "See & Be Seen Eyecare - Liberty Village Optometrists",
+    "category": "optometrists",
+    "subcategory": "Optometrist",
+    "address": "171 E Liberty St, Suite 136, Toronto, ON M6K 3P6, Canada",
+    "description": "See & Be Seen Eyecare - Liberty Village Optometrists is an optometrist in Liberty Village, located at 171 E Liberty St, Suite 136, Toronto, ON M6K 3P6, Canada. Google Maps lists a 4.9/5 rating from 929 reviews at discovery time.",
+    "rating": 4.9,
+    "reviewCount": 929,
+    "priceRange": "",
+    "hours": "",
+    "phone": "+1 416-516-2020",
+    "website": "http://www.seeandbeseeneyecare.com/",
+    "tags": [
+      "optometrists",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/see-be-seen-eyecare-liberty-village-optometrists.jpg",
+    "answerBlock": "See & Be Seen Eyecare - Liberty Village Optometrists is an optometry business at 171 E Liberty St, Suite 136, Toronto, ON M6K 3P6, Canada. At discovery time Google Maps listed 929 reviews with a 4.9/5 average.",
+    "bestFor": [],
+    "categories": [
+      "optometrists"
+    ],
+    "reviewExcerpt": "",
+    "reviewFaqs": [],
+    "_discoveredAt": "2026-09-21",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "mozy-s",
+    "name": "Mozy's",
+    "category": "restaurants",
+    "subcategory": "Chicken restaurant",
+    "address": "114 Atlantic Ave, Toronto, ON M6K 1X9, Canada",
+    "description": "Mozy's is a chicken restaurant in Liberty Village, located at 114 Atlantic Ave, Toronto, ON M6K 1X9, Canada. Google Maps lists a 4.8/5 rating from 548 reviews at discovery time.",
+    "rating": 4.8,
+    "reviewCount": 548,
+    "priceRange": "$",
+    "hours": "",
+    "phone": "",
+    "website": "",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/mozy-s.jpg",
+    "answerBlock": "Mozy's is a restaurant at 114 Atlantic Ave, Toronto, ON M6K 1X9, Canada. At discovery time Google Maps listed 548 reviews with a 4.8/5 average.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "",
+    "reviewFaqs": [],
+    "_discoveredAt": "2026-09-21",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "pearle-vision",
+    "name": "Pearle Vision",
+    "category": "optometrists",
+    "subcategory": "Optometrist",
+    "address": "51 Hanna Ave #2, Toronto, ON M6K 3N7, Canada",
+    "description": "Pearle Vision is an optometrist in Liberty Village, located at 51 Hanna Ave #2, Toronto, ON M6K 3N7, Canada. Google Maps lists a 4.8/5 rating from 265 reviews at discovery time.",
+    "rating": 4.8,
+    "reviewCount": 265,
+    "priceRange": "",
+    "hours": "",
+    "phone": "+1 416-588-3937",
+    "website": "https://www.pearlevision.ca/pv-ca/stores/on/toronto/7744/?cid=Yext_7744&y_source=1_MTE2MTQxMi03MTUtbG9jYXRpb24ud2Vic2l0ZQ%3D%3D",
+    "tags": [
+      "optometrists",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/pearle-vision.jpg",
+    "answerBlock": "Pearle Vision is an optometry business at 51 Hanna Ave #2, Toronto, ON M6K 3N7, Canada. At discovery time Google Maps listed 265 reviews with a 4.8/5 average.",
+    "bestFor": [],
+    "categories": [
+      "optometrists"
+    ],
+    "reviewExcerpt": "",
+    "reviewFaqs": [],
+    "_discoveredAt": "2026-09-21",
+    "_needsEnrichment": true
+  },
+  {
+    "slug": "wilbur-s-taco-shop",
+    "name": "Wilbur's Taco Shop",
+    "category": "restaurants",
+    "subcategory": "Taco restaurant",
+    "address": "50 Atlantic Ave, Toronto, ON M6K 1X8, Canada",
+    "description": "Wilbur's Taco Shop is a taco restaurant in Liberty Village, located at 50 Atlantic Ave, Toronto, ON M6K 1X8, Canada. Google Maps lists a 4.9/5 rating from 118 reviews at discovery time.",
+    "rating": 4.9,
+    "reviewCount": 118,
+    "priceRange": "$",
+    "hours": "",
+    "phone": "",
+    "website": "http://wilburstacoshop.com/",
+    "tags": [
+      "restaurants",
+      "liberty village",
+      "toronto"
+    ],
+    "featured": false,
+    "proTip": "",
+    "image": "/images/businesses/wilbur-s-taco-shop.jpg",
+    "answerBlock": "Wilbur's Taco Shop is a restaurant at 50 Atlantic Ave, Toronto, ON M6K 1X8, Canada. At discovery time Google Maps listed 118 reviews with a 4.9/5 average.",
+    "bestFor": [],
+    "categories": [
+      "restaurants"
+    ],
+    "reviewExcerpt": "",
+    "reviewFaqs": [],
+    "_discoveredAt": "2026-08-31",
+    "_needsEnrichment": true
   }
 ]
