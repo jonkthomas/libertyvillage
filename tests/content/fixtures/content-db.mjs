@@ -83,7 +83,7 @@ export async function buildDeployment(db, url, { breakRoutes = [] } = {}) {
     pages.set(asset.path, { status: 200, type: row.content_type, body: row.bytes });
   }
   pages.set('/sitemap.xml', { status: 200, type: 'application/xml', body: Buffer.from(`<urlset>${locs.map((loc) => `<url><loc>${loc}</loc></url>`).join('')}</urlset>`) });
-  const datasets = Object.fromEntries(Object.entries(snapshot.datasets).map(([dataset, { records: _records, ...rest }]) => [dataset, rest]));
+  const datasets = Object.fromEntries(Object.entries(snapshot.datasets).map(([dataset, value]) => [dataset, { count: value.count, digest: value.digest, entries: value.entries }]));
   const manifest = { ...snapshot, datasets, deployment_url: url, files };
   pages.set('/content-snapshot/manifest.json', { status: 200, type: 'application/json', body: Buffer.from(JSON.stringify(manifest)) });
   return { url, pages, liveSeq: snapshot.live_seq };
@@ -139,7 +139,7 @@ export const FAST_SMOKE = { intervalMs: 5, getRetryMs: 1, deadlineMs: 400 };
 // Submit helpers: a record file + the baseline manifest (readLive minus records).
 export async function baselineFile(db) {
   const snapshot = await store.readLive(db);
-  const datasets = Object.fromEntries(Object.entries(snapshot.datasets).map(([dataset, { records: _records, ...rest }]) => [dataset, rest]));
+  const datasets = Object.fromEntries(Object.entries(snapshot.datasets).map(([dataset, value]) => [dataset, { count: value.count, digest: value.digest, entries: value.entries }]));
   const dir = fs.mkdtempSync(`${os.tmpdir()}/lv-baseline-`);
   const file = `${dir}/manifest.json`;
   fs.writeFileSync(file, JSON.stringify({ ...snapshot, datasets }));
