@@ -70,7 +70,10 @@ export async function seed(db, sourceArgs, { apply = false, prune = false, actor
           await c.query('update content.entries set head_rev=$3,live_rev=$3,position=$4,first_published_at=coalesce(first_published_at,now()),updated_at=now() where dataset=$1 and key=$2', [d,key,rev,position]);
           actionRows.push({ dataset:d,key,fromRev:entry.live_rev,toRev:rev }); changed = true;
         }
-        if (entry.position !== position) changed = true;
+        if (entry.position !== position) {
+          changed = true;
+          if (current?.payload_sha256 === sha) actionRows.push({dataset:d,key,fromRev:entry.live_rev,toRev:entry.live_rev});
+        }
         await c.query('update content.entries set position=$3 where dataset=$1 and key=$2', [d,key,position]);
       }
       if (prune) {
@@ -80,6 +83,13 @@ export async function seed(db, sourceArgs, { apply = false, prune = false, actor
           if (nonSeed) { refused.push({dataset:d,key:e.key}); continue; }
           await c.query('update content.entries set live_rev=null,position=null where dataset=$1 and key=$2', [d,e.key]);
           actionRows.push({ dataset:d,key:e.key,fromRev:e.live_rev,toRev:null }); changed = true;
+        }
+      } else {
+        const extras = (await c.query('select key,live_rev,position from content.entries where dataset=$1 and live_rev is not null order by position nulls last,key for update', [d])).rows.filter((e) => !wanted.has(e.key));
+        for (let index=0;index<extras.length;index++) {
+          const e=extras[index],position=sourceRecords.length+index;
+          if (e.position !== position) { changed=true; actionRows.push({dataset:d,key:e.key,fromRev:e.live_rev,toRev:e.live_rev}); }
+          await c.query('update content.entries set position=$3 where dataset=$1 and key=$2',[d,e.key,position]);
         }
       }
     }
