@@ -203,7 +203,8 @@ export async function rejectSubmission(db, id, token, { state, decision }) {
 export async function markPhase(db, id, token, phase) {
   const col = { deploy_requested: 'deploy_requested_at', smoke_passed: 'smoke_passed_at', notified: 'notified_at' }[phase];
   if (!col) throw new ValidationError('invalid phase');
-  return db.tx(async (c) => { await lockedClaim(c, id, token, ['published', 'compensated']); await c.query(`update content.submissions set ${col}=coalesce(${col},now()) where id=$1`, [id]); });
+  const states = phase === 'notified' ? ['published', 'compensated', 'rejected', 'blocked', 'error'] : ['published', 'compensated'];
+  return db.tx(async (c) => { await lockedClaim(c, id, token, states); await c.query(`update content.submissions set ${col}=coalesce(${col},now()) where id=$1`, [id]); });
 }
 export async function markItemSmoke(db, id, token, items) {
   return db.tx(async (c) => { await lockedClaim(c, id, token, ['published', 'compensated']); for (const i of items) { if (!['passed', 'superseded'].includes(i.smoke)) throw new ValidationError('invalid smoke'); const r = await c.query('update content.submission_items set smoke=$4 where submission_id=$1 and dataset=$2 and key=$3', [id, i.dataset, i.key, i.smoke]); if (!r.rowCount) throw new ValidationError('item missing'); } });

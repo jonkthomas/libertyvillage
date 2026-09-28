@@ -107,3 +107,23 @@ test('new and idempotent submissions expose the current candidate vector', async
     assert.equal(second.items[0].expectedLiveRev,null);
   } finally { await close(); }
 });
+test('terminal failure notices mark notified once under the held claim', async () => {
+  const { db, close } = await testDb();
+  try {
+    for (const state of ['rejected', 'blocked', 'error']) {
+      const created = await candidate(db, `notice-${state}`);
+      const token = (await store.claimSubmission(db, created.submissionId, { owner:'notifier' })).token;
+      if (state === 'error') await store.rejectSubmission(db, created.submissionId, token, { state, decision:'error' });
+      else await gate(db, created.submissionId, token, state === 'rejected' ? 'validation' : 'block');
+      await assert.rejects(store.markPhase(db, created.submissionId, token, 'deploy_requested'), (error) => error.code === 'StateError');
+      await assert.rejects(store.markPhase(db, created.submissionId, token, 'smoke_passed'), (error) => error.code === 'StateError');
+      await store.markPhase(db, created.submissionId, token, 'notified');
+      const first = (await db.query('select notified_at from content.submissions where id=$1', [created.submissionId])).rows[0].notified_at;
+      assert.ok(first);
+      await store.markPhase(db, created.submissionId, token, 'notified');
+      const second = (await db.query('select notified_at from content.submissions where id=$1', [created.submissionId])).rows[0].notified_at;
+      assert.equal(second.getTime(), first.getTime());
+      await assert.rejects(store.markPhase(db, created.submissionId, '00000000-0000-0000-0000-000000000000', 'notified'), (error) => error.code === 'ClaimError');
+    }
+  } finally { await close(); }
+});

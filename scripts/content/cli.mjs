@@ -44,7 +44,7 @@ async function gcAssets(db,{apply}) {
   if (apply) for (const a of candidates) await db.query('delete from content.assets where sha256=$1',[a.sha256]);
   return {deleted:apply ? candidates.length : 0,bytes:apply ? candidates.reduce((sum,a) => sum+a.byte_size,0) : 0};
 }
-export async function runCli(argv = process.argv.slice(2)) {
+export async function runCli(argv = process.argv.slice(2), { delegates = {} } = {}) {
   const {command,opts} = parse(argv);
   if (command === 'restore-snapshot') {
     console.error(JSON.stringify({target:{db:null,host:null}}));
@@ -71,15 +71,17 @@ export async function runCli(argv = process.argv.slice(2)) {
       case 'history': { const dataset=required(opts.dataset,'--dataset'),key=required(opts.key,'--key'); result=await store.history(db,{dataset,key}); result.url=registry[dataset]?.route?.replace(':key',key)??null; break; }
       case 'show': { result=await store.getSubmission(db,Number(required(opts.submission,'--submission'))); delete result.submission.context; for (const item of result.items) item.url=registry[item.dataset]?.route?.replace(':key',item.key)??null; for (const round of result.rounds) for (const item of round.items) delete item.payload; break; }
       case 'list': result=opts.submissions ? await store.listSubmissions(db,{state:opts.state,kind:opts.kind,target:opts.target,dataset:opts.dataset,key:opts.key,since:opts.since}) : await store.listEntries(db,{dataset:opts.dataset,visibility:opts.visibility}); break;
-      case 'stats': { result=await store.stats(db); result.warn=result.projectBytes>350*1024*1024; if (opts.alert && result.warn && process.env.CONTENT_SLACK_WEBHOOK_URL) await fetch(process.env.CONTENT_SLACK_WEBHOOK_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:`⚠ Neon content storage ${Math.round(result.projectBytes/1048576)} MB > 350 MB of 512 MB`})}); break; }
+      case 'stats': { result=await store.stats(db); result.warn=result.projectBytes>350*1024*1024; if (opts.alert && result.warn && process.env.SLACK_WEBHOOK_URL) await fetch(process.env.SLACK_WEBHOOK_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:`⚠ Neon content storage ${Math.round(result.projectBytes/1048576)} MB > 350 MB of 512 MB`})}); break; }
       case 'gc-assets': result=await gcAssets(db,opts); break;
-      case 'submit': { const mod=await import('./submit.mjs'); result=await mod.submitContent(db,opts); break; }
-      case 'gate': { const mod=await import('./gate.mjs'); result=await mod.gateContent(db,opts); break; }
-      case 'deploy': { const mod=await import('./deploy.mjs'); result=await mod.deployContent(db,opts); break; }
+      case 'submit': { const submitContent=delegates.submitContent ?? (await import('./submit.mjs')).submitContent; ({result,exitCode}=await submitContent(db,opts)); break; }
+      case 'gate': { const gateContent=delegates.gateContent ?? (await import('./gate.mjs')).gateContent; ({result,exitCode}=await gateContent(db,opts)); break; }
+      case 'deploy': { const deployContent=delegates.deployContent ?? (await import('./deploy.mjs')).deployContent; ({result,exitCode}=await deployContent(db,opts)); break; }
       case 'unpublish': case 'rollback': {
         const admin=await store.adminAction(db,{op:command,dataset:required(opts.dataset,'--dataset'),key:required(opts.key,'--key'),toRev:opts.toRev&&Number(opts.toRev),actor:required(actorFor(opts),'--actor'),reason:required(opts.reason,'--reason'),idempotencyKey:required(opts.idempotencyKey,'--idempotency-key'),owner:actorFor(opts)});
-        const mod=await import('./deploy.mjs'); const propagation=await mod.deployContent(db,{...opts,submission:admin.submissionId});
-        result={...admin,...propagation}; break;
+        const deployContent=delegates.deployContent ?? (await import('./deploy.mjs')).deployContent;
+        const propagation=await deployContent(db,{...opts,submission:admin.submissionId,token:admin.token});
+        const publicAdmin={...admin}; delete publicAdmin.token;
+        result={...publicAdmin,...propagation.result}; exitCode=propagation.exitCode; break;
       }
       default: throw new store.ValidationError(`unknown command: ${command}`);
     }
