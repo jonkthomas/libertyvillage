@@ -138,6 +138,20 @@ test('batch rejects a shared address and phone without a unit but keeps distinct
     ['First Clinic', 'Unrelated Tenant']);
 });
 
+test('no-unit address catches a renamed storefront without conflating unrelated tenants', () => {
+  const existing = [business('Craft Brasserie', '1 Atlantic Ave, Toronto, ON M6K 1X9')];
+  const renamed = candidate({ name: 'The Craft Brasserie & Grille', address: '1 Atlantic Avenue, ON M6K 1X9' });
+  const unrelated = candidate({ name: 'Atlantic Yoga Studio', address: '1 Atlantic Ave, Toronto, ON M6K 1X9' });
+  const state = buildDedupeState(existing);
+  assert.equal(isDuplicate(state, renamed), true, 'a missing phone must not bypass a recognizable brand');
+  assert.equal(isDuplicate(state, unrelated), false, 'other no-unit tenants remain eligible');
+  assert.deepEqual(selectBatch([renamed, unrelated], state, 15).map((b) => b.name), ['Atlantic Yoga Studio']);
+
+  const firstRun = [candidate({ name: 'Craft Brasserie', address: '1 Atlantic Ave, Toronto, ON M6K 1X9' }), renamed, unrelated];
+  assert.deepEqual(selectBatch(firstRun, buildDedupeState([], {}), 15).map((b) => b.name),
+    ['Craft Brasserie', 'Atlantic Yoga Studio']);
+});
+
 test('generated records omit transient hours and identify the source of review facts', () => {
   const record = toRecord({
     title: 'Example Cafe', type: 'Cafe', address: '51 Hanna Ave, Toronto, ON M6K 1X1',

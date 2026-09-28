@@ -103,7 +103,7 @@ const priceRange = (p) => (typeof p === "string" && /\$/.test(p) ? p.match(/\$+/
 // Preserve unit numbers: a multi-tenant building is not one business. Normalize
 // common Maps variants so "#2" and "Unit 2" resolve to the same storefront.
 export function addressKey(address) {
-  return String(address || "").split(/,\s*toronto\b/i)[0]
+  return String(address || "").split(/,\s*(?:toronto|on|ontario|canada)\b|\b[a-z]\d[a-z]\s*\d[a-z]\d\b/i)[0]
     .toLowerCase().replace(/\b(?:east|e)\b/g, "e")
     .replace(/\b(?:west|w)\b/g, "w")
     .replace(/\bstreet\b/g, "st").replace(/\bavenue\b/g, "ave")
@@ -122,6 +122,28 @@ const locationPhoneKey = ({ address, phone }) => {
   const location = addressKey(address);
   const number = phoneKey(phone);
   return location && number ? `${location}|${number}` : "";
+};
+// A shared no-unit street address can host several tenants. Only treat a
+// different title as the same storefront when distinctive name words overlap;
+// a missing/different Maps phone alone must not let a renamed listing through.
+const noUnitAddressKey = (address) => unitAddressKey(address) ? "" : addressKey(address);
+const nameWords = (name) => new Set(String(name || "").toLowerCase().split(/[^a-z0-9]+/)
+  .filter((word) => word.length > 2 && !["the", "and", "liberty", "village", "toronto", "west", "east", "king"].includes(word)));
+const sameBrandName = (a, b) => {
+  const left = nameWords(a);
+  const right = nameWords(b);
+  const shared = [...left].filter((word) => right.has(word));
+  return shared.length >= 2 && shared.length / Math.min(left.size, right.size) >= 0.6;
+};
+const addUnunitName = (map, { address, name }) => {
+  const key = noUnitAddressKey(address);
+  if (!key) return;
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(name);
+};
+const matchesUnunitName = (map, { address, name }) => {
+  const key = noUnitAddressKey(address);
+  return Boolean(key && map.get(key)?.some((existing) => sameBrandName(existing, name)));
 };
 
 // { <normalized business name>: <first-seen YYYY-MM-DD> }. Missing/corrupt file
@@ -156,6 +178,7 @@ export function buildDedupeState(existing, registry = {}) {
     haveName: new Set([...existing.map((b) => norm(b.name)), ...Object.keys(registry)]),
     haveAddr: new Set(existing.map((b) => unitAddressKey(b.address)).filter(Boolean)),
     haveLocationPhone: new Set(existing.map(locationPhoneKey).filter(Boolean)),
+    haveUnunitNames: existing.reduce((map, b) => (addUnunitName(map, b), map), new Map()),
     haveSlug: new Set(existing.map((b) => b.slug)),
     seen: new Set(),
   };
@@ -167,7 +190,8 @@ export function isDuplicate(state, { name, address, phone }) {
   const locationPhone = locationPhoneKey({ address, phone });
   return Boolean(state.haveName.has(nn) || state.seen.has(nn) ||
     (unit && state.haveAddr.has(unit)) ||
-    (locationPhone && state.haveLocationPhone.has(locationPhone)));
+    (locationPhone && state.haveLocationPhone.has(locationPhone)) ||
+    matchesUnunitName(state.haveUnunitNames, { name, address }));
 }
 
 // A slug collision means we already have this business, so skip it. Suffixing
@@ -177,6 +201,7 @@ export function selectBatch(found, state, max) {
   const names = new Set();
   const units = new Set();
   const locationPhones = new Set();
+  const ununitNames = new Map();
   for (const rec of found) {
     if (batch.length >= max) break;
     const name = norm(rec.name);
@@ -184,11 +209,13 @@ export function selectBatch(found, state, max) {
     const locationPhone = locationPhoneKey(rec);
     if (state.haveSlug.has(rec.slug) || state.haveName.has(name) || names.has(name) ||
       (unit && (state.haveAddr.has(unit) || units.has(unit))) ||
-      (locationPhone && (state.haveLocationPhone.has(locationPhone) || locationPhones.has(locationPhone)))) continue;
+      (locationPhone && (state.haveLocationPhone.has(locationPhone) || locationPhones.has(locationPhone))) ||
+      matchesUnunitName(state.haveUnunitNames, rec) || matchesUnunitName(ununitNames, rec)) continue;
     state.haveSlug.add(rec.slug);
     names.add(name);
     if (unit) units.add(unit);
     if (locationPhone) locationPhones.add(locationPhone);
+    addUnunitName(ununitNames, rec);
     batch.push(rec);
   }
   return batch;
