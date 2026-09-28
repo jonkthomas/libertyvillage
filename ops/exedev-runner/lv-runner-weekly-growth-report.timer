@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly growth report UTC schedule
+
+[Timer]
+OnCalendar=Thu *-*-* 10:37:00 UTC
+Persistent=true
+Unit=lv-runner@weekly-growth-report:production:scheduled.service
+
+[Install]
+WantedBy=timers.target

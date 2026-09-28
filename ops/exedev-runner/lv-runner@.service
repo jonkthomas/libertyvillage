@@ -1,0 +1,11 @@
+[Unit]
+Description=Liberty Village content runner %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/lv-runner-service %i
+TimeoutStartSec=3h
+UMask=0077
+PrivateTmp=yes

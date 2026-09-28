@@ -1,0 +1,10 @@
+[Unit]
+Description=Business discovery UTC schedule
+
+[Timer]
+OnCalendar=Mon *-*-* 13:00:00 UTC
+Persistent=true
+Unit=lv-runner@discover-businesses:production:scheduled.service
+
+[Install]
+WantedBy=timers.target
