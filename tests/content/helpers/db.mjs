@@ -18,5 +18,20 @@ export async function testDb() {
   const db = await openDb({ expectDb: name });
   await db.query(await readFile(migration, 'utf8'));
   await db.query("insert into content.schema_migrations(version) values('0001')");
-  return { db, name, url: url.href, close: async () => { await db.close(); process.env.CONTENT_DATABASE_URL = prior; await admin.query(`drop database ${name} with (force)`); await admin.end(); } };
+  return { db, name, url: url.href, close: async () => {
+    try {
+      await db.close();
+      process.env.CONTENT_DATABASE_URL = prior;
+      // CLI/child clients may still be closing. Never force-drop their database:
+      // that sends 57P01 into a test still finishing an assertion.
+      let active = 0;
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        active = Number((await admin.query('select count(*)::int as count from pg_stat_activity where datname=$1', [name])).rows[0].count);
+        if (active === 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      if (active !== 0) throw new Error(`test database ${name} still has ${active} client(s)`);
+      await admin.query(`drop database ${name}`);
+    } finally { await admin.end(); }
+  } };
 }
