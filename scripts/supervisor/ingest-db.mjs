@@ -93,7 +93,7 @@ export function runDbIngest(payload, { repo = process.env.GITHUB_REPOSITORY, com
     console.log(`submit accepted submission=${submissionId}`);
     step = 'gate';
     const gated = command(process.execPath, [
-      'scripts/content/cli.mjs', 'gate', '--submission', String(submissionId),
+      'scripts/content/cli.mjs', 'gate', '--submission', String(submissionId), '--actor', `ingest:${sha}`,
       '--target', payload.target,
       ...(process.env.CONTENT_DB_NAME ? ['--expect-db', process.env.CONTENT_DB_NAME] : []),
     ], { allow: [0, 2, 3] });

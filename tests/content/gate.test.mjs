@@ -503,7 +503,7 @@ async function ingestRun(name, suffix, { review, dataSha = suffix.padEnd(40, 'a'
     '--idempotency-key', `vm:${dataSha}`, '--actor', `ingest:${dataSha}`, '--topic-key', 'b'.repeat(64), '--generated-at', generatedAt, '--target', 'test', '--expect-db', name]);
   assert.equal(submit.exitCode, 0, JSON.stringify(submit.result));
   queueAgent(review);
-  const gated = await runCli(['gate', '--submission', String(submit.result.submissionId), '--target', 'test', '--expect-db', name]);
+  const gated = await runCli(['gate', '--submission', String(submit.result.submissionId), '--actor', `ingest:${dataSha}`, '--target', 'test', '--expect-db', name]);
   return { submit, gated };
 }
 
@@ -538,6 +538,18 @@ test('D ingest-db contract: submit + gate via cli.mjs exit 0 / 2 / 3 with liveSe
       assert.match(stale.message, /more than 36 h before submit/);
     });
   } finally { await site.close(); await handle.close(); }
+});
+
+test('gate requires an explicit operator actor off GitHub Actions before claiming', async () => {
+  const { db, close } = await seededDb();
+  try {
+    const originalToken = (await store.getSubmission(db, 1)).submission.claim_token;
+    for (const opts of [{ submission: 1 }, { submission: 1, actor: true }]) {
+      await assert.rejects(gateContent(db, opts, { env: { GITHUB_ACTIONS: 'false' } }),
+        (error) => error.code === 'ValidationError' && /--actor required/.test(error.message));
+      assert.equal((await store.getSubmission(db, 1)).submission.claim_token, originalToken);
+    }
+  } finally { await close(); }
 });
 
 test('ingest retry resumes the published submission after a fixer repair and missed status write', async () => {
@@ -583,6 +595,7 @@ test('ingest retry resumes the published submission after a fixer repair and mis
         if (file === process.execPath) {
           if (args[1] === 'gate') {
             assert.equal(args[args.indexOf('--submission') + 1], String(id));
+            assert.equal(args[args.indexOf('--actor') + 1], `ingest:${dataSha}`);
             return { status: 0, stdout: JSON.stringify({ liveSeq: published.liveSeq,
               published: [{ dataset: 'posts', url: `${site.origin}/blog/${candidate.slug}` }] }) };
           }
