@@ -144,6 +144,8 @@ test('scratch code poisoning cannot cross into trusted CLI', (t) => {
   assert.deepEqual(copyGenerated(scratch, trusted, 'weekly-blog', transfer), ['data/posts.json']);
   assert.equal(fs.existsSync(path.join(trusted, 'tasks/seo-data-latest.json')), false);
   assert.deepEqual(generatedPathsForTransfer(['scripts/content/cli.mjs', 'tasks/seo-data-latest.json']), ['scripts/content/cli.mjs']);
+  assert.deepEqual(generatedPathsForTransfer(['data/posts.json', 'data/posts.json.backup', 'tasks/pipeline-summary.txt', 'scripts/content/cli.mjs'], 'weekly-blog'), ['data/posts.json', 'scripts/content/cli.mjs'], 'discard only exact scratch-only side artifacts, never silently allow code poisoning');
+  assert.deepEqual(generatedPathsForTransfer(['data/posts.json.backup', 'tasks/pipeline-summary.txt'], 'seo-improvements'), ['data/posts.json.backup', 'tasks/pipeline-summary.txt'], 'other jobs retain their strict allowlist');
 });
 
 test('blog acceptance refuses generator FIFO before reading any post JSON', (t) => {
