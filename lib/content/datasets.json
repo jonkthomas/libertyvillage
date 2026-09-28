@@ -1,0 +1,11 @@
+{
+  "businesses": {"file":"businesses.json","key":"slug","route":"/directory/:key","marker":"name","imageFields":["image"]},
+  "posts": {"file":"posts.json","key":"slug","route":"/blog/:key","marker":"title","imageFields":["image"]},
+  "buildings": {"file":"buildings.json","key":"slug","route":"/buildings/:key","marker":"name","imageFields":["image"]},
+  "neighborhoods": {"file":"neighborhoods.json","key":"slug","route":"/vs/:key","marker":"name","imageFields":["image"]},
+  "services": {"file":"services.json","key":"slug","route":"/best/:key","marker":"pluralName","imageFields":["image"]},
+  "topics": {"file":"topics.json","key":"slug","route":"/guide/:key","marker":"title","imageFields":["image"]},
+  "guide-hub": {"file":"guide-hub.json","key":"singleton","route":"/guide","marker":"answerSummary","imageFields":[]},
+  "topic-queue": {"file":"topic-queue.json","key":"key","route":null,"marker":null,"imageFields":[]},
+  "discovery-seen": {"file":"discovery-seen.json","key":"map","route":null,"marker":null,"imageFields":[]}
+}

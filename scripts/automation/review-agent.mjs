@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { BLOCKING_SEVERITIES, FIXER_MODEL, GATE_MODEL, SCORE_THRESHOLD } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
@@ -16,7 +18,7 @@ import { evaluateRepairRound, routeFailedGate } from '../supervisor/weekly-publi
 
 export { selectReferenceRecords };
 
-const VERDICT_SCHEMA = {
+export const VERDICT_SCHEMA = {
   // No `passed` field: the outcome is recomputed server-side from overall +
   // findings (N2). A gate that cannot state its own verdict cannot be talked
   // past one. Historical verdicts that carry `passed` still replay — see
@@ -64,9 +66,9 @@ const RECORD_REPAIR_SCHEMA = {
 
 // One extra fixer attempt, re-prompted with the exact validation errors, so a plan
 // rejected for touching an immutable field regenerates instead of failing the run.
-const MAX_FIXER_ATTEMPTS = 4;
+export const MAX_FIXER_ATTEMPTS = 4;
 
-const LENSES = {
+export const LENSES = {
   seo: [
     'DATA lens: claims must be supportable by changed source data and must not invent local facts.',
     'CONTENT lens: useful, accurate, non-spammy SEO/AEO copy with natural links and no unsupported claims.',
@@ -384,14 +386,17 @@ async function reviewContent(options) {
   writeOutput({ review_ok: 'true', passed: decision.passed ? 'true' : 'false', overall: raw.overall });
 }
 
-function recordRepairPrompt({ kind, gateVerdict, payload, previousErrors, references = [], inventory = null, lintFindings = [] }) {
+function recordRepairPrompt({
+  kind, gateVerdict, payload, previousErrors, references = [], inventory = null, lintFindings = [],
+  describeContract = describeRepairContract,
+}) {
   return [
     `Repair only the supplied appended or modified ${kind} records to resolve the trusted gate findings.`,
     `Trusted gate verdict: ${JSON.stringify(gateVerdict)}`,
     ...(lintFindings.length ? [`Trusted claim-linter findings: ${JSON.stringify(lintFindings)}`] : []),
     'Return one entry per record that must change: its file, its unchanged slug, and the complete repaired record object.',
     'Every repair is validated against these per-file contracts and the whole plan is rejected if it breaks one:',
-    ...payload.map(({ file }) => describeRepairContract(file)),
+    ...payload.map(({ file }) => describeContract(file)),
     'Preserve the exact top-level key set of every record. Make the smallest editorial repair: resolve findings',
     'through the editable fields (for example temporal qualifiers, framing, or wording in title/description/content),',
     'never by reclassifying, re-dating, re-imaging, or re-attributing a record.',
@@ -423,16 +428,22 @@ function recordRepairPrompt({ kind, gateVerdict, payload, previousErrors, refere
 // payload: [{ file, records: [...changed record objects] }]. validate() runs the
 // same trusted validation the coordinator will re-run before any write, and its
 // errors are fed back into the retry prompt.
-async function planRecordRepair({ kind, gateVerdict, payload, validate, references = [], inventory = null, lintFindings = [] }) {
+// schema/describeContract default to the legacy record contract; the content-store
+// gate passes rowRepairSchema(files) and its per-dataset contract instead (§4.7).
+export async function planRecordRepair({
+  kind, gateVerdict, payload, validate, references = [], inventory = null, lintFindings = [],
+  schema = RECORD_REPAIR_SCHEMA, describeContract,
+}) {
   const bytes = Buffer.byteLength(JSON.stringify(payload, null, 2));
   if (bytes > RECORD_REPAIR_MAX_BYTES) throw new Error(`record fixer input budget exceeded: ${bytes} bytes`);
   let errors = ['fixer produced no plan'];
   for (let attempt = 1; attempt <= MAX_FIXER_ATTEMPTS; attempt += 1) {
     const raw = await runStructured({
-      model: FIXER_MODEL, schema: RECORD_REPAIR_SCHEMA, budget: 3,
+      model: FIXER_MODEL, schema, budget: 3,
       prompt: recordRepairPrompt({
         kind, gateVerdict, payload, references, inventory, lintFindings,
         previousErrors: attempt === 1 ? [] : errors,
+        ...(describeContract ? { describeContract } : {}),
       }),
     });
     const plan = buildRecordRepairPlan(raw);
@@ -461,6 +472,65 @@ async function fixContent(options) {
   });
   fs.writeFileSync(out, `${JSON.stringify(plan, null, 2)}\n`);
   writeOutput({ fix_ok: 'true' });
+}
+
+// Content-store gate (§4.7): the same verdict contract as reviewContent, scored
+// against a per-submission review document instead of a PR diff. The document's
+// item headers carry data/<dataset>.json#<key>, which the gate cuts at '#'.
+export async function reviewRows({
+  kind, lenses, document, contentSha, references = [], inventory = null, evidence = null,
+}) {
+  if (!kind || !Array.isArray(lenses) || lenses.length === 0 || typeof document !== 'string' || !contentSha) {
+    throw new Error('reviewRows requires kind, lenses, document and contentSha');
+  }
+  checkDiff(document);
+  const evidenceText = evidence ? JSON.stringify(evidence, null, 2) : '';
+  if (Buffer.byteLength(evidenceText) > 200_000) throw new Error('evidence budget exceeded');
+  const prompt = [
+    `Review candidate ${kind} content-store submission bound to exact content sha ${contentSha}.`, ...lenses,
+    ...(references.length ? [GROUNDING_LENS] : []),
+    ...(inventory ? [INVENTORY_LENS] : []),
+    GATE_BAR,
+    'Each record in the document is headed data/<dataset>.json#<key>; use that exact header as the path of every finding about it.',
+    `Set model exactly ${GATE_MODEL}; set commit_sha exactly ${contentSha}.`,
+    ...referenceBlock(references),
+    ...(inventory ? inventoryPromptBlock(inventory) : []),
+    '<<<UNTRUSTED_DIFF_DATA>>>', document, '<<<END_UNTRUSTED_DIFF_DATA>>>',
+    ...(evidence ? ['<<<UNTRUSTED_EVIDENCE_DATA>>>', evidenceText, '<<<END_UNTRUSTED_EVIDENCE_DATA>>>'] : []),
+  ].join('\n');
+  const raw = await runStructured({ model: GATE_MODEL, prompt, schema: VERDICT_SCHEMA, budget: 4 });
+  const decision = evaluateVerdict(raw, contentSha);
+  if (!decision.ok) throw new Error(`invalid gate verdict: ${decision.errors.join('; ')}`);
+  return raw;
+}
+
+// RECORD_REPAIR_SCHEMA narrowed to one submission's candidate files, keyed by the
+// content-store key (slug, or the guide-hub singleton) instead of slug.
+export function rowRepairSchema(files) {
+  if (!Array.isArray(files) || files.length === 0) throw new Error('rowRepairSchema requires candidate files');
+  const base = RECORD_REPAIR_SCHEMA.properties.files;
+  return {
+    ...RECORD_REPAIR_SCHEMA,
+    properties: {
+      ...RECORD_REPAIR_SCHEMA.properties,
+      files: {
+        ...base, maxItems: files.length,
+        items: {
+          ...base.items,
+          properties: {
+            file: { type: 'string', enum: [...files] },
+            records: {
+              ...base.items.properties.records,
+              items: {
+                type: 'object', additionalProperties: false, required: ['key', 'record'],
+                properties: { key: { type: 'string', minLength: 1 }, record: { type: 'object' } },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
 }
 
 async function fileAtSha(repo, file, sha) {
@@ -537,19 +607,21 @@ async function fix(options) {
   writeOutput({ fix_ok: 'true', edit_count: plan.edits.length });
 }
 
-const command = process.argv[2];
-try {
-  if (command === 'review') await review(parseArgs());
-  else if (command === 'fix') await fix(parseArgs());
-  else if (command === 'review-content') await reviewContent(parseArgs());
-  else if (command === 'fix-content') await fixContent(parseArgs());
-  else throw new Error(`unknown command: ${command}`);
-} catch (error) {
-  console.error(error.message);
-  const failureClass = classifyRunFailure(error);
-  console.log(`Failure classified as ${failureClass}.`);
-  writeOutput(['review', 'review-content'].includes(command)
-    ? { review_ok: 'false', passed: 'false', failure_class: failureClass }
-    : { fix_ok: 'false', failure_class: failureClass });
-  process.exitCode = 1;
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const command = process.argv[2];
+  try {
+    if (command === 'review') await review(parseArgs());
+    else if (command === 'fix') await fix(parseArgs());
+    else if (command === 'review-content') await reviewContent(parseArgs());
+    else if (command === 'fix-content') await fixContent(parseArgs());
+    else throw new Error(`unknown command: ${command}`);
+  } catch (error) {
+    console.error(error.message);
+    const failureClass = classifyRunFailure(error);
+    console.log(`Failure classified as ${failureClass}.`);
+    writeOutput(['review', 'review-content'].includes(command)
+      ? { review_ok: 'false', passed: 'false', failure_class: failureClass }
+      : { fix_ok: 'false', failure_class: failureClass });
+    process.exitCode = 1;
+  }
 }

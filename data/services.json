@@ -3,8 +3,8 @@
     "slug": "restaurants",
     "name": "Restaurant",
     "pluralName": "Restaurants",
-    "description": "The complete guide to Liberty Village restaurants, updated June 2026 \u2014 every sit-down spot in the neighbourhood, ranked by Google rating and review count. Pai Northern Thai, Mildred's Temple Kitchen, Pizza Libretto, School, Brazen Head and more, with ratings, prices, addresses, dietary and delivery options, plus what we actually order.",
-    "icon": "\ud83c\udf7d\ufe0f",
+    "description": "The complete guide to Liberty Village restaurants, updated June 2026 — every sit-down spot in the neighbourhood, ranked by Google rating and review count. Pai Northern Thai, Mildred's Temple Kitchen, Pizza Libretto, School, Brazen Head and more, with ratings, prices, addresses, dietary and delivery options, plus what we actually order.",
+    "icon": "🍽️",
     "relatedServices": [
       "thai-restaurants",
       "pizza",
@@ -21,7 +21,7 @@
     "searchVolume": "high",
     "competitiveness": "low",
     "image": "/images/services/restaurants.jpg",
-    "answerBlock": "Liberty Village has more than 15 sit-down restaurants packed into roughly 0.28 km2, almost all of them in the neighbourhood proper along East Liberty Street, Liberty Street, Hanna Avenue and Fraser Avenue. Ranked by Google rating and review count as of June 2026, the highest-rated are Pai Northern Thai Kitchen (4.5/5, 1,534 reviews) for Khao Soi, Mildred's Temple Kitchen (4.5/5, 1,247 reviews) for brunch, and Maurya East Indian Roti (4.5/5, 340 reviews) for butter chicken roti. Pizza Libretto and NODO cover Neapolitan pizza, School Restaurant in a restored 1890s schoolhouse is the date-night pick, and LOCAL Public Eatery plus Brazen Head Irish Pub (4.0/5, 1,156 reviews \u2014 the neighbourhood's biggest patio) anchor the sports-and-patio scene. Impact Kitchen handles macro-counted healthy bowls, and Burger Drops does the best smash burgers. Prices run from $ (Chiang Mai, Burger Drops, Maurya) to $$$ (School, Cibo Wine Bar). A handful of spots people search next to Liberty Village \u2014 Ono Poke, Miku, Curryish, Aroma \u2014 actually sit just outside it and are flagged below. These are our Liberty Village team's tested picks, and most are a 5-minute walk apart, so you can compare two or three before deciding.",
+    "answerBlock": "Liberty Village has more than 15 sit-down restaurants packed into roughly 0.28 km2, almost all of them in the neighbourhood proper along East Liberty Street, Liberty Street, Hanna Avenue and Fraser Avenue. Ranked by Google rating and review count as of June 2026, the highest-rated are Pai Northern Thai Kitchen (4.5/5, 1,534 reviews) for Khao Soi, Mildred's Temple Kitchen (4.5/5, 1,247 reviews) for brunch, and Maurya East Indian Roti (4.5/5, 340 reviews) for butter chicken roti. Pizza Libretto and NODO cover Neapolitan pizza, School Restaurant in a restored 1890s schoolhouse is the date-night pick, and LOCAL Public Eatery plus Brazen Head Irish Pub (4.0/5, 1,156 reviews — the neighbourhood's biggest patio) anchor the sports-and-patio scene. Impact Kitchen handles macro-counted healthy bowls, and Burger Drops does the best smash burgers. Prices run from $ (Chiang Mai, Burger Drops, Maurya) to $$$ (School, Cibo Wine Bar). A handful of spots people search next to Liberty Village — Ono Poke, Miku, Curryish, Aroma — actually sit just outside it and are flagged below. These are our Liberty Village team's tested picks, and most are a 5-minute walk apart, so you can compare two or three before deciding.",
     "definition": "Restaurants in Liberty Village range from VPN-certified Neapolitan pizza and top-tier Northern Thai to heritage-building dining, Irish-pub patios and macro-counted health bowls, concentrated almost entirely along East Liberty Street and the converted-warehouse blocks between Hanna and Fraser Avenues.",
     "comparisonTable": {
       "columns": [
@@ -352,8 +352,8 @@
     "slug": "coffee-shops",
     "name": "Coffee Shop",
     "pluralName": "Coffee Shops",
-    "description": "Best coffee shops in Liberty Village for 2026 \u2014 Arvo, Balzac's, Dark Horse, and more ranked by WiFi speed, laptop-friendliness, and espresso quality.",
-    "icon": "\u2615",
+    "description": "Best coffee shops in Liberty Village for 2026 — Arvo, Balzac's, Dark Horse, and more ranked by WiFi speed, laptop-friendliness, and espresso quality.",
+    "icon": "☕",
     "relatedServices": [
       "brunch-spots",
       "restaurants",
@@ -363,7 +363,7 @@
     "searchVolume": "high",
     "competitiveness": "hard",
     "image": "/images/services/coffee-shops.jpg",
-    "answerBlock": "Liberty Village is home to several excellent, independently owned coffee shops, from Australian-style flat whites to rotating single-origin espresso. Drinks typically run $4 to $6, most shops open early, and nearly all offer WiFi and welcome laptops \u2014 making Liberty Village one of the best neighbourhoods in Toronto for remote work over coffee. Check each caf\u00e9's profile for ratings, hours, and house specialties.",
+    "answerBlock": "Liberty Village is home to several excellent, independently owned coffee shops, from Australian-style flat whites to rotating single-origin espresso. Drinks typically run $4 to $6, most shops open early, and nearly all offer WiFi and welcome laptops — making Liberty Village one of the best neighbourhoods in Toronto for remote work over coffee. Check each café's profile for ratings, hours, and house specialties.",
     "definition": "Coffee shops in Liberty Village lean heavily toward independent specialty roasters in converted industrial spaces, serving the neighbourhood's large population of remote workers and creative professionals.",
     "comparisonTable": {
       "columns": [
@@ -412,32 +412,32 @@
       ]
     },
     "keyTakeaways": [
-      "Arvo Coffee leads with a 4.4/5 rating and Australian-style flat whites at $5.50 \u2014 the best speciality coffee in Liberty Village",
+      "Arvo Coffee leads with a 4.4/5 rating and Australian-style flat whites at $5.50 — the best speciality coffee in Liberty Village",
       "Balzac's in the Liberty Market building is the most laptop-friendly with 40+ seats, strong WiFi, and hours from 7 am to 7 pm weekdays",
-      "All five coffee shops are independently owned \u2014 no Starbucks or Tim Hortons in the core of Liberty Village",
+      "All five coffee shops are independently owned — no Starbucks or Tim Hortons in the core of Liberty Village",
       "Drip coffee runs $3 to $4 across the neighbourhood while lattes and speciality drinks range from $5 to $7",
-      "Weekend hours start an hour later at most shops (8 am to 8:30 am) \u2014 Balzac's is the earliest Saturday opener at 8 am"
+      "Weekend hours start an hour later at most shops (8 am to 8:30 am) — Balzac's is the earliest Saturday opener at 8 am"
     ],
     "proTips": [
-      "Balzac's back corner near the Liberty Market entrance has the quietest tables and the best power outlet access \u2014 arrive before 9 am to claim one",
-      "Arvo Coffee closes at 4 pm daily and has only 15 seats \u2014 go before 10 am or after 2 pm to avoid standing room only",
-      "Dark Horse Espresso's cold brew ($5) is brewed in-house for 20 hours and sells out by 2 pm on hot days \u2014 order it early",
-      "Jimmy's Coffee on Atlantic Avenue is the least crowded option at lunch hour \u2014 most remote workers default to Balzac's, leaving Jimmy's wide open",
-      "Louie Coffee Bar rotates their single-origin beans weekly \u2014 ask for the current origin and tasting notes, the baristas know their beans well"
+      "Balzac's back corner near the Liberty Market entrance has the quietest tables and the best power outlet access — arrive before 9 am to claim one",
+      "Arvo Coffee closes at 4 pm daily and has only 15 seats — go before 10 am or after 2 pm to avoid standing room only",
+      "Dark Horse Espresso's cold brew ($5) is brewed in-house for 20 hours and sells out by 2 pm on hot days — order it early",
+      "Jimmy's Coffee on Atlantic Avenue is the least crowded option at lunch hour — most remote workers default to Balzac's, leaving Jimmy's wide open",
+      "Louie Coffee Bar rotates their single-origin beans weekly — ask for the current origin and tasting notes, the baristas know their beans well"
     ],
-    "neighbourhoodContext": "Liberty Village's coffee culture is shaped by its unusually high concentration of remote workers, freelancers, and startup employees. With a Walk Score of 88, most residents live within a 5-minute walk of at least two coffee shops, making the morning coffee run a daily ritual rather than an occasional treat.\n\nThe dominance of independent shops is the defining characteristic. Unlike most Toronto neighbourhoods where chains occupy prime corners, Liberty Village's converted warehouse spaces attracted indie roasters who could afford the unique floor plans. Arvo's Australian influence, Balzac's literary-themed branding, and Dark Horse's Toronto-roasted beans each bring a distinct identity to the neighbourhood.\n\nFor the work-from-home crowd, coffee shops function as de facto coworking spaces. Balzac's 40-seat Liberty Market location and Dark Horse's outlet-lined walls see a steady stream of laptops from 8 am to closing. This has created an unspoken etiquette \u2014 buy a drink every 90 minutes, keep calls on mute, and share the power outlets.",
+    "neighbourhoodContext": "Liberty Village's coffee culture is shaped by its unusually high concentration of remote workers, freelancers, and startup employees. With a Walk Score of 88, most residents live within a 5-minute walk of at least two coffee shops, making the morning coffee run a daily ritual rather than an occasional treat.\n\nThe dominance of independent shops is the defining characteristic. Unlike most Toronto neighbourhoods where chains occupy prime corners, Liberty Village's converted warehouse spaces attracted indie roasters who could afford the unique floor plans. Arvo's Australian influence, Balzac's literary-themed branding, and Dark Horse's Toronto-roasted beans each bring a distinct identity to the neighbourhood.\n\nFor the work-from-home crowd, coffee shops function as de facto coworking spaces. Balzac's 40-seat Liberty Market location and Dark Horse's outlet-lined walls see a steady stream of laptops from 8 am to closing. This has created an unspoken etiquette — buy a drink every 90 minutes, keep calls on mute, and share the power outlets.",
     "specificFaqs": [
       {
         "question": "What are the best coffee shops in Liberty Village for remote work?",
-        "answer": "Balzac's Coffee Roasters in the Liberty Market building is the top pick for remote work \u2014 40+ seats, reliable WiFi, power outlets along the walls, and hours from 7 am to 7 pm weekdays. Dark Horse Espresso Bar on Liberty Street has similar amenities in a slightly smaller space with good outlet access. Jimmy's Coffee on Atlantic Avenue is the least crowded option if you prefer a quieter environment."
+        "answer": "Balzac's Coffee Roasters in the Liberty Market building is the top pick for remote work — 40+ seats, reliable WiFi, power outlets along the walls, and hours from 7 am to 7 pm weekdays. Dark Horse Espresso Bar on Liberty Street has similar amenities in a slightly smaller space with good outlet access. Jimmy's Coffee on Atlantic Avenue is the least crowded option if you prefer a quieter environment."
       },
       {
         "question": "Are there specialty coffee shops in Liberty Village?",
-        "answer": "Arvo Coffee on Fraser Avenue serves Australian-style flat whites and cortados using single-origin beans \u2014 widely considered the best espresso in the neighbourhood. Louie Coffee Bar on East Liberty pulls rotating single-origin espresso with meticulous latte art and changes their bean selection weekly. Dark Horse Espresso roasts their own beans at a Toronto facility, giving their drinks a consistent house flavour."
+        "answer": "Arvo Coffee on Fraser Avenue serves Australian-style flat whites and cortados using single-origin beans — widely considered the best espresso in the neighbourhood. Louie Coffee Bar on East Liberty pulls rotating single-origin espresso with meticulous latte art and changes their bean selection weekly. Dark Horse Espresso roasts their own beans at a Toronto facility, giving their drinks a consistent house flavour."
       },
       {
         "question": "What time do Liberty Village coffee shops open?",
-        "answer": "Weekday opening times range from 7 am to 7:30 am. Balzac's, Dark Horse, and Jimmy's all open at 7 am. Arvo Coffee opens slightly later at 7:30 am. Weekend hours start about an hour later across the board \u2014 Balzac's at 8 am, Arvo and Louie at 8:30 am. If you need early Saturday coffee, Balzac's is your only option before 8:30 am."
+        "answer": "Weekday opening times range from 7 am to 7:30 am. Balzac's, Dark Horse, and Jimmy's all open at 7 am. Arvo Coffee opens slightly later at 7:30 am. Weekend hours start about an hour later across the board — Balzac's at 8 am, Arvo and Louie at 8:30 am. If you need early Saturday coffee, Balzac's is your only option before 8:30 am."
       },
       {
         "question": "How much does coffee cost in Liberty Village?",
@@ -445,11 +445,11 @@
       },
       {
         "question": "Which coffee shop has the best WiFi in Liberty Village?",
-        "answer": "Balzac's and Arvo Coffee both offer fast, reliable WiFi suitable for video calls and large file uploads. Dark Horse and Jimmy's have solid connections for general browsing and email but can slow during peak lunch hours. Louie Coffee Bar has WiFi but limited seating and a subtle no-laptop culture during busy periods \u2014 better for a quick espresso than a work session."
+        "answer": "Balzac's and Arvo Coffee both offer fast, reliable WiFi suitable for video calls and large file uploads. Dark Horse and Jimmy's have solid connections for general browsing and email but can slow during peak lunch hours. Louie Coffee Bar has WiFi but limited seating and a subtle no-laptop culture during busy periods — better for a quick espresso than a work session."
       },
       {
         "question": "Are there coffee shops with outdoor seating in Liberty Village?",
-        "answer": "Balzac's has a few tables outside the Liberty Market entrance, though they fill quickly in summer. Jimmy's Coffee has a small sidewalk patio on Atlantic Avenue that catches morning sun. Arvo Coffee has a narrow patio with 4 seats. Dark Horse has the most dedicated outdoor space with a sidewalk patio on Liberty Street that seats about 10 people \u2014 the best option for working outside."
+        "answer": "Balzac's has a few tables outside the Liberty Market entrance, though they fill quickly in summer. Jimmy's Coffee has a small sidewalk patio on Atlantic Avenue that catches morning sun. Arvo Coffee has a narrow patio with 4 seats. Dark Horse has the most dedicated outdoor space with a sidewalk patio on Liberty Street that seats about 10 people — the best option for working outside."
       },
       {
         "question": "Do Liberty Village coffee shops serve food?",
@@ -457,7 +457,7 @@
       },
       {
         "question": "Is there a Starbucks in Liberty Village?",
-        "answer": "There is no Starbucks in the core of Liberty Village. The nearest locations are on King Street West outside the neighbourhood boundaries. This is actually a point of pride for the area \u2014 the five indie coffee shops serve higher-quality espresso at comparable prices. If you specifically need a Starbucks, the closest one is at King and Dufferin, about a 10-minute walk from the centre of Liberty Village."
+        "answer": "There is no Starbucks in the core of Liberty Village. The nearest locations are on King Street West outside the neighbourhood boundaries. This is actually a point of pride for the area — the five indie coffee shops serve higher-quality espresso at comparable prices. If you specifically need a Starbucks, the closest one is at King and Dufferin, about a 10-minute walk from the centre of Liberty Village."
       }
     ]
   },
@@ -465,8 +465,8 @@
     "slug": "brunch-spots",
     "name": "Brunch Spot",
     "pluralName": "Brunch Spots",
-    "description": "Weekend brunch is a Liberty Village institution \u2014 expect lineups at the neighbourhood's best spots along King West and East Liberty Street.",
-    "icon": "\ud83e\udd5e",
+    "description": "Weekend brunch is a Liberty Village institution — expect lineups at the neighbourhood's best spots along King West and East Liberty Street.",
+    "icon": "🥞",
     "relatedServices": [
       "restaurants",
       "coffee-shops",
@@ -502,7 +502,7 @@
     "name": "Bar",
     "pluralName": "Bars",
     "description": "Best bars in Liberty Village 2026: Craft Beer Market (100+ taps), Brazen Head (Irish pub), Left Field Brewery, sports bars. Craft beer, trivia nights, patios, happy hour 3-6pm.",
-    "icon": "\ud83c\udf7a",
+    "icon": "🍺",
     "relatedServices": [
       "restaurants",
       "patios",
@@ -562,19 +562,19 @@
     },
     "keyTakeaways": [
       "Craft Beer Market's 100+ rotating taps make it the largest craft beer selection in Liberty Village at $8 to $12 per pint",
-      "Brazen Head is the only bar open until 2 am seven days a week \u2014 its $7 happy hour pints (3 pm to 6 pm) are the neighbourhood's best deal",
+      "Brazen Head is the only bar open until 2 am seven days a week — its $7 happy hour pints (3 pm to 6 pm) are the neighbourhood's best deal",
       "The Rec Room charges no cover on weeknights but $10 to $15 on Friday and Saturday DJ nights after 10 pm",
-      "Liberty Commons' 200-seat beer hall brews on-site and serves $8 house lagers \u2014 the best value for fresh craft beer",
-      "Left Field Brewery on Wagstaff Drive releases limited-edition cans every Friday \u2014 lineups start by 11 am for popular drops"
+      "Liberty Commons' 200-seat beer hall brews on-site and serves $8 house lagers — the best value for fresh craft beer",
+      "Left Field Brewery on Wagstaff Drive releases limited-edition cans every Friday — lineups start by 11 am for popular drops"
     ],
     "proTips": [
-      "Brazen Head's Wednesday trivia starts at 7 pm but teams claim tables by 6:30 \u2014 arrive early or sit on the patio where overflow spots open up",
-      "Craft Beer Market's happy hour runs 3 pm to 6 pm weekdays with $2 off all taps \u2014 the back corner booths are quietest for conversation",
-      "The Rec Room's arcade tokens are 4 for $5 on Tuesday nights versus 2 for $5 the rest of the week \u2014 the best time to bowl is before 8 pm",
-      "Liberty Commons fills to capacity by 6 pm on TFC match days \u2014 arrive an hour before kickoff or watch from Brazen Head instead",
-      "Left Field Brewery's taproom closes at 9 pm on weekdays \u2014 go Saturday afternoon for the full tap list and food truck outside"
+      "Brazen Head's Wednesday trivia starts at 7 pm but teams claim tables by 6:30 — arrive early or sit on the patio where overflow spots open up",
+      "Craft Beer Market's happy hour runs 3 pm to 6 pm weekdays with $2 off all taps — the back corner booths are quietest for conversation",
+      "The Rec Room's arcade tokens are 4 for $5 on Tuesday nights versus 2 for $5 the rest of the week — the best time to bowl is before 8 pm",
+      "Liberty Commons fills to capacity by 6 pm on TFC match days — arrive an hour before kickoff or watch from Brazen Head instead",
+      "Left Field Brewery's taproom closes at 9 pm on weekdays — go Saturday afternoon for the full tap list and food truck outside"
     ],
-    "neighbourhoodContext": "Liberty Village's bar scene punches above its weight for a neighbourhood of 7,500 people. The proximity to BMO Field means that every TFC match and major concert funnels thousands of visitors through the area, keeping bars busy on event nights year-round. This sports-adjacent energy defines the vibe \u2014 most bars have multiple screens, and Craft Beer Market transforms into a de facto stadium overflow on game days.\n\nThe split between craft beer culture and traditional pub culture is the defining feature of the bar scene here. Craft Beer Market and Left Field Brewery cater to Toronto's growing craft beer community, while Brazen Head anchors the traditional side with darts, trivia, and a no-pretense atmosphere that has kept regulars coming back for over a decade.\n\nSummer transforms the neighbourhood's bar scene entirely. Brazen Head's 80-seat wraparound patio, Liberty Commons' 200-seat beer hall patio, and Craft Beer Market's mezzanine become the primary draw from May through October, making Liberty Village one of the best patio destinations on the west side of Toronto.",
+    "neighbourhoodContext": "Liberty Village's bar scene punches above its weight for a neighbourhood of 7,500 people. The proximity to BMO Field means that every TFC match and major concert funnels thousands of visitors through the area, keeping bars busy on event nights year-round. This sports-adjacent energy defines the vibe — most bars have multiple screens, and Craft Beer Market transforms into a de facto stadium overflow on game days.\n\nThe split between craft beer culture and traditional pub culture is the defining feature of the bar scene here. Craft Beer Market and Left Field Brewery cater to Toronto's growing craft beer community, while Brazen Head anchors the traditional side with darts, trivia, and a no-pretense atmosphere that has kept regulars coming back for over a decade.\n\nSummer transforms the neighbourhood's bar scene entirely. Brazen Head's 80-seat wraparound patio, Liberty Commons' 200-seat beer hall patio, and Craft Beer Market's mezzanine become the primary draw from May through October, making Liberty Village one of the best patio destinations on the west side of Toronto.",
     "specificFaqs": [
       {
         "question": "What are the best bars in Liberty Village for craft beer?",
@@ -582,7 +582,7 @@
       },
       {
         "question": "Are there trivia nights at Liberty Village bars?",
-        "answer": "Brazen Head Irish Pub hosts the neighbourhood's most popular trivia night every Wednesday starting at 7 pm. Teams of up to 6 compete for bar tabs and bragging rights \u2014 arrive by 6:30 pm to claim a table, as the pub fills to capacity by start time. Craft Beer Market runs occasional themed trivia events advertised on their Instagram, typically once a month on Thursday evenings."
+        "answer": "Brazen Head Irish Pub hosts the neighbourhood's most popular trivia night every Wednesday starting at 7 pm. Teams of up to 6 compete for bar tabs and bragging rights — arrive by 6:30 pm to claim a table, as the pub fills to capacity by start time. Craft Beer Market runs occasional themed trivia events advertised on their Instagram, typically once a month on Thursday evenings."
       },
       {
         "question": "Which Liberty Village bars have the best patios?",
@@ -610,7 +610,7 @@
       },
       {
         "question": "What is the best bar for a date in Liberty Village?",
-        "answer": "Left Field Brewery's taproom offers an intimate atmosphere with interesting beer selections and food truck options outside \u2014 low-key and conversational. Craft Beer Market's back corner booths provide a quieter space than you would expect from a 100-tap beer hall, especially during weekday evenings before 7 pm. Avoid Brazen Head and The Rec Room on weekends if you want to actually hear each other talk."
+        "answer": "Left Field Brewery's taproom offers an intimate atmosphere with interesting beer selections and food truck options outside — low-key and conversational. Craft Beer Market's back corner booths provide a quieter space than you would expect from a 100-tap beer hall, especially during weekday evenings before 7 pm. Avoid Brazen Head and The Rec Room on weekends if you want to actually hear each other talk."
       }
     ]
   },
@@ -618,8 +618,8 @@
     "slug": "patios",
     "name": "Patio",
     "pluralName": "Patios",
-    "description": "When summer hits, Liberty Village patios along East Liberty and King West fill up fast \u2014 locals know to grab a table early on sunny afternoons.",
-    "icon": "\u2600\ufe0f",
+    "description": "When summer hits, Liberty Village patios along East Liberty and King West fill up fast — locals know to grab a table early on sunny afternoons.",
+    "icon": "☀️",
     "relatedServices": [
       "bars",
       "restaurants",
@@ -654,8 +654,8 @@
     "slug": "gyms",
     "name": "Gym",
     "pluralName": "Gyms",
-    "description": "Every gym in Liberty Village compared for 2026 \u2014 GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, class types, hours, and which one fits your workout style.",
-    "icon": "\ud83c\udfcb\ufe0f",
+    "description": "Every gym in Liberty Village compared for 2026 — GoodLife ($50/mo), F45 ($200/mo), Altea Active ($100/mo). Prices, class types, hours, and which one fits your workout style.",
+    "icon": "🏋️",
     "relatedServices": [
       "personal-trainers",
       "yoga-studios",
@@ -722,19 +722,19 @@
     },
     "keyTakeaways": [
       "GoodLife Fitness is the most affordable at $30 to $50 per month with the longest hours (5 am to 11 pm weekdays) at 85 Hanna Ave Suite 200",
-      "F45 Training charges $200 per month but holds a 4.5/5 rating \u2014 the highest in the neighbourhood \u2014 for its structured 45-minute HIIT sessions",
+      "F45 Training charges $200 per month but holds a 4.5/5 rating — the highest in the neighbourhood — for its structured 45-minute HIIT sessions",
       "Altea Active's $150 to $200 monthly fee includes saltwater pool, spa, hot yoga studio, and a rooftop pool deck",
       "Movati Athletic at $60 to $80 per month offers the best value for members who want pool access without the premium Altea price",
       "SpinCo and Orangetheory both run in the $150 to $180 range and offer free trial classes for first-time visitors"
     ],
     "proTips": [
-      "GoodLife's peak hours are 5:30 pm to 7:30 pm weekdays \u2014 go before 7 am or after 8:30 pm for open equipment",
-      "F45 offers a free one-week trial with no commitment \u2014 sign up online to avoid the in-studio sales pitch",
-      "Altea Active's rooftop pool is least crowded Tuesday and Thursday mornings before 8 am \u2014 lap swim without sharing a lane",
-      "Most Liberty Village condos (including the Toy Factory and Lofts at Liberty) have basic gyms \u2014 check yours before buying a membership",
-      "Orangetheory's 5:30 am classes fill 48 hours in advance \u2014 book immediately when the schedule drops on Sunday nights"
+      "GoodLife's peak hours are 5:30 pm to 7:30 pm weekdays — go before 7 am or after 8:30 pm for open equipment",
+      "F45 offers a free one-week trial with no commitment — sign up online to avoid the in-studio sales pitch",
+      "Altea Active's rooftop pool is least crowded Tuesday and Thursday mornings before 8 am — lap swim without sharing a lane",
+      "Most Liberty Village condos (including the Toy Factory and Lofts at Liberty) have basic gyms — check yours before buying a membership",
+      "Orangetheory's 5:30 am classes fill 48 hours in advance — book immediately when the schedule drops on Sunday nights"
     ],
-    "neighbourhoodContext": "Liberty Village's gym scene reflects the neighbourhood's demographics: a concentration of 25-to-40-year-old professionals who prioritise fitness and are willing to pay for convenience. The area supports six distinct gyms within a 10-minute walk, an unusually high density for a neighbourhood of just 0.45 km\u00b2 and roughly 7,500 residents.\n\nThe pricing range spans from GoodLife's no-frills equipment floor at $30 per month to Altea Active's resort-style facility at $200. This spread means almost every budget and training style is covered without leaving the neighbourhood. Most residents can walk to their gym in under 7 minutes, which removes the commute excuse that kills gym habits elsewhere in the city.\n\nBoutique fitness studios like F45, SpinCo, and Orangetheory have thrived in Liberty Village because the community-driven class format appeals to remote workers who miss the social structure of an office. Morning classes in particular serve as a de facto social scene for the neighbourhood's large work-from-home population, with regulars building friendships through shared 5:30 am sessions.",
+    "neighbourhoodContext": "Liberty Village's gym scene reflects the neighbourhood's demographics: a concentration of 25-to-40-year-old professionals who prioritise fitness and are willing to pay for convenience. The area supports six distinct gyms within a 10-minute walk, an unusually high density for a neighbourhood of just 0.45 km² and roughly 7,500 residents.\n\nThe pricing range spans from GoodLife's no-frills equipment floor at $30 per month to Altea Active's resort-style facility at $200. This spread means almost every budget and training style is covered without leaving the neighbourhood. Most residents can walk to their gym in under 7 minutes, which removes the commute excuse that kills gym habits elsewhere in the city.\n\nBoutique fitness studios like F45, SpinCo, and Orangetheory have thrived in Liberty Village because the community-driven class format appeals to remote workers who miss the social structure of an office. Morning classes in particular serve as a de facto social scene for the neighbourhood's large work-from-home population, with regulars building friendships through shared 5:30 am sessions.",
     "sections": [
       {
         "heading": "Best for Weightlifting",
@@ -742,11 +742,11 @@
       },
       {
         "heading": "Best for Classes",
-        "content": "F45 Training dominates the group class scene with its rotating daily workout format \u2014 no two sessions are the same in a 36-day cycle. Classes run 45 minutes and combine functional training, cardio, and resistance. SpinCo delivers high-energy cycling with real-time leaderboard competition and nightclub-style lighting. Orangetheory offers a structured blend of treadmill intervals and floor work, with heart-rate monitors tracking your effort zones. All three studios offer free trial classes."
+        "content": "F45 Training dominates the group class scene with its rotating daily workout format — no two sessions are the same in a 36-day cycle. Classes run 45 minutes and combine functional training, cardio, and resistance. SpinCo delivers high-energy cycling with real-time leaderboard competition and nightclub-style lighting. Orangetheory offers a structured blend of treadmill intervals and floor work, with heart-rate monitors tracking your effort zones. All three studios offer free trial classes."
       },
       {
         "heading": "Best Budget Option",
-        "content": "GoodLife Fitness at $30 to $50 per month is the clear budget winner, with full equipment access and group fitness classes included. Movati Athletic at $60 to $80 is the next step up, adding a pool, steam room, and a wider variety of group classes. Many Liberty Village condos also have basic fitness rooms with cardio equipment and free weights \u2014 buildings like the Toy Factory Lofts and Liberty Central have gyms that cover the essentials for residents who only need occasional use."
+        "content": "GoodLife Fitness at $30 to $50 per month is the clear budget winner, with full equipment access and group fitness classes included. Movati Athletic at $60 to $80 is the next step up, adding a pool, steam room, and a wider variety of group classes. Many Liberty Village condos also have basic fitness rooms with cardio equipment and free weights — buildings like the Toy Factory Lofts and Liberty Central have gyms that cover the essentials for residents who only need occasional use."
       }
     ],
     "specificFaqs": [
@@ -772,11 +772,11 @@
       },
       {
         "question": "Which gym has the best pool in Liberty Village?",
-        "answer": "Altea Active has the standout pool facility \u2014 a 25-metre saltwater lap pool plus a rooftop pool deck that opens in summer. Movati Athletic also has a pool, though it is smaller and better suited for recreational swimming than serious lap training. GoodLife, F45, SpinCo, and Orangetheory do not have pools. If lap swimming is your primary workout, Altea Active is the only real option in the neighbourhood."
+        "answer": "Altea Active has the standout pool facility — a 25-metre saltwater lap pool plus a rooftop pool deck that opens in summer. Movati Athletic also has a pool, though it is smaller and better suited for recreational swimming than serious lap training. GoodLife, F45, SpinCo, and Orangetheory do not have pools. If lap swimming is your primary workout, Altea Active is the only real option in the neighbourhood."
       },
       {
         "question": "What are peak hours at Liberty Village gyms?",
-        "answer": "Peak hours at most Liberty Village gyms run from 5:30 pm to 7:30 pm on weekdays and 9 am to 11 am on weekends. GoodLife and Movati see the heaviest evening traffic. Morning slots before 7 am are consistently quieter across all locations. F45 and Orangetheory's 5:30 am classes fill up fastest \u2014 book 48 hours ahead to guarantee a spot."
+        "answer": "Peak hours at most Liberty Village gyms run from 5:30 pm to 7:30 pm on weekdays and 9 am to 11 am on weekends. GoodLife and Movati see the heaviest evening traffic. Morning slots before 7 am are consistently quieter across all locations. F45 and Orangetheory's 5:30 am classes fill up fastest — book 48 hours ahead to guarantee a spot."
       },
       {
         "question": "Is personal training available in Liberty Village?",
@@ -792,7 +792,7 @@
       },
       {
         "question": "What is the highest-rated gym in Liberty Village?",
-        "answer": "F45 Training Liberty Village holds the highest Google rating at 4.5 stars, driven by its structured 45-minute HIIT class format and consistent instructor quality. Altea Active follows at 4.3 stars for its premium amenities (saltwater lap pool, rooftop deck, sauna). GoodLife Fitness on King Street West has the highest review volume \u2014 roughly 380 reviews at 3.7 stars \u2014 making it the most-rated gym in the neighbourhood."
+        "answer": "F45 Training Liberty Village holds the highest Google rating at 4.5 stars, driven by its structured 45-minute HIIT class format and consistent instructor quality. Altea Active follows at 4.3 stars for its premium amenities (saltwater lap pool, rooftop deck, sauna). GoodLife Fitness on King Street West has the highest review volume — roughly 380 reviews at 3.7 stars — making it the most-rated gym in the neighbourhood."
       }
     ]
   },
@@ -801,7 +801,7 @@
     "name": "Yoga Studio",
     "pluralName": "Yoga Studios",
     "description": "Liberty Village's yoga studios offer everything from hot yoga to vinyasa flow, many within converted warehouse spaces that define the neighbourhood's vibe.",
-    "icon": "\ud83e\uddd8",
+    "icon": "🧘",
     "relatedServices": [
       "pilates",
       "gyms",
@@ -837,7 +837,7 @@
     "name": "Pilates Studio",
     "pluralName": "Pilates Studios",
     "description": "Pilates has become a Liberty Village staple, with reformer and mat classes available at studios scattered around Mowat and Atlantic Ave.",
-    "icon": "\ud83e\udd38",
+    "icon": "🤸",
     "relatedServices": [
       "yoga-studios",
       "gyms",
@@ -873,7 +873,7 @@
     "name": "Dentist",
     "pluralName": "Dentists",
     "description": "Edition Dental Liberty Village: 4.5★ across 198+ reviews, accepting new patients at 65 Jefferson Ave. Compare Edition Dental reviews, hours, insurance coverage, emergency care, and cosmetic dentistry with Liberty Village Dental (4.4★).",
-    "icon": "\ud83e\uddb7",
+    "icon": "🦷",
     "relatedServices": [
       "doctors",
       "optometrists",
@@ -885,9 +885,9 @@
     "answerBlock": "Liberty Village's dentists serve the neighbourhood's dense condo population from clinics along East Liberty Street and Jefferson Ave. Most accept new patients, bill insurance directly, and offer Saturday or evening appointments for working professionals, with options spanning boutique cosmetic care as well as general and family dentistry. See the individual clinic profiles below for ratings, addresses, and booking details.",
     "definition": "Dentists in Liberty Village serve the neighbourhood's dense condo population from clinics along East Liberty Street and Jefferson Ave, with most offering extended evening hours for professionals.",
     "keyTakeaways": [
-      "Edition Dental (4.5\u2605) and Liberty Village Dental (4.4\u2605) are the two active Liberty Village clinics accepting new patients.",
-      "Both clinics offer Saturday hours \u2014 the only weekend availability inside the neighbourhood.",
-      "Liberty Village Dental has evening hours until 7pm Mon\u2013Thu; Edition Dental closes at 6pm.",
+      "Edition Dental (4.5★) and Liberty Village Dental (4.4★) are the two active Liberty Village clinics accepting new patients.",
+      "Both clinics offer Saturday hours — the only weekend availability inside the neighbourhood.",
+      "Liberty Village Dental has evening hours until 7pm Mon–Thu; Edition Dental closes at 6pm.",
       "Direct insurance billing is standard at both clinics.",
       "For after-hours dental emergencies, Toronto Western Hospital's dental ER is the closest option."
     ],
@@ -903,54 +903,54 @@
       "rows": [
         {
           "Clinic": "Edition Dental",
-          "Rating": "4.5\u2605 (198 reviews)",
+          "Rating": "4.5★ (198 reviews)",
           "Location": "65 Jefferson Ave",
-          "Weekend": "Sat 10am\u20133pm",
+          "Weekend": "Sat 10am–3pm",
           "Evenings": "Until 6pm",
           "Specialty": "Cosmetic, veneers, whitening"
         },
         {
           "Clinic": "Liberty Village Dental",
-          "Rating": "4.4\u2605 (312 reviews)",
+          "Rating": "4.4★ (312 reviews)",
           "Location": "171 East Liberty St",
-          "Weekend": "Sat 9am\u20133pm",
-          "Evenings": "Until 7pm Mon\u2013Thu",
+          "Weekend": "Sat 9am–3pm",
+          "Evenings": "Until 7pm Mon–Thu",
           "Specialty": "General, Invisalign, family"
         }
       ]
     },
     "proTips": [
-      "Book Saturday slots 2\u20133 weeks ahead \u2014 they fill first and are the only weekend option in Liberty Village.",
+      "Book Saturday slots 2–3 weeks ahead — they fill first and are the only weekend option in Liberty Village.",
       "If you have insurance, call ahead to confirm direct billing for your provider before the appointment.",
       "For a cosmetic consult (veneers, whitening) go to Edition Dental; for family and Invisalign, Liberty Village Dental has more evening capacity.",
-      "Emergency cases: call during morning hours \u2014 both clinics reserve same-day slots but they go quickly."
+      "Emergency cases: call during morning hours — both clinics reserve same-day slots but they go quickly."
     ],
     "sections": [
       {
-        "heading": "Edition Dental \u2014 Reviews, Hours & What to Expect",
-        "content": "Edition Dental at 65 Jefferson Avenue holds a 4.5-star rating across 198 Google reviews, making it the highest-rated dental clinic inside Liberty Village. Patients describe the experience as boutique and spa-like: modern office design, concierge-style booking, and a small, attentive team. The clinic's specialty is cosmetic dentistry \u2014 veneers, whitening, and aesthetic work \u2014 though they also handle general cleanings, fillings, and Invisalign. Hours are weekdays 9am to 6pm and Saturday 10am to 3pm. Direct insurance billing is offered. Pricing skews $$$ versus typical Toronto rates; new patient consultations are typically $250 to $300, and the clinic operates by appointment only with no walk-ins."
+        "heading": "Edition Dental — Reviews, Hours & What to Expect",
+        "content": "Edition Dental at 65 Jefferson Avenue holds a 4.5-star rating across 198 Google reviews, making it the highest-rated dental clinic inside Liberty Village. Patients describe the experience as boutique and spa-like: modern office design, concierge-style booking, and a small, attentive team. The clinic's specialty is cosmetic dentistry — veneers, whitening, and aesthetic work — though they also handle general cleanings, fillings, and Invisalign. Hours are weekdays 9am to 6pm and Saturday 10am to 3pm. Direct insurance billing is offered. Pricing skews $$$ versus typical Toronto rates; new patient consultations are typically $250 to $300, and the clinic operates by appointment only with no walk-ins."
       },
       {
-        "heading": "Liberty Village Dental \u2014 Family & Evening Care",
-        "content": "Liberty Village Dental at 171 East Liberty Street is the neighbourhood's higher-volume family clinic \u2014 4.4 stars across 312 Google reviews. The clinic focuses on general dentistry, family care, and Invisalign, with extended evening hours until 7pm Monday through Thursday and Saturday 9am to 3pm. They accept new patients, bill insurance directly, and reserve morning slots for same-day emergencies. Compared to Edition Dental, this clinic prioritises throughput over boutique experience and serves working professionals who need late appointments."
+        "heading": "Liberty Village Dental — Family & Evening Care",
+        "content": "Liberty Village Dental at 171 East Liberty Street is the neighbourhood's higher-volume family clinic — 4.4 stars across 312 Google reviews. The clinic focuses on general dentistry, family care, and Invisalign, with extended evening hours until 7pm Monday through Thursday and Saturday 9am to 3pm. They accept new patients, bill insurance directly, and reserve morning slots for same-day emergencies. Compared to Edition Dental, this clinic prioritises throughput over boutique experience and serves working professionals who need late appointments."
       }
     ],
     "specificFaqs": [
       {
         "question": "What is the best family dental clinic near East Liberty Street in Toronto?",
-        "answer": "Liberty Village Dental at 171 East Liberty St is the closest family dental clinic to East Liberty Street, with a 4.4\u2605 rating across 312 reviews. They handle general dentistry, cleanings, Invisalign, and cosmetic work, and offer evening hours Mon\u2013Thu until 7pm plus Saturday 9am\u20133pm. Edition Dental at 65 Jefferson Ave is a 3-minute walk away and is the other option for family care, scoring 4.5\u2605."
+        "answer": "Liberty Village Dental at 171 East Liberty St is the closest family dental clinic to East Liberty Street, with a 4.4★ rating across 312 reviews. They handle general dentistry, cleanings, Invisalign, and cosmetic work, and offer evening hours Mon–Thu until 7pm plus Saturday 9am–3pm. Edition Dental at 65 Jefferson Ave is a 3-minute walk away and is the other option for family care, scoring 4.5★."
       },
       {
         "question": "Are there evening or weekend dentist appointments near East Liberty Street, Toronto?",
-        "answer": "Yes. Liberty Village Dental at 171 East Liberty St is open evenings until 7pm Monday through Thursday and Saturdays from 9am to 3pm. Edition Dental at 65 Jefferson Ave offers Saturday 10am\u20133pm and weekday hours to 6pm. Sunday dental appointments are not available inside Liberty Village \u2014 the closest Sunday option is a 10-minute drive into downtown Toronto."
+        "answer": "Yes. Liberty Village Dental at 171 East Liberty St is open evenings until 7pm Monday through Thursday and Saturdays from 9am to 3pm. Edition Dental at 65 Jefferson Ave offers Saturday 10am–3pm and weekday hours to 6pm. Sunday dental appointments are not available inside Liberty Village — the closest Sunday option is a 10-minute drive into downtown Toronto."
       },
       {
         "question": "What are the reviews like for Edition Dental in Liberty Village?",
-        "answer": "Edition Dental at 65 Jefferson Ave holds a 4.5\u2605 rating across 198 Google reviews. Patients describe it as a boutique, spa-like experience with a concierge-style booking process. Reviewers praise the modern office, attentive staff, and strong cosmetic work \u2014 especially veneers and whitening. The main criticisms are higher pricing ($$$ range) and appointment-only policy with no walk-ins."
+        "answer": "Edition Dental at 65 Jefferson Ave holds a 4.5★ rating across 198 Google reviews. Patients describe it as a boutique, spa-like experience with a concierge-style booking process. Reviewers praise the modern office, attentive staff, and strong cosmetic work — especially veneers and whitening. The main criticisms are higher pricing ($$$ range) and appointment-only policy with no walk-ins."
       },
       {
         "question": "How much does a dental cleaning cost in Liberty Village?",
-        "answer": "Standard cleanings at Liberty Village dental offices run $200\u2013350 without insurance. Liberty Village Dental on East Liberty and Edition Dental on Jefferson Ave both accept major insurance plans with direct billing, so you may pay nothing out of pocket depending on your coverage."
+        "answer": "Standard cleanings at Liberty Village dental offices run $200–350 without insurance. Liberty Village Dental on East Liberty and Edition Dental on Jefferson Ave both accept major insurance plans with direct billing, so you may pay nothing out of pocket depending on your coverage."
       },
       {
         "question": "Are there emergency dentists in Liberty Village?",
@@ -958,7 +958,7 @@
       },
       {
         "question": "Do Liberty Village dentists accept new patients in 2026?",
-        "answer": "Yes \u2014 both Edition Dental and Liberty Village Dental are actively accepting new patients as of 2026. Initial booking may take 1\u20132 weeks depending on demand. Call or book online to start the intake process; both clinics accept direct insurance billing for most major Canadian providers."
+        "answer": "Yes — both Edition Dental and Liberty Village Dental are actively accepting new patients as of 2026. Initial booking may take 1–2 weeks depending on demand. Call or book online to start the intake process; both clinics accept direct insurance billing for most major Canadian providers."
       }
     ]
   },
@@ -966,8 +966,8 @@
     "slug": "doctors",
     "name": "Doctor",
     "pluralName": "Doctors",
-    "description": "Walk-in clinics and family doctors serve the Liberty Village community, though wait lists for a family physician can be long \u2014 we track who's accepting patients.",
-    "icon": "\ud83e\ude7a",
+    "description": "Walk-in clinics and family doctors serve the Liberty Village community, though wait lists for a family physician can be long — we track who's accepting patients.",
+    "icon": "🩺",
     "relatedServices": [
       "dentists",
       "pharmacies",
@@ -978,7 +978,7 @@
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/doctors.jpg",
-    "answerBlock": "Liberty Village's primary medical care centres on a neighbourhood family health team offering family medicine, mental health counseling, and dietitian services under one roof. Clinics accept new patients periodically \u2014 calling early in the month for intake is the best strategy \u2014 and same-day urgent appointments are usually available for registered patients. See the listing for hours and contact details.",
+    "answerBlock": "Liberty Village's primary medical care centres on a neighbourhood family health team offering family medicine, mental health counseling, and dietitian services under one roof. Clinics accept new patients periodically — calling early in the month for intake is the best strategy — and same-day urgent appointments are usually available for registered patients. See the listing for hours and contact details.",
     "definition": "Doctors in Liberty Village primarily operate through the Atlantic Ave medical offices, providing family medicine and walk-in services to a neighbourhood with growing demand and limited clinic space.",
     "specificFaqs": [
       {
@@ -1004,7 +1004,7 @@
     "name": "Veterinarian",
     "pluralName": "Veterinarians",
     "description": "Liberty Village is one of Toronto's most dog-friendly neighbourhoods, and local vets along King West and Atlantic Ave keep the furry residents healthy.",
-    "icon": "\ud83d\udc3e",
+    "icon": "🐾",
     "relatedServices": [
       "dog-walkers",
       "dog-groomers",
@@ -1013,7 +1013,7 @@
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/veterinarians.jpg",
-    "answerBlock": "Liberty Village is one of Toronto's most dog-friendly neighbourhoods, and its animal hospital handles everything from routine check-ups to dental cleanings and minor surgeries. Clinics stay busy year-round, so booking annual visits in January or February \u2014 when schedules are lighter \u2014 beats the spring rush. See the listing for ratings, address, and hours.",
+    "answerBlock": "Liberty Village is one of Toronto's most dog-friendly neighbourhoods, and its animal hospital handles everything from routine check-ups to dental cleanings and minor surgeries. Clinics stay busy year-round, so booking annual visits in January or February — when schedules are lighter — beats the spring rush. See the listing for ratings, address, and hours.",
     "definition": "Veterinarians in Liberty Village serve one of Toronto's highest dog-per-capita populations, with clinics on Hanna Ave providing full-service care to the neighbourhood's condo-dwelling pet owners.",
     "specificFaqs": [
       {
@@ -1038,8 +1038,8 @@
     "slug": "dog-walkers",
     "name": "Dog Walker",
     "pluralName": "Dog Walkers",
-    "description": "With so many dog owners in Liberty Village condos, professional dog walkers are in high demand \u2014 especially during the workday when nearby dog parks get busy.",
-    "icon": "\ud83d\udc15",
+    "description": "With so many dog owners in Liberty Village condos, professional dog walkers are in high demand — especially during the workday when nearby dog parks get busy.",
+    "icon": "🐕",
     "relatedServices": [
       "veterinarians",
       "dog-groomers",
@@ -1074,7 +1074,7 @@
     "name": "Dog Groomer",
     "pluralName": "Dog Groomers",
     "description": "Keep your pup looking sharp with Liberty Village's local dog groomers, several of which offer pickup and drop-off service to neighbourhood condos.",
-    "icon": "\u2702\ufe0f\ud83d\udc29",
+    "icon": "✂️🐩",
     "relatedServices": [
       "veterinarians",
       "dog-walkers",
@@ -1109,7 +1109,7 @@
     "name": "Hair Salon",
     "pluralName": "Hair Salons",
     "description": "Liberty Village's hair salons range from trendy boutique studios in converted lofts to established full-service salons along King Street West.",
-    "icon": "\ud83d\udc87",
+    "icon": "💇",
     "relatedServices": [
       "barbers",
       "nail-salons",
@@ -1144,7 +1144,7 @@
     "name": "Barber",
     "pluralName": "Barbers",
     "description": "Classic cuts and modern fades are easy to find at Liberty Village barbershops, many of which take walk-ins along East Liberty and Hanna Ave.",
-    "icon": "\ud83d\udc88",
+    "icon": "💈",
     "relatedServices": [
       "hair-salons",
       "nail-salons"
@@ -1178,7 +1178,7 @@
     "name": "Nail Salon",
     "pluralName": "Nail Salons",
     "description": "Whether it's a quick mani-pedi or full gel set, Liberty Village nail salons keep locals polished without trekking downtown.",
-    "icon": "\ud83d\udc85",
+    "icon": "💅",
     "relatedServices": [
       "hair-salons",
       "barbers",
@@ -1212,8 +1212,8 @@
     "slug": "house-cleaning",
     "name": "House Cleaning Service",
     "pluralName": "House Cleaning Services",
-    "description": "Condo living in Liberty Village means regular cleaning is a must \u2014 local cleaning services know the typical condo layouts and building access rules.",
-    "icon": "\ud83e\uddf9",
+    "description": "Condo living in Liberty Village means regular cleaning is a must — local cleaning services know the typical condo layouts and building access rules.",
+    "icon": "🧹",
     "relatedServices": [
       "movers",
       "dry-cleaners",
@@ -1247,8 +1247,8 @@
     "slug": "movers",
     "name": "Moving Company",
     "pluralName": "Moving Companies",
-    "description": "Moving in or out of a Liberty Village condo requires movers who know elevator booking rules, loading docks, and tight parking \u2014 local experience matters.",
-    "icon": "\ud83d\ude9a",
+    "description": "Moving in or out of a Liberty Village condo requires movers who know elevator booking rules, loading docks, and tight parking — local experience matters.",
+    "icon": "🚚",
     "relatedServices": [
       "house-cleaning",
       "real-estate-agents",
@@ -1283,7 +1283,7 @@
     "name": "Personal Trainer",
     "pluralName": "Personal Trainers",
     "description": "Liberty Village personal trainers offer one-on-one sessions at local gyms, condo fitness rooms, and outdoor spots like Lamport Stadium park.",
-    "icon": "\ud83d\udcaa",
+    "icon": "💪",
     "relatedServices": [
       "gyms",
       "yoga-studios",
@@ -1318,15 +1318,15 @@
     "slug": "daycares",
     "name": "Daycare",
     "pluralName": "Daycares",
-    "description": "Daycare spots in Liberty Village fill up fast \u2014 getting on waitlists early is essential for the neighbourhood's growing population of young families.",
-    "icon": "\ud83d\udc76",
+    "description": "Daycare spots in Liberty Village fill up fast — getting on waitlists early is essential for the neighbourhood's growing population of young families.",
+    "icon": "👶",
     "relatedServices": [
       "tutors"
     ],
     "searchVolume": "high",
     "competitiveness": "medium",
     "image": "/images/services/daycares.jpg",
-    "answerBlock": "Liberty Village's licensed daycare offers play-based programming for infants through preschool age and serves the neighbourhood's growing population of young families. Waitlists are long \u2014 often 12 to 18 months \u2014 so getting on early is essential, and monthly fees follow the City of Toronto fee reduction program. See the listing for details.",
+    "answerBlock": "Liberty Village's licensed daycare offers play-based programming for infants through preschool age and serves the neighbourhood's growing population of young families. Waitlists are long — often 12 to 18 months — so getting on early is essential, and monthly fees follow the City of Toronto fee reduction program. See the listing for details.",
     "definition": "Daycares in Liberty Village serve the neighbourhood's expanding young family population, with licensed centres along Western Battery Rd providing structured early childhood education.",
     "specificFaqs": [
       {
@@ -1352,7 +1352,7 @@
     "name": "Coworking Space",
     "pluralName": "Coworking Spaces",
     "description": "Liberty Village's tech and creative roots make it a natural hub for coworking, with dedicated spaces and drop-in desks in converted industrial buildings.",
-    "icon": "\ud83c\udfe2",
+    "icon": "🏢",
     "relatedServices": [
       "coffee-shops",
       "restaurants",
@@ -1394,7 +1394,7 @@
           "Best For": "Polished address & networking"
         },
         {
-          "Space": "Balzac's (caf\u00e9)",
+          "Space": "Balzac's (café)",
           "Day Pass": "$5 coffee",
           "Monthly": "N/A",
           "Meeting Rooms": "No",
@@ -1404,27 +1404,27 @@
     },
     "keyTakeaways": [
       "The Fueling Station offers the lowest entry point at $200 per month for hot desks with a 4.4/5 community rating",
-      "Spaces and WeWork both offer 24/7 member access \u2014 crucial for startup founders working non-standard hours",
+      "Spaces and WeWork both offer 24/7 member access — crucial for startup founders working non-standard hours",
       "Day passes range from $25 at The Fueling Station to $40 at WeWork, making trial visits affordable before committing",
       "Private offices start at $600 per month across all three spaces, with Spaces charging up to $1,200 for premium suites",
       "All three coworking spaces include high-speed WiFi (100+ Mbps), printing, and kitchen facilities in their base plans"
     ],
     "proTips": [
-      "The Fueling Station runs free community events on the first Thursday of each month \u2014 attend before joining to test the vibe and meet current members",
-      "Spaces Liberty Village's rooftop patio is open to all members and is the best outdoor work spot in the neighbourhood \u2014 claim a table by 10 am in summer",
-      "WeWork offers a free day pass for first-time visitors \u2014 book through their app to avoid the walk-in sales pitch at reception",
-      "Most Liberty Village condo buildings have shared meeting rooms bookable through the concierge \u2014 a free alternative if you only need occasional meeting space",
-      "Balzac's in the Liberty Market is the unwritten fourth coworking option \u2014 buy a coffee every 90 minutes and you have a productive workspace at a fraction of the cost"
+      "The Fueling Station runs free community events on the first Thursday of each month — attend before joining to test the vibe and meet current members",
+      "Spaces Liberty Village's rooftop patio is open to all members and is the best outdoor work spot in the neighbourhood — claim a table by 10 am in summer",
+      "WeWork offers a free day pass for first-time visitors — book through their app to avoid the walk-in sales pitch at reception",
+      "Most Liberty Village condo buildings have shared meeting rooms bookable through the concierge — a free alternative if you only need occasional meeting space",
+      "Balzac's in the Liberty Market is the unwritten fourth coworking option — buy a coffee every 90 minutes and you have a productive workspace at a fraction of the cost"
     ],
-    "neighbourhoodContext": "Liberty Village's coworking scene exists because the neighbourhood is home to one of Toronto's densest concentrations of tech startups, creative agencies, and freelancers. The area's converted warehouse buildings provide the raw industrial spaces that coworking operators prize \u2014 high ceilings, exposed brick, and open floor plans that feel nothing like a corporate office.\n\nThe three dedicated coworking spaces serve distinct segments. The Fueling Station attracts early-stage startups and solo freelancers who value community over polish. Spaces Liberty Village draws established small businesses and remote teams from larger companies who need a professional environment with premium amenities. WeWork serves a similar market but with a stronger emphasis on networking events and a prestigious mailing address.\n\nBeyond the dedicated spaces, Liberty Village's coffee shops function as an informal coworking network. Balzac's, Dark Horse, and Jimmy's Coffee collectively seat over 80 laptop workers on any given weekday, creating a distributed workspace that costs nothing more than a $5 latte every couple of hours.",
+    "neighbourhoodContext": "Liberty Village's coworking scene exists because the neighbourhood is home to one of Toronto's densest concentrations of tech startups, creative agencies, and freelancers. The area's converted warehouse buildings provide the raw industrial spaces that coworking operators prize — high ceilings, exposed brick, and open floor plans that feel nothing like a corporate office.\n\nThe three dedicated coworking spaces serve distinct segments. The Fueling Station attracts early-stage startups and solo freelancers who value community over polish. Spaces Liberty Village draws established small businesses and remote teams from larger companies who need a professional environment with premium amenities. WeWork serves a similar market but with a stronger emphasis on networking events and a prestigious mailing address.\n\nBeyond the dedicated spaces, Liberty Village's coffee shops function as an informal coworking network. Balzac's, Dark Horse, and Jimmy's Coffee collectively seat over 80 laptop workers on any given weekday, creating a distributed workspace that costs nothing more than a $5 latte every couple of hours.",
     "specificFaqs": [
       {
         "question": "How much does coworking cost in Liberty Village?",
-        "answer": "Hot desks start at $200 per month at The Fueling Station on Fraser Avenue, the most affordable option. Spaces Liberty Village on East Liberty Street charges $350 per month for hot desks and up to $1,200 for premium private offices. WeWork on Atlantic Avenue runs $350 to $500 for dedicated desks. Day passes are available at all three \u2014 $25, $35, and $40 respectively."
+        "answer": "Hot desks start at $200 per month at The Fueling Station on Fraser Avenue, the most affordable option. Spaces Liberty Village on East Liberty Street charges $350 per month for hot desks and up to $1,200 for premium private offices. WeWork on Atlantic Avenue runs $350 to $500 for dedicated desks. Day passes are available at all three — $25, $35, and $40 respectively."
       },
       {
         "question": "Are there free coworking options in Liberty Village?",
-        "answer": "No dedicated free coworking spaces exist, but Balzac's Coffee Roasters in the Liberty Market building is the neighbourhood's unofficial free workspace \u2014 reliable WiFi, 40+ seats, and power outlets along the walls. Dark Horse Espresso on Liberty Street and Jimmy's Coffee on Atlantic Avenue also welcome laptop workers. Many condo buildings also have shared lounges and meeting rooms available to residents at no extra cost."
+        "answer": "No dedicated free coworking spaces exist, but Balzac's Coffee Roasters in the Liberty Market building is the neighbourhood's unofficial free workspace — reliable WiFi, 40+ seats, and power outlets along the walls. Dark Horse Espresso on Liberty Street and Jimmy's Coffee on Atlantic Avenue also welcome laptop workers. Many condo buildings also have shared lounges and meeting rooms available to residents at no extra cost."
       },
       {
         "question": "Which Liberty Village coworking space is best for startups?",
@@ -1449,7 +1449,7 @@
     "name": "Grocery Store",
     "pluralName": "Grocery Stores",
     "description": "Grocery options in Liberty Village have improved significantly, though many residents still combine local shops with a weekend trip to larger stores on King West.",
-    "icon": "\ud83d\uded2",
+    "icon": "🛒",
     "relatedServices": [
       "pharmacies",
       "bakeries",
@@ -1483,8 +1483,8 @@
     "slug": "pharmacies",
     "name": "Pharmacy",
     "pluralName": "Pharmacies",
-    "description": "Liberty Village pharmacies cover prescriptions, vaccinations, and everyday essentials \u2014 most are within a short walk along King Street West and East Liberty.",
-    "icon": "\ud83d\udc8a",
+    "description": "Liberty Village pharmacies cover prescriptions, vaccinations, and everyday essentials — most are within a short walk along King Street West and East Liberty.",
+    "icon": "💊",
     "relatedServices": [
       "doctors",
       "dentists",
@@ -1519,7 +1519,7 @@
     "name": "Dry Cleaner",
     "pluralName": "Dry Cleaners",
     "description": "Several dry cleaners serve Liberty Village with pickup and delivery to condo lobbies, making it easy to keep work clothes fresh.",
-    "icon": "\ud83d\udc54",
+    "icon": "👔",
     "relatedServices": [
       "tailors",
       "house-cleaning",
@@ -1554,7 +1554,7 @@
     "name": "Tailor",
     "pluralName": "Tailors",
     "description": "Whether you need a hem taken up or a suit altered, Liberty Village tailors offer quick turnarounds and know the local professional crowd's needs.",
-    "icon": "\ud83e\uddf5",
+    "icon": "🧵",
     "relatedServices": [
       "dry-cleaners",
       "hair-salons",
@@ -1589,7 +1589,7 @@
     "name": "Auto Repair Shop",
     "pluralName": "Auto Repair Shops",
     "description": "While most Liberty Village residents don't drive daily, those who do rely on nearby auto shops along Strachan, Dufferin, and King West for maintenance.",
-    "icon": "\ud83d\udd27",
+    "icon": "🔧",
     "relatedServices": [
       "bike-shops",
       "insurance-agents"
@@ -1623,7 +1623,7 @@
     "name": "Bike Shop",
     "pluralName": "Bike Shops",
     "description": "Cycling is a way of life in Liberty Village, and local bike shops handle everything from tune-ups to e-bike sales along the Martin Goodman Trail corridor.",
-    "icon": "\ud83d\udeb2",
+    "icon": "🚲",
     "relatedServices": [
       "auto-repair",
       "personal-trainers",
@@ -1632,7 +1632,7 @@
     "searchVolume": "medium",
     "competitiveness": "easy",
     "image": "/images/services/bike-shops.jpg",
-    "answerBlock": "Liberty Village's bike shops offer new and used sales, expert repairs, and seasonal tune-ups, with mechanics known for being honest about what your bike actually needs. Tune-ups start around $70, and shops stock urban cycling gear suited to condo storage \u2014 book spring service in March before the April rush creates week-long waits. See the listing for ratings and address.",
+    "answerBlock": "Liberty Village's bike shops offer new and used sales, expert repairs, and seasonal tune-ups, with mechanics known for being honest about what your bike actually needs. Tune-ups start around $70, and shops stock urban cycling gear suited to condo storage — book spring service in March before the April rush creates week-long waits. See the listing for ratings and address.",
     "definition": "Bike shops in Liberty Village support the neighbourhood's cycling culture along the Martin Goodman Trail corridor, providing sales, repairs, and urban commuting accessories.",
     "specificFaqs": [
       {
@@ -1657,8 +1657,8 @@
     "slug": "massage-therapy",
     "name": "Massage Therapist",
     "pluralName": "Massage Therapists",
-    "description": "Registered massage therapists in Liberty Village offer deep tissue, relaxation, and sports massage \u2014 many accept insurance direct billing.",
-    "icon": "\ud83d\udc86",
+    "description": "Registered massage therapists in Liberty Village offer deep tissue, relaxation, and sports massage — many accept insurance direct billing.",
+    "icon": "💆",
     "relatedServices": [
       "physiotherapy",
       "chiropractors",
@@ -1668,7 +1668,7 @@
     "searchVolume": "medium",
     "competitiveness": "medium",
     "image": "/images/services/massage-therapy.jpg",
-    "answerBlock": "Liberty Village's massage therapy clinics pair manual treatment with movement assessment to address the root causes of pain, not just symptoms. Sessions run $120 to $160 for 60 minutes, and most insurance plans are accepted with direct billing \u2014 book a 60-minute assessment for your first visit. Check the listing for ratings and address.",
+    "answerBlock": "Liberty Village's massage therapy clinics pair manual treatment with movement assessment to address the root causes of pain, not just symptoms. Sessions run $120 to $160 for 60 minutes, and most insurance plans are accepted with direct billing — book a 60-minute assessment for your first visit. Check the listing for ratings and address.",
     "definition": "Massage therapists in Liberty Village serve the neighbourhood's desk workers and fitness enthusiasts from clinics along East Liberty Street, with most offering insurance direct billing.",
     "specificFaqs": [
       {
@@ -1694,7 +1694,7 @@
     "name": "Physiotherapy Clinic",
     "pluralName": "Physiotherapy Clinics",
     "description": "Liberty Village physio clinics treat everything from desk-worker posture issues to sports injuries, with several located near the neighbourhood's gyms.",
-    "icon": "\ud83c\udfe5",
+    "icon": "🏥",
     "relatedServices": [
       "massage-therapy",
       "chiropractors",
@@ -1730,7 +1730,7 @@
     "name": "Chiropractor",
     "pluralName": "Chiropractors",
     "description": "Chiropractors in Liberty Village serve the neighbourhood's active population and remote workers dealing with back and neck strain.",
-    "icon": "\ud83e\uddb4",
+    "icon": "🦴",
     "relatedServices": [
       "physiotherapy",
       "massage-therapy",
@@ -1765,7 +1765,7 @@
     "name": "Optometrist",
     "pluralName": "Optometrists",
     "description": "Eye exams and new glasses are easy to find in Liberty Village, with optometry clinics offering same-day service and trendy frame selections.",
-    "icon": "\ud83d\udc53",
+    "icon": "👓",
     "relatedServices": [
       "doctors",
       "dentists",
@@ -1800,7 +1800,7 @@
     "name": "Accountant",
     "pluralName": "Accountants",
     "description": "Liberty Village's large freelancer and startup community means local accountants specialize in small business tax, incorporation, and self-employment filings.",
-    "icon": "\ud83d\udcca",
+    "icon": "📊",
     "relatedServices": [
       "lawyers",
       "insurance-agents",
@@ -1810,7 +1810,7 @@
     "searchVolume": "medium",
     "competitiveness": "easy",
     "image": "/images/services/accountants.jpg",
-    "answerBlock": "Liberty Village's accountants specialize in freelancers, tech startups, and incorporated professionals, handling year-round tax planning and bookkeeping with a cloud-based approach and quarterly check-ins. Personal tax prep starts around $200, with small business packages from $300 monthly \u2014 reach out in January for tax-season priority. Check the listing for ratings and address.",
+    "answerBlock": "Liberty Village's accountants specialize in freelancers, tech startups, and incorporated professionals, handling year-round tax planning and bookkeeping with a cloud-based approach and quarterly check-ins. Personal tax prep starts around $200, with small business packages from $300 monthly — reach out in January for tax-season priority. Check the listing for ratings and address.",
     "definition": "Accountants in Liberty Village specialize in the tax and bookkeeping needs of freelancers and startups, reflecting the neighbourhood's concentration of self-employed tech and creative professionals.",
     "specificFaqs": [
       {
@@ -1836,7 +1836,7 @@
     "name": "Lawyer",
     "pluralName": "Lawyers",
     "description": "From real estate closings to condo board disputes, Liberty Village lawyers handle the legal needs of a neighbourhood with a lot of property transactions.",
-    "icon": "\u2696\ufe0f",
+    "icon": "⚖️",
     "relatedServices": [
       "accountants",
       "real-estate-agents",
@@ -1870,8 +1870,8 @@
     "slug": "real-estate-agents",
     "name": "Real Estate Agent",
     "pluralName": "Real Estate Agents",
-    "description": "Liberty Village real estate moves fast \u2014 agents who specialize in the neighbourhood know which buildings to avoid and which ones hold their value.",
-    "icon": "\ud83c\udfe0",
+    "description": "Liberty Village real estate moves fast — agents who specialize in the neighbourhood know which buildings to avoid and which ones hold their value.",
+    "icon": "🏠",
     "relatedServices": [
       "lawyers",
       "movers",
@@ -1881,7 +1881,7 @@
     "searchVolume": "high",
     "competitiveness": "hard",
     "image": "/images/services/real-estate-agents.jpg",
-    "answerBlock": "Real estate agents in Liberty Village specialize in neighbourhood condos with intimate knowledge of every building's floor plans, maintenance fees, and upcoming special assessments \u2014 insight that can save buyers tens of thousands of dollars. Liberty Village condos typically range from about $450,000 for studios to $850,000 for two-bedrooms. See the listing for ratings and contact details.",
+    "answerBlock": "Real estate agents in Liberty Village specialize in neighbourhood condos with intimate knowledge of every building's floor plans, maintenance fees, and upcoming special assessments — insight that can save buyers tens of thousands of dollars. Liberty Village condos typically range from about $450,000 for studios to $850,000 for two-bedrooms. See the listing for ratings and contact details.",
     "definition": "Real estate agents in Liberty Village specialize in the neighbourhood's condo market, where building-specific knowledge about maintenance fees, assessments, and resale value varies dramatically between properties.",
     "specificFaqs": [
       {
@@ -1907,7 +1907,7 @@
     "name": "Insurance Agent",
     "pluralName": "Insurance Agents",
     "description": "Condo insurance, tenant insurance, and small business coverage are the bread and butter for insurance agents serving Liberty Village residents.",
-    "icon": "\ud83d\udee1\ufe0f",
+    "icon": "🛡️",
     "relatedServices": [
       "real-estate-agents",
       "lawyers",
@@ -1943,7 +1943,7 @@
     "name": "Bank",
     "pluralName": "Banks",
     "description": "RBC Liberty Village & Scotiabank on East Liberty St: Full-service branches with ATMs, Saturday hours, mortgages, business banking, and investment services. RBC at 171 East Liberty St, Scotiabank at Liberty Market Building. Compare branch hours and reviews.",
-    "icon": "\ud83c\udfe6",
+    "icon": "🏦",
     "relatedServices": [
       "accountants",
       "insurance-agents",
@@ -1973,11 +1973,11 @@
       },
       {
         "question": "Is there a BMO branch in Liberty Village?",
-        "answer": "There is no BMO branch inside Liberty Village itself. The closest BMO Bank of Montreal branch is at 1183 King Street West, a 7-minute walk north from the neighbourhood. A second BMO branch sits at 555 Lake Shore Blvd West near Exhibition Place. Note: 'BMO' in this neighbourhood usually refers to BMO Field \u2014 the FIFA World Cup 2026 stadium directly south of Liberty Village \u2014 rather than the bank. For in-Liberty-Village banking, use the Scotiabank or RBC branches on East Liberty Street."
+        "answer": "There is no BMO branch inside Liberty Village itself. The closest BMO Bank of Montreal branch is at 1183 King Street West, a 7-minute walk north from the neighbourhood. A second BMO branch sits at 555 Lake Shore Blvd West near Exhibition Place. Note: 'BMO' in this neighbourhood usually refers to BMO Field — the FIFA World Cup 2026 stadium directly south of Liberty Village — rather than the bank. For in-Liberty-Village banking, use the Scotiabank or RBC branches on East Liberty Street."
       },
       {
         "question": "What's the difference between BMO Field and BMO Bank in Liberty Village?",
-        "answer": "BMO Field is the 30,000-seat soccer stadium at Exhibition Place, directly south of Liberty Village, hosting six FIFA World Cup 2026 matches in June and July 2026. BMO Bank of Montreal is the financial institution whose closest branch to Liberty Village is at 1183 King Street West. The stadium is named after a corporate sponsorship deal with the bank \u2014 they are separate entities."
+        "answer": "BMO Field is the 30,000-seat soccer stadium at Exhibition Place, directly south of Liberty Village, hosting six FIFA World Cup 2026 matches in June and July 2026. BMO Bank of Montreal is the financial institution whose closest branch to Liberty Village is at 1183 King Street West. The stadium is named after a corporate sponsorship deal with the bank — they are separate entities."
       }
     ]
   },
@@ -1986,7 +1986,7 @@
     "name": "Tutor",
     "pluralName": "Tutors",
     "description": "Liberty Village tutors offer in-home and virtual sessions for students of all ages, from elementary homework help to university exam prep.",
-    "icon": "\ud83d\udcda",
+    "icon": "📚",
     "relatedServices": [
       "music-lessons",
       "daycares"
@@ -2019,8 +2019,8 @@
     "slug": "music-lessons",
     "name": "Music Lesson",
     "pluralName": "Music Lessons",
-    "description": "Guitar, piano, vocals, and more \u2014 Liberty Village's creative community supports several music instructors offering lessons in studios and homes.",
-    "icon": "\ud83c\udfb5",
+    "description": "Guitar, piano, vocals, and more — Liberty Village's creative community supports several music instructors offering lessons in studios and homes.",
+    "icon": "🎵",
     "relatedServices": [
       "tutors",
       "event-spaces",
@@ -2055,7 +2055,7 @@
     "name": "Pet Store",
     "pluralName": "Pet Stores",
     "description": "Liberty Village pet stores stock premium food, treats, and gear for the neighbourhood's famously large dog population.",
-    "icon": "\ud83d\udc3e",
+    "icon": "🐾",
     "relatedServices": [
       "veterinarians",
       "dog-walkers",
@@ -2064,7 +2064,7 @@
     "searchVolume": "medium",
     "competitiveness": "easy",
     "image": "/images/services/pet-stores.jpg",
-    "answerBlock": "Liberty Village's dedicated pet store stocks premium food brands, toys, treats, and accessories, with staff knowledgeable about pet nutrition and a focus on Canadian-made products. An auto-delivery program to condo lobbies saves you from hauling heavy food bags \u2014 handy in the neighbourhood's famously dog-heavy population. Check the listing for ratings and address.",
+    "answerBlock": "Liberty Village's dedicated pet store stocks premium food brands, toys, treats, and accessories, with staff knowledgeable about pet nutrition and a focus on Canadian-made products. An auto-delivery program to condo lobbies saves you from hauling heavy food bags — handy in the neighbourhood's famously dog-heavy population. Check the listing for ratings and address.",
     "definition": "Pet stores in Liberty Village stock premium food and accessories for the neighbourhood's high dog-ownership rate, with delivery to condo lobbies a standard convenience.",
     "specificFaqs": [
       {
@@ -2090,7 +2090,7 @@
     "name": "Florist",
     "pluralName": "Florists",
     "description": "Local florists in Liberty Village deliver fresh arrangements to condos and offices, with seasonal picks available at nearby markets.",
-    "icon": "\ud83d\udc90",
+    "icon": "💐",
     "relatedServices": [
       "caterers",
       "photographers",
@@ -2126,7 +2126,7 @@
     "name": "Photographer",
     "pluralName": "Photographers",
     "description": "Liberty Village's industrial backdrops, murals, and loft spaces make it a popular base for photographers specializing in portraits, events, and real estate.",
-    "icon": "\ud83d\udcf7",
+    "icon": "📷",
     "relatedServices": [
       "event-spaces",
       "caterers",
@@ -2162,7 +2162,7 @@
     "name": "Caterer",
     "pluralName": "Caterers",
     "description": "Caterers based in and around Liberty Village handle everything from office lunches to private events in the neighbourhood's unique loft and gallery venues.",
-    "icon": "\ud83c\udf71",
+    "icon": "🍱",
     "relatedServices": [
       "event-spaces",
       "restaurants",
@@ -2198,7 +2198,7 @@
     "name": "Event Space",
     "pluralName": "Event Spaces",
     "description": "Converted warehouses and industrial lofts give Liberty Village some of Toronto's most unique event venues for parties, launches, and weddings.",
-    "icon": "\ud83c\udf89",
+    "icon": "🎉",
     "relatedServices": [
       "caterers",
       "photographers",
@@ -2234,7 +2234,7 @@
     "name": "Brewery",
     "pluralName": "Breweries",
     "description": "Liberty Village's craft beer scene thrives in taprooms and microbreweries tucked into the neighbourhood's industrial heritage buildings.",
-    "icon": "\ud83c\udf7b",
+    "icon": "🍻",
     "relatedServices": [
       "bars",
       "wine-bars",
@@ -2270,7 +2270,7 @@
     "name": "Wine Bar",
     "pluralName": "Wine Bars",
     "description": "Liberty Village wine bars offer curated lists and cozy atmospheres, making them a favorite for date nights and after-work catch-ups.",
-    "icon": "\ud83c\udf77",
+    "icon": "🍷",
     "relatedServices": [
       "bars",
       "restaurants",
@@ -2306,7 +2306,7 @@
     "name": "Pizza Place",
     "pluralName": "Pizza Places",
     "description": "Whether you crave Neapolitan, New York-style, or late-night slices, Liberty Village pizza spots deliver to every condo in the neighbourhood.",
-    "icon": "\ud83c\udf55",
+    "icon": "🍕",
     "relatedServices": [
       "restaurants",
       "italian-restaurants",
@@ -2342,7 +2342,7 @@
     "name": "Sushi Restaurant",
     "pluralName": "Sushi Restaurants",
     "description": "Sushi lovers in Liberty Village can choose from all-you-can-eat spots to omakase-style counters without leaving the neighbourhood.",
-    "icon": "\ud83c\udf63",
+    "icon": "🍣",
     "relatedServices": [
       "restaurants",
       "thai-restaurants",
@@ -2377,7 +2377,7 @@
     "name": "Thai Restaurant",
     "pluralName": "Thai Restaurants",
     "description": "Pad thai, curries, and mango sticky rice are all within delivery range from Liberty Village Thai restaurants along King West.",
-    "icon": "\ud83c\udf5c",
+    "icon": "🍜",
     "relatedServices": [
       "restaurants",
       "sushi",
@@ -2386,7 +2386,7 @@
     "searchVolume": "medium",
     "competitiveness": "easy",
     "image": "/images/services/thai-restaurants.jpg",
-    "answerBlock": "Liberty Village has Thai restaurants covering different price points, from a Northern Thai kitchen widely considered one of Toronto's best \u2014 with the Khao Soi a must-order \u2014 to a solid spot with great pad thai and a best-value lunch combo for under $15. Check the individual listings for ratings and addresses.",
+    "answerBlock": "Liberty Village has Thai restaurants covering different price points, from a Northern Thai kitchen widely considered one of Toronto's best — with the Khao Soi a must-order — to a solid spot with great pad thai and a best-value lunch combo for under $15. Check the individual listings for ratings and addresses.",
     "definition": "Thai restaurants in Liberty Village range from Toronto-famous northern Thai cuisine on East Liberty Street to affordable neighbourhood go-tos that predate the condo boom.",
     "specificFaqs": [
       {
@@ -2411,8 +2411,8 @@
     "slug": "italian-restaurants",
     "name": "Italian Restaurant",
     "pluralName": "Italian Restaurants",
-    "description": "Liberty Village's Italian restaurants serve handmade pasta, wood-fired pizza, and classic dishes \u2014 a nod to the area's historic immigrant roots.",
-    "icon": "\ud83c\udf5d",
+    "description": "Liberty Village's Italian restaurants serve handmade pasta, wood-fired pizza, and classic dishes — a nod to the area's historic immigrant roots.",
+    "icon": "🍝",
     "relatedServices": [
       "restaurants",
       "pizza",
@@ -2448,7 +2448,7 @@
     "name": "Indian Restaurant",
     "pluralName": "Indian Restaurants",
     "description": "Butter chicken, biryani, and dosa are all on the menu at Liberty Village's Indian restaurants, with plenty of vegetarian and vegan options.",
-    "icon": "\ud83c\udf5b",
+    "icon": "🍛",
     "relatedServices": [
       "restaurants",
       "thai-restaurants",
@@ -2483,7 +2483,7 @@
     "name": "Burger Joint",
     "pluralName": "Burger Joints",
     "description": "Smash burgers, gourmet patties, and classic diner-style burgers are all represented in Liberty Village's casual dining scene.",
-    "icon": "\ud83c\udf54",
+    "icon": "🍔",
     "relatedServices": [
       "restaurants",
       "pizza",
@@ -2519,7 +2519,7 @@
     "name": "Bakery",
     "pluralName": "Bakeries",
     "description": "Fresh bread, croissants, and custom cakes from Liberty Village bakeries make mornings better and celebrations sweeter.",
-    "icon": "\ud83e\udd50",
+    "icon": "🥐",
     "relatedServices": [
       "coffee-shops",
       "brunch-spots",
@@ -2529,7 +2529,7 @@
     "searchVolume": "medium",
     "competitiveness": "easy",
     "image": "/images/services/bakeries.jpg",
-    "answerBlock": "Liberty Village's from-scratch bakery is beloved for legendary butter tarts, seasonal pies that sell out during holidays, and custom celebration cakes, all baked in small batches daily. Butter tarts start from $4 and custom cakes around $60 \u2014 pre-order holiday pies at least two weeks in advance. See the listing for ratings and address.",
+    "answerBlock": "Liberty Village's from-scratch bakery is beloved for legendary butter tarts, seasonal pies that sell out during holidays, and custom celebration cakes, all baked in small batches daily. Butter tarts start from $4 and custom cakes around $60 — pre-order holiday pies at least two weeks in advance. See the listing for ratings and address.",
     "definition": "Bakeries in Liberty Village specialize in small-batch artisan baking from storefronts on East Liberty Street, known for butter tarts, seasonal pies, and custom celebration cakes.",
     "specificFaqs": [
       {
@@ -2555,7 +2555,7 @@
     "name": "Laundromat",
     "pluralName": "Laundromats",
     "description": "While most Liberty Village condos have in-suite laundry, nearby laundromats offer drop-off service for large loads and specialty items.",
-    "icon": "\ud83e\uddfa",
+    "icon": "🧺",
     "relatedServices": [
       "dry-cleaners",
       "house-cleaning",
@@ -2590,7 +2590,7 @@
     "name": "Tattoo Parlor",
     "pluralName": "Tattoo Parlors",
     "description": "Liberty Village's creative streak extends to its tattoo artists, with parlors offering custom work in the neighbourhood's signature industrial-chic spaces.",
-    "icon": "\ud83c\udfa8",
+    "icon": "🎨",
     "relatedServices": [
       "hair-salons",
       "barbers",
@@ -2625,7 +2625,7 @@
     "name": "Spa",
     "pluralName": "Spas",
     "description": "Best spas in Liberty Village: Altea Active (2 Western Battery), facials $100-180, body treatments, wellness packages. Aestheticians on Atlantic Ave & Hanna Ave.",
-    "icon": "\ud83e\uddd6",
+    "icon": "🧖",
     "relatedServices": [
       "massage-therapy",
       "nail-salons",
@@ -2661,7 +2661,7 @@
     "name": "Printing Service",
     "pluralName": "Printing Services",
     "description": "Liberty Village's startup and creative businesses rely on local print shops for business cards, signage, and marketing materials.",
-    "icon": "\ud83d\udda8\ufe0f",
+    "icon": "🖨️",
     "relatedServices": [
       "coworking-spaces",
       "photographers",
@@ -2696,7 +2696,7 @@
     "name": "IT Support",
     "pluralName": "IT Support Services",
     "description": "Tech startups and remote workers in Liberty Village depend on local IT support for hardware repairs, network setup, and troubleshooting.",
-    "icon": "\ud83d\udcbb",
+    "icon": "💻",
     "relatedServices": [
       "coworking-spaces",
       "accountants",
@@ -2730,8 +2730,8 @@
     "slug": "interior-designers",
     "name": "Interior Designer",
     "pluralName": "Interior Designers",
-    "description": "Liberty Village condos and lofts have unique layouts that local interior designers know how to maximize \u2014 from 400 sq ft studios to two-storey live-work units.",
-    "icon": "\ud83d\udecb\ufe0f",
+    "description": "Liberty Village condos and lofts have unique layouts that local interior designers know how to maximize — from 400 sq ft studios to two-storey live-work units.",
+    "icon": "🛋️",
     "relatedServices": [
       "real-estate-agents",
       "photographers",
@@ -2766,7 +2766,7 @@
     "name": "Locksmith",
     "pluralName": "Locksmiths",
     "description": "Locked out of your Liberty Village condo? Local locksmiths offer fast response times and understand the fob and key systems common in neighbourhood buildings.",
-    "icon": "\ud83d\udd11",
+    "icon": "🔑",
     "relatedServices": [
       "house-cleaning",
       "movers",
@@ -2801,7 +2801,7 @@
     "name": "Short-Term Rental",
     "pluralName": "Short-Term Rentals",
     "description": "Visiting Liberty Village? From stylish Airbnb lofts to spacious townhouses, the neighbourhood has short-term rental options within walking distance of restaurants, BMO Field, and the King streetcar.",
-    "icon": "\ud83c\udfe0",
+    "icon": "🏠",
     "relatedServices": [
       "restaurants",
       "coffee-shops",

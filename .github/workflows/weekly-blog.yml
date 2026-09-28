@@ -25,6 +25,23 @@ on:
         required: false
         type: boolean
         default: false
+      store:
+        description: "Content store. auto reads LV_CONTENT_STORE and defaults to git."
+        required: false
+        type: choice
+        options:
+          - auto
+          - git
+          - db
+        default: auto
+      content_target:
+        description: "DB target. Production is main-only; a staging ref must pass staging."
+        required: false
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
 
 concurrency:
   group: weekly-blog
@@ -38,6 +55,83 @@ permissions:
   pull-requests: write
 
 jobs:
+  route:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      store: ${{ steps.decide.outputs.store }}
+      target: ${{ steps.decide.outputs.target }}
+      lane: ${{ steps.decide.outputs.lane }}
+    steps:
+      - name: Resolve content store route
+        id: decide
+        env:
+          INPUT_STORE: ${{ github.event.inputs.store || '' }}
+          INPUT_CONTENT_TARGET: ${{ github.event.inputs.content_target || '' }}
+          INPUT_SEO_LANE: ${{ github.event.inputs.seo_lane || '' }}
+          LV_CONTENT_STORE: ${{ vars.LV_CONTENT_STORE || '' }}
+          LV_CONTENT_CUTOVER_HOLD: ${{ vars.LV_CONTENT_CUTOVER_HOLD || '' }}
+        run: |
+          # route-writer:begin
+          set -euo pipefail
+          fail() {
+            echo "::error::$1" >&2
+            exit 1
+          }
+
+          case "${INPUT_STORE:-}" in
+            git|db) STORE="$INPUT_STORE" ;;
+            auto|"") STORE="${LV_CONTENT_STORE:-git}" ;;
+            *) fail "unknown store input: ${INPUT_STORE}" ;;
+          esac
+          case "$STORE" in
+            git|db) ;;
+            *) fail "unknown store: ${STORE}" ;;
+          esac
+
+          if [ "${LV_CONTENT_CUTOVER_HOLD:-}" = "1" ]; then
+            if [ "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" ] \
+              || [ "${GITHUB_REF:-}" != "refs/heads/staging" ] \
+              || [ "$STORE" != "db" ] \
+              || [ "${INPUT_CONTENT_TARGET:-}" != "staging" ]; then
+              fail "LV_CONTENT_CUTOVER_HOLD refuses this writer event before side effects"
+            fi
+          fi
+
+          case "${GITHUB_REF:-}" in
+            refs/heads/main)
+              TARGET="${INPUT_CONTENT_TARGET:-production}"
+              if [ "$TARGET" != "production" ]; then
+                fail "content-production is main-only and content-staging requires refs/heads/staging"
+              fi
+              ;;
+            refs/heads/staging)
+              if [ "${INPUT_CONTENT_TARGET:-}" != "staging" ] || [ "$STORE" != "db" ]; then
+                fail "staging ref requires store=db and content_target=staging"
+              fi
+              TARGET="staging"
+              ;;
+            *)
+              fail "unknown ref: ${GITHUB_REF:-}"
+              ;;
+          esac
+
+          LANE=""
+          if [ "${ROUTE_SEO:-}" = "1" ] && [ "$STORE" = "db" ]; then
+            LANE="${INPUT_SEO_LANE:-data}"
+            case "$LANE" in
+              data|code) ;;
+              *) fail "unknown seo_lane: ${LANE}" ;;
+            esac
+          fi
+
+          {
+            echo "store=${STORE}"
+            echo "target=${TARGET}"
+            echo "lane=${LANE}"
+          } >> "$GITHUB_OUTPUT"
+          # route-writer:end
   resolve-owner:
     runs-on: ubuntu-latest
     permissions:
@@ -55,11 +149,11 @@ jobs:
         id: owner
         run: node trusted/scripts/automation/weekly-owner.mjs --github-output
 
-  generate-blog:
-    needs: resolve-owner
+  legacy:
+    needs: [route, resolve-owner]
     # Only the protected main owner file may enable scheduled GHA generation. A
     # valid exedev owner can be bypassed only by this explicit manual override.
-    if: ${{ needs.resolve-owner.outputs.owner == 'gha' || (github.event_name == 'workflow_dispatch' && inputs.force_gha == true) }}
+    if: ${{ needs.route.outputs.store == 'git' && (needs.resolve-owner.outputs.owner == 'gha' || (github.event_name == 'workflow_dispatch' && inputs.force_gha == true)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -281,3 +375,73 @@ jobs:
       - name: Cleanup credentials
         if: always()
         run: rm -f /tmp/gsa-credentials.json
+  db:
+    needs: [route, resolve-owner]
+    if: ${{ needs.route.outputs.store == 'db' && needs.route.outputs.lane != 'code' && needs.resolve-owner.outputs.owner == 'gha' }}
+    environment: content-${{ needs.route.outputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CONTENT_DATABASE_URL: ${{ secrets.CONTENT_DATABASE_URL }}
+      CONTENT_DATABASE_URL_UNPOOLED: ${{ secrets.CONTENT_DATABASE_URL_UNPOOLED }}
+      CONTENT_DEPLOY_HOOK_URL: ${{ secrets.CONTENT_DEPLOY_HOOK_URL }}
+      CONTENT_SITE_BYPASS: ${{ secrets.CONTENT_SITE_BYPASS }} # absent in content-production
+      CONTENT_DB_NAME: ${{ vars.CONTENT_DB_NAME }}
+      CONTENT_SITE_URL: ${{ vars.CONTENT_SITE_URL }}
+      CONTENT_TARGET: ${{ needs.route.outputs.target }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.sha }}"
+          fetch-depth: 0
+          persist-credentials: false
+      - run: git fetch --no-tags origin main staging
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: node scripts/content/cli.mjs export --root .
+      - name: Write service-account credentials
+        env:
+          GSA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          install -m 600 /dev/null /tmp/gsa-credentials.json
+          printf '%s' "$GSA_JSON" > /tmp/gsa-credentials.json
+          jq -e . /tmp/gsa-credentials.json > /dev/null
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+      - name: Run blog pipeline
+        id: generate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gsa-credentials.json
+          GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          TOPIC_OVERRIDE: ${{ inputs.topic_override }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/weekly-blog-agent.js
+      - name: Submit blog content
+        if: ${{ success() && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          node scripts/content/cli.mjs submit --dir . --kind blog --idempotency-key "gha:weekly-blog:${{ github.run_id }}:${{ github.run_attempt }}" > submit.json
+      - name: Gate blog content
+        if: ${{ success() && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          ID=$(jq -r '.submissionId' submit.json)
+          if [ "$ID" = "null" ]; then
+            exit 0
+          fi
+          node scripts/content/cli.mjs gate --submission "$ID"
+      - name: Alert content DB job failure
+        if: ${{ failure() }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then exit 0; fi
+          text="⚠ ${GITHUB_WORKFLOW} DB content job failed (${CONTENT_TARGET}); https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -cn --arg text "$text" '{text:$text}')
+          curl --fail --silent --show-error --max-time 10 -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null || true
