@@ -117,10 +117,6 @@ export function addressKey(address) {
   return raw.replace(/\b(?:suite|ste|unit)\b|#/g, "unit ")
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
-const unitAddressKey = (address) => {
-  const key = addressKey(address);
-  return /\bunit\s+[a-z0-9]+\b/.test(key) ? key : "";
-};
 const phoneKey = (phone) => {
   const digits = String(phone || "").replace(/\D/g, "");
   return digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits.length === 10 ? digits : "";
@@ -130,10 +126,10 @@ const locationPhoneKey = ({ address, phone }) => {
   const number = phoneKey(phone);
   return location && number ? `${location}|${number}` : "";
 };
-// A shared no-unit street address can host several tenants. Only treat a
-// different title as the same storefront when distinctive name words overlap;
+// A shared address or unit can host several tenants. Only treat a
+// different title as the same storefront when the brand itself overlaps;
 // a missing/different Maps phone alone must not let a renamed listing through.
-const noUnitAddressKey = (address) => unitAddressKey(address) ? "" : addressKey(address);
+const brandAddressKey = (address) => addressKey(address);
 const brandKey = (name) => norm(String(name || "").replace(/^\s*the\s+/i, ""));
 const sameBrandName = (a, b) => {
   const left = brandKey(a);
@@ -144,14 +140,14 @@ const sameBrandName = (a, b) => {
   // not two tenants that happen to share category words (Alpha/Beta Hair Salon).
   return shorter.length >= 7 && longer.startsWith(shorter);
 };
-const addUnunitName = (map, { address, name }) => {
-  const key = noUnitAddressKey(address);
+const addBrandName = (map, { address, name }) => {
+  const key = brandAddressKey(address);
   if (!key) return;
   if (!map.has(key)) map.set(key, []);
   map.get(key).push(name);
 };
-const matchesUnunitName = (map, { address, name }) => {
-  const key = noUnitAddressKey(address);
+const matchesBrandName = (map, { address, name }) => {
+  const key = brandAddressKey(address);
   return Boolean(key && map.get(key)?.some((existing) => sameBrandName(existing, name)));
 };
 
@@ -185,9 +181,8 @@ export function appendSeenRegistry(names, date, file = SEEN_REGISTRY) {
 export function buildDedupeState(existing, registry = {}) {
   return {
     haveName: new Set([...existing.map((b) => norm(b.name)), ...Object.keys(registry)]),
-    haveAddr: new Set(existing.map((b) => unitAddressKey(b.address)).filter(Boolean)),
     haveLocationPhone: new Set(existing.map(locationPhoneKey).filter(Boolean)),
-    haveUnunitNames: existing.reduce((map, b) => (addUnunitName(map, b), map), new Map()),
+    haveBrandNames: existing.reduce((map, b) => (addBrandName(map, b), map), new Map()),
     haveSlug: new Set(existing.map((b) => b.slug)),
     seen: new Set(),
   };
@@ -195,12 +190,10 @@ export function buildDedupeState(existing, registry = {}) {
 
 export function isDuplicate(state, { name, address, phone }) {
   const nn = norm(name);
-  const unit = unitAddressKey(address);
   const locationPhone = locationPhoneKey({ address, phone });
   return Boolean(state.haveName.has(nn) || state.seen.has(nn) ||
-    (unit && state.haveAddr.has(unit)) ||
     (locationPhone && state.haveLocationPhone.has(locationPhone)) ||
-    matchesUnunitName(state.haveUnunitNames, { name, address }));
+    matchesBrandName(state.haveBrandNames, { name, address }));
 }
 
 // A slug collision means we already have this business, so skip it. Suffixing
@@ -208,23 +201,19 @@ export function isDuplicate(state, { name, address, phone }) {
 export function selectBatch(found, state, max) {
   const batch = [];
   const names = new Set();
-  const units = new Set();
   const locationPhones = new Set();
-  const ununitNames = new Map();
+  const brandNames = new Map();
   for (const rec of found) {
     if (batch.length >= max) break;
     const name = norm(rec.name);
-    const unit = unitAddressKey(rec.address);
     const locationPhone = locationPhoneKey(rec);
     if (state.haveSlug.has(rec.slug) || state.haveName.has(name) || names.has(name) ||
-      (unit && (state.haveAddr.has(unit) || units.has(unit))) ||
       (locationPhone && (state.haveLocationPhone.has(locationPhone) || locationPhones.has(locationPhone))) ||
-      matchesUnunitName(state.haveUnunitNames, rec) || matchesUnunitName(ununitNames, rec)) continue;
+      matchesBrandName(state.haveBrandNames, rec) || matchesBrandName(brandNames, rec)) continue;
     state.haveSlug.add(rec.slug);
     names.add(name);
-    if (unit) units.add(unit);
     if (locationPhone) locationPhones.add(locationPhone);
-    addUnunitName(ununitNames, rec);
+    addBrandName(brandNames, rec);
     batch.push(rec);
   }
   return batch;

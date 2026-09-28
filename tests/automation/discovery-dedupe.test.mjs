@@ -176,6 +176,14 @@ test('canonical address key detects relocated direction and leading unit notatio
   assert.deepEqual(selectBatch([pearle, clinician], buildDedupeState([], {}), 15).map((b) => b.name), ['Pearle Vision']);
 });
 
+test('a shared unit does not collapse distinct storefronts without a shared phone or brand', () => {
+  const freshco = candidate({ name: 'FreshCo', address: '171 East Liberty St, Unit 100, Toronto, ON', phone: '4165550101' });
+  const local = candidate({ name: 'LOCAL Public Eatery', address: 'Unit 100, 171 E Liberty St, Toronto, ON', phone: '4165550102' });
+  assert.equal(isDuplicate(buildDedupeState([freshco]), local), false);
+  assert.deepEqual(selectBatch([freshco, local], buildDedupeState([], {}), 15).map((b) => b.name),
+    ['FreshCo', 'LOCAL Public Eatery']);
+});
+
 test('generated records omit transient hours and identify the source of review facts', () => {
   const record = toRecord({
     title: 'Example Cafe', type: 'Cafe', address: '51 Hanna Ave, Toronto, ON M6K 1X1',
