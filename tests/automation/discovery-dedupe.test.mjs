@@ -6,7 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { validatePaths } from '../../scripts/automation/policy.mjs';
-import { getBusinessFAQs } from '../../app/directory/[slug]/page.tsx';
+import { getBusinessFAQs } from '../../lib/business-faqs.ts';
 import {
   appendSeenRegistry, buildDedupeState, fetchImage, isDuplicate,
   norm, readSeenRegistry, selectBatch, slugify, toRecord,
