@@ -6,9 +6,9 @@
  * dedupes against the existing data/businesses.json plus the append-only
  * data/discovery-seen.json registry, filters to the Liberty Village geo-box +
  * a quality bar, and appends up to MAX_NEW new basic directory records. A
- * GitHub Action runs this weekly and opens a PR with the additions; records can
- * then be enriched (descriptions are intentionally templated here so the
- * deterministic job never hallucinates facts).
+ * The scheduled content runner submits these additions to the content gate;
+ * records can then be enriched (descriptions are intentionally templated here
+ * so the deterministic job never hallucinates facts).
  *
  * Env: SERPAPI_API_KEY (required), PEXELS_API_KEY (optional - adds a
  *      category-matched stock hero image per new business).
@@ -193,11 +193,12 @@ export async function fetchImage(slug, category, dir = IMAGE_DIR) {
   }
 }
 
-function toRecord(x, categorySlug) {
+export function toRecord(x, categorySlug) {
   const name = x.title;
   const rating = x.rating ?? 0;
   const reviewCount = x.reviews ?? 0;
-  const hours = x.hours || x.open_state || "";
+  // Maps open_state/hours describe the scrape instant, not a verified weekly schedule.
+  const hours = "";
   return {
     slug: slugify(name),
     name,
@@ -226,7 +227,7 @@ function toRecord(x, categorySlug) {
     reviewFaqs: [
       {
         question: `What do reviews say about ${name}?`,
-        answer: `${name} has a ${rating}-star average from ${reviewCount} Google reviews from Liberty Village locals and visitors.`,
+        answer: `Google lists ${reviewCount} reviews for ${name}, with an average rating of ${rating} out of 5.`,
       },
     ],
     _discoveredAt: new Date().toISOString().slice(0, 10),

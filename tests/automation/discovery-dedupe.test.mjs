@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { validatePaths } from '../../scripts/automation/policy.mjs';
 import {
   appendSeenRegistry, buildDedupeState, fetchImage, isDuplicate,
-  norm, readSeenRegistry, selectBatch, slugify,
+  norm, readSeenRegistry, selectBatch, slugify, toRecord,
 } from '../../scripts/discover-businesses.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -32,6 +32,17 @@ function tmpFile(basename) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-discovery-'));
   return { dir, file: path.join(dir, basename), cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
+
+test('discovery copies aggregate ratings without inventing reviewer origins or transient hours', () => {
+  const record = toRecord({
+    title: 'Example Studio', rating: 4.9, reviews: 817, address: '100 Liberty St, Toronto, ON',
+    open_state: 'Open · Closes 7 PM', hours: 'Open · Closes 7 PM',
+  }, 'tattoo-parlors');
+  assert.equal(record.hours, '');
+  assert.match(record.reviewFaqs[0].answer, /817 reviews.*4\.9 out of 5/);
+  assert.doesNotMatch(JSON.stringify(record), /locals and visitors|Closes 7 PM/);
+  assert.equal(record._needsEnrichment, true);
+});
 
 test('a discovered name stays rejected after its record is deleted from businesses.json', () => {
   const { file, cleanup } = tmpFile('discovery-seen.json');
