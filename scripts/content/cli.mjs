@@ -72,6 +72,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
       case 'show': { result=await store.getSubmission(db,Number(required(opts.submission,'--submission'))); delete result.submission.context; for (const item of result.items) item.url=registry[item.dataset]?.route?.replace(':key',item.key)??null; for (const round of result.rounds) for (const item of round.items) delete item.payload; break; }
       case 'lookup': result=await store.findSubmissionByIdempotencyKey(db,required(opts.idempotencyKey,'--idempotency-key')); break;
       case 'list': result=opts.submissions ? await store.listSubmissions(db,{state:opts.state,kind:opts.kind,target:opts.target,dataset:opts.dataset,key:opts.key,since:opts.since}) : await store.listEntries(db,{dataset:opts.dataset,visibility:opts.visibility}); break;
+      case 'pending': result=await store.listPendingByKind(db,{target,kind:required(opts.kind,'--kind')}); break;
       case 'stats': { result=await store.stats(db); result.warn=result.projectBytes>350*1024*1024; if (opts.alert && result.warn && process.env.SLACK_WEBHOOK_URL) await fetch(process.env.SLACK_WEBHOOK_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:`⚠ Neon content storage ${Math.round(result.projectBytes/1048576)} MB > 350 MB of 512 MB`})}); break; }
       case 'gc-assets': result=await gcAssets(db,opts); break;
       case 'submit': { const submitContent=delegates.submitContent ?? (await import('./submit.mjs')).submitContent; ({result,exitCode}=await submitContent(db,opts)); break; }

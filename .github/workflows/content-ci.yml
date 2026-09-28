@@ -31,6 +31,7 @@ jobs:
       - run: npm ci
       - run: npx eslint scripts/content tests/content
       - run: npm run test:content
+      - run: npm run test:automation
       - run: npm run build
         env:
           CONTENT_SOURCE: json

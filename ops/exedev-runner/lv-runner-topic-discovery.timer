@@ -1,0 +1,10 @@
+[Unit]
+Description=Topic discovery UTC schedule
+
+[Timer]
+OnCalendar=Mon *-*-* 10:00:00 UTC
+Persistent=true
+Unit=lv-runner@topic-discovery:production:scheduled.service
+
+[Install]
+WantedBy=timers.target

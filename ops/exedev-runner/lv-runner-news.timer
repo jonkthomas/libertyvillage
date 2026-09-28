@@ -1,0 +1,10 @@
+[Unit]
+Description=News UTC schedule
+
+[Timer]
+OnCalendar=*-*-* 12:17:00 UTC
+Persistent=true
+Unit=lv-runner@news:production:scheduled.service
+
+[Install]
+WantedBy=timers.target

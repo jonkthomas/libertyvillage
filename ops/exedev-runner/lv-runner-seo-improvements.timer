@@ -1,0 +1,10 @@
+[Unit]
+Description=SEO improvements UTC schedule
+
+[Timer]
+OnCalendar=Mon *-*-* 10:11:00 UTC
+Persistent=true
+Unit=lv-runner@seo-improvements:production:scheduled.service
+
+[Install]
+WantedBy=timers.target

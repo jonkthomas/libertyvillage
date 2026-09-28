@@ -297,6 +297,12 @@ export async function listSubmissions(db, { state, kind, target, dataset, key, s
 export async function listPending(db, { target } = {}) {
   return rows(await db.query("select id from content.submissions where state='published' and ($1::text is null or target=$1) and (smoke_passed_at is null or notified_at is null) order by id", [target ?? null])).map((r) => n(r.id));
 }
+// News preflight must not read every historical published submission and its
+// rounds. This predicate is the same as deploy's, narrowed to one writer kind.
+export async function listPendingByKind(db, { target, kind } = {}) {
+  if (!['news', 'blog'].includes(kind)) throw new ValidationError('pending kind required');
+  return rows(await db.query("select id from content.submissions where state='published' and target=$1 and kind=$2 and (smoke_passed_at is null or notified_at is null) order by id", [target ?? db.target, kind])).map((r) => n(r.id));
+}
 export async function findSubmissionByIdempotencyKey(db, key) {
   if (!key || typeof key !== 'string') throw new ValidationError('--idempotency-key required');
   const row = one(await db.query('select id,kind,actor from content.submissions where idempotency_key=$1 and target=$2', [key, db.target]));
