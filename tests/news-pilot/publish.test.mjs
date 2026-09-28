@@ -549,43 +549,6 @@ test('homepage and news route degrade gracefully and list news posts', () => {
   );
 });
 
-test('autopublish workflow is staging-PR only and discovery stays read-only', () => {
-  const auto = fs.readFileSync(
-    path.join(ROOT, '.github/workflows/news-autopublish.yml'),
-    'utf8',
-  );
-  const discovery = fs.readFileSync(
-    path.join(ROOT, '.github/workflows/news-discovery.yml'),
-    'utf8',
-  );
-  const draft = fs.readFileSync(path.join(ROOT, '.github/workflows/news-draft.yml'), 'utf8');
-
-  assert.match(auto, /contents:\s*write/);
-  assert.match(auto, /pull-requests:\s*write/);
-  assert.match(auto, /--base staging/);
-  assert.match(auto, /news\/auto-/);
-  assert.match(auto, /--kind news/);
-  assert.match(auto, /coordinator\.mjs dispatch/);
-  assert.doesNotMatch(auto, /gh pr merge/);
-  assert.doesNotMatch(auto, /--base main/);
-  assert.doesNotMatch(auto, /\/Users\//);
-
-  assert.match(discovery, /permissions:\n  contents: read/);
-  assert.doesNotMatch(discovery, /contents:\s*write/);
-  assert.doesNotMatch(discovery, /git add data\/posts\.json|gh pr create/);
-  assert.match(discovery, /never writes data\/posts\.json/);
-  assert.match(discovery, /was not modified/);
-
-  // Human draft path unchanged: still no PR / no posts.json write
-  assert.doesNotMatch(draft, /contents:\s*write/);
-  assert.doesNotMatch(draft, /gh pr create/);
-  assert.match(draft, /default: "anthropic"/);
-  assert.match(draft, /ANTHROPIC_API_KEY: \$\{\{ secrets\.ANTHROPIC_API_KEY \}\}/);
-  assert.match(draft, /data\/posts\.json/);
-  assert.match(draft, /was not modified/);
-  assert.match(draft, /No PR opened/);
-});
-
 test('score floor is a coarse sanity filter, not the gate', async () => {
   const scoreMod = await import('../../scripts/news-pilot/score.mjs');
   // The floor exists only so nothing an editor would never see can publish.

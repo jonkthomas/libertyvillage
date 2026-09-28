@@ -1,5 +1,7 @@
 # News discovery + drafting pipeline
 
+> **Current operation (2026-09-28):** news runs only on the exe.dev content runner (`ops/exedev-runner/`). Its daily `news` job (12:17 UTC timer, or `sudo lv-runner run news --target <staging|production>` on demand) runs discovery (`scripts/news-pilot/run.mjs`), the strict autopublish candidate step (`scripts/news-pilot/publish.mjs`), then the content CLI submit → gate → Neon publish → deploy hook → smoke. There are no GitHub Actions news workflows any more: `news-autopublish.yml`, `news-discovery.yml` and `news-draft.yml` are retired, and the human review queue / manual draft path is gone by decision. The strict bar below is unchanged. Sections that mention workflows, PRs or the coordinator are historical rationale.
+
 Human-gated hyperlocal news pipeline for Liberty Village. Discovery builds a **review queue**. Drafting turns one human-selected cluster into a **local draft proposal**. Neither stage publishes.
 
 > **Operating model: human-gated by default + rare autonomous publish.**  
@@ -146,39 +148,13 @@ node --test tests/news-pilot/*.test.mjs
 npm run test:news-pilot
 ```
 
-## How to run — CI
+## How to run — runner
 
-### Discovery
-
-1. Actions → **News Discovery (human review queue)** → Run workflow
-   - optional `since_hours`, `dry_run`, `max_sources`
-2. Or wait for the daily schedule.
-3. Open the run’s **Summary** for decision counts + top review candidates.
-4. Download artifact `news-discovery-<run_id>` for full JSON/markdown.
-
-**Zero candidates = success.** The job fails only on genuine errors (script crash, missing artifacts, or all sources failed).
-
-### Drafting
-
-1. From a discovery summary/artifact, copy the **run id** and a **cluster id** (or rank).
-2. Actions → **News Draft (human-gated)** → Run workflow
-   - `discovery_run_id` (required)
-   - `cluster_id` **or** `rank` (required human selection)
-   - optional `prefer_model` (default `anthropic`)
-   - optional `skip_generate`
-3. Read the job **Summary** for gate + validation + human gates (especially missing image).
-4. Download artifact `news-draft-<run_id>`.
-
-No PR is opened. Promote content only through a deliberate human edit path.
-
-### Autonomous publication
-
-1. Actions → **News Autopublish (rare + certain)** → Run workflow, or wait for the daily discovery completion.
-2. Deterministic gates generate at most one publish-ready candidate.
-3. Opus reviews the candidate with its evidence. Fixable findings go to the separate Sonnet fixer, with a global maximum of three attempts.
-4. A blocked or exhausted preflight writes `status: preflight_blocked`, restores the exact staging posts ledger, and exits successfully with `published: 0`. **No branch or PR is created.**
-5. Only preflight GO creates a `news/auto-*` content-only PR into `staging`; exact-byte CI/Opus and cumulative promotion gates remain mandatory.
-6. Download `news-autopublish-<run_id>` for verdicts, repairs, evidence, and the byte-bound `preflight-attestation.json`.
+- Scheduled: `lv-runner-news.timer` (daily 12:17 UTC) on `lv-content-runner`.
+- On demand (staging): `sudo lv-runner run news --target staging`.
+- Production on demand requires the production approval flag and operator confirmation; see `ops/exedev-runner/README.md`.
+- Kill switch: `sudo systemctl disable --now lv-runner-news.timer`, or `/etc/lv-runner.hold` to stop every runner job.
+- Zero publications is the normal outcome.
 
 ## How to read the review queue
 
@@ -232,14 +208,8 @@ The broad discovery queue and manual draft workflow remain human-gated. The sepa
 5. **Operational ownership:** branch protections, workflow cancellation, audit artifacts, and the human draft path remain available; permissions may not widen silently.
 6. **Separate sign-off:** every content PR and cumulative promotion requires an exact-SHA/range independent Opus gate with score ≥8 and zero high/critical findings.
 
-If any control fails, the run must publish zero and remain blocked. The kill switch is disabling `.github/workflows/news-autopublish.yml`; discovery and manual drafting continue independently.
+If any control fails, the run must publish zero and remain blocked. The kill switch is disabling `lv-runner-news.timer` on the runner (or setting `/etc/lv-runner.hold`).
 
 ## Permissions quick reference
 
-| Workflow               | Job permissions                                                 |
-| ---------------------- | --------------------------------------------------------------- |
-| `news-discovery.yml`   | `contents: read`                                                |
-| `news-draft.yml`       | `contents: read`, `actions: read`                               |
-| `news-autopublish.yml` | job: `contents: write`, `pull-requests: write`, `actions: read` |
-
-Discovery and human draft stay read-only. Only autopublish may open a staging PR (posts.json only) and dispatch coordinator kind `news`.
+The runner news job runs as the trusted `lv-runner` service user with the runner env files; see `ops/exedev-runner/README.md` for the credential split. No GitHub workflow has write access to content.
