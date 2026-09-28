@@ -172,20 +172,26 @@ function imagePathsFromListing(names, prefix) {
     .map((name) => `${prefix}/${name}`);
 }
 
+// Image order (docs/specs/neon-gate-candidate-media-inventory.md): the caller's
+// verified current-submission paths first, then live media paths, then checkout
+// listings, so a new hero never falls behind the listing cap.
 export function inventoryFromData({
   services = [], topics = [], posts = [], blogImages = [], neighborhoodImages = [], ogImages = [], images = [],
+  currentImages = [],
 } = {}) {
   const slugs = (entries, route) => (Array.isArray(entries) ? entries : [])
     .map((entry) => entry?.slug)
     .filter((slug) => typeof slug === 'string' && slug)
     .slice(0, INVENTORY_SLUG_LIMIT)
     .map((slug) => `/${route}/${slug}`);
-  const listed = [
+  const paths = (list) => (Array.isArray(list) ? list : []).filter((name) => typeof name === 'string' && INVENTORY_IMAGE_PATTERN.test(name));
+  const listed = [...new Set([
+    ...paths(currentImages),
+    ...paths(images),
     ...imagePathsFromListing(blogImages, '/images/blog'),
     ...imagePathsFromListing(neighborhoodImages, '/images/neighborhood'),
     ...imagePathsFromListing(ogImages, '/images/og'),
-    ...(Array.isArray(images) ? images : []).filter((name) => typeof name === 'string' && INVENTORY_IMAGE_PATTERN.test(name)),
-  ].slice(0, INVENTORY_IMAGE_LIMIT);
+  ])].slice(0, INVENTORY_IMAGE_LIMIT);
   const inventory = {
     serviceSlugs: slugs(services, 'best'),
     topicSlugs: slugs(topics, 'guide'),
