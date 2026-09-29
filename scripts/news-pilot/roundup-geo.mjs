@@ -17,8 +17,15 @@ const addressPattern = new RegExp(`\\b(\\d{1,5}[A-Za-z]?)\\s+(${streetPattern})(
 const knownPoints = new Set(ADDRESS_POINTS.map(({ number, street }) => `${key(number)}|${normalizeStreet(street)}`));
 const venueById = new Map(VENUES.map((v) => [v.canonicalVenueId, v]));
 const knownOutside = new Set(['1205|queen st w']);
-// A US state abbreviation after a comma ("Somerset, NJ 08873"). Team names such as "New York Liberty" are not places.
-const foreignPlace = /,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?\b|,\s*(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b/;
+// US state suffixes. Abbreviations stay case-sensitive so "in" is not Indiana.
+// A written-out state counts only after a comma, so "New York Liberty" stays a team name.
+const US_STATE_ABBR = 'AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY';
+const US_STATE_NAME = 'Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming';
+const foreignPlace = new RegExp(
+  String.raw`,\s*(?:${US_STATE_ABBR})(?:\s+\d{5}(?:-\d{4})?)?\b` +
+  String.raw`|\b(?:${US_STATE_ABBR})\s+\d{5}(?:-\d{4})?\b` +
+  String.raw`|,\s*(?:${US_STATE_NAME})\b`,
+);
 
 function parsedAddress(address) {
   if (address && typeof address === 'object') {
@@ -57,7 +64,10 @@ export function classifyAddress(address, context = {}) {
   const parsed = parsedAddress(address);
   if (!parsed) return verdict('unverifiable', 'address-missing');
   if (!torontoContext(address, context)) {
-    const elsewhere = context.addressLocality || foreignPlace.test(parsed.text) || /\b(?:Hurricane\s*,?\s*UT|Utah|New York|NYC|Vancouver|Montreal|Ottawa)\b/i.test(parsed.text);
+    const addressText = typeof address === 'string' ? address : '';
+    const namesake = /\b(?:Hurricane\s*,?\s*UT|Utah|NYC|Vancouver|Montreal|Ottawa)\b/i;
+    const elsewhere = context.addressLocality || foreignPlace.test(addressText) || foreignPlace.test(parsed.text)
+      || namesake.test(addressText) || namesake.test(parsed.text);
     return verdict(elsewhere ? 'not-LV' : 'unverifiable', elsewhere ? 'outside-toronto' : 'toronto-context-missing');
   }
   const pointKey = `${parsed.number}|${parsed.street}`;
@@ -177,14 +187,49 @@ const TRANSIT_STOPS = {
   '511': /\b(?:Exhibition Loop|Exhibition Place|Exhibition Station)\b/i,
   '63': /\b(?:Liberty Village|Atlantic Ave|East Liberty St)\b/i,
 };
-// 504 is local only on King St W between Strachan and Dufferin; a named stop beyond either end is not.
-const KING_OUTSIDE_STOPS = /\b(?:Bathurst|Spadina|Portland|Niagara|Tecumseth|Walnut|Wellington|Peter|John|Simcoe|University|York|Bay|Yonge|Church|Jarvis|Sherbourne|Parliament|Sumach|River|Broadview|Distillery|Cherry|Sudbury|Joe Shuster|Gladstone|Brock|Lansdowne|Close|Dunn|Jameson|Sorauren|Roncesvalles|Dowling|Queen|Dundas West)\b/;
+// 504 is local only on King St W between Strachan and Dufferin. Any other named stop fails closed.
+const KING_FRONTAGE_ROOTS = new Set(['strachan', 'shaw', 'atlantic', 'jefferson', 'fraser', 'dufferin', 'liberty village', 'king']);
+const TRANSIT_PLACE = String.raw`[A-Za-z][\w'’.-]*(?:\s+[A-Za-z][\w'’.-]*){0,4}`;
+const TRANSIT_ENDPOINT = new RegExp(
+  [
+    String.raw`\bbetween\s+(${TRANSIT_PLACE})\s+and\s+(${TRANSIT_PLACE})`,
+    String.raw`\bfrom\s+(${TRANSIT_PLACE})\s+to\s+(${TRANSIT_PLACE})`,
+    String.raw`\b(${TRANSIT_PLACE})\s+to\s+(${TRANSIT_PLACE})`,
+    String.raw`\b(${TRANSIT_PLACE})\s+and\s+(${TRANSIT_PLACE})`,
+    String.raw`\bat\s+(${TRANSIT_PLACE})`,
+  ].join('|'),
+  'gi',
+);
+function stopRoot(value) {
+  return key(value)
+    .replace(/\b(?:ave|st|rd|blvd|dr|way|west|east|north|south|w|e|n|s)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function isNamedStop(phrase) {
+  const trimmed = phrase.trim().replace(/[.,;:|]+$/g, '').trim();
+  // A match that starts on a street-type word ("St West") has no place name.
+  if (!trimmed || !stopRoot(trimmed)) return false;
+  if (/\b(?:Ave(?:nue)?|St(?:reet)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Way)\b/i.test(trimmed)) return true;
+  return /^[A-Z][\w'’.-]*(?:\s+[A-Z][\w'’.-]*){0,3}$/.test(trimmed);
+}
+function kingFrontageExceeded(text) {
+  TRANSIT_ENDPOINT.lastIndex = 0;
+  for (const match of normalize(text).matchAll(TRANSIT_ENDPOINT)) {
+    const pieces = match.slice(1).filter(Boolean).flatMap((chunk) => chunk.split(/\s+(?:and|to|at|from|between)\s+/i));
+    for (const piece of pieces) {
+      if (!isNamedStop(piece)) continue;
+      if (!KING_FRONTAGE_ROOTS.has(stopRoot(piece))) return true;
+    }
+  }
+  return false;
+}
 export function classifyTransitAlert({ route, stops, segmentText } = {}) {
   const routeNumber = String(route ?? '').match(/\b(504|29|509|511|63)\b/)?.[1];
   if (!routeNumber) return verdict('not-LV', 'route-not-allowlisted');
   const text = [Array.isArray(stops) ? stops.join(' ') : stops, segmentText].filter(Boolean).join(' ');
   if (!text || !TRANSIT_STOPS[routeNumber].test(text)) return verdict('not-LV', 'stop-not-allowlisted');
-  if (routeNumber === '504' && KING_OUTSIDE_STOPS.test(text)) return verdict('not-LV', 'stop-outside-king-frontage');
+  if (routeNumber === '504' && kingFrontageExceeded(text)) return verdict('not-LV', 'stop-outside-king-frontage');
   return verdict('adjacent', 'route-and-stop-allowlisted');
 }
 
@@ -222,11 +267,62 @@ export function classifySectionPlace({ placeQuote, sectionText, subject, dateQuo
 }
 
 const sameBuilding = (a, b) => Boolean(a && b) && a.replace(/#.*$/, '') === b.replace(/#.*$/, '');
-const neighbourhoodOnly = /^[\s.,:;|-]*(?:liberty village|lv)(?:[\s,]+toronto)?[\s.!,]*$/i;
+const neighbourhoodOnly = /^[\s.,:;|-]*(?:liberty village|lv|the village|village|toronto)(?:[\s,]+toronto)?[\s.!,]*$/i;
+const SCHEDULE_WORD = String.raw`Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:rs(?:day)?)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?`;
+const PLACE_NOUN = /\b(?:Market|Markets|Station|Park|Square|Works|Centre|Center|Plaza|Hall|Stadium|Mall|Arena|Building|Terminal|Airport|Campus|Museum|Gallery|Theatre|Theater|Garden|Gardens|Pier|Wharf|Harbour|Harbor|Beach|Club|Cafe|Bar|Kitchen|Restaurant|Grill|Pub|Hotel|Inn|Lounge|Bakery|Brewery|Fairgrounds|Coliseum|Amphitheatre|Amphitheater|Field|Commons|Yard|Yards|Place)\b/;
+const STREET_SUFFIX = /\b(?:Ave(?:nue)?|St(?:reet)?(?:\s+W(?:est)?)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Way)\b/i;
+const ANY_STREET_ADDRESS = new RegExp(String.raw`\b\d{1,5}[A-Za-z]?\s+(?:[A-Z][\w'’.-]*\s+){0,4}${STREET_SUFFIX.source}`, 'gi');
+const EVENT_PLACE = /\b(at|in|on)\s+(?:the\s+)?([A-Z][\w'’&-]*(?:\s+[A-Z][\w'’&-]*){0,5})/g;
+
+function trimSchedule(phrase) {
+  let current = phrase.trim();
+  const trailing = new RegExp(String.raw`\s*,?\s+(?:${SCHEDULE_WORD}|\d{1,2}(?:st|nd|rd|th)?)$`, 'i');
+  let next = current.replace(trailing, '').trim();
+  while (next !== current) {
+    current = next;
+    next = current.replace(trailing, '').trim();
+  }
+  if (new RegExp(String.raw`^(?:${SCHEDULE_WORD})$`, 'i').test(current)) return '';
+  return current;
+}
+function ownPlaceLabels(ownVenueId) {
+  const labels = new Set();
+  const add = (value) => {
+    const normalized = key(value);
+    if (normalized) labels.add(normalized);
+  };
+  for (const venue of VENUES) {
+    if (!sameBuilding(venue.canonicalVenueId, ownVenueId)) continue;
+    add(venue.name);
+    for (const alias of venue.aliases ?? []) add(alias);
+  }
+  for (const entry of WATCH_LIST) {
+    if (sameBuilding(entry.canonicalVenueId, ownVenueId)) add(entry.business);
+  }
+  return labels;
+}
+function resolvesToOwn(phrase, ownVenueId, labels) {
+  if (sameBuilding(canonicalVenueId(phrase), ownVenueId)) return true;
+  const named = namedVenues(phrase);
+  if (named.length && named.every((venue) => sameBuilding(venue.canonicalVenueId, ownVenueId))) return true;
+  const normalized = key(phrase);
+  for (const label of labels) {
+    if (label.length > 2 && (normalized === label || normalized.startsWith(`${label} `))) return true;
+  }
+  return false;
+}
+// Negative only: a place-shaped object of at/in/on that is not the account's own building.
+function looksLikeOtherPlace(preposition, phrase) {
+  if (!phrase || neighbourhoodOnly.test(phrase)) return false;
+  if (STREET_SUFFIX.test(phrase) || PLACE_NOUN.test(phrase)) return true;
+  return preposition.toLowerCase() === 'in'
+    && /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}$/.test(phrase)
+    && !/^(?:Toronto|Ontario|Canada)$/.test(phrase);
+}
 /**
- * Instagram own-venue fallback guard (§6.2): with no place_quote, a caption that states
- * another place must not inherit the watch venue. Offsite names are not-LV; any other
- * pinned or labelled place that is not the account's own building is unverifiable.
+ * Instagram own-venue fallback guard (§4.4, §6.2). With no place_quote, a caption that
+ * states another place must not inherit the watch venue. This returns only a negative
+ * (not-LV or unverifiable) or null. It never admits a venue.
  */
 export function statedOtherPlace(text, ownVenueId) {
   const raw = String(text ?? '');
@@ -237,9 +333,20 @@ export function statedOtherPlace(text, ownVenueId) {
       if (!place || neighbourhoodOnly.test(place)) continue;
       if (sameBuilding(canonicalVenueId(place), ownVenueId)) continue;
       const named = namedVenues(place);
-      if (named.length && named.every((v) => sameBuilding(v.canonicalVenueId, ownVenueId))) continue;
+      if (named.length && named.every((venue) => sameBuilding(venue.canonicalVenueId, ownVenueId))) continue;
       return verdict('unverifiable', 'other-place-stated');
     }
+  }
+  const labels = ownPlaceLabels(ownVenueId);
+  ANY_STREET_ADDRESS.lastIndex = 0;
+  for (const match of raw.matchAll(ANY_STREET_ADDRESS)) {
+    if (!sameBuilding(canonicalVenueId(match[0]), ownVenueId)) return verdict('unverifiable', 'other-place-stated');
+  }
+  EVENT_PLACE.lastIndex = 0;
+  for (const match of raw.matchAll(EVENT_PLACE)) {
+    const phrase = trimSchedule(match[2]);
+    if (!phrase || neighbourhoodOnly.test(phrase) || resolvesToOwn(phrase, ownVenueId, labels)) continue;
+    if (looksLikeOtherPlace(match[1], phrase)) return verdict('unverifiable', 'other-place-stated');
   }
   return null;
 }

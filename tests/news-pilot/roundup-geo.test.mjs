@@ -127,6 +127,20 @@ test('TTC requires both route and affected local stop', () => {
   rejected(classifyTransitAlert({ route: '504', segmentText: 'King St W' }));
   rejected(classifyTransitAlert({ route: '504', stops: [] }));
   rejected(classifyTransitAlert({ route: 'all routes', segmentText: 'city-wide weekend TTC closures' }));
+  // Named stops past either end of the King frontage, not a fixed denylist.
+  for (const segmentText of [
+    'King St W between Strachan Ave and Blue Jays Way',
+    'King St W between Atlantic Ave and Charlotte St',
+    'Shaw St to Spencer Ave',
+    'between Dufferin and Ossington',
+    'between Dufferin and Dovercourt',
+    'Fraser Ave and Sunnyside',
+  ]) {
+    assert.equal(classifyTransitAlert({ route: '504', segmentText }).verdict, 'not-LV', segmentText);
+  }
+  assert.equal(classifyTransitAlert({
+    route: '504', segmentText: '504 King: Diversion | King St West at Strachan Ave to Dufferin St',
+  }).verdict, 'adjacent');
 });
 
 test('project and BIA sections use their own event place, not project or actor identity', () => {
@@ -196,6 +210,16 @@ test('U1: prose venues need Toronto context; US namesakes and bare core venue na
   rejected(classifyAddress('70 East Liberty St, Somerset, NJ 08873'));
   // A team name is not a foreign place.
   assert.equal(place('Open house October 3, 2026: Tempo vs New York Liberty at Coca-Cola Coliseum, Toronto').verdict, 'adjacent');
+  // US namesakes: ZIP without a comma, a written-out state, and Toronto, Ohio.
+  const namesake = (placeQuote) => classifySectionPlace({
+    placeQuote, sectionText: `Toronto. ${placeQuote}`, subject: 'Open house', dateQuote: 'October 3, 2026', agentVerdict: 'core',
+  });
+  rejected(namesake('Open house October 3, 2026 at Liberty Village Park, Somerset NJ 08873'));
+  rejected(namesake('Open house October 3, 2026 at Liberty Village Park in Somerset, New Jersey'));
+  rejected(namesake('Open house October 3, 2026 at Liberty Village Park, Toronto, Ohio'));
+  assert.equal(classifyAddress('40 Hanna Ave, Toronto, Ohio').verdict, 'not-LV');
+  assert.equal(classifyAddress('70 East Liberty St, Somerset NJ 08873').verdict, 'not-LV');
+  assert.equal(place('Open house October 3, 2026: Tempo vs New York Liberty at Coca-Cola Coliseum, Toronto').verdict, 'adjacent');
 });
 
 test('identity: one canonical Lamport, Exhibition Place distinct from Enercare, exact QUEST XO alias', () => {
@@ -222,4 +246,19 @@ test('U3: an Instagram caption stating another place never inherits the own venu
   assert.equal(statedOtherPlace('Latte art night 📍 Liberty Village', 'addr:43-hanna-ave#123'), null);
   assert.equal(statedOtherPlace('Join us 📍43 Hanna Ave, Toronto', 'addr:43-hanna-ave#123'), null);
   assert.equal(statedOtherPlace('New fall menu is here', 'addr:116-atlantic-ave'), null);
+  const own = 'addr:116-atlantic-ave';
+  for (const caption of [
+    'Burger Drops pop-up Saturday October 3 at Stackt Market, 28 Bathurst St',
+    'Burger Drops is at the Evergreen Brick Works market Saturday October 3',
+    'Catch Burger Drops at Union Station Saturday October 3!',
+    'Burger Drops pop-up Saturday October 3 in Mississauga at Square One',
+  ]) {
+    const other = statedOtherPlace(caption, own);
+    assert.ok(other && ['not-LV', 'unverifiable'].includes(other.verdict), caption + JSON.stringify(other));
+  }
+  assert.equal(statedOtherPlace('Burger Drops pop-up Saturday October 3. Smash burgers all day.', own), null);
+  assert.equal(statedOtherPlace('Come see Burger Drops at Burger Drops Saturday October 3', own), null);
+  assert.equal(statedOtherPlace('Meet Sarah Chen Saturday October 3. Smash burgers all day in Liberty Village.', own), null);
+  assert.equal(statedOtherPlace('Meet Sarah Chen at the counter Saturday October 3', own), null);
+  assert.equal(statedOtherPlace('Latte art night in Liberty Village with Sarah Chen', own), null);
 });

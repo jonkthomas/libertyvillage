@@ -281,4 +281,16 @@ test('Instagram own-venue fallback (null place_quote) never admits a caption tha
   const elsewhere = await run('Burger Drops pop-up Saturday October 3\n📍 Stackt Market, 28 Bathurst St');
   assert.equal(elsewhere.items.length, 0);
   assert.equal(elsewhere.excluded[0].reason, 'unverifiable');
+  for (const caption of [
+    'Burger Drops pop-up Saturday October 3 at Stackt Market, 28 Bathurst St',
+    'Burger Drops is at the Evergreen Brick Works market Saturday October 3',
+    'Catch Burger Drops at Union Station Saturday October 3!',
+    'Burger Drops pop-up Saturday October 3 in Mississauga at Square One',
+  ]) {
+    const admitted = await run(caption);
+    assert.equal(admitted.items.length, 0, caption + JSON.stringify(admitted));
+    assert.ok(['unverifiable', 'not-LV'].includes(admitted.excluded[0].reason), caption);
+  }
+  const prose = await run('Burger Drops meets Sarah Chen Saturday October 3. Smash burgers all day in Liberty Village.');
+  assert.equal(prose.items[0]?.locality, 'core', JSON.stringify(prose.excluded));
 });
