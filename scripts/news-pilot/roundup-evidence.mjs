@@ -42,7 +42,7 @@ const sourceProves = (sources, url, span, dates) => {
   return new Set(sources.filter((s) => s.fetchOk === true && s.extractionSubstantive === true &&
     String(s.excerpt || '').includes(span)).map((s) => s.publisherDomain)).size >= 2;
 };
-const RISK_CATEGORIES = new Set(['crime', 'safety', 'civic-controversy', 'development-application']);
+const RISK_CATEGORIES = new Set(['crime', 'safety', 'election', 'elections', 'civic-controversy', 'development-application']);
 const NON_NEWS = new Set(['directory', 'query', 'landing-page', 'application', 'opinion', 'promotion']);
 const isoTime = (value) => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(value) && Number.isFinite(Date.parse(value));
 const canonical = (url) => { try { const u = new URL(url); u.hash = ''; return u.href.replace(/\/$/, ''); } catch { return ''; } };

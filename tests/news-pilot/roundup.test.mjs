@@ -138,7 +138,7 @@ test('upcoming event time and whole Toronto local dates are bounded, independent
   assert.equal(validateRoundupItem({ ...old, eventStart: '2026-10-08T12:00:00.000Z', eventStartSourceUrl: source('other').canonicalUrl }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...old, eventStart: '2026-10-08T12:00:00.000Z', eventConcluded: true }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...old, eventStart: '2026-10-08T12:00:00.000Z', category: 'crime' }, opts).decision, 'refused');
-  assert.equal(validateRoundupItem({ ...old, eventStart: '2026-10-08T12:00:00.000Z', category: 'election' , riskFlags: ['election'] }, opts).decision, 'refused');
+  assert.equal(validateRoundupItem({ ...old, eventStart: '2026-10-08T12:00:00.000Z', category: 'election', riskFlags: [] }, opts).decision, 'refused');
   assert.equal(validateRoundupItem({ ...old, eventStart: '2026-10-08T12:00:00.000Z', location: 'Toronto',
     actor: 'City of Toronto', title: 'City-wide event', summary: 'Toronto city-wide event' }, opts).decision, 'excluded');
   const recentFarEvent = { ...old, announcedAt: '2026-09-29T10:00:00.000Z', announcedAtSpan: 'September 29, 2026',
