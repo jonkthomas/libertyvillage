@@ -105,10 +105,10 @@ export function assembleRoundupPost({ pack, draft, image = '/images/og/og-home.j
     const entry = draft.units.find((u) => u.unitId === unit.identityKey);
     const sources = unit.citations || unit.evidence || [];
     if (!entry || !sources.length) throw new Error('roundup unit missing copy/citation');
-    const actual = unit.date || unit.when?.date;
-    if (!actual || !entry.body.includes(actual) && !entry.body.includes(fmt(new Date(`${actual}T12:00:00Z`))))
-      throw new Error('roundup unit actual date missing');
-    return `## ${i + 1}. ${entry.heading}\n\n${entry.body}\n\nSource: ${sources.map(citation).join('; ')}`;
+    const dates = unit.members?.length ? unit.members.map((member) => member.date) : [unit.date || unit.when?.date];
+    if (dates.some((date) => !/^\d{4}-\d{2}-\d{2}$/.test(date || ''))) throw new Error('roundup unit actual date missing');
+    // The verified dates are assembled independently of whatever wording the model chose.
+    return `## ${i + 1}. ${entry.heading}\n\nDates: ${[...new Set(dates)].join(', ')}. ${entry.body}\n\nSource: ${sources.map(citation).join('; ')}`;
   });
   if (pack.stillInEffect?.length) sections.push('### Still in effect\n\n' + pack.stillInEffect.map((u) =>
     `- ${escapeMarkdown(u.subject)} (${u.date || u.when?.date}): ${(u.citations || []).map(citation).join('; ')}`).join('\n'));
