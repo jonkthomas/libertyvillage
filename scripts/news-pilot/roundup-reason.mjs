@@ -69,9 +69,9 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
   const torontoParts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto',
     year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now)).map((part) => [part.type, part.value]));
   const referenceDateToronto = `${torontoParts.year}-${torontoParts.month}-${torontoParts.day}`;
-  // The bounded six-call budget must never spend a slot on an adjacent venue or
-  // search lead while a verified first-party IG, BIA, or City project lead waits.
-  // Priority only orders reasoning; the verifier still proves locality and time.
+  // Offer dated near-term first-party IG, BIA and City-project records first;
+  // stale or undated first-party records may yield to current official venue/feed
+  // leads. Priority only orders reasoning; verification still proves place/time.
   const sources = new Map(ROUNDUP_SOURCES.map((source) => [source.id, source]));
   const priority = (signal) => {
     const source = sources.get(signal.sourceId);
