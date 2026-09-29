@@ -137,7 +137,7 @@ test('collector: identity sources become record-bound signals; feeds filtered to
   assert.deepEqual(ttc.map((s) => s.records[0].typed.route), ['504']);
   const bia = signals.filter((s) => s.sourceId === 'rv2-lv-bia-events');
   assert.equal(bia.length, 1);
-  assert.equal(bia[0].signalId, roundupSignalId('rv2-lv-bia-events', 'https://www.libertyvillagebia.com/events', ''));
+  assert.equal(bia[0].signalId, roundupSignalId('rv2-lv-bia-events', 'https://www.libertyvillagebia.com/events', bia[0].records[0].recordId));
 
   assert.equal(census.sources['rv2-road-restrictions'].records, 3);
   assert.equal(census.sources['rv2-bmo-field'].status, 'ok');
@@ -156,6 +156,18 @@ test('collector: identity sources become record-bound signals; feeds filtered to
   assert.ok(road[0].snapshotSha256);
   for (const f of ['signals.jsonl', 'census.json']) assert.equal(fs.statSync(path.join(out, f)).mode & 0o777, 0o600);
   assert.equal(fs.readFileSync(path.join(out, 'signals.jsonl'), 'utf8').trim().split('\n').length, signals.length);
+});
+
+test('two BIA event sections become two independent record-bound signals and forms', async () => {
+  const html = '<main><h2>Park opening</h2><p>Opening at 70 East Liberty St, Toronto on October 3, 2026.</p>' +
+    '<h2>Stadium event</h2><p>Event at 75 Fraser Ave, Toronto on October 4, 2026.</p></main>';
+  const c = fakeClock();
+  const routes = { ...baseRoutes, 'https://www.libertyvillagebia.com/events': html };
+  const { signals } = await collectRoundup({ out: tmp(), now: NOW, env: {}, fetcher: fakeNet(routes).fetcher,
+    watchList: [], sources: ids('rv2-lv-bia-events'), clock: c.clock, sleep: c.sleep });
+  assert.equal(signals.length, 2);
+  assert.equal(new Set(signals.map((s) => s.signalId)).size, 2);
+  assert.ok(signals.every((s) => s.records.length === 1));
 });
 
 test('road recall: the geography classifier decides when present; otherwise LV streets or frontage at an LV cross street', async () => {
@@ -273,7 +285,8 @@ test('Serper: missing key → unavailable; results group same-story pages from d
   assert.equal(byUrl[news[2].link].groupId, undefined);
   assert.ok(!net.calls.some((x) => x.url.includes('instagram.com')));
   assert.equal(signals.length, 3, 'one signal per page (deduplicated across queries)');
-  assert.ok(signals.every((s) => s.signalId === roundupSignalId('rv2-serper-news', s.url, '')));
+  assert.ok(signals.every((s) => s.records.length === 1 &&
+    s.signalId === roundupSignalId('rv2-serper-news', s.url, s.records[0].recordId)));
 });
 
 // ---------------------------------------------------------------------------

@@ -295,7 +295,10 @@ export async function collectRoundup({
     entry.records = records.length;
     const before = signals.length;
     if (source.parse === 'html-page') {
-      if (records.length) addSignal({ sourceId: source.id, url: source.url, records, fetchedAt, snap, extra: { title: source.label } });
+      // A BIA/project page may contain many independent events. One signal per
+      // section preserves the one-form-per-signal contract and record identity.
+      for (const record of records) addSignal({ sourceId: source.id, url: source.url, records: [record],
+        recordId: record.recordId, fetchedAt, snap, extra: { title: source.label } });
     } else {
       for (const record of records) {
         if (source.identityKind === 'road-feed') {
@@ -417,7 +420,8 @@ export async function collectRoundup({
           continue;
         }
         const snap = snapshot(serperSource.id, res.body, 'html');
-        addSignal({ sourceId: serperSource.id, url: result.link, records, fetchedAt: stamp(), snap,
+        for (const record of records) addSignal({ sourceId: serperSource.id, url: result.link,
+          records: [record], recordId: record.recordId, fetchedAt: stamp(), snap,
           extra: { title: result.title, query: result.query, ...(groupOf.has(result.link) ? { groupId: groupOf.get(result.link) } : {}) } });
         census.serper.pages += 1;
       }
