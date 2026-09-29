@@ -146,4 +146,10 @@ test('upcoming event time and whole Toronto local dates are bounded, independent
     eventStart: '2026-10-28T12:00:00.000Z', eventStartSpan: 'October 28, 2026' };
   assert.equal(validateRoundupItem(recentFarEvent, opts).temporalCategory, 'news-update');
   assert.equal(validateRoundupItem(recentFarEvent, opts).decision, 'accepted');
+  const dstEvent = { ...old, eventStartDate: '2026-11-01', eventStartSpan: 'November 1, 2026',
+    sources: [{ ...source('event'), excerpt: 'September 8, 2026: Liberty Village community group announced a new local event for November 1, 2026 at Hanna Avenue.' }] };
+  const dstOpts = { weekStartUtc: '2026-10-26T00:00:00.000Z', nowMs: Date.parse('2026-10-31T12:00:00.000Z') };
+  assert.equal(validateRoundupItem(dstEvent, dstOpts).decision, 'accepted');
+  assert.equal(validateRoundupItem({ ...dstEvent, eventStartDate: '2026-11-14', eventStartSpan: 'November 14, 2026',
+    sources: [{ ...source('event'), excerpt: 'September 8, 2026: Liberty Village community group announced a new local event for November 14, 2026 at Hanna Avenue.' }] }, dstOpts).decision, 'excluded');
 });
