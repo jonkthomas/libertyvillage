@@ -103,6 +103,8 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     const n = Number(f['slot-number']);
     switch (sub) {
       case 'count': return count(week);
+      case 'unresolved': return world.attempts.filter((a) => a.target === target && a.lane === 'content' && [null,'published','smoked'].includes(a.outcome))
+        .sort((a, b) => a.week_start_utc.localeCompare(b.week_start_utc) || a.slot_number - b.slot_number || a.ordinal - b.ordinal).slice(0, 3).map((a) => ({ ...a }));
       case 'status': return {
         slots: [...world.slots.values()].filter((slot) => slot.week_start_utc === week).map(publicSlot),
         attempts: world.attempts.filter((a) => a.week_start_utc === week).map((a) => ({ ...a })), alerts: [],
@@ -150,14 +152,15 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         const outcome = f.outcome;
         if (attempt.outcome === outcome) return attempt;
         if (attempt.outcome && !['published', 'smoked'].includes(attempt.outcome)) throw cliError('cli-state', 1);
-        if (attempt.outcome === 'smoked' && outcome !== 'consumed') throw cliError('cli-state', 1);
+        if (attempt.outcome === 'smoked' && !['consumed','late-smoked'].includes(outcome)) throw cliError('cli-state', 1);
         // Like cadence.mjs: consumed only if current-live AND counted in the ATTEMPT's week.
         if (outcome === 'consumed' && (attempt.outcome !== 'smoked' || !count(attempt.week_start_utc)[attempt.lane === 'roundup' ? 'roundup' : 'content'].some((item) => item.submissionId === attempt.submission_id))) throw cliError('cli-state', 1);
+        if (outcome === 'late-smoked' && (attempt.lane !== 'content' || attempt.outcome !== 'smoked' || ![...world.submissions.values()].some((sub) => sub.id === attempt.submission_id && sub.smokedAt && weekStartUtc(sub.smokedAt) > attempt.week_start_utc && count(weekStartUtc(sub.smokedAt)).content.some((item) => item.submissionId === sub.id)))) throw cliError('cli-state', 1);
         attempt.outcome = outcome;
         slot.state = FAILED.has(outcome) ? 'ready' : outcome;
         return attempt;
       }
-      case 'consumed': return [...new Set(world.attempts.filter((a) => a.target === target && ['smoked', 'consumed'].includes(a.outcome)).map((a) => a.intent_fingerprint))].sort();
+      case 'consumed': return [...new Set(world.attempts.filter((a) => a.target === target && a.lane === 'content' && [null,'published','smoked','consumed','late-smoked'].includes(a.outcome)).map((a) => a.intent_fingerprint))].sort();
       case 'deadline': {
         world.deadlineCalls.push({ week, now: f.now });
         if (world.deadlineFails) throw cliError('cli-state', 1);

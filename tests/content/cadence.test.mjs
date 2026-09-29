@@ -9,9 +9,9 @@ const week = '2026-09-28';
 const ref = (slotNumber = 1, lane = 'content') => ({ target: 'test', weekStart: week, lane, slotNumber });
 
 async function fixture(db, { slug, kind = 'blog', category = 'guides', smoke = 'passed', op = 'insert',
-  overall = 8.5, passed = true, blockers = 0, time = '2026-09-30T12:00:00Z', live = true } = {}) {
+  overall = 8.5, passed = true, blockers = 0, time = '2026-09-30T12:00:00Z', live = true, idempotencyKey } = {}) {
   const id = Number((await db.query(`insert into content.submissions(kind,target,actor,idempotency_key,request_sha256,state,smoke_passed_at)
-    values($1,'test','fixture',$2,'sha','published',$3) returning id`, [kind, `fixture:${slug}:${Math.random()}`, time])).rows[0].id);
+    values($1,'test','fixture',$2,'sha','published',$3) returning id`, [kind, idempotencyKey ?? `fixture:${slug}:${Math.random()}`, time])).rows[0].id);
   await db.query('insert into content.entries(dataset,key,position,head_rev) values(\'posts\',$1,$2,1) on conflict(dataset,key) do nothing', [slug, id]);
   await db.query(`insert into content.revisions(dataset,key,rev,payload,payload_sha256,source,actor,submission_id)
     values('posts',$1,1,$2::json,$3,'writer','fixture',$4) on conflict do nothing`, [slug, JSON.stringify({ category }), 'a'.repeat(64), id]);
@@ -52,10 +52,11 @@ test('alias observer fetches once, matches revision and fails closed on invalid 
     const missing = await cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: fetched(aliasManifest()) });
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe: missing })).contentCount, 0);
   } finally { await close(); }
-  await assert.rejects(cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: fetched({}, 500) }), /unavailable/);
+  await assert.rejects(cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: fetched({}, 503) }), /^Error: HTTP 503$/);
+  await assert.rejects(cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: fetched({}, 403) }), /unavailable/);
   await assert.rejects(cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: fetched({}) }), /invalid/);
   await assert.rejects(cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: async () => new Response('{bad json', { status: 200 }) }), /invalid/);
-  await assert.rejects(cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: async () => { throw new Error('network down'); } }), /unavailable/);
+  await assert.rejects(cadence.createAliasObserver({ siteUrl: 'https://example.test', fetchImpl: async () => { throw new Error('private URL network down'); } }), /^Error: network error$/);
   await assert.rejects(cadence.createAliasObserver({ fetchImpl: fetched(aliasManifest()) }), /CONTENT_SITE_URL/);
 });
 
@@ -73,6 +74,28 @@ test('migration accepts roundup, ISO slug handles year boundary, immutable keys 
     assert.equal(claim.slot.week_start_utc, week);
     await assert.rejects(db.query("update content.cadence_slots set roundup_slug='changed' where target='test'"), /cadence-immutable/);
     await assert.rejects(db.query("delete from content.cadence_slots where target='test'"), /cadence-immutable/);
+  } finally { await close(); }
+});
+
+test('prior-week pending intent is fenced, then late smoke settles terminal only after actual-week alias proof', async () => {
+  const { db, close } = await testDb();
+  try {
+    const slotRef = ref(1);
+    const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'cross-week' });
+    const recorded = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: 'brunch', topicKey: 'brunch', sourcePackDigest: 'pack' });
+    assert.deepEqual(await cadence.consumedFingerprints(db, { target: 'test' }), ['brunch']);
+    assert.equal((await cadence.unresolvedContentAttempts(db, { target: 'test' }))[0].idempotency_key, recorded.idempotencyKey);
+    const id = await fixture(db, { slug: 'late-brunch', time: '2026-10-05T00:10:00Z', idempotencyKey: recorded.idempotencyKey });
+    await cadence.attachSubmission(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, submissionId: id });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'smoked' });
+    await assert.rejects(cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe: async () => null }), /not current-live/);
+    assert.equal((await cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe })).outcome, 'late-smoked');
+    assert.equal((await cadence.unresolvedContentAttempts(db, { target: 'test' })).length, 0);
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).contentCount, 0);
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-05', observe })).contentCount, 1);
+    await db.query("set time zone 'America/Toronto'");
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-05', observe })).contentCount, 1, 'session timezone cannot move a UTC-week smoke');
+    assert.deepEqual(await cadence.consumedFingerprints(db, { target: 'test' }), ['brunch']);
   } finally { await close(); }
 });
 
@@ -212,7 +235,7 @@ test('CLI count and reserve require bound test DB', async () => {
     assert.equal((await runCli(['cadence', 'count', '--week-start', week, '--expect-db', name],
       { delegates: { fetchImpl: fetched(aliasManifest()) } })).result.contentCount, 0);
     await assert.rejects(runCli(['cadence', 'deadline', '--week-start', week, '--now', '2026-10-05T00:00:00Z', '--expect-db', name],
-      { delegates: { fetchImpl: fetched({}, 500) } }), /unavailable/);
+      { delegates: { fetchImpl: fetched({}, 500) } }), /^Error: HTTP 500$/);
     assert.equal((await db.query('select count(*)::int as n from content.cadence_alerts')).rows[0].n, 0);
     await assert.rejects(runCli(['cadence', 'count', '--week-start', week, '--observations', 'scratch.json', '--expect-db', name],
       { delegates: { fetchImpl: fetched(aliasManifest()) } }), /hosted alias/);

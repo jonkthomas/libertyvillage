@@ -29,6 +29,26 @@ test('two current-live content posts: no reservation, no generator spend', (t) =
   assert.equal(world.calls.some((args) => args[1] === 'reserve'), false);
 });
 
+test('eligible inventory, not queue length, triggers bounded discovery before first generator spend', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.pet] });
+  const calls = [];
+  world.deps.replenish = (week) => { calls.push(week); world.queue.push(TOPICS.happy, TOPICS.coffee); };
+  const result = run(world);
+  assert.equal(result.cadenceMet, true);
+  assert.deepEqual(calls, ['2026-09-28']);
+  assert.deepEqual(world.generated.map((entry) => entry.title), ['Liberty Village Happy Hour', 'Coffee Shops']);
+  assert.ok(events(world, 'cadence-inventory').some((event) => event.normal === 0 && event.low));
+  assert.ok(events(world, 'cadence-inventory-recheck').some((event) => event.normal === 2 && event.low));
+});
+
+test('discovery failure logs inventory deficit but does not discard already grounded candidates', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee] });
+  world.deps.replenish = () => { throw new Error('discovery unavailable'); };
+  assert.equal(run(world).cadenceMet, true);
+  assert.deepEqual(world.generated.map((entry) => entry.title), ['Liberty Village Happy Hour', 'Coffee Shops']);
+  assert.equal(events(world, 'cadence-inventory-replenish-failed').length, 1);
+});
+
 test('Wednesday fills slots 1 and 2 with distinct grounded intents; ungroundable pet premise never reaches the model', (t) => {
   const world = withWorld(t, { queue: [TOPICS.pet, TOPICS.happy, TOPICS.coffee] });
   const result = run(world);
@@ -65,6 +85,39 @@ test('restart after pending publication resumes the ORIGINAL idempotency key; no
   assert.equal(attempts.filter((a) => a.slot_number === 1).length, 1, 'no new ordinal for the resumed slot');
   assert.ok(events(world, 'resume').length >= 1);
   assert.equal(world.generated.filter((entry) => entry.title === 'Liberty Village Happy Hour').length, 1, 'resumed topic is never regenerated');
+});
+
+test('Sunday pending blog resumes its original key on Monday before any new-week draft', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
+  world.gatePlan = ['pending'];
+  world.deployCode = 3;
+  assert.throws(() => run(world), /publish or propagation pending/);
+  const [old] = attemptsOf(world);
+  assert.equal(old.outcome, 'published');
+  world.now = new Date('2026-10-05T12:30:00.000Z');
+  world.deployCode = 0;
+  const result = run(world);
+  assert.equal(result.cadenceMet, true);
+  assert.equal(old.outcome, 'late-smoked');
+  assert.equal(world.generated.filter((item) => item.title === 'Liberty Village Happy Hour').length, 1);
+  assert.equal(attemptsOf(world).filter((item) => item.week_start_utc === '2026-10-05').some((item) => item.intent_fingerprint === old.intent_fingerprint), false);
+  assert.ok(world.calls.some((args) => args[0] === 'lookup' && args.includes(old.idempotency_key)));
+  assert.equal(events(world, 'cadence-smoked-uncounted').some((entry) => entry.id === old.submission_id && entry.late), true);
+  assert.ok(world.alerts.has('2026-09-28|WEEKLY_CONTENT_MISSED'));
+  assert.equal(result.contentCount, 2, 'late smoke counts only in the actual week');
+});
+
+test('Sunday crash before submit is reconciled under its old key before Monday candidates', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [TOPICS.happy, TOPICS.coffee] });
+  world.submitPlan = ['network'];
+  assert.throws(() => run(world), (error) => error.cliFailure?.reason === 'cli-network');
+  const [old] = attemptsOf(world);
+  world.now = new Date('2026-10-05T12:30:00.000Z');
+  const result = run(world);
+  assert.equal(result.cadenceMet, true);
+  assert.equal(attemptsOf(world).filter((a) => a.intent_fingerprint === old.intent_fingerprint).length, 1);
+  assert.equal(attemptsOf(world).filter((a) => a.week_start_utc === '2026-10-05' && a.intent_fingerprint === old.intent_fingerprint).length, 0);
+  assert.equal(world.generated.filter((entry) => entry.title === 'Liberty Village Happy Hour').length, 2, 'one same-key retry, never a new-week redraft');
 });
 
 test('crash before submit retries the SAME key and intent on the next run', (t) => {
@@ -162,7 +215,7 @@ test('F1 late smoke (next ISO week) is never success for the old week', (t) => {
   world.smokeAt = new Date('2026-10-05T00:10:00.000Z');
   assert.throws(() => run(world), /late smoke; old week missed/);
   const [attempt] = attemptsOf(world);
-  assert.equal(attempt.outcome, 'smoked', 'consumed refused for the old week');
+  assert.equal(attempt.outcome, 'late-smoked', 'terminal in the old slot, never consumed for the old week');
   assert.equal(world.generated.length, 1, 'no further spend for a week that has ended');
 });
 

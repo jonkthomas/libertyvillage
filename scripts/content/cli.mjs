@@ -53,6 +53,9 @@ async function gcAssets(db,{apply}) {
   return {deleted:apply ? candidates.length : 0,bytes:apply ? candidates.reduce((sum,a) => sum+a.byte_size,0) : 0};
 }
 export async function runCli(argv = process.argv.slice(2), { delegates = {} } = {}) {
+  // Reject the equals spelling before argument parsing or DB setup too.
+  if (argv[0] === 'submit' && argv.includes('--kind=roundup'))
+    throw new store.ValidationError('roundup publication disabled pending structured-source review');
   const {command,opts} = parse(argv);
   // Independent trusted boundary: an operator cannot submit a free-text weekly
   // roundup even if a writer or runner was invoked outside its census-only mode.
@@ -90,10 +93,11 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
           case 'release': result = await cadence.releaseSlot(db, slotRef, required(opts.token, '--token')); break;
           case 'attempt': result = await cadence.recordAttempt(db, { slotRef, token: required(opts.token, '--token'), intentFingerprint: required(opts.intentFingerprint, '--intent-fingerprint'), topicKey: required(opts.topicKey, '--topic-key'), sourcePackDigest: required(opts.sourcePackDigest, '--source-pack-digest') }); break;
           case 'attach': result = await cadence.attachSubmission(db, { idempotencyKey: required(opts.idempotencyKey, '--idempotency-key'), token: required(opts.token, '--token'), submissionId: Number(required(opts.submissionId, '--submission-id')) }); break;
-          case 'outcome': result = await cadence.recordAttemptOutcome(db, { idempotencyKey: required(opts.idempotencyKey, '--idempotency-key'), token: required(opts.token, '--token'), outcome: required(opts.outcome, '--outcome'), observe: opts.outcome === 'consumed' ? await aliasObserver() : undefined }); break;
+          case 'outcome': result = await cadence.recordAttemptOutcome(db, { idempotencyKey: required(opts.idempotencyKey, '--idempotency-key'), token: required(opts.token, '--token'), outcome: required(opts.outcome, '--outcome'), observe: ['consumed','late-smoked'].includes(opts.outcome) ? await aliasObserver() : undefined }); break;
           case 'count': result = await cadence.countCurrentWeek(db, { target, weekStart, observe: await aliasObserver() }); break;
           // Read-only, target-scoped, all-time smoked/consumed intent fingerprints.
           case 'consumed': result = await cadence.consumedFingerprints(db, { target }); break;
+          case 'unresolved': result = await cadence.unresolvedContentAttempts(db, { target }); break;
           case 'deadline': result = await cadence.evaluateDeadline(db, { target, weekStart, now: opts.now ?? new Date(), observe: await aliasObserver() }); break;
           case 'deliver-alerts': {
             const webhook = required(process.env.SLACK_WEBHOOK_URL, 'SLACK_WEBHOOK_URL');

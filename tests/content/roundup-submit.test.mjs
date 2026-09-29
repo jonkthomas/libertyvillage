@@ -14,6 +14,8 @@ import { roundupPackDigest } from '../../scripts/news-pilot/roundup-evidence.mjs
 test('trusted CLI refuses all roundup publication before opening a DB, independently of runner mode', async () => {
   await assert.rejects(runCli(['submit', '--kind', 'roundup', '--dir', '/tmp/unused']),
     /roundup publication disabled pending structured-source review/);
+  await assert.rejects(runCli(['submit', '--kind=roundup', '--dir', '/tmp/unused']),
+    /roundup publication disabled pending structured-source review/);
 });
 
 const { gateContent } = await import('../../scripts/content/gate.mjs');

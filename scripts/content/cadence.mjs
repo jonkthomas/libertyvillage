@@ -6,7 +6,7 @@ import { ALL } from './canonical.mjs';
 const row = (result) => result.rows[0];
 const number = (value) => Number(value);
 const failed = new Set(['failed-before-submit', 'rejected', 'blocked', 'error']);
-const outcomes = new Set([...failed, 'published', 'smoked', 'consumed']);
+const outcomes = new Set([...failed, 'published', 'smoked', 'consumed', 'late-smoked']);
 const slotColumns = 'target=$1 and week_start_utc=$2 and lane=$3 and slot_number=$4';
 const dateText = '*, week_start_utc::text as week_start_utc';
 const slotValues = ({ target, weekStart, lane, slotNumber }) => [target, weekStart, lane, slotNumber];
@@ -37,6 +37,10 @@ export function roundupSlug(weekStart) {
 export async function createAliasObserver({ siteUrl, bypass, fetchImpl } = {}) {
   const http = createHttp({ siteUrl, bypass, fetchImpl });
   const response = await http.get(MANIFEST_PATH);
+  // Preserve transport failures for the runner's bounded retry guidance. A
+  // malformed 200 or expected 4xx refusal remains a state error instead.
+  if (response.status === 0) throw new Error('network error');
+  if (response.status >= 500 && response.status <= 599) throw new Error(`HTTP ${response.status}`);
   if (response.status !== 200) throw new StateError('alias manifest unavailable');
   let manifest;
   try { manifest = JSON.parse(response.body.toString('utf8')); }
@@ -156,7 +160,17 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
     const { attempt, ref } = await lockedAttempt(client, db, idempotencyKey, token);
     if (attempt.outcome === outcome) return attempt;
     if (attempt.outcome && attempt.outcome !== 'published' && attempt.outcome !== 'smoked') throw new StateError('attempt closed');
-    if (attempt.outcome === 'smoked' && outcome !== 'consumed') throw new StateError('invalid outcome transition');
+    if (attempt.outcome === 'smoked' && !['consumed','late-smoked'].includes(outcome)) throw new StateError('invalid outcome transition');
+    if (outcome === 'late-smoked') {
+      if (ref.lane !== 'content' || attempt.outcome !== 'smoked' || !attempt.submission_id || typeof observe !== 'function') throw new StateError('late smoke requires observation');
+      const submission = row(await client.query(`select smoke_passed_at from content.submissions
+        where id=$1 and target=$2 and state='published'`, [attempt.submission_id, ref.target]));
+      if (!submission?.smoke_passed_at) throw new StateError('submission not smoked');
+      const actualWeek = weekStartUtc(submission.smoke_passed_at);
+      if (actualWeek <= ref.weekStart) throw new StateError('smoke not late');
+      const counted = await countCurrentWeek(db, { target: ref.target, weekStart: actualWeek, observe });
+      if (!counted.content.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('late submission is not current-live');
+    }
     if (outcome === 'consumed') {
       if (!attempt.submission_id) throw new StateError('submission missing');
       if (attempt.outcome !== 'smoked' || typeof observe !== 'function') throw new StateError('consumed requires smoke and observation');
@@ -173,8 +187,19 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
 }
 export async function consumedFingerprints(db, { target }) {
   checkTarget(db, target);
+  // Pending and published attempts are unavailable too: a week rollover must
+  // not spend another idempotency key on the same in-flight intent.
   return (await db.query(`select distinct intent_fingerprint from content.cadence_attempts
-    where target=$1 and outcome in ('smoked','consumed') order by intent_fingerprint`, [target])).rows.map((r) => r.intent_fingerprint);
+    where target=$1 and lane='content' and (outcome is null or outcome in ('published','smoked','consumed','late-smoked'))
+    order by intent_fingerprint`, [target])).rows.map((r) => r.intent_fingerprint);
+}
+
+export async function unresolvedContentAttempts(db, { target, limit = 3 }) {
+  checkTarget(db, target);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 21) throw new ValidationError('invalid unresolved limit');
+  return (await db.query(`select ${dateText} from content.cadence_attempts a
+    where a.target=$1 and a.lane='content' and (a.outcome is null or a.outcome in ('published','smoked'))
+    order by a.week_start_utc,a.slot_number,a.ordinal limit $2`, [target, limit])).rows;
 }
 
 export async function countCurrentWeek(db, { target, weekStart, observe }) {
@@ -186,7 +211,8 @@ export async function countCurrentWeek(db, { target, weekStart, observe }) {
     join content.entries e on e.dataset=i.dataset and e.key=i.key and e.live_rev=i.published_rev
     join content.revisions r on r.dataset=i.dataset and r.key=i.key and r.rev=i.published_rev
     join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
-    where s.target=$1 and s.smoke_passed_at >= $2::date and s.smoke_passed_at < $2::date + interval '7 days'
+    where s.target=$1 and (s.smoke_passed_at at time zone 'UTC') >= $2::timestamp
+      and (s.smoke_passed_at at time zone 'UTC') < $2::timestamp + interval '7 days'
       and s.state='published' and i.smoke='passed' and i.dataset='posts' and i.op='insert'
       and i.published_rev is not null and g.passed=true and g.overall>=8 and g.blocking_count=0
       and ((s.kind='blog' and r.payload->>'category' is distinct from 'news')

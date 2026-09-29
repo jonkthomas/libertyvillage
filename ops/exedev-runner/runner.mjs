@@ -374,6 +374,14 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
   const outcome = (value) => ctx.call('outcome', ['--idempotency-key', key, '--token', token, '--outcome', value]);
   if (gate.state === 'smoked') {
     outcome('smoked');
+    const late = typeof gate.smokedAt === 'string' && deps.modules.weekStartUtc(new Date(gate.smokedAt)) !== ctx.week;
+    if (late && ctx.lane === 'content') {
+      // The trusted CLI verifies current-live alias proof in the actual smoke
+      // week before making this original-week attempt terminal.
+      outcome('late-smoked');
+      deps.log('cadence-smoked-uncounted', { id, late: true, consumed: false, counted: false });
+      return 'late-smoke';
+    }
     let consumed = false;
     let counted = false;
     try { outcome('consumed'); consumed = true; }
@@ -383,7 +391,6 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
       counted = (ctx.lane === 'roundup' ? count.roundup : count.content).some((item) => Number(item.submissionId) === Number(id));
     } catch (error) { deps.log('cadence-count-failed', { id, reason: error?.cliFailure?.reason ?? 'operational-error' }); }
     if (consumed && counted) { deps.log('cadence-consumed', { id }); return 'counted'; }
-    const late = typeof gate.smokedAt === 'string' && deps.modules.weekStartUtc(new Date(gate.smokedAt)) !== ctx.week;
     deps.log('cadence-smoked-uncounted', { id, late, consumed, counted });
     return late ? 'late-smoke' : 'uncounted';
   }
@@ -516,6 +523,26 @@ function reserveEntries(run, snapshot, { retryKey = null } = {}) {
 }
 
 // Next distinct eligible intent, chosen BEFORE any generator spend.
+function eligibleInventory(run, snapshot) {
+  const normal = new Set();
+  for (const entry of queueEntries(run, snapshot).slice(0, 100)) {
+    const candidate = blogCandidate(run, entry, snapshot);
+    if (!candidate.skip && !run.weekFingerprints.has(candidate.fingerprint)) normal.add(candidate.fingerprint);
+    if (normal.size >= 6) break;
+  }
+  const reserves = [];
+  const used = new Set();
+  for (const entry of reserveEntries(run, snapshot)) {
+    const candidate = blogCandidate(run, entry, snapshot, { reserve: true });
+    if (candidate.skip || run.weekFingerprints.has(candidate.fingerprint)
+      || candidate.pack.sources.some((source) => used.has(source.id))) continue;
+    reserves.push(candidate);
+    for (const source of candidate.pack.sources) used.add(source.id);
+    if (reserves.length >= 2) break;
+  }
+  return { normal: normal.size, reserve: reserves.length };
+}
+
 function nextCandidate(run, snapshot, { normal, reserve }) {
   const passes = [...(normal ? [false] : []), ...(reserve ? [true] : [])];
   for (const asReserve of passes) {
@@ -679,14 +706,46 @@ function processContentSlot(run, slotNumber) {
   }
 }
 
+// Unresolved work has no age cutoff: a VM may be down for more than the alert
+// lookback. Inspect a bounded oldest-first page and never start new work while
+// an older publication is pending, held by another owner or beyond the cap.
+function recoverPriorContent(deps, target, slot, week) {
+  const attempts = cadenceCaller(deps, target, week)('unresolved');
+  const prior = attempts.filter((a) => a.week_start_utc < week);
+  let budget = CADENCE.generationsPerRun;
+  for (const attempt of prior.slice(0, 2)) {
+    const call = cadenceCaller(deps, target, attempt.week_start_utc);
+    const owner = `runner:weekly-blog:${target}:${slot}`;
+    const reserved = call('reserve', ['--lane', 'content', '--slot-number', attempt.slot_number,
+      '--owner', owner, '--lease-seconds', CADENCE.leaseSeconds]);
+    if (!reserved.reserved) throw new Error('prior content slot held');
+    const run = { deps, call, target, slot, week: attempt.week_start_utc, request: {}, kind: 'blog', lane: 'content',
+      actor: `runner:weekly-blog#${slot}`, owner, budget,
+      consumed: new Set(cadenceCaller(deps, target, week)('consumed')),
+      weekFingerprints: new Set(), reservedCategories: new Set(), reserveSourceIds: new Set(), skipped: new Set() };
+    let result;
+    try {
+      result = resumeOpenAttempt(deps, run, attempt, reserved.token);
+      if (result.state === 'no-submission') result = retryBlogAttempt(run, Number(attempt.slot_number), reserved.token, attempt);
+      budget = run.budget;
+    } finally {
+      try { call('release', ['--lane', 'content', '--slot-number', attempt.slot_number, '--token', reserved.token]); }
+      catch (error) { deps.log('cadence-release-failed', { slot: attempt.slot_number, reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+    }
+    if (!['closed','counted','late-smoke'].includes(result.state)) throw new Error('prior content publication pending');
+  }
+  if (prior.length > 2) throw new Error('prior content backlog exceeds recovery budget');
+  return budget;
+}
+
 export function runWeeklyBlog({ target, slot, request = {}, deps }) {
   const now = deps.now();
   const week = deps.modules.weekStartUtc(now);
   evaluatePriorWeek(deps, target, week, now);
+  const remainingBudget = recoverPriorContent(deps, target, slot, week);
   const call = cadenceCaller(deps, target, week);
   const count = call('count');
   deps.log('cadence-count', { week, contentCount: count.contentCount });
-  if (count.contentCount >= CADENCE.contentGoal) return { cadenceMet: true, noChanges: true, contentCount: count.contentCount };
   const content = call('status').attempts.filter((attempt) => attempt.lane === 'content');
   // All-time, target-scoped consumed intents from the DB (plus live-post duplicates
   // inside checkTopicGroundability); never local state.
@@ -695,10 +754,27 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
     deps, call, target, slot, week, request, kind: 'blog', lane: 'content', policy: dayPolicy(now),
     actor: `runner:weekly-blog#${slot}`, owner: `runner:weekly-blog:${target}:${slot}`,
     consumed, weekFingerprints: new Set(content.map((attempt) => attempt.intent_fingerprint)),
-    budget: CADENCE.generationsPerRun, reserveLeft: Math.max(0, CADENCE.reservePerWeek - content.filter((a) => String(a.topic_key).startsWith('reserve:')).length),
+    budget: remainingBudget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - content.filter((a) => String(a.topic_key).startsWith('reserve:')).length),
     reserveSourceIds: new Set(), skipped: new Set(),
     reservedCategories: new Set(content.map((a) => String(a.topic_key)).filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length))),
   };
+  // Inventory is eligibility, not queue length. Discover once per ISO week
+  // when either floor is short; export again only after the trusted discovery
+  // submission has passed its own gate/smoke. Empty discovery remains a deficit.
+  if (!request.topic) {
+    const before = eligibleInventory(run, deps.exportSnapshot());
+    const low = before.normal < 6 || before.reserve < 2;
+    deps.log('cadence-inventory', { week, ...before, low });
+    if (low && typeof deps.replenish === 'function') {
+      try { deps.replenish(week); }
+      catch (error) { deps.log('cadence-inventory-replenish-failed', { week, reason: failureReason(error) }); }
+      // Discovery may have written a queue file without passing its trusted
+      // gate. Export restores the DB snapshot before any blog generator spend.
+      const after = eligibleInventory(run, deps.exportSnapshot());
+      deps.log('cadence-inventory-recheck', { week, ...after, low: after.normal < 6 || after.reserve < 2 });
+    }
+  }
+  if (count.contentCount >= CADENCE.contentGoal) return { cadenceMet: true, noChanges: true, contentCount: count.contentCount };
   deps.log('cadence-plan', { week, phase: run.policy.phase, reserveAllowed: run.policy.reserveAllowed });
   const live = new Set(count.content.map((item) => Number(item.submissionId)));
   let have = count.contentCount;
@@ -984,6 +1060,13 @@ async function cadenceDeps(job, target, slot, log) {
     exportSnapshot: () => exportSnapshot(target, log),
     generate: (title) => generator('weekly-blog', slot, { title }, false, log),
     source: (script, args) => source(script, args, job, log),
+    replenish: (week) => {
+      const refillSlot = `${week.replaceAll('-', '')}-inventory`;
+      const prior = lookup('topic-discovery', target, refillSlot, log);
+      if (prior) return prior;
+      source('scripts/automation/topic-queue.mjs', ['discover'], 'topic-discovery', log);
+      return submitAndGate('topic-discovery', target, refillSlot, log);
+    },
   };
 }
 
