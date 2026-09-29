@@ -64,7 +64,7 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
   now = new Date().toISOString(), deadline = Date.now() + 600_000 } = {}) {
   if (!Array.isArray(signals)) throw new Error('signals_not_array');
   if (!signals.length) return { forms: [], excluded: [] };
-  const model = resolved || await resolveModelProvider(env);
+  const model = resolved || await resolveModelProvider(env, { prefer: env.ROUNDUP_REASON_PROVIDER || null });
   if (!model.ok) throw new Error(`roundup_reason_model_unavailable:${model.error}`);
   const torontoParts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto',
     year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now)).map((part) => [part.type, part.value]));

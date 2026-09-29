@@ -109,6 +109,19 @@ test('future-dated first-party core event outranks stale first-party posts when 
   assert.ok(result.excluded.some((e) => e.priority === 'first-party-core-lead-other' && e.signalId.startsWith('stale-ig-')));
 });
 
+test('reasoner can prefer an explicitly configured available provider without changing the default', async () => {
+  let provider;
+  await reasonRoundupSignals([signal], {
+    now: '2026-09-29T19:10:00Z',
+    env: { ROUNDUP_REASON_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'test-only', ANTHROPIC_API_KEY: 'test-only' },
+    callModel: async ({ resolved }) => {
+      provider = resolved.provider.id;
+      return { ok: true, text: '{"forms":[]}' };
+    },
+  });
+  assert.equal(provider, 'deepseek');
+});
+
 test('source-only credentials never enter reasoner or writer model requests', async () => {
   const env = { APIFY_API_TOKEN: 'apify-synthetic-secret', SERPER_API_KEY: 'serper-synthetic-secret' };
   const captured = [];
