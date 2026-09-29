@@ -51,6 +51,15 @@ export function sourceSpanProvesTime(span, instant) {
       return hour === local.hour && minute === local.minute;
     });
 }
+export function provenPublicationMs(span, timestamp) {
+  const instant = Date.parse(timestamp ?? '');
+  if (!Number.isFinite(instant)) return NaN;
+  const citedDate = fullDatesInSpan(span).find((date) =>
+    date === new Date(instant).toISOString().slice(0, 10) || date === localDate(instant));
+  if (!citedDate) return NaN;
+  return sourceSpanProvesTime(span, instant) ? instant
+    : Math.min(Date.parse(citedDate + 'T00:00:00.000Z'), torontoMidnight(citedDate));
+}
 const sourceProves = (sources, url, span, dates) => {
   if (typeof span !== 'string' || !span.trim() || !fullDatesInSpan(span).some((date) => dates.includes(date))) return false;
   const cited = sources.find((s) => s.canonicalUrl === url && s.fetchOk === true && s.extractionSubstantive === true &&
@@ -61,7 +70,7 @@ const sourceProves = (sources, url, span, dates) => {
     String(s.excerpt || '').includes(span)).map((s) => s.publisherDomain)).size >= 2;
 };
 const RISK_CATEGORIES = new Set(['crime', 'safety', 'election', 'elections', 'civic-controversy', 'development-application']);
-const ELECTION_TEXT = /\b(?:elections?|electoral|ballots?|voters?|voting|candidates?|mayor(?:al)?|advance\s+poll(?:ing)?|polling\s+(?:place|station))\b/i;
+const ELECTION_TEXT = /\b(?:elections?|electoral|ballots?|voters?|vot(?:e|es|ed|ing)|by-?vote|referendum|nominations?|candidates?|all-candidates|mayoral\s+(?:race|candidate|campaign|election)|advance\s+poll(?:ing)?|polls?\s+open|polling\s+(?:place|station))\b/i;
 const NON_NEWS = new Set(['directory', 'query', 'landing-page', 'application', 'opinion', 'promotion']);
 const isoTime = (value) => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(value) && Number.isFinite(Date.parse(value));
 const canonical = (url) => { try { const u = new URL(url); u.hash = ''; return u.href.replace(/\/$/, ''); } catch { return ''; } };
@@ -115,13 +124,10 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
   const publicationProof = item?.announcedAtVerified === true && Number.isFinite(publicationDate) &&
     sourceProves(sources, item?.announcedAtSourceUrl, item?.announcedAtSpan,
       [new Date(publicationDate).toISOString().slice(0, 10), localDate(publicationDate)]);
-  // When only a date is cited, assume its earliest plausible instant; an uncited
-  // metadata time cannot extend the seven-day eligibility window.
-  const citedDate = publicationProof ? fullDatesInSpan(item.announcedAtSpan).find((date) =>
-    date === new Date(publicationDate).toISOString().slice(0, 10) || date === localDate(publicationDate)) : null;
-  const publicationMs = publicationProof ? (sourceSpanProvesTime(item.announcedAtSpan, publicationDate)
-    ? publicationDate : Math.min(Date.parse(citedDate + 'T00:00:00.000Z'), torontoMidnight(citedDate))) : NaN;
-  const newsWindow = publicationMs >= nowMs - WEEK_MS && publicationMs <= nowMs &&
+  // Date-only proof is bounded from the earliest plausible instant, never an
+  // uncited metadata hour. A future metadata timestamp cannot prove past news.
+  const publicationMs = publicationProof ? provenPublicationMs(item.announcedAtSpan, item.announcedAt) : NaN;
+  const newsWindow = publicationMs >= nowMs - WEEK_MS && publicationMs <= nowMs && publicationDate <= nowMs &&
     (!item?.updatedOldPage || item?.substantiveDevelopment === true);
   const datedStart = item?.eventStartDate ? torontoMidnight(item.eventStartDate) : NaN;
   const datedEnd = item?.eventStartDate && Number.isFinite(datedStart)

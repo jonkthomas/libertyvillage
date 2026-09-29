@@ -156,8 +156,12 @@ test('timed event and announcement require their exact source time; elections re
   assert.equal(validateRoundupItem(verified, opts).decision, 'accepted');
   assert.equal(validateRoundupItem({ ...verified, eventStart: '2026-10-08T13:00:00.000Z' }, opts).decision, 'excluded');
   for (const patch of [{ category: 'Election' }, { category: 'municipal-election' },
-    { title: 'Liberty Village mayoral candidate update' }, { summary: 'A voter ballot update' }])
+    { title: 'Liberty Village mayoral candidate update' }, { summary: 'A voter ballot update' },
+    { summary: 'Residents can cast an advance vote at the community centre.' },
+    { summary: 'Polls open Monday at the Ward 10 by-vote.' },
+    { summary: 'A council referendum on the park takes place.' }])
     assert.equal(validateRoundupItem({ ...base, ...patch }, opts).decision, 'refused');
+  assert.equal(validateRoundupItem({ ...base, title: 'Mayor opens Liberty Village dog park' }, opts).decision, 'accepted');
 });
 
 test('upcoming event time and whole Toronto local dates are bounded, independently sourced', () => {

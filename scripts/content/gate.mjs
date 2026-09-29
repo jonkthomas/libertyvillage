@@ -362,7 +362,9 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         const references = grounded ? agent.selectReferenceRecords(doc.document, live.live.businesses ?? []) : [];
         const inventory = grounded ? await inventoryFor(live, candidates) : null;
         const evidence = kind === 'news' ? trimEvidence(context.evidence)
-          : kind === 'roundup' ? { items: (context.items || []).map((item) => ({
+          : kind === 'roundup' ? { submittedAt: context.temporalValidationNow ?? context.now,
+            isoWeek: context.isoWeek, weekStartUtc: context.weekStartUtc,
+            items: (context.items || []).map((item) => ({
             title: String(item.title || '').slice(0, 300), location: String(item.location || '').slice(0, 200),
             actor: String(item.actor || '').slice(0, 200), announcedAt: item.announcedAt,
             announcedAtVerified: item.announcedAtVerified, announcedAtSourceUrl: item.announcedAtSourceUrl,

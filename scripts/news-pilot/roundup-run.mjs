@@ -9,7 +9,7 @@ import { createRequestBudget, fetchWithRetry } from './fetch.mjs';
 import { canonicalUrl, publisherDomain } from './normalize.mjs';
 import { detectRiskFlags, isDevelopmentApplication } from './score.mjs';
 import { isUnusableUrl } from './url-guard.mjs';
-import { validateRoundupPack, revalidateRoundupItems, roundupPackDigest, sourceSpanProvesTime } from './roundup-evidence.mjs';
+import { validateRoundupPack, revalidateRoundupItems, roundupPackDigest, provenPublicationMs, sourceSpanProvesTime } from './roundup-evidence.mjs';
 import { isoWeekOf, roundupSlug, planRoundup, buildRoundupPost } from './roundup.mjs';
 import { appendPostToPostsJson } from './publish.mjs';
 import { checkRoundupRecord } from '../content/submit.mjs';
@@ -24,6 +24,11 @@ const RISK_CATEGORIES = new Set(['crime', 'safety', 'civic-controversy', 'electi
 const DAY_MS = 86_400_000;
 const torontoFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric',
   month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+const torontoIsoDate = (instant) => {
+  const parts = Object.fromEntries(torontoFormatter.formatToParts(Date.parse(instant))
+    .filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]));
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+};
 
 export function parseRoundupArgs(argv) {
   const args = { run: null, out: null, root: ROOT, now: null, vault: null, image: DEFAULT_IMAGE, dryRun: false };
@@ -68,7 +73,9 @@ export function temporalWindow({ nowMs, item }) {
     } else if (item.eventStart) start = Date.parse(item.eventStart);
   }
   if (start !== null && (!Number.isFinite(start) || start <= nowMs)) return { category: null, reason: 'concluded' };
-  const announced = item?.announcedAtVerified && item.announcedAt ? Date.parse(item.announcedAt) : NaN;
+  const claimedAnnouncement = item?.announcedAtVerified && item.announcedAt ? Date.parse(item.announcedAt) : NaN;
+  const announced = Number.isFinite(claimedAnnouncement) && claimedAnnouncement <= nowMs
+    ? provenPublicationMs(item.announcedAtSpan, item.announcedAt) : NaN;
   if (Number.isFinite(announced) && announced >= nowMs - 7 * DAY_MS && announced <= nowMs)
     return { category: 'news-update', reason: null, evidence: { announcedAt: item.announcedAt } };
   if (start !== null && Number.isFinite(start) && start > nowMs && start < nowMs + 14 * DAY_MS &&
@@ -248,16 +255,10 @@ function addReason(census, reason) {
   census.byReason[reason] = (census.byReason[reason] || 0) + 1;
 }
 
-function retainSafeItems(items, checked, census, categoryByFingerprint) {
+function retainSafeItems(items, checked, census) {
   const kept = new Set(checked.accepted.map((entry) => entry.item));
-  for (const entry of [...checked.held, ...checked.refused, ...checked.excluded]) {
-    if (categoryByFingerprint.has(entry.item?.fingerprint) && entry.reasons.length &&
-      entry.reasons.every((reason) => reason === 'stale' || reason === 'undated')) {
-      kept.add(entry.item);
-      continue;
-    }
+  for (const entry of [...checked.held, ...checked.refused, ...checked.excluded])
     for (const reason of entry.reasons) addReason(census, reason);
-  }
   return items.filter((item) => kept.has(item));
 }
 
@@ -368,8 +369,8 @@ export async function runRoundup(args, deps = {}) {
     const supportingSource = sources.find((source) => source.canonicalUrl === provenanceUrl);
     const supportingSpan = wholeSentence(supportingSource?.excerpt, representative.title);
     if (!supportingSpan) { addReason(census, 'weak-source'); continue; }
-    const actualDate = temporal.category === 'news-update' ? item.announcedAt.slice(0, 10) :
-      item.eventStartDate || item.eventStart.slice(0, 10);
+    const actualDate = temporal.category === 'news-update' ? torontoIsoDate(item.announcedAt) :
+      item.eventStartDate || torontoIsoDate(item.eventStart);
     const claimText = temporal.category === 'news-update'
       ? `${supportingSource.publisher} published this update on ${actualDate}: "${supportingSpan}"`
       : `${supportingSource.publisher} lists the event for ${actualDate}: "${supportingSpan}"`;
@@ -377,7 +378,7 @@ export async function runRoundup(args, deps = {}) {
     proposed.push(item);
   }
   let checked = validateRoundupPack({ items: proposed }, { weekStartUtc: week.weekStartUtc, nowMs, livePosts, dailyNews });
-  const initiallySafe = retainSafeItems(proposed, checked, census, categoryByFingerprint);
+  const initiallySafe = retainSafeItems(proposed, checked, census);
   const refetched = await revalidateRoundupItems(initiallySafe, {
     refetch: async (url, old) => {
       const fetched = await fetchPage(url);
@@ -399,7 +400,7 @@ export async function runRoundup(args, deps = {}) {
   if (!Array.isArray(currentPosts)) throw new Error('posts_json_not_array');
   ({ livePosts, dailyNews } = splitPosts(currentPosts, slug));
   checked = validateRoundupPack({ items: refetched.accepted }, { weekStartUtc: week.weekStartUtc, nowMs, livePosts, dailyNews });
-  const pack = { items: retainSafeItems(refetched.accepted, checked, census, categoryByFingerprint) };
+  const pack = { items: retainSafeItems(refetched.accepted, checked, census) };
   const plan = (deps.planRoundup || planRoundup)({ ...pack, isoWeek: week.isoWeek, now }, { isoWeek: week.isoWeek,
     weekStartUtc: week.weekStartUtc, nowMs, livePosts, dailyNews });
   const zero = pack.items.length === 0;

@@ -267,7 +267,7 @@ test('source-swapped claim is rejected by the unchanged submit policy', async ()
 describe('approved rolling and upcoming temporal policy', () => {
   test('news at 6d23h passes and 7d+1s fails; news wins over a distant future event', () => {
     const nowMs = Date.parse(NOW);
-    const news = { announcedAtVerified: true, eventStartVerified: true,
+    const news = { announcedAtVerified: true, announcedAtSpan: 'September 23, 2026 at 9:00 a.m.', eventStartVerified: true,
       eventStart: new Date(nowMs + 20 * 86_400_000).toISOString() };
     assert.equal(temporalWindow({ nowMs, item: { ...news,
       announcedAt: new Date(nowMs - (6 * 24 + 23) * 3_600_000).toISOString() } }).category, 'news-update');
@@ -328,6 +328,40 @@ describe('approved rolling and upcoming temporal policy', () => {
     assert.match(paragraph, /According to example\.org, it is scheduled for October 14, 2026 at 7:00 a\.m\. EDT at Liberty Village community space\./);
     assert.doesNotMatch(paragraph, /https?:|newly announced|this week/i);
     assert.equal(JSON.parse(fs.readFileSync(f.postsFile)).length, 1);
+  });
+
+  test('claims use Toronto dates across UTC midnight, and conflicting claim dates fail submit policy', async () => {
+    const event = fixture([candidate('night-event', { eventStart: '2026-10-08T20:30:00-04:00' })]);
+    const timed = await execute(event, { 'https://example.org/night-event': eventHtml('night-event', {
+      announced: null, start: '2026-10-08T20:30:00-04:00',
+    }) });
+    assert.equal(timed.diskResult.published, 1);
+    assert.match(timed.diskPack.items[0].claims[0].text, /lists the event for 2026-10-08:/);
+    assert.doesNotMatch(timed.diskPack.items[0].claims[0].text, /for 2026-10-09/);
+    const news = fixture([candidate('night-news')]);
+    const published = await execute(news, { 'https://example.org/night-news': html('night-news', '2026-09-28T22:30:00-04:00') });
+    assert.equal(published.diskResult.published, 1);
+    const original = published.diskPack.items[0];
+    assert.match(original.claims[0].text, /published this update on 2026-09-28:/);
+    const badClaim = { ...original.claims[0], text: original.claims[0].text.replace('on 2026-09-28:', 'on 2026-09-29:') };
+    const post = JSON.parse(fs.readFileSync(news.postsFile))[0];
+    const errors = checkRoundupRecord({ item: { key: published.diskResult.slug },
+      record: { ...post, content: post.content.replace(original.claims[0].text, badClaim.text) },
+      ctx: { isoWeek: published.diskResult.isoWeek, weekStartUtc: '2026-09-28T00:00:00.000Z',
+        now: published.diskResult.now, items: [{ ...original, claims: [badClaim] }] },
+      live: { posts: [] }, news: { root: news.root, imageExists: () => true } });
+    assert.ok(errors.includes('roundup claim date conflicts with verified Toronto date'));
+  });
+
+  test('one valid item publishes even when another metadata time cannot prove its old date', async () => {
+    const f = fixture([candidate('alpha'), candidate('beta')]);
+    const { diskResult, diskPack } = await execute(f, { 'https://example.org/alpha': html('alpha'),
+      'https://example.org/beta': html('beta', '2026-09-23T20:00:00-04:00') });
+    assert.equal(diskResult.decision, 'single-update');
+    assert.equal(diskResult.published, 1);
+    assert.equal(diskPack.items.length, 1);
+    assert.equal(diskPack.items[0].title, 'Liberty Village alpha event');
+    assert.equal(diskResult.census.byReason.stale, 1);
   });
 
   test('timestamp metadata cannot invent a time absent from the verified event passage', async () => {

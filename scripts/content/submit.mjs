@@ -221,6 +221,11 @@ export function checkRoundupRecord({ item, record, ctx, live, news }) {
       const humanDate = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', year: 'numeric',
         month: 'long', day: 'numeric' }).format(Date.parse(actualDate + 'T12:00:00.000Z'));
       if (!part.includes(actualDate) && !part.includes(humanDate)) errors.push('roundup item actual date missing');
+      for (const claim of entry.claims) {
+        const labelledDates = [...String(claim.text || '').matchAll(/(?:published this update on|lists the event for)\s+(\d{4}-\d{2}-\d{2})\b/gi)];
+        if (labelledDates.some((match) => match[1] !== actualDate))
+          errors.push('roundup claim date conflicts with verified Toronto date');
+      }
     }
   });
   if (accepted.length === 1 && (!/weekly update/i.test(record?.title || '') ||
