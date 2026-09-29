@@ -1,0 +1,62 @@
+import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './draft-model.mjs';
+
+const KINDS = new Set(['news-update', 'event', 'restriction', 'alert']);
+const TYPES = new Set(['event', 'class', 'concert', 'sports', 'expo', 'community', 'opening', 'closure', 'road', 'transit', 'project', 'news']);
+const ROLES = new Set(['performer', 'athlete', 'team', 'organisation', 'business', 'public-official', 'private-person', 'unclear']);
+const VERDICTS = new Set(['core', 'adjacent', 'not-LV']);
+const RISKS = ['crime', 'election', 'private_individual', 'development_application', 'civic_controversy'];
+const bounded = (x, n) => typeof x === 'string' && x.length <= n;
+const date = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && !Number.isNaN(Date.parse(`${x}T12:00:00Z`));
+const time = (x) => x === null || (typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x));
+
+/** Model output is data, never evidence. Every citation must point at a supplied signal record. */
+export function validateRoundupForm(form, signal) {
+  if (!form || !signal || form.signalId !== signal.signalId ||
+      !signal.records?.some((record) => record.recordId === form.recordId)) return false;
+  if (!bounded(form.subject, 120) || !form.subject.trim() || !bounded(form.what, 200) ||
+      !bounded(form.where_it_happens, 200) || !bounded(form.who_is_affected, 200) ||
+      !bounded(form.relevance_reason, 300) || !VERDICTS.has(form.verdict) || !TYPES.has(form.item_type)) return false;
+  const w = form.when;
+  if (!w || !KINDS.has(w.kind) || !date(w.date) || !(w.endDate === null || date(w.endDate)) ||
+      !time(w.startTime) || !time(w.endTime)) return false;
+  if (!Array.isArray(form.evidence) || form.evidence.length < 1 || form.evidence.length > 3 ||
+      form.evidence[0].recordId !== form.recordId) return false;
+  for (const e of form.evidence) {
+    if (typeof e?.url !== 'string' || !e.url.startsWith('https://') || !bounded(e.recordId, 200) ||
+        !bounded(e.subject_quote, 300) || !e.subject_quote ||
+        !(e.place_quote === null || bounded(e.place_quote, 300)) ||
+        !(e.date_quote === null || bounded(e.date_quote, 200))) return false;
+  }
+  if (!form.risk || RISKS.some((k) => typeof form.risk[k] !== 'boolean') ||
+      !Array.isArray(form.people) || form.people.some((p) => !bounded(p.name, 120) || !ROLES.has(p.role)) ||
+      !(form.exclude_reason === null || bounded(form.exclude_reason, 300))) return false;
+  return true;
+}
+
+const SYSTEM = `You are a cautious Toronto local-news signal analyst. Return ONLY JSON {"forms":[...]}, exactly one form per supplied signal. The form shape is signalId,recordId,subject,what,where_it_happens,when:{kind,date,endDate,startTime,endTime},who_is_affected,relevance_reason,verdict,evidence:[{url,recordId,subject_quote,place_quote,date_quote}],item_type,people:[{name,role}],risk:{crime,election,private_individual,development_application,civic_controversy},exclude_reason. Dates are Toronto-local. Quote VERBATIM from one item-bound record; do not combine page sections or records; recordId must be supplied. Do not use a search snippet, page navigation, images, or another source for missing facts. If uncertain, set exclude_reason and conservative verdict. A person's private life, finances, health or residential opinions are excluded. Crime, elections and development applications are excluded. Your judgement does not establish locality, source quality or evidence: a deterministic verifier decides those.`;
+
+export async function reasonRoundupSignals(signals, { env = process.env, resolved, callModel = generateDraftWithModel } = {}) {
+  if (!Array.isArray(signals)) throw new Error('signals_not_array');
+  if (!signals.length) return { forms: [], excluded: [] };
+  const model = resolved || await resolveModelProvider(env);
+  if (!model.ok) throw new Error(`roundup_reason_model_unavailable:${model.error}`);
+  const forms = [], excluded = [];
+  // Six calls maximum. A larger source census is refused, not silently truncated.
+  if (signals.length > 60) throw new Error('roundup_reason_signal_budget_exceeded');
+  for (let at = 0; at < signals.length; at += 10) {
+    const batch = signals.slice(at, at + 10);
+    const input = batch.map((s) => ({ signalId: s.signalId, sourceId: s.sourceId, url: s.url,
+      records: (s.records || []).map((r) => ({ recordId: r.recordId, text: r.text, typed: r.typed })) }));
+    const answer = await callModel({ resolved: model, system: SYSTEM, userText: JSON.stringify(input).slice(0, 32_000), maxTokens: 9000, timeoutMs: 90_000 });
+    if (!answer.ok) { for (const s of batch) excluded.push({ signalId: s.signalId, reason: 'reason-failed' }); continue; }
+    let parsed;
+    try { const result = parseModelJson(answer.text); parsed = result.ok ? result.value : null; } catch { parsed = null; }
+    const proposed = Array.isArray(parsed?.forms) ? parsed.forms : [];
+    for (const signal of batch) {
+      const matches = proposed.filter((f) => f?.signalId === signal.signalId);
+      if (matches.length === 1 && validateRoundupForm(matches[0], signal)) forms.push(matches[0]);
+      else excluded.push({ signalId: signal.signalId, reason: 'form-invalid' });
+    }
+  }
+  return { forms, excluded };
+}
