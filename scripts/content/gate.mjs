@@ -464,10 +464,8 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         const unbound = packBindingErrors(kind, context, check.repaired, live.live, submission.idempotency_key);
         return unbound.length ? { ok: false, errors: unbound, repaired: [] } : check;
       };
-      // The row fixer (review-agent.mjs, outside this module) has no evidence
-      // parameter: pass the pack as `evidence` for fixers that accept it AND fold
-      // the pack's cited live business records into `references`, the existing
-      // ground-truth channel the fixer prompt already renders.
+      // Pass the pack to the fixer and include its cited live business records
+      // in the ground-truth references rendered by the fixer prompt.
       const fixEvidence = kind === 'blog' ? blogPackEvidence(context) : null;
       const references = grounded ? withPackReferences(agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []), fixEvidence, live.live.businesses) : [];
       const inventory = grounded ? await inventoryFor(live, candidates) : null;
