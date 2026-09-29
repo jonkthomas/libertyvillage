@@ -524,12 +524,6 @@ function reserveEntries(run, snapshot, { retryKey = null } = {}) {
 
 // Next distinct eligible intent, chosen BEFORE any generator spend.
 function eligibleInventory(run, snapshot) {
-  const normal = new Set();
-  for (const entry of queueEntries(run, snapshot).slice(0, 100)) {
-    const candidate = blogCandidate(run, entry, snapshot);
-    if (!candidate.skip && !run.weekFingerprints.has(candidate.fingerprint)) normal.add(candidate.fingerprint);
-    if (normal.size >= 6) break;
-  }
   const reserves = [];
   const used = new Set();
   for (const entry of reserveEntries(run, snapshot)) {
@@ -539,6 +533,15 @@ function eligibleInventory(run, snapshot) {
     reserves.push(candidate);
     for (const source of candidate.pack.sources) used.add(source.id);
     if (reserves.length >= 2) break;
+  }
+  // Normal and reserve floors describe distinct eligible intents. A queued
+  // bakery/salon guide cannot also fill a directory reserve slot on Sunday.
+  const reserveFingerprints = new Set(reserves.map((candidate) => candidate.fingerprint));
+  const normal = new Set();
+  for (const entry of queueEntries(run, snapshot).slice(0, 100)) {
+    const candidate = blogCandidate(run, entry, snapshot);
+    if (!candidate.skip && !run.weekFingerprints.has(candidate.fingerprint) && !reserveFingerprints.has(candidate.fingerprint)) normal.add(candidate.fingerprint);
+    if (normal.size >= 6) break;
   }
   return { normal: normal.size, reserve: reserves.length };
 }
@@ -1051,6 +1054,25 @@ function exportSnapshot(target, log) {
   };
 }
 
+// The runner is single-instance under global.lock, but an empty/failed source
+// produces no submission to find by idempotency key. Persist the *attempt* before
+// discovery so a restart cannot spend the same weekly source call repeatedly.
+export function claimWeeklyInventoryDiscovery(root, target, week) {
+  if (!['staging', 'production'].includes(target) || !/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new Error('invalid inventory claim');
+  const dir = path.join(root, 'inventory-discovery', target);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const marker = path.join(dir, `${week}.json`);
+  let fd;
+  try { fd = fs.openSync(marker, 'wx', 0o600); }
+  catch (error) {
+    if (error.code === 'EEXIST') return false;
+    throw error;
+  }
+  try { fs.writeSync(fd, JSON.stringify({ target, week, attempted: true }) + '\n'); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  return true;
+}
+
 async function cadenceDeps(job, target, slot, log) {
   return {
     repo, stateRoot, modules: await trustedModules(repo), now: () => new Date(), alertsEnabled: Boolean(process.env.SLACK_WEBHOOK_URL),
@@ -1064,6 +1086,7 @@ async function cadenceDeps(job, target, slot, log) {
       const refillSlot = `${week.replaceAll('-', '')}-inventory`;
       const prior = lookup('topic-discovery', target, refillSlot, log);
       if (prior) return prior;
+      if (!claimWeeklyInventoryDiscovery(stateRoot, target, week)) return { noChanges: true, reason: 'weekly-discovery-already-attempted' };
       source('scripts/automation/topic-queue.mjs', ['discover'], 'topic-discovery', log);
       return submitAndGate('topic-discovery', target, refillSlot, log);
     },

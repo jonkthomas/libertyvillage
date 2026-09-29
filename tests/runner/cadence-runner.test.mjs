@@ -4,9 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { CADENCE, dayPolicy, reservePack, runWeeklyBlog } from '../../ops/exedev-runner/runner.mjs';
-import { BUSINESSES, FRI, SUN, TOPICS, WED, attemptsOf, createWorld, modules, submitCalls } from './fake-cadence.mjs';
+import { CADENCE, claimWeeklyInventoryDiscovery, dayPolicy, reservePack, runWeeklyBlog } from '../../ops/exedev-runner/runner.mjs';
+import { BUSINESSES, FRI, SUN, TOPICS, WED, attemptsOf, createWorld, modules, submitCalls, topic } from './fake-cadence.mjs';
 
 const run = (world, request = {}) => runWeeklyBlog({ target: 'staging', slot: '202609301100-testslot', request, deps: world.deps });
 const withWorld = (t, options) => { const world = createWorld(options); t.after(() => world.cleanup()); return world; };
@@ -39,6 +40,25 @@ test('eligible inventory, not queue length, triggers bounded discovery before fi
   assert.deepEqual(world.generated.map((entry) => entry.title), ['Liberty Village Happy Hour', 'Coffee Shops']);
   assert.ok(events(world, 'cadence-inventory').some((event) => event.normal === 0 && event.low));
   assert.ok(events(world, 'cadence-inventory-recheck').some((event) => event.normal === 2 && event.low));
+});
+
+test('eligible normal inventory excludes intents also counted as disjoint reserves', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, topic('k-bakery', 'Bakery in Liberty Village'), topic('k-salon', 'Salon in Liberty Village')] });
+  run(world);
+  const inventory = events(world, 'cadence-inventory')[0];
+  assert.equal(inventory.reserve, 2);
+  assert.equal(inventory.normal, 2, 'bakery/salon cannot satisfy both the normal and reserve floors');
+  assert.equal(inventory.low, true);
+});
+
+test('weekly discovery claim survives empty results, retries, and target/week boundaries', (t) => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-inventory-claim-'));
+  t.after(() => fs.rmSync(stateRoot, { recursive: true, force: true }));
+  assert.equal(claimWeeklyInventoryDiscovery(stateRoot, 'staging', '2026-09-28'), true);
+  assert.equal(claimWeeklyInventoryDiscovery(stateRoot, 'staging', '2026-09-28'), false, 'no-submission discovery is still spent');
+  assert.equal(claimWeeklyInventoryDiscovery(stateRoot, 'staging', '2026-10-05'), true);
+  assert.equal(claimWeeklyInventoryDiscovery(stateRoot, 'production', '2026-09-28'), true);
+  assert.throws(() => claimWeeklyInventoryDiscovery(stateRoot, '../production', '2026-09-28'), /invalid inventory claim/);
 });
 
 test('discovery failure logs inventory deficit but does not discard already grounded candidates', (t) => {
