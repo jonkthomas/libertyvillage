@@ -43,7 +43,8 @@ function edition({ privateUnit = false } = {}) {
   };
   const signal = (id, source) => ({ signalId: id, sourceId: source.id, url: source.url,
     records: extractRoundupRecords({ source, url: source.url, body: bodies[source.url] }),
-    snapshotSha256: sha(bodies[source.url]), fetchedAt: now });
+    snapshotSha256: sha(bodies[source.url]), fetchedAt: now,
+    fetchStatus: 200 }); // Synthetic captured HTTP fixture returns 200; not historical evidence.
   const signals = [signal('sig-bia', bia), signal('sig-park', park), signal('sig-street', street)];
   const form = (signalRef, record, n) => ({ signalId: signalRef.signalId, recordId: record.recordId, subject: `Autumn Market ${n}`,
     what: 'Public community market', where_it_happens: '171 East Liberty St', item_type: 'event', people: [], risk: {}, verdict: 'core',
@@ -147,6 +148,12 @@ test('real extractor -> verifier -> planner -> assembler -> DB submit accepts th
     assert.ok(unit.citations.length >= 1 && unit.citations.every((citation) => [bia.url, park.url, street.url].includes(citation.url)));
     assert.match(unit.evidence[0].subject_quote, /^Autumn Market [123]$/);
     assert.match(unit.evidence[0].date_quote, /^October [123], 2026$/);
+    const entry = unit.evidence[0];
+    assert.ok(entry.typed && typeof entry.typed === 'object', 'typed fields survive real verification and DB projection');
+    assert.equal(entry.snapshotSha256, sha(input.bodies[entry.url]), 'freshly re-fetched body, not merely an old capture hash');
+    assert.equal(entry.fetchStatus, 200, 'the captured fixture response code survives the real submit projection');
+    assert.equal(entry.verifyStatus, 200, 'the independent submit refetch records its actual HTTP status');
+    assert.ok(Number.isFinite(Date.parse(entry.verifiedAt)), 'verification wall-clock provenance is durable');
   }
   assert.deepEqual(stored.roundupCoverage, built.post.roundupCoverage);
   // Idempotent replay returns the stored context without re-verifying.

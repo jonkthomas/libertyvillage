@@ -207,7 +207,7 @@ test('fresh evidence carries actual typed fields, body digest, honest provenance
   const roadSource = { id: 'roads', parse: 'json-feed', identityKind: 'road-feed', tier: 'official' };
   const fresh = extractRoundupRecords({ source: roadSource, url: feedUrl, body })[0];
   const sig = { signalId: 'road1', sourceId: 'roads', url: feedUrl, records: [fresh],
-    snapshotSha256: 'a'.repeat(64), fetchedAt: '2026-09-29T14:00:00Z' };
+    snapshotSha256: 'a'.repeat(64), fetchedAt: '2026-09-29T14:00:00Z', fetchStatus: 203 }; // Synthetic capture, distinct from fresh 200.
   const roadForm = { ...form('road1', feedUrl), subject: 'Strachan Ave', when: { kind: 'restriction', date: '2026-09-29' },
     item_type: 'road', recordId: fresh.recordId,
     evidence: [{ url: feedUrl, recordId: fresh.recordId, subject_quote: 'Strachan Ave', place_quote: null, date_quote: null }] };
@@ -222,7 +222,7 @@ test('fresh evidence carries actual typed fields, body digest, honest provenance
   assert.match(entry.snapshotSha256, /^[a-f0-9]{64}$/);
   assert.notEqual(entry.snapshotSha256, sig.snapshotSha256);
   assert.equal(entry.capturedSnapshotSha256, sig.snapshotSha256);
-  assert.equal(entry.fetchStatus, null); // collector did not retain its response status
+  assert.equal(entry.fetchStatus, 203);
   assert.equal(entry.verifyStatus, 200);
   assert.match(entry.verifiedAt, /^\d{4}-\d\d-\d\dT/);
   const plan = planRoundupV2(result.items, { now, posts: opts.posts });
