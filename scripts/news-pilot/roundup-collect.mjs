@@ -24,7 +24,7 @@ import { FETCH_DEFAULTS, createHostPacer, createRobotsCache, fetchWithRetry } fr
 import { classifyBlockedResponse, isUnusableUrl } from './url-guard.mjs';
 import { extractRoundupRecords } from './roundup-records.mjs';
 import {
-  ROUNDUP_IG_WATCH, ROUNDUP_ROAD_LEAD_STREETS, ROUNDUP_SERPER_QUERIES, ROUNDUP_SOURCES, igWatchSources,
+  ROUNDUP_IG_WATCH, ROUNDUP_ROAD_FRONTAGE, ROUNDUP_ROAD_LEAD_STREETS, ROUNDUP_SERPER_QUERIES, ROUNDUP_SOURCES, igWatchSources,
   registrableDomain,
 } from './sources.mjs';
 import { createIgProvider, filterOwnedPosts, IG_LIMITS } from './ig-provider.mjs';
@@ -86,9 +86,37 @@ function boundRecords(records) {
 
 const lower = (v) => String(v ?? '').trim().toLowerCase();
 const LEAD_STREETS = new Set(ROUNDUP_ROAD_LEAD_STREETS.map(lower));
+const FRONTAGE = new Map(Object.entries(ROUNDUP_ROAD_FRONTAGE).map(([road, cross]) => [lower(road), new Set(cross.map(lower))]));
 
-function roadLead(typed) {
-  return [typed.road, typed.fromRoad, typed.toRoad, typed.atRoad].some((name) => LEAD_STREETS.has(lower(name)));
+/** Fallback road recall filter (no geography module): LV-interior street, or a frontage road at an LV cross street. */
+export function roadLeadByName(typed) {
+  if (LEAD_STREETS.has(lower(typed.road))) return true;
+  const cross = FRONTAGE.get(lower(typed.road));
+  return Boolean(cross && [typed.fromRoad, typed.toRoad, typed.atRoad].some((name) => cross.has(lower(name))));
+}
+
+/**
+ * Road recall filter: the geography module's segment classifier when it loads
+ * (so collection and verification agree), else the checked-in name filter.
+ */
+async function loadRoadLead(geography) {
+  let geo = geography;
+  if (geo === undefined) {
+    try {
+      geo = await import('./roundup-geo.mjs');
+    } catch {
+      geo = null;
+    }
+  }
+  if (typeof geo?.classifySegment !== 'function') return roadLeadByName;
+  return (typed) => {
+    try {
+      const verdict = geo.classifySegment({ road: typed.road, fromRoad: typed.fromRoad, toRoad: typed.toRoad, coordinates: typed.coordinates });
+      return ['core', 'adjacent'].includes(typeof verdict === 'string' ? verdict : verdict?.verdict);
+    } catch {
+      return false;
+    }
+  };
 }
 
 /** Same-story grouping inside one query's results: ≥2 distinct publishers with similar titles. */
@@ -124,10 +152,11 @@ function groupResults(results) {
  * @param {object[]} [opts.sources] registry (default ROUNDUP_SOURCES)
  * @param {() => number} [opts.clock]
  * @param {(ms: number) => Promise<void>} [opts.sleep]
+ * @param {object|null} [opts.geography] roundup-geo module override (null = name filter only)
  */
 export async function collectRoundup({
   out, now, env = process.env, fetcher = null, igProvider = null, watchList = ROUNDUP_IG_WATCH,
-  sources = ROUNDUP_SOURCES, clock = Date.now, sleep = null,
+  sources = ROUNDUP_SOURCES, clock = Date.now, sleep = null, geography = undefined,
 } = {}) {
   const at = Date.parse(String(now || ''));
   if (!Number.isFinite(at)) throw new Error('collectRoundup requires now');
@@ -243,6 +272,7 @@ export async function collectRoundup({
   };
 
   // ---- identity sources --------------------------------------------------------
+  const roadLead = await loadRoadLead(geography);
   const identity = sources.filter((s) => s.enabled !== false && !['news-discovery', 'ig'].includes(s.identityKind) && s.parse !== 'ig-post');
   for (const source of identity) {
     const entry = { status: 'ok', httpStatus: null, records: 0, signals: 0 };
@@ -269,8 +299,8 @@ export async function collectRoundup({
     } else {
       for (const record of records) {
         if (source.identityKind === 'road-feed') {
-          if (!roadLead(record.typed)) continue;
           if (Number.isFinite(record.typed.endTime) && record.typed.endTime <= at) continue;
+          if (!roadLead(record.typed)) continue;
         }
         if (source.identityKind === 'transit-feed' && Array.isArray(source.routes) && !source.routes.includes(String(record.typed.route))) continue;
         if (record.kind === 'jsonld-event' && Array.isArray(source.venueAliases) && source.venueAliases.length &&

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { collectRoundup, COLLECT_LIMITS, roundupSignalId } from '../../scripts/news-pilot/roundup-collect.mjs';
+import { collectRoundup, COLLECT_LIMITS, roadLeadByName, roundupSignalId } from '../../scripts/news-pilot/roundup-collect.mjs';
 import { extractRoundupRecords } from '../../scripts/news-pilot/roundup-records.mjs';
 import { ROUNDUP_SOURCES, roundupSourceById } from '../../scripts/news-pilot/sources.mjs';
 import { classifyBlockedResponse } from '../../scripts/news-pilot/url-guard.mjs';
@@ -123,7 +123,7 @@ test('collector: identity sources become record-bound signals; feeds filtered to
   const net = fakeNet(baseRoutes);
   const c = fakeClock();
   const { signals, census, snapshots } = await collectRoundup({ out, now: NOW, env: {}, fetcher: net.fetcher, watchList: [],
-    sources: ids('rv2-bmo-field', 'rv2-road-restrictions', 'rv2-ttc-alerts', 'rv2-lv-bia-events'), clock: c.clock, sleep: c.sleep });
+    sources: ids('rv2-bmo-field', 'rv2-road-restrictions', 'rv2-ttc-alerts', 'rv2-lv-bia-events'), clock: c.clock, sleep: c.sleep, geography: null });
 
   const bmo = signals.filter((s) => s.sourceId === 'rv2-bmo-field');
   assert.equal(bmo.length, 2);
@@ -156,6 +156,20 @@ test('collector: identity sources become record-bound signals; feeds filtered to
   assert.ok(road[0].snapshotSha256);
   for (const f of ['signals.jsonl', 'census.json']) assert.equal(fs.statSync(path.join(out, f)).mode & 0o777, 0o600);
   assert.equal(fs.readFileSync(path.join(out, 'signals.jsonl'), 'utf8').trim().split('\n').length, signals.length);
+});
+
+test('road recall: the geography classifier decides when present; otherwise LV streets or frontage at an LV cross street', async () => {
+  assert.equal(roadLeadByName({ road: 'Hanna Ave', fromRoad: 'Snooker St', toRoad: 'Liberty St' }), true);
+  assert.equal(roadLeadByName({ road: 'Strachan Ave', fromRoad: 'Fleet St', toRoad: 'Fleet St' }), true);
+  assert.equal(roadLeadByName({ road: 'Dufferin St', fromRoad: 'Wilson Ave', toRoad: 'Wilson Ave' }), false, 'Dufferin far north');
+  assert.equal(roadLeadByName({ road: 'Lake Shore Blvd W', fromRoad: 'Yonge St', toRoad: 'Bay St' }), false);
+  const asked = [];
+  const geography = { classifySegment: (seg) => { asked.push(seg.road); return { verdict: seg.road === 'Don Valley Parkway S' ? 'adjacent' : 'not-LV' }; } };
+  const c = fakeClock();
+  const { signals } = await collectRoundup({ out: tmp(), now: NOW, env: {}, fetcher: fakeNet(baseRoutes).fetcher, watchList: [],
+    sources: ids('rv2-road-restrictions'), clock: c.clock, sleep: c.sleep, geography });
+  assert.deepEqual(signals.map((s) => s.records[0].recordId), ['12228824']);
+  assert.deepEqual(asked, ['Hanna Ave', 'Don Valley Parkway S']);
 });
 
 test('collector ↔ verifier contract: re-extracting a snapshot yields the same recordIds and typed fields', async () => {

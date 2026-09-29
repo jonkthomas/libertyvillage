@@ -266,18 +266,26 @@ export const ROUNDUP_SERPER_QUERIES = Object.freeze([
 export const ROUNDUP_TTC_ROUTES = Object.freeze(['504', '29', '509', '511', '63']);
 
 /**
- * Road-restriction recall filter: a feed record becomes a signal only when its
- * `road`, `fromRoad`, `toRoad` or `atRoad` names one of these streets. This is a
- * lead filter to keep the reasoner batch bounded; locality is decided only by
- * the generated segment table in roundup-geo.mjs (§6.2).
+ * Road-restriction recall filter, used only when roundup-geo.mjs is not loadable.
+ * A feed record becomes a signal when its `road` is an LV-interior street, or a
+ * frontage road whose from/to/at street is one of that road's LV cross streets.
+ * This only bounds the reasoner batch; locality is decided solely by the
+ * generated segment table in roundup-geo.mjs (§6.2).
  */
 export const ROUNDUP_ROAD_LEAD_STREETS = Object.freeze([
-  'King St W', 'Strachan Ave', 'Dufferin St', 'Lake Shore Blvd W', 'Hanna Ave', 'Atlantic Ave',
-  'Liberty St', 'East Liberty St', 'Jefferson Ave', 'Mowat Ave', 'Fraser Ave', 'Pirandello St',
-  'Snooker St', 'Lynn Williams St', 'Western Battery Rd', 'Sudbury St', 'Shaw St', 'Joe Shuster Way',
-  "Princes' Blvd", 'Princes Blvd', 'Manitoba Dr', 'Nunavut Rd', 'Saskatchewan Rd', 'British Columbia Rd',
-  'Ontario Dr', 'Remembrance Dr', 'Newfoundland Rd', 'Canada Blvd', 'Stadium Rd', 'Exhibition Pl',
+  'Hanna Ave', 'Atlantic Ave', 'Liberty St', 'East Liberty St', 'Jefferson Ave', 'Mowat Ave', 'Fraser Ave',
+  'Pirandello St', 'Snooker St', 'Lynn Williams St', 'Western Battery Rd', "Princes' Blvd", 'Princes Blvd',
+  'Manitoba Dr', 'Nunavut Rd', 'Saskatchewan Rd', 'British Columbia Rd', 'Ontario Dr', 'Remembrance Dr',
+  'Newfoundland Rd', 'Canada Blvd', 'Stadium Rd', 'Exhibition Pl',
 ]);
+
+export const ROUNDUP_ROAD_FRONTAGE = Object.freeze({
+  'King St W': ['Strachan Ave', 'Shaw St', 'Crawford St', 'Atlantic Ave', 'Joe Shuster Way', 'Fraser Ave', 'Mowat Ave',
+    'Jefferson Ave', 'Pardee Ave', 'Hanna Ave', 'Dufferin St'],
+  'Strachan Ave': ['King St W', 'East Liberty St', 'Liberty St', 'Fleet St', 'Manitoba Dr', 'Lake Shore Blvd W', "Princes' Blvd", 'Princes Blvd'],
+  'Dufferin St': ['King St W', 'Liberty St', 'East Liberty St', 'Springhurst Ave', 'Saskatchewan Rd', 'Lake Shore Blvd W'],
+  'Lake Shore Blvd W': ['Strachan Ave', 'British Columbia Rd', 'Ontario Dr', 'Newfoundland Rd', 'Remembrance Dr', 'Dufferin St', "Princes' Blvd", 'Princes Blvd'],
+});
 
 /** Watched City LV project pages (§4.1 rv2-city-projects). */
 export const ROUNDUP_CITY_PROJECT_PAGES = Object.freeze([
