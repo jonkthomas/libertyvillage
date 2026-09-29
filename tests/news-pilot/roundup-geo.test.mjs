@@ -261,4 +261,21 @@ test('U3: an Instagram caption stating another place never inherits the own venu
   assert.equal(statedOtherPlace('Meet Sarah Chen Saturday October 3. Smash burgers all day in Liberty Village.', own), null);
   assert.equal(statedOtherPlace('Meet Sarah Chen at the counter Saturday October 3', own), null);
   assert.equal(statedOtherPlace('Latte art night in Liberty Village with Sarah Chen', own), null);
+  assert.equal(statedOtherPlace('Join us on the patio Saturday October 3', own), null);
+  for (const caption of [
+    'Burger Drops pop-up at Stackt Saturday October 3!',
+    'Burger Drops pop-up Saturday October 3 at @stacktmarket 🍔',
+    'pop-up at stackt market saturday october 3 🍔',
+    'Burger Drops at the Distillery District Saturday October 3',
+    'Burger Drops picnic pop-up at Trinity Bellwoods Saturday October 3',
+    'Burger Drops at Christie Pits Saturday October 3',
+    'Burger Drops at Harbourfront Saturday October 3',
+    'Burger Drops at the CNE Saturday October 3',
+    'Burger Drops at Ossington & Dundas Saturday October 3',
+    'Burger Drops on Queen West Saturday October 3',
+    'Burger Drops is heading to Scarborough Saturday October 3',
+    "Mildred's brunch pop-up at Stackt Saturday October 3",
+    'F45 community class Saturday October 3 at Trinity Bellwoods',
+    'Burger Drops pop-up Saturday October 3 at @stacktmarket\n📍 116 Atlantic Ave. Patio',
+  ]) assert.equal(statedOtherPlace(caption, own)?.verdict, 'unverifiable', caption);
 });

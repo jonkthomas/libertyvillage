@@ -269,13 +269,13 @@ export function classifySectionPlace({ placeQuote, sectionText, subject, dateQuo
 const sameBuilding = (a, b) => Boolean(a && b) && a.replace(/#.*$/, '') === b.replace(/#.*$/, '');
 const neighbourhoodOnly = /^[\s.,:;|-]*(?:liberty village|lv|the village|village|toronto)(?:[\s,]+toronto)?[\s.!,]*$/i;
 const SCHEDULE_WORD = String.raw`Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:rs(?:day)?)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?`;
-const PLACE_NOUN = /\b(?:Market|Markets|Station|Park|Square|Works|Centre|Center|Plaza|Hall|Stadium|Mall|Arena|Building|Terminal|Airport|Campus|Museum|Gallery|Theatre|Theater|Garden|Gardens|Pier|Wharf|Harbour|Harbor|Beach|Club|Cafe|Bar|Kitchen|Restaurant|Grill|Pub|Hotel|Inn|Lounge|Bakery|Brewery|Fairgrounds|Coliseum|Amphitheatre|Amphitheater|Field|Commons|Yard|Yards|Place)\b/;
+const OWN_PREMISES = /^(?:(?:the|our)\s+)?(?:patio|counter|shop|store|kitchen|studio|gym|office|venue|location|building|front entrance)$/i;
+const LOCATIVE_OBJECT = /\b(?:at|in|on|to)[ \t]+((?:the[ \t]+)?@?[\p{L}\d][\p{L}\d'’&.-]*(?:[ \t]+[\p{L}\d][\p{L}\d'’&.-]*){0,7})/giu;
 const STREET_SUFFIX = /\b(?:Ave(?:nue)?|St(?:reet)?(?:\s+W(?:est)?)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Way)\b/i;
 const ANY_STREET_ADDRESS = new RegExp(String.raw`\b\d{1,5}[A-Za-z]?\s+(?:[A-Z][\w'’.-]*\s+){0,4}${STREET_SUFFIX.source}`, 'gi');
-const EVENT_PLACE = /\b(at|in|on)\s+(?:the\s+)?([A-Z][\w'’&-]*(?:\s+[A-Z][\w'’&-]*){0,5})/g;
 
 function trimSchedule(phrase) {
-  let current = phrase.trim();
+  let current = phrase.replace(/\s+(?:with|for|featuring)\b.*$/i, '').trim();
   const trailing = new RegExp(String.raw`\s*,?\s+(?:${SCHEDULE_WORD}|\d{1,2}(?:st|nd|rd|th)?)$`, 'i');
   let next = current.replace(trailing, '').trim();
   while (next !== current) {
@@ -297,7 +297,7 @@ function ownPlaceLabels(ownVenueId) {
     for (const alias of venue.aliases ?? []) add(alias);
   }
   for (const entry of WATCH_LIST) {
-    if (sameBuilding(entry.canonicalVenueId, ownVenueId)) add(entry.business);
+    if (sameBuilding(entry.canonicalVenueId, ownVenueId)) { add(entry.business); add(entry.handle); }
   }
   return labels;
 }
@@ -305,19 +305,12 @@ function resolvesToOwn(phrase, ownVenueId, labels) {
   if (sameBuilding(canonicalVenueId(phrase), ownVenueId)) return true;
   const named = namedVenues(phrase);
   if (named.length && named.every((venue) => sameBuilding(venue.canonicalVenueId, ownVenueId))) return true;
-  const normalized = key(phrase);
+  const normalized = key(phrase).replace(/^@/, '');
   for (const label of labels) {
-    if (label.length > 2 && (normalized === label || normalized.startsWith(`${label} `))) return true;
+    if (label.length > 2 && (normalized === label ||
+      (normalized.startsWith(`${label} `) && OWN_PREMISES.test(normalized.slice(label.length + 1))))) return true;
   }
   return false;
-}
-// Negative only: a place-shaped object of at/in/on that is not the account's own building.
-function looksLikeOtherPlace(preposition, phrase) {
-  if (!phrase || neighbourhoodOnly.test(phrase)) return false;
-  if (STREET_SUFFIX.test(phrase) || PLACE_NOUN.test(phrase)) return true;
-  return preposition.toLowerCase() === 'in'
-    && /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}$/.test(phrase)
-    && !/^(?:Toronto|Ontario|Canada)$/.test(phrase);
 }
 /**
  * Instagram own-venue fallback guard (§4.4, §6.2). With no place_quote, a caption that
@@ -342,11 +335,15 @@ export function statedOtherPlace(text, ownVenueId) {
   for (const match of raw.matchAll(ANY_STREET_ADDRESS)) {
     if (!sameBuilding(canonicalVenueId(match[0]), ownVenueId)) return verdict('unverifiable', 'other-place-stated');
   }
-  EVENT_PLACE.lastIndex = 0;
-  for (const match of raw.matchAll(EVENT_PLACE)) {
-    const phrase = trimSchedule(match[2]);
-    if (!phrase || neighbourhoodOnly.test(phrase) || resolvesToOwn(phrase, ownVenueId, labels)) continue;
-    if (looksLikeOtherPlace(match[1], phrase)) return verdict('unverifiable', 'other-place-stated');
+  // Positive allowance only: an unfamiliar locative object is not permission to
+  // inherit an account's venue. Covers lowercase, handles, bare place names and
+  // directions without relying on a finite list of foreign place nouns.
+  LOCATIVE_OBJECT.lastIndex = 0;
+  for (const match of raw.matchAll(LOCATIVE_OBJECT)) {
+    const phrase = trimSchedule(match[1]);
+    if (!phrase || /^\d{1,2}$/.test(phrase) || neighbourhoodOnly.test(phrase) || OWN_PREMISES.test(phrase) ||
+      resolvesToOwn(phrase, ownVenueId, labels)) continue;
+    return verdict('unverifiable', 'other-place-stated');
   }
   return null;
 }
