@@ -359,6 +359,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
           const result = await fix({
             kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings,
             schema: agent.rowRepairSchema(files), describeContract: describeRowContract,
+            candidateKeys: candidates.map((item) => ({ file: fileOf(item.dataset), key: item.key })),
           });
           repaired = result.check.repaired;
         }
