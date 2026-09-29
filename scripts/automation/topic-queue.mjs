@@ -409,30 +409,41 @@ const PREMISES = [
   { pattern: /\bbrunch\b/i, evidence: /\bbrunch\b/i },
 ];
 const OUTSIDE_PLACES = /\b(?:Parkdale|Queen West|King West|Kensington Market|The Annex|Yorkville|Leslieville|Roncesvalles|Scarborough|Mississauga|Etobicoke|Vaughan|Hamilton|Ottawa)\b/i;
+const TRAILING_GEO = /^(.*?)(?:\s+in)?\s+Liberty Village(?:\s*,\s*|\s+)Toronto([?!.,:;]*)$/i;
+function groundingFingerprint(title) {
+  const special = intentFingerprint(title);
+  if (special === 'is liberty village good area toronto') return special;
+  const withoutLocality = String(title).replace(/\bliberty village\b/ig, ' ').replace(/\btoronto\b/ig, ' ');
+  return intentFingerprint(withoutLocality);
+}
 
 export function checkTopicGroundability({ title, kind, businesses = [], livePosts = [], consumedFingerprints = [] } = {}) {
   const cleaned = String(title ?? '').replace(/\s+/g, ' ').trim();
-  const fingerprint = intentFingerprint(cleaned);
-  const reject = (reason) => ({ ok: false, reason, fingerprint, supportingRecordIds: [] });
+  const suffix = cleaned.match(TRAILING_GEO);
+  const editorialTitle = suffix ? `${suffix[1].trim()}${suffix[2]}` : cleaned;
+  const fingerprint = groundingFingerprint(editorialTitle);
+  const reject = (reason) => ({ ok: false, reason, fingerprint, editorialTitle, supportingRecordIds: [] });
   if (!cleaned || kind !== 'blog') return reject('invalid topic');
   const placeCount = [...cleaned.matchAll(/\bliberty village\b/ig)].length;
-  if (placeCount > 1 || /\bliberty village\s+toronto\b/i.test(cleaned)
-    || /\b(?:in|near|around|at)\s+liberty village\s*,?\s*toronto\s+liberty village\b/i.test(cleaned)) return reject('malformed geo suffix');
-  if (OUTSIDE_PLACES.test(cleaned)) return reject('outside Liberty Village');
-  if (/\b(?:login|log in|hours|menu|phone|telephone|contact)\b/i.test(cleaned)
-    && (businesses ?? []).some((record) => liveBusiness(record) && cleaned.toLowerCase().includes(String(record.name ?? '').toLowerCase()))) return reject('branded navigation');
+  if (!editorialTitle || placeCount > 1 || /\btoronto\s+toronto\b/i.test(cleaned)
+    || /\bliberty village\s*,?\s*toronto\b/i.test(editorialTitle)
+    || /\btoronto\s+liberty village\b/i.test(editorialTitle)) return reject('malformed geo suffix');
+  if (OUTSIDE_PLACES.test(editorialTitle)) return reject('outside Liberty Village');
+  if (/\b(?:login|log in|hours|menu|phone|telephone|contact)\b/i.test(editorialTitle)
+    && (businesses ?? []).some((record) => liveBusiness(record) && editorialTitle.toLowerCase().includes(String(record.name ?? '').toLowerCase()))) return reject('branded navigation');
   const postFingerprints = (livePosts ?? []).flatMap((post) => [post?.title, post?.slug?.replace(/-/g, ' ')]
-    .filter(Boolean).map(intentFingerprint));
-  if ([...postFingerprints, ...consumedFingerprints].includes(fingerprint)) return reject('duplicate intent');
-  const premise = PREMISES.find((entry) => entry.pattern.test(cleaned));
-  if (!premise) return { ok: true, reason: 'groundable', fingerprint, supportingRecordIds: [] };
+    .filter(Boolean).map(groundingFingerprint));
+  if ([...postFingerprints, ...consumedFingerprints].includes(fingerprint)
+    || consumedFingerprints.includes(intentFingerprint(cleaned))) return reject('duplicate intent');
+  const premises = PREMISES.filter((entry) => entry.pattern.test(editorialTitle));
+  if (!premises.length) return { ok: true, reason: 'groundable', fingerprint, editorialTitle, supportingRecordIds: [] };
   const supportingRecordIds = [...new Set((businesses ?? []).filter(liveBusiness)
     .filter((record) => {
       const fields = [record.description, record.hours, record.policy, record.proTip, ...(Array.isArray(record.tags) ? record.tags : [])];
-      return fields.some((value) => typeof value === 'string' && premise.evidence.test(value));
+      return premises.every((premise) => fields.some((value) => typeof value === 'string' && premise.evidence.test(value)));
     }).map(businessId))].sort();
   if (supportingRecordIds.length < 2) return reject('unsupported operational premise');
-  return { ok: true, reason: 'groundable', fingerprint, supportingRecordIds };
+  return { ok: true, reason: 'groundable', fingerprint, editorialTitle, supportingRecordIds };
 }
 
 export function reserveGuideEligibility({ businesses = [] } = {}) {

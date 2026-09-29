@@ -99,9 +99,9 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
           }
           case 'status': {
             const [slots, attempts, alerts] = await Promise.all([
-              db.query('select * from content.cadence_slots where target=$1 and week_start_utc=$2 order by lane,slot_number', [target, weekStart]),
-              db.query('select * from content.cadence_attempts where target=$1 and week_start_utc=$2 order by lane,slot_number,ordinal', [target, weekStart]),
-              db.query('select * from content.cadence_alerts where target=$1 and week_start_utc=$2 order by alert_kind', [target, weekStart]),
+              db.query('select *,week_start_utc::text as week_start_utc from content.cadence_slots where target=$1 and week_start_utc=$2 order by lane,slot_number', [target, weekStart]),
+              db.query('select *,week_start_utc::text as week_start_utc from content.cadence_attempts where target=$1 and week_start_utc=$2 order by lane,slot_number,ordinal', [target, weekStart]),
+              db.query('select *,week_start_utc::text as week_start_utc from content.cadence_alerts where target=$1 and week_start_utc=$2 order by alert_kind', [target, weekStart]),
             ]);
             result = { slots: slots.rows.map((value) => { const slot = { ...value }; delete slot.claim_token; return slot; }), attempts: attempts.rows, alerts: alerts.rows };
             break;

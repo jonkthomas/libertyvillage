@@ -8,6 +8,7 @@ const number = (value) => Number(value);
 const failed = new Set(['failed-before-submit', 'rejected', 'blocked', 'error']);
 const outcomes = new Set([...failed, 'published', 'smoked', 'consumed']);
 const slotColumns = 'target=$1 and week_start_utc=$2 and lane=$3 and slot_number=$4';
+const dateText = '*, week_start_utc::text as week_start_utc';
 const slotValues = ({ target, weekStart, lane, slotNumber }) => [target, weekStart, lane, slotNumber];
 const publicSlot = (value) => { const slot = { ...value }; delete slot.claim_token; return slot; };
 
@@ -66,7 +67,7 @@ function checkLease(seconds) {
   if (!Number.isInteger(seconds) || seconds < 1 || seconds > 86400) throw new ValidationError('invalid lease');
 }
 async function lockedSlot(client, db, ref, token) {
-  const slot = row(await client.query(`select * from content.cadence_slots where ${slotColumns} for update`, checkedSlot(db, ref)));
+  const slot = row(await client.query(`select ${dateText} from content.cadence_slots where ${slotColumns} for update`, checkedSlot(db, ref)));
   if (!slot || !token || slot.claim_token !== token || !slot.claimed_until || new Date(slot.claimed_until) <= new Date()) throw new ClaimError();
   return slot;
 }
@@ -78,7 +79,7 @@ export async function reserveSlot(db, { target, weekStart, lane, slotNumber, own
   return db.tx(async (client) => {
     await client.query(`insert into content.cadence_slots(target,week_start_utc,lane,slot_number,roundup_slug)
       values($1,$2,$3,$4,$5) on conflict do nothing`, [...slotValues(ref), lane === 'roundup' ? roundupSlug(weekStart) : null]);
-    const found = row(await client.query(`select * from content.cadence_slots where target=$1 and week_start_utc=$2 and
+    const found = row(await client.query(`select ${dateText} from content.cadence_slots where target=$1 and week_start_utc=$2 and
       ${lane === 'roundup' ? "lane='roundup'" : 'lane=$3 and slot_number=$4'} for update`, lane === 'roundup' ? [target, weekStart] : slotValues(ref)));
     if (!found) throw new StateError('slot missing');
     if (found.claim_token && new Date(found.claimed_until) > new Date()) {
@@ -86,7 +87,7 @@ export async function reserveSlot(db, { target, weekStart, lane, slotNumber, own
     }
     const token = randomUUID();
     const slot = row(await client.query(`update content.cadence_slots set claim_token=$5,claim_owner=$6,
-      claimed_until=now()+($7 * interval '1 second') where ${slotColumns} returning *`,
+      claimed_until=now()+($7 * interval '1 second') where ${slotColumns} returning ${dateText}`,
     [...slotValues({ target, weekStart, lane, slotNumber: found.slot_number }), token, owner, leaseSeconds]));
     return { slot: publicSlot(slot), token, reserved: true, holder: 'self' };
   });
@@ -96,14 +97,14 @@ export async function renewSlot(db, slotRef, token, { leaseSeconds = 900 } = {})
   return db.tx(async (client) => {
     await lockedSlot(client, db, slotRef, token);
     return publicSlot(row(await client.query(`update content.cadence_slots set claimed_until=now()+($5 * interval '1 second')
-      where ${slotColumns} returning *`, [...slotValues(slotRef), leaseSeconds])));
+      where ${slotColumns} returning ${dateText}`, [...slotValues(slotRef), leaseSeconds])));
   });
 }
 export async function releaseSlot(db, slotRef, token) {
   return db.tx(async (client) => {
     await lockedSlot(client, db, slotRef, token);
     return publicSlot(row(await client.query(`update content.cadence_slots set claim_token=null,claim_owner=null,claimed_until=null
-      where ${slotColumns} returning *`, slotValues(slotRef))));
+      where ${slotColumns} returning ${dateText}`, slotValues(slotRef))));
   });
 }
 function keyFor(ref, ordinal) {
@@ -113,7 +114,7 @@ export async function recordAttempt(db, { slotRef, token, intentFingerprint, top
   if (![intentFingerprint, topicKey, sourcePackDigest].every((v) => typeof v === 'string' && v.trim())) throw new ValidationError('attempt metadata required');
   return db.tx(async (client) => {
     const slot = await lockedSlot(client, db, slotRef, token);
-    const prior = (await client.query(`select * from content.cadence_attempts where ${slotColumns} order by ordinal desc`, slotValues(slotRef))).rows;
+    const prior = (await client.query(`select ${dateText} from content.cadence_attempts where ${slotColumns} order by ordinal desc`, slotValues(slotRef))).rows;
     const latest = prior[0];
     if (latest && (latest.outcome === null || latest.outcome === 'published' || latest.outcome === 'smoked')) {
       return { ordinal: latest.ordinal, idempotencyKey: latest.idempotency_key, existing: true };
@@ -131,9 +132,9 @@ export async function recordAttempt(db, { slotRef, token, intentFingerprint, top
   });
 }
 async function lockedAttempt(client, db, idempotencyKey, token) {
-  const attempt = row(await client.query('select * from content.cadence_attempts where idempotency_key=$1', [idempotencyKey]));
+  const attempt = row(await client.query(`select ${dateText} from content.cadence_attempts where idempotency_key=$1`, [idempotencyKey]));
   if (!attempt) throw new StateError('attempt missing');
-  const ref = { target: attempt.target, weekStart: attempt.week_start_utc.toISOString().slice(0, 10), lane: attempt.lane, slotNumber: attempt.slot_number };
+  const ref = { target: attempt.target, weekStart: attempt.week_start_utc, lane: attempt.lane, slotNumber: attempt.slot_number };
   await lockedSlot(client, db, ref, token);
   return { attempt, ref };
 }
@@ -164,7 +165,7 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
       if (!laneItems.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('submission is not current-live');
     }
     const next = row(await client.query(`update content.cadence_attempts set outcome=$2,updated_at=now(),closed_at=now()
-      where idempotency_key=$1 returning *`, [idempotencyKey, outcome]));
+      where idempotency_key=$1 returning ${dateText}`, [idempotencyKey, outcome]));
     await client.query(`update content.cadence_slots set state=$5 where ${slotColumns}`,
       [...slotValues(ref), failed.has(outcome) ? 'ready' : outcome]);
     return next;
@@ -204,7 +205,7 @@ export async function countCurrentWeek(db, { target, weekStart, observe }) {
   const { content, roundup } = classify(mapped.map((item) => observed.includes(item) ? item : null));
   const liveContent = content.filter(Boolean);
   const liveRoundup = roundup.filter(Boolean);
-  return { content: liveContent, roundup: liveRoundup, contentCount: liveContent.length,
+  return { content: liveContent, roundup: liveRoundup, observer: typeof observe === 'function' ? 'available' : 'unavailable', contentCount: liveContent.length,
     roundupCount: liveRoundup.length, met: liveContent.length >= 2 && liveRoundup.length >= 1,
     dbOnly: { ...dbOnly, contentCount: dbOnly.content.length, roundupCount: dbOnly.roundup.length } };
 }
@@ -217,24 +218,24 @@ export async function recordMissedAlert(db, { target, weekStart, alertKind, coun
     || typeof failureClass !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(failureClass)) throw new ValidationError('invalid alert counts or failure class');
   const notificationKey = `cadence-alert:${target}:${weekStart}:${alertKind}`;
   const inserted = row(await db.query(`insert into content.cadence_alerts(target,week_start_utc,alert_kind,notification_key,counts,failure_class)
-    values($1,$2,$3,$4,$5::json,$6) on conflict do nothing returning *`,
+    values($1,$2,$3,$4,$5::json,$6) on conflict do nothing returning ${dateText}`,
   [target, weekStart, alertKind, notificationKey, JSON.stringify(safeCounts), failureClass]));
-  const alert = inserted ?? row(await db.query('select * from content.cadence_alerts where target=$1 and week_start_utc=$2 and alert_kind=$3', [target, weekStart, alertKind]));
+  const alert = inserted ?? row(await db.query(`select ${dateText} from content.cadence_alerts where target=$1 and week_start_utc=$2 and alert_kind=$3`, [target, weekStart, alertKind]));
   return { alert, created: Boolean(inserted) };
 }
 export async function deliverPendingAlerts(db, { target, send, maxAttempts = 5 }) {
   checkTarget(db, target);
   if (typeof send !== 'function' || !Number.isInteger(maxAttempts) || maxAttempts < 1) throw new ValidationError('invalid alert delivery');
-  const pending = (await db.query(`select target,week_start_utc,alert_kind from content.cadence_alerts
+  const pending = (await db.query(`select target,week_start_utc::text as week_start_utc,alert_kind from content.cadence_alerts
     where target=$1 and delivered_at is null and delivery_attempts<$2 order by created_at`, [target, maxAttempts])).rows;
   const summary = { delivered: 0, failed: 0, pending: pending.length };
   for (const item of pending) {
     await db.tx(async (client) => {
-      const alert = row(await client.query(`select * from content.cadence_alerts where target=$1 and week_start_utc=$2
+      const alert = row(await client.query(`select ${dateText} from content.cadence_alerts where target=$1 and week_start_utc=$2
         and alert_kind=$3 for update`, [item.target, item.week_start_utc, item.alert_kind]));
       if (alert.delivered_at || alert.delivery_attempts >= maxAttempts) return;
       try {
-        await send({ target: alert.target, weekStart: alert.week_start_utc.toISOString().slice(0, 10),
+        await send({ target: alert.target, weekStart: alert.week_start_utc,
           alertKind: alert.alert_kind, notificationKey: alert.notification_key, counts: alert.counts,
           failureClass: alert.failure_class });
         await client.query(`update content.cadence_alerts set delivered_at=now(),delivery_attempts=delivery_attempts+1,last_error=null
@@ -252,6 +253,7 @@ export async function deliverPendingAlerts(db, { target, send, maxAttempts = 5 }
 }
 export async function evaluateDeadline(db, { target, weekStart, now = new Date(), observe }) {
   checkTarget(db, target);
+  if (typeof observe !== 'function') throw new StateError('observer required');
   if (dateValue(now) < new Date(Date.parse(`${weekStart}T00:00:00Z`) + 7 * 86400000)) return { due: false, alerts: [] };
   const counts = await countCurrentWeek(db, { target, weekStart, observe });
   const alerts = [];

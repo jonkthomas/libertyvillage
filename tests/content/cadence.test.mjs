@@ -70,6 +70,7 @@ test('migration accepts roundup, ISO slug handles year boundary, immutable keys 
     await db.query("insert into content.entries(dataset,key) values('posts',$1)", [cadence.roundupSlug(week)]);
     const claim = await cadence.reserveSlot(db, { ...ref(2, 'roundup'), owner: 'one' });
     assert.equal(claim.reserved, true);
+    assert.equal(claim.slot.week_start_utc, week);
     await assert.rejects(db.query("update content.cadence_slots set roundup_slug='changed' where target='test'"), /cadence-immutable/);
     await assert.rejects(db.query("delete from content.cadence_slots where target='test'"), /cadence-immutable/);
   } finally { await close(); }
@@ -88,6 +89,7 @@ test('concurrent roundup converges, expired claim fences stale token, attempts r
     assert.equal(replay.idempotencyKey, first.idempotencyKey);
     assert.equal(replay.existing, true);
     await cadence.recordAttemptOutcome(db, { idempotencyKey: first.idempotencyKey, token: winner.token, outcome: 'rejected' });
+    assert.equal((await db.query('select week_start_utc::text as week from content.cadence_attempts where idempotency_key=$1', [first.idempotencyKey])).rows[0].week, week);
     await assert.rejects(cadence.recordAttempt(db, { slotRef, token: winner.token, intentFingerprint: 'one', topicKey: 'one', sourcePackDigest: 'pack' }), /already attempted/);
     const second = await cadence.recordAttempt(db, { slotRef, token: winner.token, intentFingerprint: 'two', topicKey: 'two', sourcePackDigest: 'pack' });
     assert.equal(second.ordinal, 2);
@@ -113,7 +115,10 @@ test('current-week count requires live revision, final passing gate and hosted o
     await fixture(db, { slug: cadence.roundupSlug(week), kind: 'roundup', category: 'news' });
     const green = await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe });
     assert.deepEqual([green.contentCount, green.roundupCount, green.met], [2, 1, true]);
-    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week })).met, false);
+    const withoutObserver = await cadence.countCurrentWeek(db, { target: 'test', weekStart: week });
+    assert.equal(withoutObserver.met, false);
+    assert.equal(withoutObserver.observer, 'unavailable');
+    assert.deepEqual([withoutObserver.dbOnly.contentCount, withoutObserver.dbOnly.roundupCount], [2, 1]);
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe: async () => ({ rev: 2, snapshotId: 'other' }) })).met, false);
     await db.query("update content.submission_items set smoke='superseded' where key='first-guide'");
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).met, false);
@@ -139,6 +144,18 @@ test('current-week count requires live revision, final passing gate and hosted o
     assert.equal(again.contentCount, 2);
     await fixture(db, { slug: 'first-guide' });
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).contentCount, 2, 'same slug counts once');
+  } finally { await close(); }
+});
+
+test('deadline requires an observer and propagates observation failure without alert intent', async () => {
+  const { db, close } = await testDb();
+  try {
+    await fixture(db, { slug: 'observer-probe' });
+    const input = { target: 'test', weekStart: week, now: '2026-10-05T00:00:00Z' };
+    await assert.rejects(cadence.evaluateDeadline(db, input), (error) => error.code === 'StateError' && error.message === 'observer required');
+    await assert.rejects(cadence.evaluateDeadline(db, { ...input, observe: null }), (error) => error.code === 'StateError' && error.message === 'observer required');
+    await assert.rejects(cadence.evaluateDeadline(db, { ...input, observe: async () => { throw new Error('alias failed'); } }), /alias failed/);
+    assert.equal((await db.query('select count(*)::int as n from content.cadence_alerts')).rows[0].n, 0);
   } finally { await close(); }
 });
 
@@ -177,7 +194,11 @@ test('deadline alert intent dedupes and delivery retries the same key', async ()
     assert.equal(capped.pending, 0);
     const rows = (await db.query('select * from content.cadence_alerts')).rows;
     assert.ok(rows.every((item) => item.delivery_attempts === 2 && item.delivered_at === null && !item.last_error.includes('secret')));
-    await cadence.deliverPendingAlerts(db, { target: 'test', maxAttempts: 3, send: (payload) => { keys.push(payload.notificationKey); assert.equal(JSON.stringify(payload).includes('evidence'), false); } });
+    await cadence.deliverPendingAlerts(db, { target: 'test', maxAttempts: 3, send: (payload) => {
+      keys.push(payload.notificationKey);
+      assert.equal(payload.weekStart, week);
+      assert.equal(JSON.stringify(payload).includes('evidence'), false);
+    } });
     assert.equal(new Set(keys).size, 2);
     assert.ok((await db.query('select delivered_at from content.cadence_alerts')).rows.every((item) => item.delivered_at));
   } finally { await close(); }
@@ -198,5 +219,15 @@ test('CLI count and reserve require bound test DB', async () => {
     await assert.rejects(runCli(['cadence', 'reserve', '--week-start', week, '--lane', 'content', '--slot-number', '1', '--owner', 'cli']), /expect-db/);
     const reserved = await runCli(['cadence', 'reserve', '--week-start', week, '--lane', 'content', '--slot-number', '1', '--owner', 'cli', '--expect-db', name]);
     assert.equal(reserved.result.reserved, true);
+    assert.equal(reserved.result.slot.week_start_utc, week);
+    assert.equal((await cadence.renewSlot(db, ref(), reserved.result.token)).week_start_utc, week);
+    await cadence.recordAttempt(db, { slotRef: ref(), token: reserved.result.token,
+      intentFingerprint: 'status-intent', topicKey: 'status-topic', sourcePackDigest: 'digest' });
+    await cadence.recordMissedAlert(db, { target: 'test', weekStart: week, alertKind: 'WEEKLY_NEWS_MISSED',
+      counts: { content: 0, roundup: 0 }, failureClass: 'test' });
+    const status = await runCli(['cadence', 'status', '--week-start', week, '--expect-db', name]);
+    assert.equal(status.result.slots[0].week_start_utc, week);
+    assert.equal(status.result.attempts[0].week_start_utc, week);
+    assert.equal(status.result.alerts[0].week_start_utc, week);
   } finally { process.env.CONTENT_SITE_URL = priorSiteUrl; await close(); }
 });

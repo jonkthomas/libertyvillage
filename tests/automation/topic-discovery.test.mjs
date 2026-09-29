@@ -146,13 +146,35 @@ test('groundability rejects malformed geography, outside places, navigation and 
   const businesses = [{ id: 'cafe', name: 'Good Cafe', live: true, description: 'Local cafe.' }];
   const check = (title, more = {}) => checkTopicGroundability({ title, kind: 'blog', businesses, ...more });
   for (const title of [
-    'Best cafes near the stadium Liberty Village Toronto',
+    'Best cafes Liberty Village Toronto Liberty Village Toronto',
     'Liberty Village Liberty Village brunch',
+    'Liberty Village Toronto Liberty Village',
+    'Best coffee Liberty Village Toronto cafes',
+    'Best coffee Toronto Toronto',
   ]) assert.match(check(title).reason, /malformed/);
   assert.match(check('Best brunch in Parkdale').reason, /outside/);
   assert.match(check('Good Cafe hours').reason, /navigation/);
   assert.match(check('Liberty Village cafes', { livePosts: [{ title: 'Cafes in Liberty Village' }] }).reason, /duplicate/);
   assert.match(check('Liberty Village cafes', { consumedFingerprints: [intentFingerprint('Liberty Village cafes')] }).reason, /duplicate/);
+});
+
+test('one expected GSC suffix yields a canonical editorial intent without weakening premise checks', () => {
+  const records = [
+    { id: 'one', live: true, name: 'One', description: 'Happy hour 4-6 and coffee.' },
+    { id: 'two', live: true, name: 'Two', description: 'Happy hour 5-7 and coffee.' },
+  ];
+  const check = (title, more = {}) => checkTopicGroundability({ title, kind: 'blog', businesses: records, ...more });
+  const coffee = check('best coffee Liberty Village Toronto');
+  assert.equal(coffee.ok, true);
+  assert.equal(coffee.editorialTitle, 'best coffee');
+  assert.equal(check('best coffee in Liberty Village Toronto?').editorialTitle, 'best coffee?');
+  assert.equal(check('best coffee Liberty Village, Toronto').editorialTitle, 'best coffee');
+  assert.equal(coffee.fingerprint, check('Best coffee in Liberty Village').fingerprint);
+  assert.match(check('best coffee Liberty Village Toronto', { livePosts: [{ title: 'Best coffee in Liberty Village' }] }).reason, /duplicate/);
+  assert.deepEqual(check('happy hour Liberty Village Toronto').supportingRecordIds, ['one', 'two']);
+  assert.equal(check('pet friendly patios Liberty Village Toronto').ok, false);
+  assert.match(check('pet friendly patios Liberty Village Toronto').reason, /unsupported operational premise/);
+  assert.match(check('best coffee Liberty Village Toronto Liberty Village Toronto').reason, /malformed/);
 });
 
 test('operational claims require two supporting live records and reserve guide needs six facts', () => {
