@@ -63,6 +63,11 @@ async function stack(t) {
     ctx.calls.push(args);
     if (ctx.crash && ctx.crash(args)) { ctx.crash = null; throw new Error('simulated runner crash'); }
     const full = args[0] === 'gate' ? [...args, '--script', ctx.scriptFile(ctx.gateScripts.shift() ?? ctx.defaultScript)] : args;
+    // The synthetic example.org source has no live public page. Only this test's
+    // roundup submit runs through a local-DB fixture with an injected refetch;
+    // the real submitContent validator and every other CLI command run unchanged.
+    if (args[0] === 'submit' && args.includes('roundup'))
+      return command(process.execPath, [path.join(ROOT, 'tests/runner/roundup-submit-fixture.mjs'), ...args.slice(1)], { cwd: repo, env, allowExit });
     return command(process.execPath, ['scripts/content/cli.mjs', ...full], { cwd: repo, env, allowExit });
   };
   ctx.cliJson = (args) => parseJson(cli(args).stdout);
@@ -203,11 +208,17 @@ function newsItem(id, now) {
   const announced = new Date(Math.max(weekStart + 60_000, now.getTime() - 2 * 3600_000));
   const extracted = new Date(Math.min(now.getTime() - 1000, announced.getTime() + 30_000)).toISOString();
   const url = `https://example.org/weekly/${id}`;
+  const localDate = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', month: 'long', day: 'numeric', year: 'numeric' }).format(announced);
+  const localTime = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', hour: 'numeric', minute: '2-digit', hour12: true }).format(announced);
+  const dateSpan = `${localDate} at ${localTime}`;
   return {
     id, title: `Liberty Village update ${id}`, location: 'Liberty Village', actor: 'Liberty Village community group', category: 'community',
-    summary: 'A local event at Hanna Avenue was announced.', announcedAt: announced.toISOString(), announcedAtVerified: true, riskFlags: [], fingerprint: id,
-    sources: [{ canonicalUrl: url, publisher: 'Example', publisherDomain: 'example.org', sourceTier: 'official', excerpt: 'Liberty Village community group announced a new local event at Hanna Avenue.', extractionSubstantive: true, extractedAt: extracted, fetchOk: true, urlUsable: true }],
-    claims: [{ text: 'The group announced a local event.', sourceUrl: url, span: 'announced a new local event' }],
+    summary: 'A local event at Hanna Avenue was announced.', announcedAt: announced.toISOString(), announcedAtVerified: true,
+    announcedAtSourceUrl: url, announcedAtSpan: dateSpan, riskFlags: [], fingerprint: id,
+    sources: [{ canonicalUrl: url, publisher: 'Example', publisherDomain: 'example.org', sourceTier: 'official',
+      excerpt: `${dateSpan}: Liberty Village community group announced a new local event at Hanna Avenue.`,
+      extractionSubstantive: true, extractedAt: extracted, fetchOk: true, urlUsable: true }],
+    claims: [{ text: `The group announced a local event on ${localDate}.`, sourceUrl: url, span: 'announced a new local event' }],
   };
 }
 
