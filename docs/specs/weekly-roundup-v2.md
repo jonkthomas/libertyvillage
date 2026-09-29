@@ -36,6 +36,13 @@ The independent review of revision 1 (commit `035e216`) returned NOT-READY with 
 
 See §4.4, §6.1, §6.2, §6.4, §6.7, §7, §10 and §12.
 
+**Parent decisions (final edit, same round).**
+
+- **Relative dates.** Unambiguous relative day words (today, tonight, tomorrow, this/next <weekday>) resolve against the post's platform timestamp in America/Toronto. Ambiguous phrases stay `undated` (§4.4, §6.4). The effect on the replay: IG215 becomes a W40 core class. W37–W39 are unchanged.
+- **Raw trial data.** The raw data is archived and is the conversion's source. Only minimal spans and metadata are committed (A4).
+
+The raw data also corrected the timestamp cross-check band (§4.4).
+
 ---
 
 ## 1. Product decisions (fixed; not reopened here)
@@ -178,6 +185,7 @@ Results are filtered to the window using the **page's** dateline after fetch (§
 - `verificationUrl` and `verificationMethod`: the business's or organisation's own site linking the handle and giving the address;
 - `ownDomain` (the `primary` domain in §4.1);
 - `multiLocation: bool`;
+- `requiresVenueInPost: bool`: true for organisations without their own premises (the LVRA, Green Liberty Village). Their posts must name the core venue or address; the watch address is never assumed;
 - `provider: 'apify' | 'meta'`.
 
 The address must classify core under §6.2: an address point in the table, or a core venue in the geo module. Stale directory addresses are corrected from the business's own site, as the trial did (for example Burger Drops at 116 Atlantic Ave, Impact Kitchen at 99 Atlantic Ave). An account without a verified core address is not listed. The initial list is the trial's `accounts.csv`, re-verified by the builder.
@@ -195,7 +203,12 @@ The address must classify core under §6.2: an address point in the table, or a 
 - A `multiLocation` brand's post must state the LV address or venue.
 - A post that states any other location is classified by that location. For example, Burger Drops' Oct 2 event at The Barn, Downsview Park is `not-LV`.
 
-**Dates** (§6.4). An explicit calendar date (month and day, with an optional weekday and year) must appear in the caption or in the post's image text. Relative-only wording such as "tomorrow", "this Saturday" or "next weekend" is `undated`.
+**Dates** (§6.4). The date must be explicit, from one of two sources:
+
+- a calendar date (month and day, with an optional weekday and year) in the caption or the post's image text; or
+- an **unambiguous relative day word**: `today`, `tonight`, `tomorrow`, `this <weekday>` or `next <weekday>`. It is resolved deterministically against the post's **platform timestamp** in America/Toronto. That timestamp is trusted provider metadata, not caption text.
+
+Ambiguous phrases ("this weekend", "next week", "soon", "coming up") are `undated`. See §6.4 for the exact resolution rules (parent decision, 2026-09-29).
 
 **Source quality** (§6.7). A first-party account announcing **its own** event at its own verified address, or at a core venue it names, is `primary` for **that event**. Anything else from Instagram is a `lead` that needs corroboration.
 
@@ -211,7 +224,11 @@ Two adapters implement the same watch-list contract:
 - **`apify` (approved for staging and production).** It uses `apify/instagram-scraper` with only public profile URLs, `resultsType=posts`, `resultsLimit=20` and `onlyPostsNewerThan` of the window start minus 21 days. There are no session credentials, login or cookies. `APIFY_API_TOKEN` is added to `SOURCE_ENV['weekly-roundup']`. A per-run cap of US$1 and 34×20 results is enforced before the call; the trial measured about US$0.11 per run.
 - **`meta` (optional later swap).** It uses the Meta Business Discovery Graph API if John later provides a professional Instagram account linked to a Facebook Page, a Facebook app and a token. That API covers only Business and Creator accounts, so each watch entry names its `provider`, and accounts that the API cannot reach stay on `apify`. Switching is a reviewed PR.
 
-**Timestamp check.** The provider timestamp is cross-checked against the creation time encoded in the shortcode's media ID. A disagreement of more than 5 minutes means `unverifiable`.
+**Timestamp check.** The provider `timestamp` is the post's platform time. It is used for availability, forward-looking checks and relative-date resolution. It is cross-checked against the creation time encoded in the shortcode's media ID. The encoded time is when the upload began, so publication can lag behind it.
+
+- The check passes when `encoded − 2 min ≤ timestamp ≤ encoded + 72 h`. Otherwise the post is `unverifiable`.
+- The trial's 253 owned posts support this band: a median lag of 0.4 min, 22 posts over 5 min, a maximum of 50 h, and none earlier than the encoded time by more than 1 min. IG214 lags by 20 min.
+- Only the provider timestamp is used, never the encoded time. It is the later of the two, so the choice is conservative.
 
 **Failure.** Any provider error, timeout, budget stop or empty response makes the source `unavailable` in the census. Other sources proceed, and Instagram never blocks a run. An Instagram unit that cannot be re-verified at submit fails re-verification like any other unit (§9.4). The runner then rebuilds, and that may hold.
 
@@ -348,7 +365,7 @@ Locality uses one checked-in, reviewed geography module plus two generated data 
   - An off-site, virtual or unlocated meeting is `not-LV` or `unverifiable`, never core by project identity.
 - **Org locality.** An `org:*` ID (the BIA) never supplies locality by itself. Each event section is classified by its own stated location under §6.3.
 - **Named core venues.** The geo module lists a small set of named core venues with their address points: Liberty Village Park (70 East Liberty St) and Lamport Stadium (75 Fraser Ave), plus any added by PR. In prose or a caption, a named core venue counts like a core address when the §6.3 relation rules hold.
-- **Instagram locality.** An `ig:<handle>` post takes the watch entry's verified core address only when the post's event is at the account's own venue (§4.4). An explicitly named core venue or core address in the same caption block also counts. The caption alone never supplies locality: hashtags, "in Liberty Village" and list membership confer nothing. A `multiLocation` account needs the LV address or venue in the post. A post stating another location takes that location's classification.
+- **Instagram locality.** An `ig:<handle>` post takes the watch entry's verified core address only when the post's event is at the account's own venue (§4.4). An explicitly named core venue or core address in the same caption block also counts. The caption alone never supplies locality: hashtags, "in Liberty Village" and list membership confer nothing. A `multiLocation` or `requiresVenueInPost` account needs the LV address or venue in the post, in the caption block or the image text. A post stating another location takes that location's classification.
 - **Transit locality.** A TTC alert qualifies only if its route is in {504, 29, 509, 511, 63} **and** its affected stop or segment text matches the per-route stop allowlist in `roundup-geo.mjs`. Examples: 504 on King St W between Strachan and Dufferin; 509/511 at Exhibition Loop; 29 at Dufferin Gate or Exhibition; 63 at Liberty Village. A whole-route or city-wide alert with no allowlisted stop is `not-LV`. The CP24 "weekend TTC/GO closures" pattern is `not-LV`.
 - **Final verdict** = `min(agentVerdict, identityVerdict)`. If `identityVerdict` cannot be computed, the item is `unverifiable`, whatever the agent said.
 
@@ -399,7 +416,17 @@ The deterministic rules are a floor, not a proof of meaning. Review round 1 also
   - a dated listing row in an identity **venue** source. A row with no year (for example "Sat Oct 3") resolves deterministically to the **unique** occurrence of that month and day in `[weekStart − 7d, weekStart + 28d]`. If there is none, or more than one, the item is `undated`. Year inference is allowed **only** for identity venue rows;
   - an **explicitly year-bearing** date in an item-bound section of an official `org:*` or `project:*` source, in the same section as the subject and the event location. The two real layouts are the BIA's "On Thursday, September 17th, 2026, the iconic Lamport Stadium parking lot (75 Fraser Avenue) will transform…" and the City's "Open House Date: October 3, 2026 Time: Noon to 4 p.m. Location: Liberty Market Building, 171 East Liberty St." Ordinals and weekday names are accepted by the existing `fullDatesInSpan` grammar.
 
-  - an **explicit** date in an Instagram caption block or carousel image text of a watch-list post (§4.4). A yearless month and day resolves to the unique occurrence in `[post date, post date + 60 days]`. Relative-only wording ("tomorrow", "this Saturday", "next weekend") is `undated`. **Image text** is admissible only as either:
+  - an **explicit** date in an Instagram caption block or carousel image text of a watch-list post (§4.4). A yearless month and day resolves to the unique occurrence in `[post date, post date + 60 days]`.
+
+    **Relative day words** resolve against the post's provider timestamp, converted to the America/Toronto date `P`:
+    - `today` and `tonight` → `P`;
+    - `tomorrow` → `P + 1`;
+    - `this <weekday>` → the first date ≥ `P` with that weekday, so `P` itself if it is that weekday;
+    - `next <weekday>` → that date + 7 days.
+
+    Ambiguous phrases ("this weekend", "next week", "soon", "coming up", "later this month") are `undated`. If a block contains both a relative word and a calendar date that resolve to different dates ("tomorrow, Sept 20" posted Sep 18), the item is `undated`. Retrospective use ("last Saturday", "today was…", "tonight" in a post after the event) is caught by the forward-looking rule in §4.4.
+
+    **Image text** is admissible only as either:
     - provider-returned alt text containing the quote verbatim; or
     - a model transcription stored with the image's sha256 that an **independent second transcription** agrees with exactly on the date expression. The second transcription is round 1's fact reviewer, given the image without the first transcription. This is a model assessment and fails closed: disagreement or a missing image means `undated`. The gate sees both transcriptions.
 
@@ -550,7 +577,7 @@ This was recomputed under this revision's rules from the backtest rows (`R<line>
 - Only records that correspond to a reference row are converted. Other records in the same frozen bodies are out of scope, which can only undercount.
 - Replay is sequential. A published edition's `roundupCoverage` removes its keys from later weeks, and a held week rolls its news forward.
 
-**Two unresolved facts** decide weeks 38 and 39. The conversion must establish each one, or it is unavailable:
+**Two unresolved facts** decide weeks 38 and 39. The conversion must establish each one, or it is unavailable. The OHA and LVRA images are archived and legible. The trial's transcription in `classify.py` matches a second reading made while preparing this revision: "September 17th at 6:45PM", "Wednesday September 30th | 8:00 pm", and IG034's "SATURDAY, SEPTEMBER 19, 2026 … LIBERTY VILLAGE PARK, 70 EAST LIBERTY STREET". So (i) is expected to verify, but it counts only once the conversion records the independent second transcription.
 
 - **(i)** The OHA Wellness carousel image text (post `DdHSweujA9B`). It dates IG099 (sound bath, Sep 17) and IG100 (stretch class, Sep 30). The image text also dates IG034 (Liberate Your Locker, Sep 19). It must pass the image-text rule in §6.4.
 - **(ii)** The visible dateline on the Canada Soccer page for R37 (the Nations League announcement, Sep 24).
@@ -562,7 +589,7 @@ This was recomputed under this revision's rules from the backtest rows (`R<line>
 | 37 | Wed 2026-09-09T16:00Z | 9 (4 / 2) | 8 (3 / 1) | **publish** in both |
 | 38 | Wed 2026-09-16T16:00Z | 3 (2 / 1) | 2 (1 / 1) | **publish** only if (i) verifies; otherwise **HOLD `below-minimum`** at all three slots |
 | 39 | Fri 2026-09-25T16:00Z | 4 (2 / 1) | 2 (1 / 1) at Fri and Sun | **publish** at Fri if (i) or (ii) verifies; otherwise **HOLD `below-minimum`** |
-| 40 | 2026-09-29T15:00Z | 15 (3 / 3) → cap **12** | 14 (4 / 4) → cap **12** | **publish** in both |
+| 40 | 2026-09-29T15:00Z | 16 (4 / 3) → cap **12** | 15 (5 / 4) → cap **12** | **publish** in both |
 
 **Pinned eligible units.**
 
@@ -573,7 +600,7 @@ This was recomputed under this revision's rules from the backtest rows (`R<line>
 - **W38 (Wed).**
   - Units: R20 Give Me Liberty at the Lamport lot (anchor; BIA official section; `capturedAfterClock`); IG099 OHA sound bath, Sep 17 (class; ceiling only); R38 Coliseum concert aggregate (Tove Lo, Sep 23).
   - Already covered by W37, so not counted: R22a, R22c, R24 and IG034. R09 is listed under "Still in effect".
-  - Not available at the Wednesday clock: IG157 and IG158 (posted Sep 18; they are also relative-date `undated`). IG117, Burger Drops at Give Me Liberty, merges into R20.
+  - Not available at the Wednesday clock: IG157 and IG158, posted Sep 18 at 21:54Z and 22:47Z. Their relative dates resolve to Sep 19, so both have concluded by the Sunday clock, and neither affects W38. IG157 names no venue (`requiresVenueInPost`), so it would be `unverifiable` anyway; its event is IG034, already covered. IG117, Burger Drops at Give Me Liberty, merges into R20.
   - At the Friday and Sunday slots R20 has concluded, so the floor holds at every slot.
 - **W39 (Fri).**
   - Ceiling units: R39 RBC concert aggregate (Sep 25–27; captured Sep 24); IG100 OHA stretch class, Sep 30 (class); IG193 NRG Haus "Station 9: The Recovery", Oct 3 (anchor; posted Sep 24 23:49Z); R37 Nations League announcement (news-update).
@@ -582,18 +609,19 @@ This was recomputed under this revision's rules from the backtest rows (`R<line>
   - If W38 held, R38 Tove Lo would be new here, but it concludes Sep 23 before the Friday clock. So the floor stays at 2 units.
 - **W40.**
   - Core anchors: R50 34 Hanna park open house at 171 East Liberty St (City project section); R52 Hanna Ave Bell repair; IG214 Burger Drops' George Motz Oct 3 burger event at 116 Atlantic Ave (the Oct 3 caption block only; the Oct 2 Downsview block is `not-LV`); IG193 (floor only, since it is covered by W39 in the ceiling).
+  - Core class: IG215 QUEST XO "Chocolate Painting: Open Studio", Sep 30 6:30 p.m. ("This Wednesday", posted Sun Sep 27 19:07 Toronto → 2026-09-30). IG223 ("this Saturday", posted Mon Sep 28 → Oct 3) is the same venue's second class that week, so the class cap drops it.
   - Roads: R53 King St W at Strachan; R54 Lake Shore at Newfoundland.
   - Venues: R58 RBC aggregate (from Sep 30); R59a HYROX; R59b Fall Home Show; R59c Fall Baby Show (ceiling only); R55 Argos Oct 3; R57a Marlies Oct 3; R57b Coliseum concert aggregate (Steve Lacy, Brand New); R56a TFC Oct 10; R56b Canada WNT Oct 12.
   - News: R61 Sceptres opener (ceiling only; its dateline must verify like (ii)). R37 is covered by W39 in the ceiling, and its dateline is unavailable in the floor.
-  - **Cut by the cap in §7 order:** R56a and R56b in both cases, plus R61 in the ceiling.
-  - Excluded: R51 and R60 (`weak-source`); IG223 and IG215 (relative-date `undated`); IG221 merges into IG214; IG100 is covered by W39 in the ceiling and unavailable in the floor.
+  - **Cut by the cap in §7 order:** R57b, R56a and R56b in both cases, plus R61 in the ceiling. This assumes R59c starts by Oct 3; if the conversion dates it after Oct 5, R59c is cut instead of R57b.
+  - Excluded: R51 and R60 (`weak-source`); IG223 (class cap); IG221 merges into IG214; IG100 is covered by W39 in the ceiling and unavailable in the floor.
 
 **Other conditional spans.** Some units need an exact span in the frozen body: R22b (Suki Waterhouse row), R57b's Brand New row, R59c, R61's dateline, and the per-record RBC JSON-LD objects. They change only the counts shown, never a decision. If a span is absent, that unit is excluded, and the expected table is updated by review. Nothing is relaxed to keep a unit.
 
 **What this means.** Without Instagram, weeks 37 and 39 hold under the inherited source rule. With the Instagram rules in §4.4, W37 and W40 publish outright. W38 and W39 depend on one image-text verification and one dateline. The trial's larger gain (13 items) shrinks here because:
 
 - IG124 and IG227 are retrospective;
-- IG157, IG158 and IG223 have relative dates only;
+- IG157 and IG158 were posted after W38's deciding clock, and their Sep 19 events had concluded by the next usable slot. IG223 is dropped by the class cap;
 - classes cannot anchor an edition;
 - W37's edition previews and covers some W38 items.
 
@@ -905,9 +933,18 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
 - **Instagram (A2-IG):**
   - A retrospective post ("A look back at … on Friday night", "Saturday morning" recap) → `retrospective`, even when the date is recoverable.
   - A post published after the event start → `retrospective`.
-  - Relative-only dates ("tomorrow", "this Saturday") → `undated`. An explicit "Saturday, Sept 12" posted Sep 8 resolves to 2026-09-12.
+  - Explicit date: "Saturday, Sept 12" posted Sep 8 resolves to 2026-09-12.
+  - Relative positives (real posts, provider timestamps):
+    - IG158 "This SATURDAY (Tomorrow)", posted 2026-09-18T22:47:02Z (Fri 18:47 Toronto) → 2026-09-19 for both words, consistent;
+    - IG157 "Join us tomorrow", posted 2026-09-18T21:54:04Z → 2026-09-19 for the date, but `unverifiable` for place (`requiresVenueInPost`);
+    - IG223 "this Saturday at 1:30 PM", posted 2026-09-28T20:22:28Z (Mon) → 2026-10-03 13:30;
+    - IG215 "This Wednesday at 6:30pm", posted 2026-09-27T23:07:57Z (Sun 19:07 Toronto) → 2026-09-30 18:30.
+  - `next Friday` posted on a Monday resolves to that week's Friday + 7.
+  - Toronto date boundary: "tomorrow" in a post at 2026-10-03T02:30Z (Oct 2, 22:30 Toronto) → 2026-10-03, not Oct 4.
+  - Ambiguous negatives: "this weekend", "next week", "soon", "coming up" → `undated`.
+  - Conflict negative: "tomorrow, Sept 20" posted Sep 18 → `undated`.
+  - Timestamp band: provider timestamps 20 min and 50 h after the encoded time pass. 3 min before, or 4 days after, → `unverifiable`.
   - Image-text dates: provider alt text containing the quote passes. Two agreeing transcriptions pass. Disagreeing transcriptions, or a missing image, → `undated`.
-  - A provider timestamp more than 5 minutes from the shortcode-encoded time → `unverifiable`.
   - Tagged or collaborator rows (owner ≠ handle) are dropped.
   - Source quality: an own event at the own verified address passes as `primary`. The same account posting another business's event, or a collaboration hosted elsewhere, is `lead` → `weak-source` unless independently corroborated.
   - Routine promo, daily special and holiday-hours posts → `not-news`.
@@ -961,7 +998,12 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - A fact that is not in the frozen body is listed in `unavailable`, and the unit is expected to fail on it. It is never reconstructed.
   - Ellipsis-joined backtest quotes are never used as quotes. Each part becomes its own span in its own record, or is unavailable.
 - **Review.** The conversion file and its expected classes are reviewed by someone other than the builder before the replay expectations are frozen.
-- **Instagram units.** Each converted Instagram unit's frozen body is the provider row for the post: owner, shortcode, timestamp, caption and image alt text. The trial did not archive its raw provider datasets (`apify-items*.json`), so the builder re-collects the named posts through the provider, read-only and within the trial's cost bounds. If a post can no longer be collected, its `ig-items.jsonl` caption is used as the body with `capture: 'trial-excerpt'`. Image-text dates need the image re-captured and both transcriptions recorded in the conversion; otherwise the date is `unavailable`. That is unresolved fact (i) in §7. Timestamps are recorded from the provider and the shortcode.
+- **Instagram units.** The conversion is built from the archived raw trial data, **not** by re-collecting. The archive is `lib_village/.state/archive/2026-09-29-ig-trial/`, and its sha256 values are pinned in the conversion header:
+  - `apify-items1..5.json` (raw provider rows) and `owned-posts.json`;
+  - the carousel and check images (`oha-sept10-*.jpg`, `check-*.jpg`);
+  - `website-audit.json` (watch-list verification) and `classify.py` (the trial's classification and transcriptions).
+
+  The committed fixtures copy **only** the minimal fields: `ownerUsername`, `shortCode`, `timestamp`, `type`, the exact caption block spans used, image sha256s, and both image transcriptions (the trial's, plus the reviewer's independent one). Raw dumps and images stay in the archive and are never committed. A missing second transcription makes the image date `unavailable`, which is fact (i) in §7.
 - **Rows that cannot be re-captured** stay in the replay with the expected class `unverifiable`: bot-walled pages, R12 and R13 (truncated `article_` URLs, empty quotes, no canonical metadata), and the Globe. They are **not** asserted as detected syndication; stale detection is proven only by the A2 synthetic fixtures.
 - **No model calls.** The replay runs `verify → plan` with the converted forms as the reasoner's output.
 
@@ -973,16 +1015,15 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - W37 publish at the Wednesday slot, with IG084 as its anchor;
   - W38 publish at the Wednesday slot if (i) verifies, otherwise HOLD `below-minimum` at all three slots;
   - W39 publish at the Friday slot if (i) or (ii) verifies, otherwise HOLD `below-minimum`;
-  - W40 publish 12 with R56a and R56b cut by the cap (plus R61 in the ceiling).
+  - W40 publish 12, with IG215 as a core class, and R57b, R56a and R56b cut by the cap (plus R61 in the ceiling).
 - The eval runs both the ceiling and the floor scenario by toggling facts (i) and (ii) in the conversion, and asserts both columns of §7. The real conversion then selects one.
 - **No expectation may override a verifier rule.** A deviation is reported for review, never forced.
 - Removing R20 turns week 38 into `hold` in both scenarios.
 - Removing IG084 turns week 37 into `hold` (`no-core`) in the floor, because the classes IG069 and IG065 cannot anchor.
-- Every Instagram row in `ig-items.jsonl` that the trial did not qualify stays excluded: `undated`, `outside-window`, `promo-only`, `recurring-generic`, `routine-holiday-hours`, `off-site event` and `no-caption` map to `undated`, `concluded` or `stale`, `not-news`, `not-news`, `not-news`, `not-LV` and `record-missing`. Trial duplicates merge into their event. Of the trial's 13 qualified rows, IG124 and IG227 are `retrospective`, and IG157, IG158 and IG223 are `undated` (relative date).
+- Every Instagram row in `ig-items.jsonl` that the trial did not qualify stays excluded: `undated`, `outside-window`, `promo-only`, `recurring-generic`, `routine-holiday-hours`, `off-site event` and `no-caption` map to `undated`, `concluded` or `stale`, `not-news`, `not-news`, `not-news`, `not-LV` and `record-missing`. Trial duplicates merge into their event. Of the trial's 13 qualified rows, IG124 and IG227 are `retrospective`. IG157 and IG158 date correctly but become available only after W38's deciding clock, and IG157 is also `unverifiable` for place. IG223 is dropped by the class cap in favour of IG215, which the trial had excluded and which now counts. Trial rows with relative words that are promos, off-site, holiday hours or recaps stay excluded for those reasons (for example IG134, IG162, IG217 and IG218 are off-site; IG119 and IG133 are recaps).
 - Every trap row is excluded with the expected reason class: R44 TorontoToday stabbing (`not-LV`); R03 Toro Toro (`not-LV`); R02 Eco-Fair and R65 Don't Tell Comedy (`unverifiable`); R43 CBC Parkdale and R41 Parkdale Barbers (`not-LV`); R62 Joe Shuster Way, R63 Temple Ave and R64 Douro St (`not-LV`). R23 CBC Tempo/NY Liberty is a venue-qualified row: it is future at the W38 Wednesday clock, and at later clocks it is a merged `duplicate` of R22c.
 - Every crime, election and weak-source row is excluded: R04, R42, R17, R18, R19, R26, R28, R49, plus R01, R05, R06, R21, R32, R33, R36, R51 and R60 as `weak-source`. So is every blocked row: R10 TorontoToday, R25 Toronto Life, R11 NOW and R30 Globe.
 - No Reddit, directory or Ontario Place row is admitted (R16, R17, R18, R19, R31, R40, R41, R48, R49).
-- The loss from relative-only dates is reported, not tuned: the eval prints which units a post-time-anchored relative-date rule would add (IG157, IG158, IG223, IG215). Changing that rule is a separate reviewed decision.
 - The eval prints a per-week, per-slot census table, including the `capturedAfterClock` labels, which is kept as evidence.
 
 ### A5: Mode, boundary and reconciliation tests
@@ -1044,8 +1085,7 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
 ## 14. Open questions for the owner (do not block staging)
 
 1. **Holds under the inherited source rule.** With Instagram, the replay publishes W37 and W40. W38 and W39 depend on one image-text verification and one dateline, and hold otherwise (§7). Holds emit `WEEKLY_NEWS_MISSED`. Relaxing §6.7 would be a substantive cadence change needing its own review. This spec does not propose it.
-2. **Relative dates on Instagram.** The parent's rule requires an explicit date, so "tomorrow" and "this Saturday" posts are `undated` (IG157, IG158, IG223, IG215). Anchoring relative words to the verified post timestamp would recover some of them. Should that be allowed? It needs a separate reviewed decision.
-3. **Brand fit.** In published weeks, most counted units are stadium and expo items. The ≥1 core rule enforces a local anchor but not a local majority. Is that the intended brand balance? (The title's "+ Exhibition Place" is intended to make this honest.)
-4. **Meta Business Discovery (optional).** Apify is approved for production (2026-09-29). Should the Meta adapter be added later? It needs John to provide a professional Instagram account, a Facebook Page and a Facebook app (§4.4).
-5. **Bot-walled local coverage.** Should TorontoToday or Toronto Life access be licensed? Their tower stories would be human-only under current policy anyway.
-6. **Production activation.** The criterion and timing are John's call (A6.5).
+2. **Brand fit.** In published weeks, most counted units are stadium and expo items. The ≥1 core rule enforces a local anchor but not a local majority. Is that the intended brand balance? (The title's "+ Exhibition Place" is intended to make this honest.)
+3. **Meta Business Discovery (optional).** Apify is approved for production (2026-09-29). Should the Meta adapter be added later? It needs John to provide a professional Instagram account, a Facebook Page and a Facebook app (§4.4).
+4. **Bot-walled local coverage.** Should TorontoToday or Toronto Life access be licensed? Their tower stories would be human-only under current policy anyway.
+5. **Production activation.** The criterion and timing are John's call (A6.5).
