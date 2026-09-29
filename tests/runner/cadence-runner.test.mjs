@@ -286,7 +286,7 @@ test('R3 a restart after one Sunday reserve never reuses its category (durable, 
   assert.deepEqual(attemptsOf(world).map((a) => a.topic_key), ['reserve:dir:bakery', 'reserve:dir:salon']);
 });
 
-test('R2 failed deadline evaluations are caught up later (active weeks only); pre-activation weeks never alert', (t) => {
+test('R2 catches up active older weeks; older inactive weeks stay quiet while the immediate prior week is unconditional', (t) => {
   const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
   const missed = (week) => [...world.alerts.values()].filter((alert) => alert.week === week).map((alert) => alert.kind);
   run(world);  // week 2026-09-28: cadence active (slots + attempts), no roundup

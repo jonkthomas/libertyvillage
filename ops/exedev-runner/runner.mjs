@@ -391,7 +391,9 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
 // evaluates ended prior ISO weeks, oldest first: always the immediate prior week,
 // plus up to CADENCE.catchUpWeeks older weeks where cadence was active for this
 // target (`cadence status` shows a slot or attempt), so a failed evaluation is
-// retried later and pre-activation weeks never alert. The DB deadline is
+// retried later. Older pre-activation weeks do not alert, but the immediate
+// prior week can emit one bounded pre-activation alert on the first run; it has
+// no durable activation marker yet. The DB deadline is
 // idempotent per target/week/type. Failures are logged, never abort the run.
 function evaluatePriorWeek(deps, target, week, now) {
   const weekAt = (back) => deps.modules.weekStartUtc(new Date(Date.parse(`${week}T00:00:00Z`) - back * 7 * 86400000));
