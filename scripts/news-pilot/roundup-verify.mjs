@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { publisherDomain } from './normalize.mjs';
 import { detectNonEventLabels, detectRiskFlags, isDevelopmentApplication } from './score.mjs';
-import { assertSafePublicHttpUrl } from './url-guard.mjs';
 import { roundupSourceQuality, sourceSpanProvesTime } from './roundup-evidence.mjs';
 import { isoWeekOf, roundupCoveredKeys, planRoundupV2 } from './roundup.mjs';
 export { roundupCoverageFromPack } from './roundup.mjs';
@@ -29,10 +28,27 @@ const feedFields = {
   'transit-feed': ['id', 'route', 'stops', 'segment', 'effect', 'activeStart', 'activeEnd', 'startTime', 'endTime'],
 };
 const canonical = (url) => { const parsed = new URL(url); parsed.hash = ''; return parsed.href.replace(/\/$/, ''); };
-const defaultFetch = async (url) => {
-  await assertSafePublicHttpUrl(url);
-  return fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(20000) });
-};
+/** One verifier run shares robots decisions, per-host pacing and an 80-request budget. */
+export async function createRoundupVerifierFetcher() {
+  const [{ fetchWithRetry, createRequestBudget, createRobotsCache, createHostPacer, FETCH_DEFAULTS },
+    { classifyBlockedResponse }] = await Promise.all([import('./fetch.mjs'), import('./url-guard.mjs')]);
+  if (![fetchWithRetry, createRequestBudget, createRobotsCache, createHostPacer, classifyBlockedResponse]
+    .every((part) => typeof part === 'function')) throw new Error('roundup access policy unavailable');
+  const budget = createRequestBudget(80);
+  const pacer = createHostPacer({ minIntervalMs: 2000 });
+  const userAgent = FETCH_DEFAULTS.userAgent;
+  const robots = createRobotsCache({ userAgent, fetchText: async (url) => {
+    const result = await fetchWithRetry(url, { budget, pacer, userAgent, guardPublicHttp: true, maxRetries: 0 });
+    return { status: result.status, body: result.rawText };
+  } });
+  return async (url, context = {}) => {
+    const result = await fetchWithRetry(url, { budget, pacer, robots, userAgent, guardPublicHttp: true,
+      sourceId: context.source?.id || null, maxRetries: 0 });
+    if (classifyBlockedResponse(result.status, result.rawText) || result.errorCode === 'robots-disallowed')
+      return { ...result, ok: false, errorCode: 'blocked' };
+    return result;
+  };
+}
 const registrableDomain = (url) => {
   const host = publisherDomain(url);
   const labels = host.split('.');
@@ -189,7 +205,8 @@ function dateFromRecord(record, source, when, post, now, claim) {
     const visible = resolvedDates(quoted, { source: { parse: 'html-page' }, now });
     return quoted && text.includes(quoted) && visible.includes(when.date) && text.indexOf(quoted) < 400 ? when.date : null;
   }
-  if (source.identityKind === 'news-discovery' || source.parse === 'html-page' && !['org', 'project'].includes(source.identityKind)) return null;
+  if (source.identityKind === 'news-discovery' && source.parse !== 'jsonld-event' ||
+    source.parse === 'html-page' && !['org', 'project'].includes(source.identityKind)) return null;
   if (source.parse === 'html-page' || source.parse === 'ig-post') {
     const quoted = norm(claim?.date_quote);
     if (!quoted || !text.includes(quoted) || /\blast updated\b/i.test(quoted)) return null;
@@ -227,25 +244,39 @@ function identity(record, source, form, claim, geo) {
   const invoke = (name, ...args) => {
     try { return typeof geo[name] === 'function' ? geo[name](...args) : null; } catch { return null; }
   };
-  const context = { source, record, toronto: true };
+  const context = { source, record, recordText: text, domain: new URL(claim.url).hostname,
+    trustedToronto: ['venue', 'org', 'project'].includes(source.identityKind) || source.parse === 'ig-post',
+    address: typed.location?.address || typed.address,
+    addressLocality: typed.location?.address?.addressLocality || typed.addressLocality };
   let result;
   if (source.identityKind === 'road-feed') result = invoke('classifySegment', typed);
   else if (source.identityKind === 'transit-feed') result = invoke('classifyTransitAlert',
     { route: typed.route, stops: typed.stops, segmentText: typed.segment || typed.segmentText });
   else if (source.parse === 'html-listing') result = invoke('classifyVenueName',
     source.venueName || source.label || source.identityId || source.id, context);
-  else if (source.parse === 'jsonld-event') result = invoke('classifyVenueName',
-    typed.location?.name || typed.place || '', context) || invoke('classifyAddress', typed.location?.address || typed.address, context);
+  else if (source.parse === 'jsonld-event') {
+    const named = invoke('classifyVenueName', typed.location?.name || typed.place || '', context);
+    const addressed = invoke('classifyAddress', typed.location?.address || typed.address, context);
+    if (named?.canonicalVenueId && addressed?.canonicalVenueId && named.canonicalVenueId !== addressed.canonicalVenueId)
+      fail('unverifiable');
+    result = named?.verdict === 'unverifiable' ? addressed : named || addressed;
+  }
   else if (source.parse === 'ig-post') {
     const quote = claim?.place_quote;
+    if (/\b(?:at|in|location\s*:|venue\s*:)\s*(?:High Park|Downsview Park|City Hall|Toronto Zoo|Parkdale)\b/i.test(text))
+      return { locality: 'not-LV' };
+    const statedAddress = invoke('classifyAddress', text, context);
+    if (statedAddress?.verdict === 'not-LV') return { locality: 'not-LV' };
+    if (statedAddress?.canonicalVenueId && source.canonicalVenueId &&
+      statedAddress.canonicalVenueId !== source.canonicalVenueId && !quote) fail('unverifiable');
     if (quote) result = invoke('classifySectionPlace', { placeQuote: quote, sectionText: text,
-      subject: form.subject, dateQuote: claim.date_quote, domain: registrableDomain(claim.url), agentVerdict: form.verdict });
+      subject: form.subject, dateQuote: claim.date_quote, domain: new URL(claim.url).hostname, agentVerdict: form.verdict });
     if (!result && quote) result = invoke('classifyAddress', quote, context) || invoke('classifyVenueName', quote, context);
     if (!result && source.canonicalVenueId && !source.multiLocation && !source.requiresVenueInPost)
       result = { verdict: 'core', canonicalVenueId: source.canonicalVenueId };
   } else result = invoke('classifySectionPlace', { placeQuote: claim?.place_quote,
     sectionText: text, subject: form.subject, dateQuote: claim?.date_quote,
-    domain: registrableDomain(claim.url), agentVerdict: form.verdict });
+    domain: new URL(claim.url).hostname, agentVerdict: form.verdict });
   const verdict = typeof result === 'string' ? result : result?.verdict || result?.locality || result?.classification;
   if (!['core', 'adjacent', 'not-LV'].includes(verdict)) fail('unverifiable');
   return { locality: verdict, canonicalVenueId: result?.canonicalVenueId || typed.canonicalVenueId || source.canonicalVenueId,
@@ -256,7 +287,7 @@ function itemKey(form, source, record, place, originalUrl) {
   const typed = record.typed || {};
   if (form.when.kind === 'restriction') return 'road:' + (typed.id || record.recordId);
   if (form.when.kind === 'alert') return 'ttc:' + (typed.id || record.recordId);
-  if (form.when.kind === 'news-update') return 'news:' + canonical(originalUrl || source.url || form.evidence[0].url);
+  if (form.when.kind === 'news-update') return 'news:' + canonical(originalUrl || form.evidence[0].url);
   if (form.item_type === 'project' && form.when.kind !== 'event') return `project:${source.identityId}:${record.recordId}:${form.when.date}`;
   if (!place.canonicalVenueId) fail('unverifiable');
   return `occ:${place.canonicalVenueId}:${form.when.date}:${form.when.startTime || 'all-day'}`;
@@ -268,15 +299,16 @@ async function loadBody(url, fetcher, context) {
     if (!result.ok) fail(result.status === 403 ? 'unverifiable' : 'record-missing');
     return result.text();
   }
-  if (blocked(result)) fail(responseStatus(result) === 403 ? 'unverifiable' : 'record-missing');
+  if (blocked(result)) fail(result?.errorCode === 'blocked' || responseStatus(result) === 403 ? 'unverifiable' : 'record-missing');
   return asText(result);
 }
 
 /** Re-fetch and re-extract every cited record. All model fields are untrusted. */
-export async function verifyRoundupForms({ signals = [], forms = [], now, posts = [], fetcher = defaultFetch, igRefetch,
+export async function verifyRoundupForms({ signals = [], forms = [], now, posts = [], fetcher, igRefetch,
   recordExtractor, geography, sources, publisherTiers, packUnits } = {}) {
   const at = Date.parse(now);
   if (!Number.isFinite(at)) throw new Error('roundup verifier requires now');
+  const accessFetcher = fetcher || await createRoundupVerifierFetcher();
   const [recordModule, geo, sourceModule] = await Promise.all([
     recordExtractor ? { extractRoundupRecords: recordExtractor } : import('./roundup-records.mjs'),
     geography || import('./roundup-geo.mjs'),
@@ -325,12 +357,15 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             if (sourceSignal.post && (post.caption !== sourceSignal.post.caption || post.timestamp !== sourceSignal.post.timestamp ||
               post.ownerUsername !== sourceSignal.post.ownerUsername)) fail('unverifiable');
           }
-          const body = source.parse === 'ig-post' ? post.caption || post.text || sourceSignal.body : await loadBody(claim.url, fetcher, { source, signal: sourceSignal });
+          const body = source.parse === 'ig-post' ? post.caption || post.text || sourceSignal.body : await loadBody(claim.url, accessFetcher, { source, signal: sourceSignal });
           const original = (source.parse === 'html-page' || source.identityKind === 'news-discovery') &&
-            form.when?.kind === 'news-update' ? await originalFor(body, claim.url, fetcher) : null;
+            form.when?.kind === 'news-update' ? await originalFor(body, claim.url, accessFetcher) : null;
           const fresh = extractRoundupRecords({ source, url: claim.url, body, post });
           const record = fresh.find((r) => r.recordId === claim.recordId);
           if (!record) fail('record-missing');
+          const recordSource = record.kind === 'jsonld-event' ? { ...source, parse: 'jsonld-event' }
+            : record.kind === 'listing-row' ? { ...source, parse: 'html-listing' }
+              : record.kind === 'ig-event' ? { ...source, parse: 'ig-post' } : source;
           const normalized = norm(record.text);
           if (form.when?.kind === 'event' && /\b(?:cancelled|canceled|postponed)\b/i.test(normalized)) fail('concluded');
           for (const field of quoteFields) {
@@ -349,16 +384,16 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
           if (source.parse === 'ig-post' && post.ownerUsername && post.ownerUsername.toLowerCase() !== String(source.handle || source.identityId?.replace(/^ig:/, '') || '').replace(/^@/, '').toLowerCase()) fail('unverifiable');
           if (original) {
             if (!resolvedDates(original.text.slice(0, 400), { source: { parse: 'html-page' }, now: at }).includes(form.when.date)) fail('stale');
-          } else if (dateFromRecord(record, source, form.when, post, at, claim) !== form.when?.date) fail('undated');
+          } else if (dateFromRecord(record, recordSource, form.when, post, at, claim) !== form.when?.date) fail('undated');
           if (source.parse !== 'json-feed' && form.when?.endDate && !(String(record.typed?.endDate || '').startsWith(form.when.endDate) ||
-            resolvedDates(norm(record.text), { source, post, now: at }).includes(form.when.endDate))) fail('undated');
+            resolvedDates(norm(record.text), { source: recordSource, post, now: at }).includes(form.when.endDate))) fail('undated');
           if (form.when?.startTime && !(source.parse === 'json-feed'
             ? typedTimeMatches(record, 'startTime', form.when.date, form.when.startTime)
             : recordProvesTime(record, form.when.date, torontoInstant(form.when.date, form.when.startTime)))) fail('undated');
           if (form.when?.endTime && !(source.parse === 'json-feed'
             ? typedTimeMatches(record, 'endTime', form.when.endDate || form.when.date, form.when.endTime)
             : recordProvesTime(record, form.when.endDate || form.when.date, torontoInstant(form.when.endDate || form.when.date, form.when.endTime)))) fail('undated');
-          const place = identity(record, source, form, claim, geo);
+          const place = identity(record, recordSource, form, claim, geo);
           if (place.locality === 'not-LV') fail('not-LV');
           const tier = source.identityKind === 'news-discovery'
             ? tiers[registrableDomain(claim.url)] || 'lead'
@@ -371,7 +406,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
               (source.parse === 'html-page' ? normalized.length >= 40 : normalized.length >= 10),
             fetchOk: true, itemBound: true, locality: place.locality };
           evidence.push(entry);
-          if (index === 0) primary = { source, record, place, post, originalUrl: original?.url,
+          if (index === 0) primary = { source: recordSource, record, place, post, originalUrl: original?.url,
             when: trustedWhen(form.when, record, source) };
         } catch (error) { if (index === 0) throw error; }
       }
@@ -413,8 +448,9 @@ export async function revalidateRoundupForms(pack, options = {}) {
   const newKeys = plan.countedItems.flatMap((item) => item.keys).sort();
   if (plan.decision !== 'publish' || JSON.stringify(oldKeys) !== JSON.stringify(newKeys))
     throw new Error('roundup source evidence changed or unreachable; rebuild before submit');
-  const projection = (item) => ({ identityKey: item.identityKey, keys: item.keys, subject: item.subject,
-    verdict: item.verdict, itemType: item.itemType, date: item.date, citations: item.citations, evidence: item.evidence });
+  const projection = (item) => ({ identityKey: item.identityKey, keys: item.keys, members: item.members,
+    subject: item.subject, what: item.what, verdict: item.verdict, itemType: item.itemType,
+    date: item.date, citations: item.citations, evidence: item.evidence });
   if (digest((pack.units || pack.items || []).map(projection)) !== digest(plan.countedItems.map(projection)))
     throw new Error('roundup source evidence changed or unreachable; rebuild before submit');
   return { ...result, plan };

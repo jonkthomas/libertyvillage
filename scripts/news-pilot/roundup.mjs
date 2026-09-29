@@ -120,12 +120,21 @@ export function planRoundupV2(items, { now, posts = [] } = {}) {
   const reasons = [];
   if (capped.length < 3) reasons.push('below-minimum');
   if (!coreAnchorUnits) reasons.push('no-core');
-  const countedItems = capped.map((item) => ({ ...item,
-    keys: [...new Set((item.constituents || [item]).flatMap((member) => member.keys || [identityKey(member)]).filter(Boolean))],
-    verdict: item.verdict || item.locality, itemType: item.itemType || item.item_type,
-    date: item.date || item.when?.date, citations: item.citations?.length ? item.citations : (item.evidence || []).map((entry) => ({
-      url: entry.url, publisher: entry.publisher, sourceId: entry.sourceId, recordId: entry.recordId,
-      feed: entry.feed, listing: entry.listing })) }));
+  const countedItems = capped.map((item) => {
+    const members = item.item_type === 'concert' && item.venueId
+      ? [...new Map((item.constituents || [item]).map((member) => [identityKey(member), {
+        identityKey: identityKey(member), label: member.subject, date: member.when?.date || member.date,
+        startTime: member.when?.startTime || null,
+      }])).values()] : item.members || [];
+    const aggregateLabel = members.length > 1
+      ? `${item.venueName || item.venueId}: ${members.map((member) => `${member.label} (${member.date})`).join('; ')}` : null;
+    return { ...item, subject: aggregateLabel || item.subject, what: aggregateLabel || item.what,
+      members, keys: [...new Set((item.constituents || [item]).flatMap((member) => member.keys || [identityKey(member)]).filter(Boolean))],
+      verdict: item.verdict || item.locality, itemType: item.itemType || item.item_type,
+      date: item.date || item.when?.date, citations: item.citations?.length ? item.citations : (item.evidence || []).map((entry) => ({
+        url: entry.url, publisher: entry.publisher, sourceId: entry.sourceId, recordId: entry.recordId,
+        feed: entry.feed, listing: entry.listing })) };
+  });
   return { decision: reasons.length ? 'hold' : 'publish', units: countedItems.length, coreUnits, coreAnchorUnits,
     reasons, stillInEffect, countedItems, excluded: dropped, isoWeek, now: at.toISOString(),
     weekStart: weekMonday(isoWeek), weekEnd: nextDay(weekMonday(isoWeek), 7) };

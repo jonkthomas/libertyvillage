@@ -13,7 +13,13 @@ test('3/1 publish rule counts anchors, class and concert caps', () => {
   assert.deepEqual(planRoundupV2([core, unit('a')], { now }).reasons, ['below-minimum']);
   const concerts = Array.from({ length: 6 }, (_, i) => unit(`rbc-${i}`, { item_type: 'concert', venueId: 'venue:rbc',
     identityKey: `occ:addr:rbc:2026-10-${String(i + 3).padStart(2, '0')}:19:00` }));
-  assert.equal(planRoundupV2([...concerts, core], { now }).units, 2);
+  const concertPlan = planRoundupV2([...concerts, core], { now });
+  assert.equal(concertPlan.units, 2);
+  const concertUnit = concertPlan.countedItems.find((item) => item.item_type === 'concert');
+  assert.equal(concertUnit.members.length, 6);
+  assert.equal(concertUnit.keys.length, 6);
+  assert.ok(concertUnit.subject.includes('rbc-0'));
+  assert.ok(concertUnit.subject.includes('rbc-5'));
   assert.equal(planRoundupV2([...concerts, core, unit('road', { item_type: 'road' })], { now }).decision, 'publish');
   const classes = [unit('c1', { canonicalVenueId: 'addr:studio', item_type: 'class', locality: 'core' }),
     unit('c2', { canonicalVenueId: 'addr:studio', item_type: 'class', locality: 'core' })];

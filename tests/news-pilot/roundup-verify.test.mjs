@@ -34,6 +34,24 @@ test('item-bound record, trusted tier and digest', async () => {
   assert.equal((await verifyRoundupForms(forged)).excluded[0].reason, 'weak-source');
 });
 
+test('prose geo receives item-bound fields and news identity uses evidence URL', async () => {
+  let geographyInput;
+  const news = options();
+  news.sources = [{ ...source, url: 'https://registry.example/discovery', identityKind: 'news-discovery' }];
+  news.publisherTiers = { 'official.example': 'official' };
+  news.forms[0].when = { kind: 'news-update', date: '2026-10-03' };
+  news.forms[0].item_type = 'news';
+  news.geography = { classifySectionPlace: (input) => {
+    geographyInput = input;
+    return { verdict: 'core', canonicalVenueId: 'addr:171-east-liberty-st' };
+  } };
+  news.now = '2026-10-03T15:00:00Z';
+  assert.equal((await verifyRoundupForms(news)).items[0].identityKey, `news:${url}`);
+  assert.equal(geographyInput.placeQuote, 'at 171 East Liberty St, Toronto');
+  assert.equal(geographyInput.subject, 'Autumn Market');
+  assert.equal(geographyInput.domain, 'official.example');
+});
+
 test('cross-record and missing records fail on fresh extraction', async () => {
   const cross = options();
   cross.recordExtractor = ({ body }) => [record('Autumn Market is announced for local residents, with more details to follow.'),
@@ -45,6 +63,20 @@ test('cross-record and missing records fail on fresh extraction', async () => {
   const swapped = options();
   swapped.forms[0].evidence[0].url = 'https://other.example/a';
   assert.equal((await verifyRoundupForms(swapped)).excluded[0].reason, 'source-swapped');
+});
+
+test('injected Response bodies are read and blocked responses are not retried', async () => {
+  const response = options();
+  response.fetcher = async () => new Response(text, { status: 200 });
+  assert.equal((await verifyRoundupForms(response)).items.length, 1);
+  let calls = 0;
+  const denied = options();
+  denied.fetcher = async () => { calls += 1; return new Response('Just a moment', { status: 403 }); };
+  assert.equal((await verifyRoundupForms(denied)).excluded[0].reason, 'unverifiable');
+  assert.equal(calls, 1);
+  const robots = options();
+  robots.fetcher = async () => ({ ok: false, errorCode: 'blocked', status: null });
+  assert.equal((await verifyRoundupForms(robots)).excluded[0].reason, 'unverifiable');
 });
 
 test('risk, private or unclear person, and changed date refuse the item', async () => {
@@ -153,6 +185,7 @@ test('Instagram relative date is based on provider Toronto timestamp and own rec
     evidence: [{ url: igUrl, recordId: 'r1', subject_quote: 'Studio Open House',
       place_quote: 'at 171 East Liberty St, Toronto', date_quote: 'This Wednesday at 6:30pm' }] };
   const opts = { signals: [igSignal], forms: [igForm], now, posts: [], recordExtractor: ({ body }) => [record(body)],
+    fetcher: async () => { throw new Error('Instagram must not use network fetcher'); },
     geography: { classifyVenueName: () => ({ locality: 'core', canonicalVenueId: 'addr:171-east-liberty-st' }) },
     sources: [{ id: 'ig:studio', identityId: 'ig:studio', parse: 'ig-post', tier: 'primary' }], publisherTiers: {} };
   assert.equal((await verifyRoundupForms(opts)).items[0].when.date, '2026-09-30');
@@ -168,6 +201,17 @@ test('Instagram relative date is based on provider Toronto timestamp and own rec
     packUnits: verified.items })).items.length, 1);
   assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows: [{ ...post, caption: caption + ' changed', status: 'ok' }] },
     packUnits: verified.items })).excluded[0].reason, 'unverifiable');
+  for (const rows of [[], [{ ...post, status: 'missing' }], [{ ...post, status: 'private' }]]) {
+    assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows },
+      packUnits: verified.items })).excluded[0].reason, 'record-missing');
+  }
+  for (const changed of [{ ownerUsername: 'other' }, { timestamp: '2026-09-28T23:07:57Z' }]) {
+    assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows: [{ ...post, ...changed, status: 'ok' }] },
+      packUnits: verified.items })).excluded[0].reason, 'unverifiable');
+  }
+  const offsiteCaption = caption + ' This session is at High Park.';
+  const offsite = { ...opts, signals: [{ ...igSignal, post: { ...post, caption: offsiteCaption } }] };
+  assert.equal((await verifyRoundupForms(offsite)).excluded[0].reason, 'not-LV');
 });
 
 test('feed records compare trusted snapshot fields before admission', async () => {
