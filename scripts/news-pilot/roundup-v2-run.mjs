@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Structured-source weekly roundup. No DB access, protected actions, or tool-enabled model calls. */
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,13 +90,20 @@ export async function runRoundupV2(args, deps = {}) {
       draft = written.draft;
       reviewFindings = written.findings;
       if (written.refused?.length) {
-        // Replan after risk review: a private individual may not remain as an uncounted citation.
-        const safe = verified.items.filter((i) => !written.refused.includes(i.identityKey));
-        const revised = (deps.plan || planRoundupV2)(safe, { now, posts });
+        // Replan after risk review: a private individual may not remain as an uncounted
+        // citation, nor in the retained pack that submit re-verifies (§9.2).
+        const refusal = withoutRefusedUnits({ pack, items: verified.items, refused: written.refused });
+        if (!refusal) throw new Error('roundup_refused_unit_unknown');
+        const revised = (deps.plan || planRoundupV2)(refusal.items, { now, posts });
         decision = revised.decision;
-        pack = { ...pack, units: revised.countedItems || [], stillInEffect: revised.stillInEffect || [] };
+        pack = { ...pack, signals: refusal.signals, forms: refusal.forms, units: revised.countedItems || [],
+          stillInEffect: revised.stillInEffect || [], refusedKeyDigests: refusal.keyDigests };
         census.units = revised.units; census.coreUnits = revised.coreUnits; census.coreAnchorUnits = revised.coreAnchorUnits;
-        census.excluded.push(...written.refused.map((id) => ({ signalId: id, reason: 'private-individual' })));
+        census.reasons = [...new Set([...census.reasons, ...(revised.reasons || [])])];
+        census.excluded.push(...refusal.dropped.map((form) => ({ signalId: form.signalId, recordId: form.recordId, reason: 'private-individual' })));
+        reviewFindings = redactFindings(reviewFindings, refusal.keys);
+        writeLines(path.join(out, 'forms.jsonl'), refusal.forms);
+        json(path.join(out, 'verify-report.json'), { admitted: refusal.items.map((i) => i.identityKey), excluded: census.excluded });
         json(path.join(out, 'plan.json'), revised);
       }
     } catch (error) { decision = 'hold'; census.reasons.push('writer-failed'); census.writerError = error.message; }
@@ -134,6 +142,45 @@ export async function runRoundupV2(args, deps = {}) {
   }
   json(path.join(out, 'result.json'), result);
   return { result, pack, post };
+}
+
+const keyDigest = (key) => createHash('sha256').update(key).digest('hex');
+const recordRef = (url, recordId) => `${url}\n${recordId}`;
+const formRef = (form) => `${form?.signalId}\n${form?.recordId}\n${form?.subject}`;
+
+/**
+ * Remove round-2 refused units from the pack. Every form citing a record behind a
+ * refused unit (including merged duplicates) is dropped, with the admitted items
+ * those forms produced; the refused records leave their signals, and a signal only
+ * the dropped forms cited leaves the pack. Refused keys persist as sha256 digests
+ * so submit excludes them without retaining the identifiers. Returns null when a
+ * refused ID names no counted unit (fail closed).
+ */
+export function withoutRefusedUnits({ pack, items, refused }) {
+  const units = pack.units.filter((unit) => refused.includes(unit.identityKey));
+  if (units.length !== new Set(refused).size) return null;
+  const keys = new Set(units.flatMap((unit) => [unit.identityKey, ...(unit.keys || [])]));
+  const hit = (item) => [item.identityKey, ...(item.keys || [])].some((key) => keys.has(key));
+  const records = new Set(items.filter(hit).flatMap((item) => (item.evidence || []).map((entry) => recordRef(entry.url, entry.recordId))));
+  const signalUrl = new Map(pack.signals.map((signal) => [signal.signalId, signal.url]));
+  const touches = (form) => records.has(recordRef(signalUrl.get(form?.signalId), form?.recordId)) ||
+    (form?.evidence || []).some((claim) => records.has(recordRef(claim?.url, claim?.recordId)));
+  const dropped = pack.forms.filter(touches);
+  const forms = pack.forms.filter((form) => !touches(form));
+  const droppedRefs = new Set(dropped.map(formRef));
+  const cites = (list, signal) => list.some((form) => form?.signalId === signal.signalId || (form?.evidence || []).some((claim) => claim?.url === signal.url));
+  const signals = pack.signals
+    .filter((signal) => cites(forms, signal) || !cites(dropped, signal))
+    .map((signal) => ({ ...signal, records: (signal.records || []).filter((record) => !records.has(recordRef(signal.url, record.recordId))) }));
+  return { forms, signals, dropped, keys, keyDigests: [...keys].map(keyDigest).sort(),
+    items: items.filter((item) => !hit(item) && !droppedRefs.has(formRef(item))) };
+}
+
+// A refused unit's review findings keep only the finding type: the person, the
+// sentence and the fix may name the private individual.
+function redactFindings(rounds, keys) {
+  return (rounds || []).map((round) => ({ ...round, findings: (round?.findings || []).map((finding) =>
+    keys.has(finding?.unitId) ? { unitId: keyDigest(finding.unitId), problem: finding.problem, redacted: true } : finding) }));
 }
 
 function readIf(file) { try { return read(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }

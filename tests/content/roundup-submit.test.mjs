@@ -182,6 +182,16 @@ test('DB submit refuses changed evidence, a pack below 3/1 at T_submit, and a co
   assert.equal((await ctx.db.query("select count(*)::int as n from content.submissions where kind='roundup'")).rows[0].n, 0);
 });
 
+test('DB submit reads the planner contract (units count + countedItems), refusing any other shape', { skip }, async (t) => {
+  const ctx = await setup(t);
+  const dir = writeOut(buildFixture({ now, units: threeUnits() }));
+  const legacy = stubApi();
+  const plan = legacy.planRoundupV2;
+  legacy.planRoundupV2 = (...args) => { const { countedItems, ...rest } = plan(...args); return { ...rest, units: countedItems }; };
+  await assert.rejects(submitContent(ctx.db, opts(dir, { idempotencyKey: 'legacy-plan' }), { checkout: ROOT, clock: () => submitClock, roundup: { api: legacy } }), CHANGED);
+  assert.equal((await ctx.db.query("select count(*)::int as n from content.submissions where kind='roundup'")).rows[0].n, 0);
+});
+
 test('DB submit refuses 65 coverage keys without truncating', { skip }, async (t) => {
   const ctx = await setup(t);
   const units = threeUnits();

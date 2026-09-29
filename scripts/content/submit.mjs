@@ -453,18 +453,28 @@ export async function reverifyRoundup({ pack, result, post, livePosts, submitted
     signals = signals.filter((signal) => !dropped.has(signal.signalId));
     forms = forms.filter((form) => !dropped.has(form?.signalId));
   }
+  // Round-2 private-person refusals (§9.2) stay removed: the runner records their
+  // key digests in the pack, and no fresh item carrying one is ever re-planned.
+  const refused = pack.refusedKeyDigests ?? [];
+  if (!Array.isArray(refused) || !refused.every((entry) => HEX64.test(entry ?? '')))
+    throw new ValidationError('roundup pack refusedKeyDigests must be sha256 digests');
+  const refusedSet = new Set(refused);
+  const isRefused = (item) => [item?.identityKey, ...list(item?.keys)].some((key) =>
+    typeof key === 'string' && refusedSet.has(createHash('sha256').update(key).digest('hex')));
   let verified;
   let plan;
   try {
     verified = await api.verifyRoundupForms({ signals, forms, now: nowIso, posts,
       ...(ig.status === 'ok' ? { igRefetch: ig.refetch } : {}), ...(fetcher ? { fetcher } : {}) });
-    plan = api.planRoundupV2(list(verified?.items), { now: nowIso, posts });
+    plan = api.planRoundupV2(list(verified?.items).filter((item) => !isRefused(item)), { now: nowIso, posts });
   } catch (error) {
     if (error?.code === 'ValidationError') throw error;
     throw new ValidationError(ROUNDUP_CHANGED);
   }
   if (!HEX64.test(verified?.verifyDigest ?? '')) throw new ValidationError(ROUNDUP_CHANGED);
-  const freshUnits = list(plan?.units);
+  // planRoundupV2 returns the counted units as `countedItems` and their count as `units`.
+  if (!Array.isArray(plan?.countedItems) || plan.units !== plan.countedItems.length) throw new ValidationError(ROUNDUP_CHANGED);
+  const freshUnits = plan.countedItems;
   const errors = [];
   const packSigs = list(pack.units).map(unitSignature).sort();
   const freshSigs = freshUnits.map(unitSignature).sort();

@@ -2,7 +2,8 @@
 // never A4 replay data). The stub verifier/planner honours the agreed sibling
 // contract — verifyRoundupForms({signals,forms,now,posts,fetcher?,igRefetch?}) =>
 // {items,excluded,verifyDigest}, planRoundupV2(items,{now,posts}) =>
-// {decision,units,coreUnits,coreAnchorUnits,reasons,stillInEffect},
+// {decision,units,countedItems,coreUnits,coreAnchorUnits,reasons,stillInEffect}
+// (the real planner's shape: `units` is the count, `countedItems` the units),
 // roundupCoverageFromPack(pack) — so content submit, gate and the runner can be
 // exercised before the real verifier is cherry-picked. Each form carries its
 // test unit; the stub never fetches.
@@ -131,11 +132,11 @@ export function stubApi(controls = {}) {
     verifyRoundupForms: async (args) => verifyRoundupFormsSync(args),
     planRoundupV2: (items, { posts }) => {
       const done = covered(posts);
-      const units = items.filter((entry) => !unitKeys(entry).some((key) => done.has(key)));
-      const coreAnchorUnits = units.filter((entry) => entry.verdict === 'core' && entry.itemType !== 'class').length;
-      const reasons = [...(units.length < 3 ? ['below-minimum'] : []), ...(coreAnchorUnits < 1 ? ['no-core'] : [])];
-      return { decision: reasons.length ? 'hold' : 'publish', units, coreUnits: units.filter((entry) => entry.verdict === 'core').length,
-        coreAnchorUnits, reasons, stillInEffect: controls.stillInEffect ?? [] };
+      const countedItems = items.filter((entry) => !unitKeys(entry).some((key) => done.has(key)));
+      const coreAnchorUnits = countedItems.filter((entry) => entry.verdict === 'core' && entry.itemType !== 'class').length;
+      const reasons = [...(countedItems.length < 3 ? ['below-minimum'] : []), ...(coreAnchorUnits < 1 ? ['no-core'] : [])];
+      return { decision: reasons.length ? 'hold' : 'publish', units: countedItems.length, countedItems,
+        coreUnits: countedItems.filter((entry) => entry.verdict === 'core').length, coreAnchorUnits, reasons, stillInEffect: controls.stillInEffect ?? [] };
     },
     roundupCoverageFromPack: (pack) => ({ version: 1, isoWeek: pack.isoWeek, planningCutoff: pack.now,
       keys: [...pack.units, ...(pack.stillInEffect ?? [])].flatMap(unitKeys) }),
