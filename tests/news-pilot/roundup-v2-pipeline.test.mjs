@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { validateRoundupForm, reasonRoundupSignals } from '../../scripts/news-pilot/roundup-reason.mjs';
-import { checkRoundupDraft } from '../../scripts/news-pilot/roundup-write.mjs';
+import { checkRoundupDraft, writeRoundup } from '../../scripts/news-pilot/roundup-write.mjs';
 import { parseRoundupV2Args, runRoundupV2 } from '../../scripts/news-pilot/roundup-v2-run.mjs';
 
 const signal = { signalId: 's1', sourceId: 'rv2-bmo-field', url: 'https://www.bmofield.com/events',
@@ -37,6 +37,23 @@ test('six-call model budget preserves IG even after a large road feed', async ()
   assert.ok(offered.includes('bia-last'), 'one listing source must not starve other official sources');
   assert.equal(offered.length, 60);
   assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 32);
+});
+
+test('source-only credentials never enter reasoner or writer model requests', async () => {
+  const env = { APIFY_API_TOKEN: 'apify-synthetic-secret', SERPER_API_KEY: 'serper-synthetic-secret' };
+  const captured = [];
+  const resolved = { ok: true, provider: { id: 'fixture' } };
+  await reasonRoundupSignals([signal], { env, resolved, callModel: async (request) => {
+    captured.push(request); return { ok: true, text: JSON.stringify({ forms: [form] }) }; } });
+  const unit = { identityKey: 'occ:fixture', verdict: 'adjacent', itemType: 'event', date: '2026-10-03',
+    subject: 'Match', citations: [{ url: signal.url, sourceId: signal.sourceId, recordId: 'r1' }], evidence: form.evidence };
+  const responses = [{ intro: 'One local event.', units: [{ unitId: unit.identityKey,
+    heading: 'Match', body: 'Near Liberty Village on 2026-10-03.' }] }, { findings: [] }, { findings: [] }];
+  await writeRoundup({ units: [unit] }, { env, resolved, reviewer: resolved, callModel: async (request) => {
+    captured.push(request); return { ok: true, text: JSON.stringify(responses.shift()) }; } });
+  assert.equal(captured.length, 4);
+  assert.ok(!JSON.stringify(captured).includes(env.APIFY_API_TOKEN));
+  assert.ok(!JSON.stringify(captured).includes(env.SERPER_API_KEY));
 });
 
 test('writer post-check refuses unsupported impact and in/near mismatch', () => {
