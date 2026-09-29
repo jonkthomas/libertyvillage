@@ -1,17 +1,12 @@
 {
   "provenance": {
     "source": "2026-09-29 Instagram trial accounts.csv and website-audit.json; business URLs rechecked where archive differed",
-    "selection": "29 trial accounts admitted under the exact core-address and first-party identity rules; five excluded with explicit reasons below. Effective provider limit is the entry count; hard ceiling remains 34.",
+    "selection": "30 trial accounts admitted under the exact core-address and first-party identity rules; four excluded with explicit reasons below. Effective provider limit is the entry count; hard ceiling remains 34.",
     "exclusions": [
       {
         "handle": "kitchenhub",
         "reason": "1108 King St W City point lies outside the generated core polygon; official venue address is therefore ineligible for a core-only watch list.",
         "verificationUrl": "https://kitchenhub.com/menu/catering-menu-liberty-village"
-      },
-      {
-        "handle": "louiecoffeeshop",
-        "reason": "1187 King St W City point lies geometrically inside the ring, but King St W is adjacent boundary frontage under section 6.2; core-only watch list excludes it.",
-        "verificationUrl": "https://louiecoffee.com/our-story/"
       },
       {
         "handle": "tonton.matcha.coffee",
@@ -349,8 +344,19 @@
       "multiLocation": false,
       "requiresVenueInPost": false,
       "provider": "apify"
+    },
+    {
+      "handle": "louiecoffeeshop",
+      "business": "Louie Coffee Shop",
+      "canonicalVenueId": "addr:1187-king-st-w",
+      "verificationUrl": "https://louiecoffee.com/",
+      "verificationMethod": "Instagram link on business website (2026-09-29 website-audit.json handles: louiecoffeeshop); 1187 King St W is a City address point inside the core ring",
+      "ownDomain": "louiecoffee.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
     }
   ],
-  "effectiveProviderLimit": 29,
+  "effectiveProviderLimit": 30,
   "hardProviderLimit": 34
 }

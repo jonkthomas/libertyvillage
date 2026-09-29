@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { verifyRoundupForms, revalidateRoundupForms, recordProvesTime } from '../../scripts/news-pilot/roundup-verify.mjs';
 import { roundupSourceQuality } from '../../scripts/news-pilot/roundup-evidence.mjs';
 import { planRoundupV2 } from '../../scripts/news-pilot/roundup.mjs';
+import * as realGeography from '../../scripts/news-pilot/roundup-geo.mjs';
 
 const now = '2026-09-29T15:00:00Z';
 const url = 'https://official.example/events';
@@ -242,4 +243,29 @@ test('feed records compare trusted snapshot fields before admission', async () =
   assert.equal(accepted.items[0].when.endTime, '08:00');
   const changed = { ...fresh, typed: { ...typed, endTime: '2026-10-03T12:00:00Z' } };
   assert.equal((await verifyRoundupForms({ ...opts, recordExtractor: () => [changed] })).excluded[0].reason, 'record-missing');
+});
+
+test('Instagram own-venue fallback (null place_quote) never admits a caption that states another place', async () => {
+  const igUrl = 'https://www.instagram.com/p/BD123/';
+  const run = async (caption) => {
+    const post = { shortcode: 'BD123', ownerUsername: 'burgerdrops', timestamp: '2026-09-27T23:07:57Z', caption };
+    return verifyRoundupForms({
+      signals: [{ signalId: 'ig1', sourceId: 'ig:burgerdrops', url: igUrl, post, records: [record(caption)] }],
+      forms: [{ ...form('ig1', igUrl), subject: 'Burger Drops', when: { kind: 'event', date: '2026-10-03', startTime: null },
+        evidence: [{ url: igUrl, recordId: 'r1', subject_quote: 'Burger Drops', place_quote: null, date_quote: 'Saturday October 3' }] }],
+      now, posts: [], recordExtractor: ({ body }) => [record(body)],
+      fetcher: async () => { throw new Error('Instagram must not use network fetcher'); },
+      geography: realGeography, publisherTiers: {},
+      sources: [{ id: 'ig:burgerdrops', identityId: 'ig:burgerdrops', handle: 'burgerdrops', parse: 'ig-post', tier: 'primary',
+        canonicalVenueId: 'addr:116-atlantic-ave', multiLocation: false, requiresVenueInPost: false }],
+    });
+  };
+  const own = await run('Burger Drops pop-up Saturday October 3. Smash burgers all day.');
+  assert.equal(own.items[0]?.locality, 'core', JSON.stringify(own.excluded));
+  const offsite = await run('Burger Drops pop-up Saturday October 3\n📍The Barn @ Downsview Park');
+  assert.equal(offsite.items.length, 0);
+  assert.equal(offsite.excluded[0].reason, 'not-LV');
+  const elsewhere = await run('Burger Drops pop-up Saturday October 3\n📍 Stackt Market, 28 Bathurst St');
+  assert.equal(elsewhere.items.length, 0);
+  assert.equal(elsewhere.excluded[0].reason, 'unverifiable');
 });

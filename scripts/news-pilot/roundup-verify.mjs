@@ -269,8 +269,12 @@ function identity(record, source, form, claim, geo) {
     if (quote) result = invoke('classifySectionPlace', { placeQuote: quote, sectionText: text,
       subject: form.subject, dateQuote: claim.date_quote, domain: new URL(claim.url).hostname, agentVerdict: form.verdict });
     if (!result && quote) result = invoke('classifyAddress', quote, context) || invoke('classifyVenueName', quote, context);
-    if (!result && source.canonicalVenueId && !source.multiLocation && !source.requiresVenueInPost)
+    if (!result && source.canonicalVenueId && !source.multiLocation && !source.requiresVenueInPost) {
+      const other = invoke('statedOtherPlace', record.text, source.canonicalVenueId);
+      if (other?.verdict === 'not-LV') return { locality: 'not-LV' };
+      if (other) fail('unverifiable');
       result = { verdict: 'core', canonicalVenueId: source.canonicalVenueId };
+    }
   } else result = invoke('classifySectionPlace', { placeQuote: claim?.place_quote,
     sectionText: text, subject: form.subject, dateQuote: claim?.date_quote,
     domain: new URL(claim.url).hostname, agentVerdict: form.verdict });

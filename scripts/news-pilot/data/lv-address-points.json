@@ -5,7 +5,8 @@
     "package": "address-points-municipal-toronto-one-address-repository",
     "packageId": "abedd8bc-e3dd-4d45-8e69-79165a76e4fa",
     "resourceId": "64d4e54b-738f-4cd9-a9e7-8050fac8a52f",
-    "resource": "address-points WGS84 CSV",
+    "resource": "address-points-4326.csv",
+    "sha256": "e6fcedbbf71b8bba6c5e876653488cd0f17a27cad54841cf4cb1564e465d22a3",
     "note": "Municipal address points whose coordinate falls strictly inside the core ring."
   },
   "addresses": [
@@ -1534,5 +1535,5 @@
       "street": "Western Battery Rd"
     }
   ],
-  "reviewNote": "Complete City address-point extract strictly inside generated Centreline ring (381 pairs). Classification excludes Douro St by A1 and treats King/Strachan/Dufferin frontage as adjacent despite geometric membership; spec conflict requires independent review."
+  "reviewNote": "Complete City address-point extract strictly inside the generated Centreline ring (381 pairs). Every pair is core with Toronto context except Douro St (11 pairs), which the A1 street exception keeps not-LV."
 }

@@ -4,25 +4,29 @@
  * docs/specs/weekly-roundup-v2-geography-addendum.md, DRAFT).
  *
  * Reads the City of Toronto Centreline and Address Points CSV extracts
- * (Open Government Licence – Toronto) and writes:
+ * (Open Government Licence – Toronto), refuses any input whose sha256 is not
+ * the pinned reviewed extract, and writes:
  *   data/lv-core.geojson        core ring from Centreline boundary legs
  *   data/lv-address-points.json address points strictly inside the ring
- *   data/lv-segments.json       55 core segment rows + 5 reviewed adjacent corridors
+ *   data/lv-segments.json       core segment rows, four reviewed adjacent
+ *                               corridors, reviewed Exhibition Place internal rows
  *
  * Deterministic fail-closed policy (see the addendum for the full conflict list):
  *   - The ring is derived by graph-walking named Centreline legs between
  *     name-derived corner intersections (King/Dufferin, King/Strachan,
  *     Strachan/C N R, Dufferin/C N R). A leg that does not connect fails the run.
  *   - Core segments are City road-feature segments wholly inside the ring,
- *     EXCLUDING Douro St rows (A1 policy: Douro is not-LV even though 11 of its
- *     address points fall inside the ring) and the boundary roads themselves.
- *   - Adjacent frontage is NOT derived geometrically: it comes only from the
- *     explicit reviewed corridor allowlist below (geometry still read from the
- *     City CSV by Centreline ID). Lake Shore coverage ends at Newfoundland Rd
- *     because named Dufferin St never meets Lake Shore Blvd W in Centreline.
- *     Exhibition Place internal roads are not yet admitted.
- *   - Any drift (missing City ID, renamed road, broken chain) throws instead of
- *     silently emitting different data. Unlisted segments fail closed.
+ *     EXCLUDING Douro St rows (A1 street exception: Douro is not-LV even though
+ *     11 of its address points fall inside the ring) and the boundary roads.
+ *   - Adjacent frontage is NOT derived from a bounding box: it comes only from
+ *     reviewed Centreline ID lists that must equal the City intersection-ID
+ *     path between named anchors (corridors) or the rows wholly inside the
+ *     Exhibition Place grounds ring (internal roads). Each row keeps its City
+ *     intersection names so a record matches by intersection on a constituent
+ *     row. Lake Shore ends at British Columbia Rd because named Dufferin St
+ *     never meets Lake Shore Blvd W in Centreline.
+ *   - Any drift (input hash, missing City ID, renamed road, changed path or
+ *     row set, missing anchor node) throws instead of emitting different data.
  *
  * This generator never reads the committed data/*.json files as input.
  *
@@ -33,6 +37,7 @@
  *     [--out DIR]   # default: scripts/news-pilot/data next to this file
  */
 
+import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -65,18 +70,83 @@ const A1_EXCLUDED_CORE_STREETS = new Set(['Douro St']);
 const BOUNDARY_ROADS = new Set(['King St W', 'Strachan Ave', 'Dufferin St', 'Lake Shore Blvd W', 'C N R']);
 
 /**
- * Reviewed adjacent frontage corridors (commit f95b625 review). Geometry comes
- * from the City CSV by Centreline ID; IDs are the reviewed selection and any
- * absence from the CSV fails the run. Each geometry entry keeps the City row's
- * native orientation.
+ * Reviewed adjacent frontage corridors. Geometry comes from the City CSV by
+ * Centreline ID; the IDs are the reviewed selection and must equal the City's
+ * shortest same-name intersection-ID path between the two named anchor nodes,
+ * so a missing ID, a renamed road or a changed chain fails the run. Each
+ * geometry entry keeps the City row's native orientation.
+ *
+ * Lake Shore Blvd W: named Dufferin St never meets Lake Shore in Centreline
+ * (its southern chain ends at Saskatchewan Rd / British Columbia Rd, about
+ * -79.4249). The western anchor is British Columbia Rd (node at -79.42918), the
+ * first named Lake Shore intersection at or west of the Dufferin longitude and
+ * the Exhibition Place west road.
  */
 const REVIEWED_ADJACENT_CORRIDORS = [
-  { road: 'Strachan Ave', fromRoad: 'Fleet St', toRoad: 'King St W', centrelineIds: [30144371, 30144372, 1147128, 30120066, 30120067, 60006730, 60006713, 1146906, 1146860, 1146779] },
   { road: 'King St W', fromRoad: 'Strachan Ave', toRoad: 'Dufferin St', centrelineIds: [1146739, 30095295, 30095345, 30095346, 60084322, 3155022, 1146840, 3120558, 7553457, 7553490, 30100479, 30100482, 30100483, 30100476, 30100477, 7553372, 60052295] },
-  { road: 'Lake Shore Blvd W', fromRoad: 'Strachan Ave', toRoad: 'Newfoundland Rd', centrelineIds: [30125351] },
-  { road: 'Dufferin St', fromRoad: 'King St W', toRoad: 'Saskatchewan Rd', centrelineIds: [30111929, 30111928, 30111925, 9234179, 9234187, 9234204, 9234205, 1147346, 1147359, 20231260] },
   { road: 'Strachan Ave', fromRoad: 'King St W', toRoad: 'Lake Shore Blvd W', centrelineIds: [1146779, 1146860, 1146906, 60006713, 60006730, 30120067, 30120066, 1147128, 30144372, 30144371, 30103011, 1147284] },
+  { road: 'Dufferin St', fromRoad: 'King St W', toRoad: 'Saskatchewan Rd', centrelineIds: [30111929, 30111928, 30111925, 9234179, 9234187, 9234204, 9234205, 1147346, 1147359, 20231260] },
+  { road: 'Lake Shore Blvd W', fromRoad: 'Strachan Ave', toRoad: 'British Columbia Rd', centrelineIds: [30125351, 30021327, 30021270, 30021271, 30016282, 60024495, 30016243, 9234087, 1147551] },
 ];
+
+/**
+ * Exhibition Place grounds ring, as City Centreline legs between intersection
+ * IDs: C N R (Strachan -> Dufferin), Dufferin St (C N R -> Saskatchewan Rd),
+ * British Columbia Rd (Saskatchewan Rd -> Lake Shore), Lake Shore Blvd W
+ * (British Columbia Rd -> Strachan), Strachan Ave (Lake Shore -> C N R).
+ * Only used to select the reviewed internal-road IDs below.
+ */
+const EXHIBITION_RING_LEGS = [
+  { road: 'C N R', from: ['Strachan Ave', 'C N R'], to: ['Dufferin St', 'C N R'] },
+  { road: 'Dufferin St', from: ['Dufferin St', 'C N R'], to: ['Dufferin St', 'Saskatchewan Rd'] },
+  { road: 'British Columbia Rd', from: ['Dufferin St', 'British Columbia Rd'], to: ['Lake Shore Blvd W', 'British Columbia Rd'] },
+  { road: 'Lake Shore Blvd W', from: ['Lake Shore Blvd W', 'British Columbia Rd'], to: ['Lake Shore Blvd W', 'Strachan Ave'] },
+  { road: 'Strachan Ave', from: ['Lake Shore Blvd W', 'Strachan Ave'], to: ['Strachan Ave', 'C N R'] },
+];
+const EXHIBITION_FEATURES = new Set([...ROAD_FEATURES, 'Other', 'Pending']);
+/**
+ * Reviewed Exhibition Place internal road rows (adjacent). The generator
+ * re-derives the set (qualifying feature, wholly inside the grounds ring, not a
+ * trail/ramp/expressway/bridge, not a boundary road) and fails if it differs.
+ * British Columbia Rd is the grounds' west road and is listed explicitly.
+ */
+const REVIEWED_EXHIBITION_INTERNAL_IDS = [
+  // Alberta Crcl
+  1147555,
+  // British Columbia Rd
+  20231334, 30131620, 60056618,
+  // Canada Blvd
+  14063952, 20231256,
+  // Manitoba Dr
+  14063910, 30060515, 30131679, 30131681,
+  // New Brunswick Way
+  30131665,
+  // Newfoundland Rd
+  30075980,
+  // Nova Scotia Ave
+  30090303,
+  // Nunavut Rd
+  30131658,
+  // Ontario Dr
+  1147562, 20229232, 30060497,
+  // Prince Edward Island Cres
+  30090287, 30090297,
+  // Princes' Blvd
+  14063901, 14063902, 14065264, 20230465, 20230466, 20230494, 30131660, 30131661,
+  // Quebec St
+  30131680,
+  // Saskatchewan Rd
+  30016265, 30154568,
+  // Yukon Pl
+  1147556, 1147560,
+];
+const EXHIBITION_EDGE_ROADS = new Set(['British Columbia Rd']);
+
+/** SHA-256 of the exact City extracts reviewed for this data. A new extract needs review. */
+const PINNED_INPUTS = Object.freeze({
+  centreline: '92f68eeea3198888200acc7751550484086e51a3da8fac4a0b36bd8ce622c02f',
+  addresses: 'e6fcedbbf71b8bba6c5e876653488cd0f17a27cad54841cf4cb1564e465d22a3',
+});
 
 const SOURCE = Object.freeze({
   licence: 'Open Government Licence – Toronto',
@@ -86,28 +156,30 @@ const SOURCE = Object.freeze({
     packageId: '1d079757-377b-4564-82df-eb5638583bfb',
     resourceId: '4dec5884-a5cf-49e7-b562-f835150dc0b1',
     resource: 'centreline-version-2-4326.csv',
-    note: 'City of Toronto Centreline (TCL), WGS84. Package data current as of the 2026-09-29 download.',
+    sha256: PINNED_INPUTS.centreline,
+    note: 'City of Toronto Centreline (TCL) version 2, WGS84 CSV resource as downloaded 2026-09-29.',
   }),
   addressPoints: Object.freeze({
     package: 'address-points-municipal-toronto-one-address-repository',
     packageId: 'abedd8bc-e3dd-4d45-8e69-79165a76e4fa',
     resourceId: '64d4e54b-738f-4cd9-a9e7-8050fac8a52f',
-    resource: 'address-points WGS84 CSV',
+    resource: 'address-points-4326.csv',
+    sha256: PINNED_INPUTS.addresses,
     note: 'Municipal address points whose coordinate falls strictly inside the core ring.',
   }),
 });
 
 const SEGMENTS_PROVENANCE = Object.freeze({
-  status: 'generated-core-plus-reviewed-adjacent-corridors',
+  status: 'generated-core-plus-reviewed-adjacent',
   source: 'City of Toronto Centreline version 2',
   sourceUrl: 'https://open.toronto.ca/dataset/toronto-centreline-tcl/',
-  note: '55 polygon-interior City core segments (four Douro St rows excluded by A1 policy) plus five reviewed adjacent frontage corridors joined by City intersection IDs. Adjacent Lake Shore coverage ends at Newfoundland Rd because named Dufferin St does not meet Lake Shore in Centreline; Exhibition Place internal roads remain unresolved. Unlisted segments fail closed. Independent review and spec addendum needed before PR.',
-  geometrySource: 'City Toronto Centreline version 2 datastore resource ad296ebf-fca6-4e67-b3ce-48040a20e6cd. Exact corridor centreline IDs and geometries selected by graph path between matching intersection IDs; where absent, coordinates fail closed.',
-  resourceId: '4dec5884-a5cf-49e7-b562-f835150dc0b1',
+  centreline: SOURCE.centreline,
+  note: 'Polygon-interior City core segments (four Douro St rows excluded by the A1 street exception) plus four reviewed adjacent frontage corridors whose IDs equal the City intersection-ID path between their anchors, plus reviewed Exhibition Place internal road rows. A record matches when its road equals the row or corridor road and each named cross road is an intersection on a constituent City row. Lake Shore Blvd W ends at British Columbia Rd because named Dufferin St does not meet Lake Shore in Centreline. Unlisted segments fail closed.',
+  geometrySource: 'Geometry, intersection IDs and intersection names read from the CSV resource 4dec5884-a5cf-49e7-b562-f835150dc0b1 (sha256 pinned above). The datastore/GeoJSON resource ad296ebf-fca6-4e67-b3ce-48040a20e6cd is not used.',
 });
 
-const GEOJSON_REVIEW_NOTE = 'City Centreline ring geometry; ring membership alone does not override named A1 exclusion or boundary frontage locality. Independent review required for Douro St conflict before PR.';
-const ADDRESS_REVIEW_NOTE = 'Complete City address-point extract strictly inside generated Centreline ring (381 pairs). Classification excludes Douro St by A1 and treats King/Strachan/Dufferin frontage as adjacent despite geometric membership; spec conflict requires independent review.';
+const GEOJSON_REVIEW_NOTE = 'City Centreline ring geometry. A City address point strictly inside it is core (including King St W, Strachan Ave and Dufferin St frontage points); the Douro St street exception is the only address override. Boundary road segments are adjacent, never core.';
+const ADDRESS_REVIEW_NOTE = 'Complete City address-point extract strictly inside the generated Centreline ring (381 pairs). Every pair is core with Toronto context except Douro St (11 pairs), which the A1 street exception keeps not-LV.';
 
 /**
  * @param {string[]} argv
@@ -125,6 +197,15 @@ function parseArgs(argv) {
     throw new Error('usage: node build-lv-geography.mjs --centreline CITY.csv --addresses CITY.csv [--out DIR]');
   }
   return out;
+}
+
+/**
+ * @param {string} file
+ */
+async function sha256File(file) {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
 }
 
 /**
@@ -423,56 +504,90 @@ function asciiJson(value) {
 }
 
 /**
- * Deterministic fail-closed corridor row: geometry read from the City CSV by
- * reviewed Centreline ID, native orientation kept; the chain must be connected
- * and anchored at the named fromRoad/toRoad intersections when the City
- * provides those nodes.
+ * Anchor node shared by two named roads; a missing node fails the run.
+ * @param {Map<string, Set<string>>} streetsAt
+ * @param {Map<string, number[]>} atPoint
+ * @param {string} a
+ * @param {string} b
+ */
+function anchorNode(streetsAt, atPoint, a, b) {
+  const node = sharedIntersection(streetsAt, atPoint, a, b);
+  if (!node) throw new Error(`no City Centreline intersection node for ${a} x ${b}`);
+  return node;
+}
+
+/**
+ * Per-row intersection names so a record can match any intersection on the path.
+ * @param {Seg} seg
+ * @param {Map<string, Set<string>>} streetsAt
+ */
+function constituent(seg, streetsAt) {
+  const ends = endpointNames(seg, streetsAt);
+  return { centrelineId: seg.id, fromIntersection: ends.from, toIntersection: ends.to };
+}
+
+/**
+ * Deterministic fail-closed corridor row: the reviewed Centreline IDs must be
+ * exactly the City's same-name intersection-ID path between the two anchor
+ * nodes; geometry is read from the City CSV with native orientation.
  * @param {{road: string, fromRoad: string, toRoad: string, centrelineIds: number[]}} spec
+ * @param {Seg[]} segs
  * @param {Map<string, Seg>} byId
  * @param {Map<string, Set<string>>} streetsAt
  * @param {Map<string, number[]>} atPoint
  */
-function corridorRow(spec, byId, streetsAt, atPoint) {
-  /** @type {number[][][]} */
-  const geometry = [];
+function corridorRow(spec, segs, byId, streetsAt, atPoint) {
   for (const id of spec.centrelineIds) {
     const seg = byId.get(String(id));
     if (!seg) throw new Error(`adjacent corridor ${spec.road}: City Centreline ID ${id} absent from the CSV`);
     if (seg.name !== spec.road) throw new Error(`adjacent corridor ${spec.road}: City ID ${id} is named ${seg.name}`);
-    geometry.push(seg.coords);
   }
-  // Connectivity: consecutive polylines must share an endpoint (unordered,
-  // sub-centimetre City noise tolerated).
-  const close = (a, b) => haversine(a[0], a[1], b[0], b[1]) < 1;
-  const endpointPairs = geometry.map((line) => [line[0], line[line.length - 1]]);
-  const shared = [];
-  for (let i = 1; i < geometry.length; i += 1) {
-    const [a0, a1] = endpointPairs[i - 1];
-    const [b0, b1] = endpointPairs[i];
-    const link = close(a0, b0) || close(a0, b1) ? (close(a0, b0) ? [a0, b0] : [a0, b1]) : close(a1, b0) || close(a1, b1) ? (close(a1, b0) ? [a1, b0] : [a1, b1]) : null;
-    if (!link) throw new Error(`adjacent corridor ${spec.road}: IDs ${spec.centrelineIds[i - 1]} and ${spec.centrelineIds[i]} do not share an endpoint`);
-    shared.push(link);
+  const start = anchorNode(streetsAt, atPoint, spec.road, spec.fromRoad);
+  const end = anchorNode(streetsAt, atPoint, spec.road, spec.toRoad);
+  const path = walk(segs, spec.road, start, end);
+  if (!path.ended || !path.used.length) throw new Error(`adjacent corridor ${spec.road}: no City path ${spec.fromRoad} -> ${spec.toRoad}`);
+  const reviewed = spec.centrelineIds.map(String).sort().join(',');
+  const derived = path.used.map((seg) => seg.id).sort().join(',');
+  if (reviewed !== derived) {
+    throw new Error(`adjacent corridor ${spec.road} ${spec.fromRoad}->${spec.toRoad}: reviewed IDs differ from City path [${path.used.map((seg) => seg.id).join(', ')}]`);
   }
-  let chainStart;
-  let chainEnd;
-  if (!shared.length) {
-    chainStart = endpointPairs[0][0];
-    chainEnd = endpointPairs[0][1];
-  } else {
-    chainStart = close(endpointPairs[0][0], shared[0][0]) || close(endpointPairs[0][0], shared[0][1]) ? endpointPairs[0][1] : endpointPairs[0][0];
-    const last = endpointPairs[endpointPairs.length - 1];
-    const lastShared = shared[shared.length - 1];
-    chainEnd = close(last[0], lastShared[0]) || close(last[0], lastShared[1]) ? last[1] : last[0];
+  const rows = spec.centrelineIds.map((id) => byId.get(String(id)));
+  return {
+    road: spec.road,
+    fromRoad: spec.fromRoad,
+    toRoad: spec.toRoad,
+    locality: 'adjacent',
+    anchors: { from: start, to: end },
+    centrelineIds: [...spec.centrelineIds],
+    constituents: rows.map((seg) => constituent(seg, streetsAt)),
+    geometry: rows.map((seg) => seg.coords),
+  };
+}
+
+/**
+ * Exhibition Place grounds ring from named City legs (see EXHIBITION_RING_LEGS).
+ * @param {Seg[]} segs
+ * @param {Map<string, Set<string>>} streetsAt
+ * @param {Map<string, number[]>} atPoint
+ */
+function exhibitionRing(segs, streetsAt, atPoint) {
+  /** @type {number[][]} */
+  let ring = [];
+  /** @type {string[]} */
+  const legIds = [];
+  for (const leg of EXHIBITION_RING_LEGS) {
+    const from = anchorNode(streetsAt, atPoint, leg.from[0], leg.from[1]);
+    const to = anchorNode(streetsAt, atPoint, leg.to[0], leg.to[1]);
+    const path = walk(segs, leg.road, from, to);
+    if (!path.ended || path.coords.length < 2) throw new Error(`Exhibition ring leg ${leg.road} did not connect`);
+    ring = ring.length ? [...ring, ...path.coords.slice(1)] : path.coords;
+    legIds.push(...path.used.map((seg) => seg.id));
   }
-  for (const [road, point, label] of [[spec.fromRoad, chainStart, 'start'], [spec.toRoad, chainEnd, 'end']]) {
-    const node = sharedIntersection(streetsAt, atPoint, spec.road, road);
-    if (!node) { console.log(`note: no Centreline intersection node for ${spec.road} x ${road}; corridor ${label} anchor unchecked`); continue; }
-    const anchor = atPoint.get(node);
-    if (anchor && haversine(anchor[0], anchor[1], point[0], point[1]) > 150) {
-      throw new Error(`adjacent corridor ${spec.road}: ${label} is not within 150 m of the ${spec.road}/${road} intersection`);
-    }
-  }
-  return { road: spec.road, fromRoad: spec.fromRoad, toRoad: spec.toRoad, locality: 'adjacent', centrelineIds: [...spec.centrelineIds], geometry };
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (haversine(first[0], first[1], last[0], last[1]) > 1) throw new Error('Exhibition ring is not closed');
+  ring[ring.length - 1] = first;
+  return { ring, legIds };
 }
 
 /**
@@ -518,17 +633,30 @@ function assertSanity(segments, addresses) {
       return blob.includes(a) && blob.includes(b);
     });
   if (!match('core', 'Hanna Ave', 'Snooker St', 'Liberty St')) throw new Error('Hanna Ave Snooker–Liberty is not core');
-  const corridors = segments.filter((s) => s.locality === 'adjacent');
-  const hasCorridor = (road, fromRoad, toRoad) => corridors.some((c) => c.road === road && c.fromRoad === fromRoad && c.toRoad === toRoad);
-  if (!hasCorridor('Strachan Ave', 'Fleet St', 'King St W')) throw new Error('Strachan Fleet–King adjacent corridor missing');
-  if (!hasCorridor('Strachan Ave', 'King St W', 'Lake Shore Blvd W')) throw new Error('Strachan King–Lake Shore adjacent corridor missing');
-  if (!hasCorridor('King St W', 'Strachan Ave', 'Dufferin St')) throw new Error('King Strachan–Dufferin adjacent corridor missing');
-  if (!hasCorridor('Lake Shore Blvd W', 'Strachan Ave', 'Newfoundland Rd')) throw new Error('Lake Shore Strachan–Newfoundland adjacent corridor missing');
-  if (!hasCorridor('Dufferin St', 'King St W', 'Saskatchewan Rd')) throw new Error('Dufferin King–Saskatchewan adjacent corridor missing');
+  // A1 adjacent positives must be reachable by intersection on a constituent row.
+  const corridors = segments.filter((s) => s.locality === 'adjacent' && s.constituents);
+  const onCorridor = (road, ...names) => corridors.some((c) => c.road === road &&
+    names.every((name) => c.constituents.some((row) => row.fromIntersection.includes(name) || row.toIntersection.includes(name))));
+  for (const [road, ...names] of [
+    ['Strachan Ave', 'Fleet St'],
+    ['King St W', 'Strachan Ave'],
+    ['King St W', 'Atlantic Ave', 'Jefferson Ave'],
+    ['Lake Shore Blvd W', 'Newfoundland Rd', 'Martin Goodman Trl'],
+    ['Lake Shore Blvd W', 'British Columbia Rd'],
+    ['Dufferin St', 'King St W', 'Saskatchewan Rd'],
+  ]) {
+    if (!onCorridor(road, ...names)) throw new Error(`A1 adjacent intersection missing: ${road} at ${names.join(' / ')}`);
+  }
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  for (const [label, file] of [['centreline', args.centreline], ['addresses', args.addresses]]) {
+    const digest = await sha256File(file);
+    if (digest !== PINNED_INPUTS[label]) {
+      throw new Error(`${label} CSV sha256 ${digest} is not the reviewed extract ${PINNED_INPUTS[label]}; a new City extract needs review`);
+    }
+  }
   /** @type {Seg[]} */
   const segs = [];
   /** @type {Map<string, Set<string>>} */
@@ -610,7 +738,29 @@ async function main() {
     throw new Error(`expected exactly four interior Douro St rows excluded by A1 policy, found ${excludedDouro}`);
   }
   for (const spec of REVIEWED_ADJACENT_CORRIDORS) {
-    segments.push(corridorRow(spec, byId, streetsAt, atPoint));
+    segments.push(corridorRow(spec, segs, byId, streetsAt, atPoint));
+  }
+  const exhibition = exhibitionRing(segs, streetsAt, atPoint);
+  const exhibitionLeg = new Set(exhibition.legIds);
+  const exhibitionRows = segs.filter((seg) => (EXHIBITION_EDGE_ROADS.has(seg.name) && exhibitionLeg.has(seg.id)) || (
+    !exhibitionLeg.has(seg.id) && !BOUNDARY_ROADS.has(seg.name) && EXHIBITION_FEATURES.has(seg.feature) &&
+    !/trl|trail|gardiner|ramp|bridge|shoreline/i.test(seg.name) && isWhollyInside(seg, exhibition.ring)));
+  const derivedInternal = exhibitionRows.map((seg) => seg.id).sort().join(',');
+  const reviewedInternal = REVIEWED_EXHIBITION_INTERNAL_IDS.map(String).sort().join(',');
+  if (derivedInternal !== reviewedInternal) {
+    throw new Error(`Exhibition Place internal rows differ from the reviewed ID list: ${exhibitionRows.map((seg) => `${seg.id} ${seg.name}`).join('; ')}`);
+  }
+  for (const id of REVIEWED_EXHIBITION_INTERNAL_IDS) {
+    const seg = byId.get(String(id));
+    segments.push({
+      centrelineId: seg.id,
+      linearName: seg.name,
+      ...constituent(seg, streetsAt),
+      locality: 'adjacent',
+      group: 'exhibition-place-internal',
+      feature: seg.feature,
+      coordinates: seg.coords,
+    });
   }
 
   /** @type {Map<string, {number: string, street: string}>} */
@@ -668,8 +818,9 @@ async function main() {
   await writeFile(path.join(args.out, 'lv-segments.json'), `${asciiJson(segmentsDoc)}\n`);
 
   const coreN = segments.filter((s) => s.locality === 'core').length;
-  const adjN = segments.filter((s) => s.locality === 'adjacent').length;
-  console.log(`wrote ring=${ring.length} addresses=${addresses.length} segments core=${coreN} adjacent=${adjN} douroExcluded=${excludedDouro}`);
+  const corridorN = segments.filter((s) => s.constituents).length;
+  const internalN = segments.filter((s) => s.group === 'exhibition-place-internal').length;
+  console.log(`wrote ring=${ring.length} addresses=${addresses.length} segments core=${coreN} corridors=${corridorN} exhibitionInternal=${internalN} douroExcluded=${excludedDouro}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

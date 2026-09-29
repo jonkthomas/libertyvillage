@@ -205,6 +205,16 @@
       "verificationUrl": "https://frameworktoronto.com/"
     },
     {
+      "canonicalVenueId": "addr:1187-king-st-w",
+      "name": "Louie Coffee Shop",
+      "aliases": [
+        "Louie Coffee Shop"
+      ],
+      "address": "1187 King St W",
+      "locality": "core",
+      "verificationUrl": "https://louiecoffee.com/"
+    },
+    {
       "canonicalVenueId": "addr:67-mowat-ave#104",
       "name": "Liberty Village BIA",
       "aliases": [
@@ -258,7 +268,8 @@
       "canonicalVenueId": "addr:25-liberty-st",
       "name": "QUEST XO Creative Lab",
       "aliases": [
-        "QUEST XO Creative Lab"
+        "QUEST XO Creative Lab",
+        "QUEST XO Chocolate Creative Lab"
       ],
       "address": "25 Liberty St",
       "locality": "core",
@@ -306,25 +317,17 @@
     },
     {
       "canonicalVenueId": "addr:75-fraser-ave",
-      "name": "Lamport Stadium Parking Lot",
+      "name": "Lamport Stadium",
       "aliases": [
+        "Lamport Stadium",
         "Lamport Stadium Parking Lot",
         "Lamport Stadium parking"
       ],
       "address": "75 Fraser Ave",
       "locality": "core",
-      "verificationUrl": "https://www.libertyvillagebia.com/events/give-me-liberty-street-party"
-    },
-    {
-      "canonicalVenueId": "addr:1155-king-st-w",
-      "name": "Lamport Stadium",
-      "aliases": [
-        "Lamport Stadium"
-      ],
-      "address": "1155 King St W",
-      "locality": "core",
       "registryVenueId": "venue:lamport-stadium",
-      "verificationUrl": "https://www.toronto.ca/explore-enjoy/parks-recreation/places-spaces/parks-and-recreation-facilities/stadium-listings/"
+      "verificationUrl": "https://www.libertyvillagebia.com/events/give-me-liberty-street-party",
+      "note": "One canonical Lamport identity (approved spec: 75 Fraser Ave). The City extract has no 75 Fraser Ave point; its Allan A. Lamport Stadium Park point is 1155 King St W, which is not an alias of this venue."
     },
     {
       "canonicalVenueId": "addr:170-princes-blvd",
@@ -411,18 +414,19 @@
       "verificationUrl": "https://www.rbcamphitheatre.com/"
     },
     {
-      "canonicalVenueId": "addr:100-princes-blvd",
+      "canonicalVenueId": "grounds:exhibition-place",
       "name": "Exhibition Place",
       "aliases": [
         "Exhibition Place"
       ],
-      "address": "100 Princes Blvd",
+      "address": null,
       "locality": "adjacent",
       "registryVenueId": "venue:exhibition-place",
       "officialDomains": [
         "explace.on.ca"
       ],
-      "verificationUrl": "https://www.explace.on.ca/"
+      "verificationUrl": "https://www.explace.on.ca/",
+      "note": "The grounds, not a building: distinct from Enercare Centre (100 Princes Blvd), so a grounds-wide listing never merges with an Enercare event by address."
     }
   ]
 }
