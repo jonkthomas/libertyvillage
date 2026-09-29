@@ -312,6 +312,9 @@ test('prior smoked-but-not-current-live attempt holds with its trusted submissio
   assert.equal(attempt.outcome, 'smoked');
   assert.equal(attemptsOf(world).filter((item) => item.week_start_utc === '2026-10-05').length, 0, 'no new-week spend on unresolved smoke');
   assert.ok(events(world, 'cadence-prior-smoke-hold').some((event) => event.id === attempt.submission_id));
+  world.live.add(attempt.submission_id); // operator restored the exact hosted alias revision
+  assert.equal(run(world).contentCount, 2);
+  assert.equal(attempt.outcome, 'late-smoked', 'restored alias releases the original slot, not a fabricated replacement');
 });
 
 test('F2 a valid sidecar next to an unrelated post never reaches submit', (t) => {
