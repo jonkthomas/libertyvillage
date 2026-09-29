@@ -52,7 +52,9 @@ test('City/BIA verified source supplies Toronto context for its own dated addres
 
 test('prose geo receives item-bound fields and news identity uses evidence URL', async () => {
   let geographyInput;
-  const news = options();
+  // A real dateline, not the event section's own "Date: … Starts at 4pm" (B2-R1).
+  const newsText = 'October 3, 2026 - Autumn Market at 171 East Liberty St, Toronto is announced for neighbours.';
+  const news = options([signal(newsText)], [form()], newsText);
   news.sources = [{ ...source, url: 'https://registry.example/discovery', identityKind: 'news-discovery' }];
   news.publisherTiers = { 'official.example': 'official' };
   news.forms[0].when = { kind: 'news-update', date: '2026-10-03' };
@@ -494,4 +496,97 @@ test('Instagram own-venue fallback (null place_quote) never admits a caption tha
   }
   const prose = await run('Burger Drops meets Sarah Chen Saturday October 3. Smash burgers all day in Liberty Village.');
   assert.equal(prose.items[0]?.locality, 'core', JSON.stringify(prose.excluded));
+});
+
+// B2-R1: the form's `when.kind` is untrusted. An official event section's own
+// date is the event instant, never a news dateline, so relabelling concluded
+// BIA/City events as news-update (or restriction/alert) must not admit them.
+const b2Now = '2026-10-03T21:00:00Z'; // Sat 17:00 Toronto
+const b2Sources = ['rv2-lv-bia-events', 'rv2-city-project-34-hanna-park', 'rv2-city-project-liberty-st']
+  .map((id) => ROUNDUP_SOURCES.find((s) => s.id === id));
+const b2Layouts = {
+  starts: (n) => `<p>Date: October ${n}, 2026. Starts at ${n === 2 ? '10am' : '4pm'}.</p><p>Location: 171 East Liberty St, Toronto.</p>`,
+  dateOnly: (n) => `<p>Date: October ${n}, 2026</p><p>Location: 171 East Liberty St, Toronto.</p>`,
+  openHouse: (n) => `<p>Open House Date: October ${n}, 2026 Time: Noon to 4 p.m. Location: 171 East Liberty St, Toronto.</p>`,
+  proseOn: (n) => `<p>On Thursday, October ${n}, 2026, the Liberty Market Building will transform for the market. Location: 171 East Liberty St, Toronto.</p>`,
+};
+function b2Edition(kind, layout, sources = b2Sources) {
+  const bodies = Object.fromEntries(sources.map((s, i) => [s.url,
+    `<main><section><h2>Autumn Market ${i + 1}</h2>${b2Layouts[layout](i + 1)}<p>A public community market.</p></section></main>`]));
+  const signals = sources.map((s, i) => ({ signalId: `b2-${i}`, sourceId: s.id, url: s.url,
+    records: extractRoundupRecords({ source: s, url: s.url, body: bodies[s.url] }) }));
+  const forms = signals.map((sig, i) => ({ signalId: sig.signalId, recordId: sig.records[0].recordId, subject: `Autumn Market ${i + 1}`,
+    what: 'Public community market', where_it_happens: '171 East Liberty St', item_type: 'event', people: [], risk: {}, verdict: 'core',
+    exclude_reason: null, when: { kind, date: `2026-10-0${i + 1}`, endDate: null, startTime: null, endTime: null },
+    evidence: [{ url: sig.url, recordId: sig.records[0].recordId, subject_quote: `Autumn Market ${i + 1}`,
+      place_quote: 'Location: 171 East Liberty St, Toronto.', date_quote: `October ${i + 1}, 2026` }] }));
+  return { signals, forms, now: b2Now, posts: [], geography: realGeography, sources: ROUNDUP_SOURCES,
+    publisherTiers: { 'libertyvillagebia.com': 'official', 'thepwhl.com': 'official' },
+    fetcher: async (requested) => (bodies[requested] ? { body: bodies[requested], status: 200 } : { body: '', status: 404 }) };
+}
+
+test('B2-R1: concluded BIA/City event sections relabelled news-update, restriction or alert are refused', async () => {
+  for (const kind of ['event', 'news-update', 'restriction', 'alert']) {
+    const result = await verifyRoundupForms(b2Edition(kind, 'starts'));
+    assert.equal(result.items.length, 0, `${kind}: ${JSON.stringify(result.items.map((i) => i.identityKey))}`);
+    for (const row of result.excluded) assert.ok(['undated', 'concluded'].includes(row.reason), `${kind}: ${row.reason}`);
+    const plan = planRoundupV2(result.items, { now: b2Now });
+    assert.equal(plan.decision, 'hold', kind);
+    assert.equal(plan.countedItems.length, 0, kind);
+  }
+  // Every official event layout the spec names, with or without a stated clock:
+  // the event's own date is never a news dateline.
+  for (const layout of Object.keys(b2Layouts)) {
+    const result = await verifyRoundupForms(b2Edition('news-update', layout));
+    assert.deepEqual(result.excluded.map((row) => row.reason), ['undated', 'undated', 'undated'], layout);
+  }
+  // The same official event section found through news discovery is still an event section.
+  const discovery = ROUNDUP_SOURCES.find((s) => s.id === 'rv2-serper-news');
+  const found = b2Edition('news-update', 'starts', [0, 1, 2].map((n) => ({ ...discovery, url: `https://www.libertyvillagebia.com/events/market-${n}` })));
+  found.signals.forEach((sig) => { sig.sourceId = discovery.id; });
+  const discovered = await verifyRoundupForms(found);
+  assert.deepEqual(discovered.excluded.map((row) => row.reason), ['undated', 'undated', 'undated']);
+});
+
+test('B2-R1: a marked publication dateline on an event section still cannot outlive the stated start', async () => {
+  const marked = b2Edition('news-update', 'starts');
+  const bia = b2Sources[0];
+  const body = '<main><section><h2>Autumn Market 3</h2><p>Posted October 3, 2026</p><p>Date: October 3, 2026. Starts at 4pm.</p>' +
+    '<p>Location: 171 East Liberty St, Toronto.</p><p>A public community market.</p></section></main>';
+  const records = extractRoundupRecords({ source: bia, url: bia.url, body });
+  marked.signals = [{ signalId: 'b2-marked', sourceId: bia.id, url: bia.url, records }];
+  marked.forms = [{ ...marked.forms[0], signalId: 'b2-marked', recordId: records[0].recordId, subject: 'Autumn Market 3',
+    when: { kind: 'news-update', date: '2026-10-03', endDate: null, startTime: null, endTime: null },
+    evidence: [{ url: bia.url, recordId: records[0].recordId, subject_quote: 'Autumn Market 3',
+      place_quote: 'Location: 171 East Liberty St, Toronto.', date_quote: 'Posted October 3, 2026' }] }];
+  marked.fetcher = async () => ({ body, status: 200 });
+  assert.equal((await verifyRoundupForms(marked)).excluded[0]?.reason, 'concluded');
+  const before = await verifyRoundupForms({ ...marked, now: '2026-10-03T19:59:00Z' });
+  assert.equal(before.items.length, 1, JSON.stringify(before.excluded));
+  assert.equal((await verifyRoundupForms({ ...marked, now: '2026-10-03T20:00:00Z' })).excluded[0]?.reason, 'concluded');
+});
+
+test('B2-R1 controls: genuine datelines and too-far announcements stay news-updates', async () => {
+  const discovery = ROUNDUP_SOURCES.find((s) => s.id === 'rv2-serper-news');
+  const cases = [
+    ['marked', 'Published October 2, 2026', 'Published October 2, 2026'],
+    ['bare', 'October 2, 2026 -', 'October 2, 2026'],
+    ['marked-clock', 'Posted: October 2, 2026 10:15 am', 'October 2, 2026'],
+  ];
+  for (const [label, dateline, quote] of cases) {
+    const address = `https://www.libertyvillagebia.com/news/winter-market-${label}`;
+    const body = `<main><h1>Winter Market announced</h1><p>${dateline} The BIA announced the Winter Market for December 12, 2026 at 4pm.</p>` +
+      '<p>Location: 171 East Liberty St, Toronto.</p></main>';
+    const records = extractRoundupRecords({ source: discovery, url: address, body });
+    const opts = { ...b2Edition('news-update', 'starts'), fetcher: async () => ({ body, status: 200 }),
+      signals: [{ signalId: `news-${label}`, sourceId: discovery.id, url: address, records }],
+      forms: [{ signalId: `news-${label}`, recordId: records[0].recordId, subject: 'Winter Market', what: 'Winter Market announced',
+        where_it_happens: '171 East Liberty St', item_type: 'news', people: [], risk: {}, verdict: 'core', exclude_reason: null,
+        when: { kind: 'news-update', date: '2026-10-02', endDate: null, startTime: null, endTime: null },
+        evidence: [{ url: address, recordId: records[0].recordId, subject_quote: 'Winter Market',
+          place_quote: 'Location: 171 East Liberty St, Toronto.', date_quote: quote }] }] };
+    const result = await verifyRoundupForms(opts);
+    assert.equal(result.items.length, 1, `${label}: ${JSON.stringify(result.excluded)}`);
+    assert.equal(result.items[0].identityKey, `news:${address}`);
+  }
 });

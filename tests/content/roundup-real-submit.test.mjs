@@ -72,10 +72,10 @@ const writer = ({ refuse = null } = {}) => async (pack) => {
   };
 };
 
-async function pipeline(input, { refuse } = {}) {
+async function pipeline(input, { refuse, at = now } = {}) {
   const run = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-roundup-real-run-'));
   const out = path.join(run, 'out');
-  const built = await runRoundupV2({ run, out, root: ROOT, now, dryRun: true }, {
+  const built = await runRoundupV2({ run, out, root: ROOT, now: at, dryRun: true }, {
     signals: input.signals, reasoned: { forms: input.forms, excluded: [] }, verifyOptions: { fetcher: input.fetcher }, write: writer({ refuse }),
   });
   if (built.post) fs.writeFileSync(path.join(out, 'post.json'), JSON.stringify(built.post));
@@ -228,5 +228,59 @@ test('submit never re-admits a refused key, even when a pack still carries a for
   fs.writeFileSync(path.join(built.out, 'pack.json'), JSON.stringify(pack));
   fs.writeFileSync(path.join(built.out, 'result.json'), JSON.stringify({ ...result, packDigest: roundupPackDigest(pack) }));
   await assert.rejects(submit(ctx.db, built.out, 'real-readmit-malformed', input.fetcher), /refusedKeyDigests/);
+  assert.equal(await roundupRows(ctx.db), 1);
+});
+
+// B2-R1: `when.kind` is a model field. The same three official event sections,
+// relabelled away from `event`, must not reach a roundup row once concluded.
+const b2Now = '2026-10-03T21:00:00.000Z'; // Sat 17:00 Toronto: Oct 1 16:00, Oct 2 10:00 and Oct 3 16:00 have started
+function relabelled(kind, { posted = false } = {}) {
+  const input = edition();
+  const clock = (n) => (posted ? `${3 + n}pm` : n === 2 ? '10am' : '4pm');
+  const day = (n) => (posted ? 1 : n);
+  input.bodies = Object.fromEntries([bia, park, street].map((source, i) => [source.url, `<main><section><h2>Autumn Market ${i + 1}</h2>` +
+    `${posted ? `<p>Posted October 1, 2026</p>` : ''}<p>Date: October ${day(i + 1)}, 2026. Starts at ${clock(i + 1)}.</p>` +
+    '<p>Location: 171 East Liberty St, Toronto.</p><p>A public community market with local makers.</p></section></main>']));
+  input.signals.forEach((signal) => {
+    const source = [bia, park, street].find((s) => s.url === signal.url);
+    signal.records = extractRoundupRecords({ source, url: signal.url, body: input.bodies[signal.url] });
+    signal.snapshotSha256 = sha(input.bodies[signal.url]);
+  });
+  input.forms.forEach((form, i) => {
+    form.recordId = input.signals[i].records[0].recordId;
+    form.when = { ...form.when, kind, date: `2026-10-0${day(i + 1)}` };
+    form.evidence[0] = { ...form.evidence[0], recordId: form.recordId,
+      date_quote: posted ? 'Posted October 1, 2026' : `October ${day(i + 1)}, 2026` };
+  });
+  input.fetcher = fetcherFor(input.bodies);
+  return input;
+}
+
+test('B2-R1: concluded event sections relabelled news-update, restriction or alert hold and leave 0 roundup rows', { skip }, async (t) => {
+  const ctx = await setup(t);
+  for (const kind of ['event', 'news-update', 'restriction', 'alert']) {
+    const input = relabelled(kind);
+    const built = await pipeline(input, { at: b2Now });
+    if (built.post) await submit(ctx.db, built.out, `b2r-${kind}`, input.fetcher, Date.parse(b2Now) + 60_000);
+    assert.equal(await roundupRows(ctx.db), 0, `${kind} persisted a concluded edition`);
+    assert.equal(built.result.decision, 'hold', kind);
+    assert.equal(built.result.units, 0, kind);
+    assert.ok(built.result.reasons.includes('below-minimum'), kind);
+    assert.equal(built.post, null, kind);
+  }
+});
+
+test('B2-R1: a posted news-update for a same-day event section is refused at T_submit once the stated start passes', { skip }, async (t) => {
+  const ctx = await setup(t);
+  const input = relabelled('news-update', { posted: true });
+  const planned = '2026-10-01T16:00:00.000Z'; // Thu 12:00 Toronto, before the 16:00, 17:00 and 18:00 starts
+  const built = await pipeline(input, { at: planned });
+  assert.equal(built.result.decision, 'publish', JSON.stringify(built.result.reasons));
+  assert.equal(built.result.units, 3);
+  await assert.rejects(submit(ctx.db, built.out, 'b2r-started', input.fetcher, Date.parse('2026-10-01T20:01:00.000Z')),
+    /below 3 units \/ 1 core anchor at submit|rebuild before submit/);
+  assert.equal(await roundupRows(ctx.db), 0);
+  const accepted = await submit(ctx.db, built.out, 'b2r-before-start', input.fetcher, Date.parse('2026-10-01T19:59:00.000Z'));
+  assert.ok(accepted.result.submissionId, JSON.stringify(accepted.result));
   assert.equal(await roundupRows(ctx.db), 1);
 });

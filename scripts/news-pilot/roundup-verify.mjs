@@ -159,6 +159,47 @@ function statedTimes(record, source) {
   return { start: literal ? timeOf(literal) : null, end: null };
 }
 
+// A news-update is dated by its publication dateline (§6.4), but `when.kind` is a
+// model field. Recompute from the fresh record whether the claimed date is
+// instead the item's own event date, so a relabel cannot drop a stated clock or
+// the concluded rule (§6.5). Structured event, listing, Instagram and feed
+// records never carry a dateline. In a page section, a mention of the claimed
+// date that is labelled as the event date, tied to a stated clock, or opens a
+// future-tense "On <date>, … will" statement is the event instant. Official
+// org/project pages publish events, so their dateline must be explicitly marked.
+const WEEKDAY = '(?:(?:mon|tues|wednes|thurs|fri|satur|sun)day,?\\s*)?';
+const publicationMark = new RegExp(`\\b(?:published|posted|released|issued)(?:\\s+on)?\\s*:?\\s*${WEEKDAY}$`, 'i');
+const eventMark = new RegExp(`(?:\\b(?:date|dates|when|time)\\s*:|\\b(?:starts?|begins?|takes? place|will be held|happening)(?:\\s+on)?)\\s*${WEEKDAY}$`, 'i');
+const onMark = new RegExp(`\\bon\\s+${WEEKDAY}$`, 'i');
+const clockMark = /\b(?:noon|(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?))(?![\w.])/i;
+function newsDatelineReason(record, recordSource, source, when, claim, at, datedByOriginal) {
+  if (record.kind && record.kind !== 'section' || source.parse === 'json-feed' ||
+    ['jsonld-event', 'html-listing', 'ig-post'].includes(recordSource.parse)) return 'undated';
+  const text = norm(record.text);
+  const mentions = [...text.matchAll(datePattern)].map((m) => ({ start: m.index, end: m.index + m[0].length,
+    date: parseCalendar(m[0]) }));
+  const quoted = norm(claim?.date_quote);
+  const quoteAt = quoted ? text.indexOf(quoted) : -1;
+  let marked = false, occurrence = null;
+  mentions.forEach((mention, index) => {
+    if (mention.date !== when.date) return;
+    const before = text.slice(Math.max(0, mention.start - 40), mention.start);
+    const published = publicationMark.test(before);
+    if (published && quoteAt >= 0 && mention.start >= quoteAt && mention.end <= quoteAt + quoted.length) marked = true;
+    if (published) return;
+    const clause = text.slice(mention.end, Math.min(mention.end + 60, mentions[index + 1]?.start ?? text.length));
+    const sentence = text.slice(mention.end, mention.end + 200).split(/[.!?](?:\s|$)/)[0];
+    if (!occurrence && (eventMark.test(before) || clockMark.test(clause) || onMark.test(before) && /\bwill\b/i.test(sentence)))
+      occurrence = statedTimes({ text: clause, typed: {} }, { parse: 'html-page' });
+  });
+  if (!datedByOriginal && source.identityKind !== 'news-discovery' && !marked) return 'undated';
+  if (!occurrence) return null;
+  if (!marked) return 'undated';
+  const end = occurrence.end ? torontoInstant(when.date, occurrence.end)
+    : occurrence.start ? torontoInstant(when.date, occurrence.start) : torontoInstant(addDays(when.date, 1));
+  return Number.isFinite(end) && end > at ? null : 'concluded';
+}
+
 function torontoInstant(day, time = '00:00') {
   if (!validDay(day) || !/^\d\d:\d\d$/.test(time)) return NaN;
   const wall = Date.parse(`${day}T${time}:00Z`);
@@ -448,6 +489,10 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             : recordProvesTime(record, form.when.endDate || form.when.date, torontoInstant(form.when.endDate || form.when.date, form.when.endTime)))) fail('undated');
           const place = identity(record, recordSource, form, claim, geo);
           if (place.locality === 'not-LV') fail('not-LV');
+          if (form.when?.kind === 'news-update') {
+            const reason = newsDatelineReason(record, recordSource, source, form.when, claim, at, Boolean(original));
+            if (reason) fail(reason);
+          }
           const tier = source.identityKind === 'news-discovery'
             ? tiers[registrableDomain(claim.url)] || 'lead'
             : recordSource.parse === 'ig-post' && place.canonicalVenueId !== source.canonicalVenueId &&
