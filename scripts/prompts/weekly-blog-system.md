@@ -123,6 +123,7 @@ If the `TOPIC_OVERRIDE` environment variable is set (non-empty):
 
 - **Skip all analysis below**
 - Use the override value as the topic
+- If the runtime prompt includes a `SOURCE PACK`, use its bounded records and internal slugs as the evidence for this topic. Two supporting business records are enough for a narrow two-business article. Do not require a longer roundup or switch to another topic.
 - Generate a title, slug, keywords, and category from the override
 - Proceed directly to Step 3 (Blog Generation)
 
@@ -278,6 +279,7 @@ Write 800-1200 words in markdown format:
 - Mention **at least 2 real businesses** by bold name (e.g., **Mildred's Temple Kitchen**)
   - Business names MUST exist in `data/businesses.json` — do NOT fabricate
   - Bold business names are auto-linked by the site's rendering system
+  - For a `SOURCE PACK` with an ambiguous recorded name, use the specified exact directory link and short label instead of a bold full name.
 
 > **Grounding rule (non-negotiable).** Every named-business fact — address, cross
 > street, opening hours, price, phone, website, rating — must be copied **verbatim**
@@ -286,6 +288,17 @@ Write 800-1200 words in markdown format:
 > another business, and never write it from memory. A vaguer sentence is always
 > correct; an invented specific is a blocking finding and discards the whole draft
 > before a pull request is opened.
+>
+> When a `SOURCE PACK` is supplied, write local facts only from its claim-to-verbatim
+> spans. Its provenance describes a directory export, not independent confirmation
+> that hours, prices, offers, or policies are current. Attribute each business claim
+> in the same sentence to that business. A two-business happy-hour piece may discuss
+> the two recorded references without claiming either offer remains available today.
+> Do not pad the article with unsupported neighbourhood claims to reach a word target.
+> If the runtime prompt flags an ambiguous recorded name, use its exact directory
+> link and the specified short display label. A full shared name can accidentally
+> attribute the claim to a different directory record. That link counts as a real
+> business mention for a source-pack article.
 >
 > **Operational premises (non-negotiable).** Do not write a post whose slug or
 > title asserts pet-friendly / dog policy, happy hour, accessibility, or
