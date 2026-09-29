@@ -248,6 +248,13 @@ test('reviewed RBC JSON-LD one-word Lakeshore normalizes to the adjacent Lake Sh
     assert.deepEqual(classified, { ...reviewed }, JSON.stringify(address));
   }
   assert.equal(canonicalVenueId('909 Lakeshore Blvd. W.'), reviewed.canonicalVenueId);
+  assert.equal(reviewed.canonicalVenueId, 'addr:909-lake-shore-blvd-w', 'keep the verified direction in the venue identity');
+  for (const east of ['909 Lake Shore Blvd E', '909 Lakeshore Blvd E']) {
+    assert.equal(classifyAddress(east, { addressLocality: 'Toronto' }).verdict, 'unverifiable',
+      `${east} must not inherit the verified west-side RBC venue`);
+    assert.equal(classifyVenueName('RBC Amphitheatre, Toronto', { address: east, addressLocality: 'Toronto' }).verdict,
+      'unverifiable', `${east} conflicts with the venue address`);
+  }
   // Only actual street-address context: bare one-word venue/location claims still fail closed.
   assert.equal(classifyAddress('Lakeshore').verdict, 'unverifiable');
   assert.equal(classifyAddress('Lakeshore, Toronto').verdict, 'unverifiable');

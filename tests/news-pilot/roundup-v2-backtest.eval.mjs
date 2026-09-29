@@ -346,6 +346,17 @@ const MEASURED = {
     ],
     40: [['publish', 10, 2, 2, 'IG214|R50|R58-i+R58-ii+R58-iii|R59a|R59b|R55|R57a|R57b-i|R56a|R56b']],
   },
+  // All labelled pool rows, including excluded R37 and R59c/R61. The
+  // after-clock set is an algorithm-input disclosure, NOT historical proof.
+  capturedAfterClock: {
+    37: ['R09', '', ''],
+    38: ['R20'],
+    39: ['', 'R37', 'R37'],
+    40: {
+      ceiling: 'R37,R50,R55,R56a,R56b,R59a,R59b,R59c,R61',
+      floor: 'R37,R50,R55,R56a,R56b,R59a,R59b',
+    },
+  },
 };
 const fmtSlot = (s) => `${s.decision} ${s.units} (${s.core}/${s.anchors})${s.reasons.length ? ' ' + s.reasons.join('+') : ''}`;
 
@@ -582,6 +593,12 @@ if (V.integrated) {
           assert.equal(s.counted.map((c) => c.unitIds.join('+')).join('|'), groups,
             `${name} W${week} ${s.clock} measured source-bound unit groups`);
           assert.deepEqual(s.cut, [], `${name} W${week} ${s.clock} no cap cut on these captured bodies`);
+          const expectedAfter = (week === 40 ? MEASURED.capturedAfterClock[40][name] :
+            MEASURED.capturedAfterClock[week][i]).split(',').filter(Boolean).sort();
+          const actualAfter = s.pool.filter((p) => p.labels.includes('capturedAfterClock'))
+            .map((p) => p.unitId).sort();
+          assert.deepEqual(actualAfter, expectedAfter,
+            `${name} W${week} ${s.clock} exact after-clock source set (not historical availability)`);
         });
       }
     }
