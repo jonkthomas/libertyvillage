@@ -162,14 +162,14 @@ test('pending preflight uses the partial pending index, not a sequential scan ov
   } finally { await close(); }
 });
 
-test('0002 forward migration adds the preflight indexes to an existing 0001 store and stays idempotent', async () => {
+test('0002 forward migration restores missing preflight indexes and stays idempotent', async () => {
   const { db, close, url, name } = await testDb();
   const priorUnpooled = process.env.CONTENT_DATABASE_URL_UNPOOLED;
   const priorName = process.env.CONTENT_DB_NAME;
   try {
     assert.deepEqual(await preflightIndexes(db), ['submissions_active_idx', 'submissions_pending_idx']);
 
-    // Simulate a store migrated before 0002 existed.
+    // Simulate missing 0002 index/version state in the current multi-version fixture.
     await db.query('drop index content.submissions_pending_idx');
     await db.query('drop index content.submissions_active_idx');
     await db.query("delete from content.schema_migrations where version='0002'");
@@ -180,7 +180,7 @@ test('0002 forward migration adds the preflight indexes to an existing 0001 stor
     assert.deepEqual(migrated.result, { applied: ['0002'] });
     assert.deepEqual(await preflightIndexes(db), ['submissions_active_idx', 'submissions_pending_idx']);
     const versions = (await db.query('select version from content.schema_migrations order by version')).rows.map((r) => r.version);
-    assert.deepEqual(versions, ['0001', '0002']);
+    assert.deepEqual(versions, ['0001', '0002', '0003']);
 
     const again = await runCli(['migrate']);
     assert.deepEqual(again.result, { applied: [] }, 'migrate must not reapply recorded versions');
