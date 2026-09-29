@@ -1,45 +1,51 @@
 // Roundup v2 backtest replay eval (docs/specs/weekly-roundup-v2.md sections 7, A4).
 //
 // No model calls, no network. Replays the archived September 2026 backtest +
-// Instagram trial through the REAL product stack — verifyRoundupForms,
-// planRoundupV2, roundup-geo.mjs classifiers, ROUNDUP_SOURCES and
-// ROUNDUP_PUBLISHER_TIERS — resolved from the product directory itself, so
-// the verifier's own relative imports (geo, records, sources) load product
-// code, never eval doubles. RV_PRODUCT_DIR overrides the product directory
-// for validation runs against another checkout; it defaults to this repo's
-// scripts/news-pilot. Test-scope seams that remain:
-//   - fetcher: serves the frozen captured bodies by URL (403 for walled,
-//     404 for truncated rows — the backtest's own verdicts). Pinned bytes,
-//     no network, deterministic;
-//   - recordExtractor (TEMPORARY seam, see replay/REVIEW.md): returns the
-//     reviewed record for a recordId because most frozen bodies are
-//     tag-stripped fragments the real extractor cannot segment. Record TEXT
-//     always comes from the body files. R59 rows already carry product
-//     rid() recordIds verified byte-identical against the live page;
-//   - signal.post: pinned trial provider rows (shortcode, caption,
-//     timestamp, owner) for ig-post sources.
+// Instagram trial through the REAL product stack — verifyRoundupForms (with
+// its own production roundup-records.mjs extractor; NO recordExtractor is
+// injected), planRoundupV2, roundup-geo.mjs, ROUNDUP_SOURCES and
+// ROUNDUP_PUBLISHER_TIERS — resolved from the product directory itself.
+// RV_PRODUCT_DIR overrides the product directory for validation runs against
+// another checkout; it defaults to this repo's scripts/news-pilot.
 //
-// Every exclusion reason below is produced by the verifier, never asserted
-// from the fixture. The fixture's expected.class is the reviewed label; where
-// the real reason differs it is reported, not hidden. Nothing here forces a
-// table: pins assert observed product behavior, and honest divergences from
-// the printed spec table are recorded in replay/REVIEW.md.
+// Offline inputs only (the seams a replay cannot avoid):
+//   - fetcher: read-only; serves the committed FULL raw capture of a URL that
+//     the §7 availability rule selects for the clock (replay/captures.json),
+//     or a unit's frozen fragment for rows that were never fully captured
+//     (labelled `fragment`; negative controls only), or the backtest's own
+//     403/404 verdicts for walled/truncated rows. Never concatenates bodies;
+//   - signal.post: the archived Instagram provider row (ig-posts.jsonl: raw
+//     caption with line breaks, timestamp, owner, shortcode);
+//   - signal.records: the collection-time records the production extractor
+//     emits for the served body, restricted to reference-row records (§7).
+//
+// Availability is §7's ONE POOL replayed in sequence: IG posts at their
+// provider timestamp, news at its dateline, listing/feed/org/project records
+// at the latest capture at or before the clock; an after-clock capture is
+// used only in the unit's assigned week and only for events starting after
+// the clock (`capturedAfterClock`). Held weeks roll everything forward;
+// published coverage removes keys. Feed createdTime is never availability.
+//
+// Tests assert INVARIANTS (evidence binding, availability, coverage, publish
+// rule arithmetic, no trap admission). Observed counts are printed and
+// compared with the approved §7 table as a census; a mismatch caused by what
+// the captures actually contain is reported in replay/REVIEW.md, not failed
+// and not tuned.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-// Product directory: this repo's scripts/news-pilot by default; override for
-// validation runs against another checkout (which must contain the full
-// stack: verify, plan, geo, records, sources, data).
 const PROD = process.env.RV_PRODUCT_DIR || path.join(ROOT, 'scripts', 'news-pilot');
 const prodMod = (name) => import(pathToFileURL(path.join(PROD, name)).href);
 const REF = path.join(ROOT, 'tests/fixtures/roundup-v2/backtest/reference');
 const REP = path.join(ROOT, 'tests/fixtures/roundup-v2/backtest/replay');
+const IG_ARCHIVE = process.env.RV_IG_ARCHIVE ||
+  path.join(ROOT, '.state/archive/2026-09-29-ig-trial');
 
 const PIN_REFERENCE = {
   'items.jsonl': '4b0d2f84ed35ca9556b34ac48028973d1a472994849fad573fff24167649c4f7',
@@ -60,140 +66,42 @@ const PIN_ARCHIVE = {
 };
 
 const sha = (b) => createHash('sha256').update(b).digest('hex');
-const lines = (p) => readFileSync(p, 'utf8').split('\n').filter((l) => l.length > 0);
-const header = JSON.parse(lines(path.join(REP, 'conversion.jsonl'))[0]);
+const jsonl = (p) => readFileSync(p, 'utf8').split('\n').filter((l) => l.length > 0).map((l) => JSON.parse(l));
+const conversion = jsonl(path.join(REP, 'conversion.jsonl'));
+const header = conversion[0];
 assert.equal(header.kind, 'header');
-const UNITS = lines(path.join(REP, 'conversion.jsonl')).slice(1).map((l) => JSON.parse(l));
+const UNITS = conversion.slice(1);
 const byId = new Map(UNITS.map((u) => [u.unitId, u]));
+const bySignal = new Map(UNITS.map((u) => [u.form.signalId, u]));
+const MANIFEST = JSON.parse(readFileSync(path.join(REP, 'captures.json'), 'utf8'));
+const CAPTURES = MANIFEST.captures;
+const capById = new Map(CAPTURES.map((c) => [c.captureId, c]));
+const IG_ROWS = new Map(jsonl(path.join(REP, 'ig-posts.jsonl')).map((r) => [r.shortCode, r]));
 
-// Body text: .json files holding a JSON string decode losslessly (trailing
-// whitespace preserved); every other body file is used as raw text.
-function bodyTextOf(rel) {
-  const raw = readFileSync(path.join(REP, rel), 'utf8');
-  if (rel.endsWith('.json')) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed === 'string') return parsed;
-    } catch { /* record object: fall through to raw */ }
+const bodyCache = new Map();
+function readBody(rel) {
+  if (!bodyCache.has(rel)) {
+    let text = readFileSync(path.join(REP, rel), 'utf8');
+    if (rel.startsWith('bodies/') && rel.endsWith('.json')) {
+      try { const v = JSON.parse(text); if (typeof v === 'string') text = v; } catch { /* raw */ }
+    }
+    bodyCache.set(rel, text);
   }
-  return raw;
+  return bodyCache.get(rel);
 }
 
-// ------------------------------------------------------- harness (real path) ---
-// Maps each conversion unit to its product registry source id. The registry
-// itself (fields, tiers, watch list) always comes from the product directory.
-// Discovery rows go through rv2-serper-news; dropped sources (reddit) are
-// intentionally unregistered so the verifier fails them closed. Enercare
-// rows use rv2-explace: the registry covers Enercare Centre as a building
-// alias of Exhibition Place (venueAliases), registered at the final URL.
-function sourceIdFor(u) {
-  const id = u.unitId;
-  if (/^(R07|R22|R38)/.test(id)) return 'rv2-coliseum';
-  if (/^(R55|R56)/.test(id)) return 'rv2-bmo-field';
-  if (/^R57/.test(id)) return 'rv2-coliseum';
-  if (/^(R08|R24|R39|R58)/.test(id)) return 'rv2-rbc-amphitheatre';
-  if (/^(R09|R52|R53|R54|R62x|R63x|R64x)/.test(id)) return 'rv2-road-restrictions';
-  if (id === 'R20') return 'rv2-lv-bia-events';
-  if (id === 'R50') return 'rv2-city-project-34-hanna-park';
-  if (id === 'R37') return 'rv2-serper-news';
-  if (/^R59/.test(id)) return 'rv2-explace';
-  if (id.startsWith('IG')) {
-    const code = (u.bodies[0].url.match(/\/p\/([^/]+)\//) || [])[1] || '';
-    return `ig:${(u.clockFacts.owner || '').toLowerCase()}`;
-  }
-  if (/^R(17|18|19|49)x$/.test(id)) return 'rv2-reddit-dropped';
-  return 'rv2-serper-news';
-}
-
-const shortCodeOf = (u) => (u.bodies[0].url.match(/\/p\/([^/]+)\//) || [])[1] || '';
-
-// Records keyed by recordId; TEXT always comes from the body files at
-// runtime. Typed feed/JSON-LD fields are parsed from that same text.
-const RECORDS = new Map();
-const URL_RECORDS = new Map();
-const URL_TEXT = new Map();
-// Keyed by the form's evidence URL (the canonical source URL per F2), not by
-// the capture URL in bodies[] (which may be a Wayback snapshot for provenance).
-const EVIDENCE_URL = new Map(UNITS.map((u) => [u.unitId, u.form.evidence[0].url]));
-for (const u of UNITS) {
-  for (const b of u.bodies) {
-    const text = bodyTextOf(b.file);
-    const key = EVIDENCE_URL.get(u.unitId);
-    URL_TEXT.set(key, (URL_TEXT.get(key) || '') + (URL_TEXT.has(key) ? '\n' : '') + text);
-  }
-}
-for (const u of UNITS) {
-  const text = bodyTextOf(u.bodies[0].file);
-  let typed = {};
-  const kind = u.clockFacts.kind;
-  if (kind === 'feed' || kind === 'listing-jsonld') {
-    try { typed = JSON.parse(text); } catch { typed = {}; }
-    // The live feed serves epoch millis as strings; the collector coerces
-    // them to numbers (dayOf/torontoInstant require numeric input) and
-    // derives the ISO end day the line-298 check reads.
-    for (const k of ['startTime', 'endTime', 'lastUpdated', 'createdTime']) {
-      if (typed[k] != null && !Number.isNaN(Number(typed[k]))) typed[k] = Number(typed[k]);
-    }
-    if (Number.isFinite(typed.endTime)) {
-      typed.endDate = new Date(typed.endTime).toISOString().slice(0, 10);
-    }
-  } else if (u.form.item_type === 'concert' || u.form.item_type === 'sports' || u.form.item_type === 'expo') {
-    // Listing rows belong to their venue page by construction; bind the
-    // record to the source URL (the row text itself rarely names the venue).
-    typed = { pageUrl: EVIDENCE_URL.get(u.unitId) };
-  }
-  for (const s of u.spans) {
-    if (!RECORDS.has(s.recordId)) {
-      RECORDS.set(s.recordId, { recordId: s.recordId, text, typed });
-      const key = EVIDENCE_URL.get(u.unitId);
-      const arr = URL_RECORDS.get(key) || [];
-      arr.push(RECORDS.get(s.recordId));
-      URL_RECORDS.set(key, arr);
-    }
-  }
-  if (!u.spans.length) {
-    const rid = `${u.unitId}-record`;
-    RECORDS.set(rid, { recordId: rid, text, typed });
-  }
-}
-const recordExtractor = ({ url }) => URL_RECORDS.get(url) || [];
-
-const BLOCKED = new Set(UNITS.filter((u) => u.expected.class === 'unverifiable' &&
-  ['R10x', 'R11x', 'R25x', 'R30x'].includes(u.unitId)).map((u) => EVIDENCE_URL.get(u.unitId)));
-const GONE = new Set(['R12x', 'R13x'].map((id) => EVIDENCE_URL.get(id)).filter(Boolean));
-const fetcher = async (url) => {
-  if (BLOCKED.has(url)) return { status: 403 };
-  if (GONE.has(url)) return { status: 404 };
-  if (URL_TEXT.has(url)) return { body: URL_TEXT.get(url), status: 200 };
-  return { status: 404 };
-};
-
-function buildInputs(units, { floorR37 = false } = {}) {
-  const signals = [], forms = [];
-  for (const u of units) {
-    const form = JSON.parse(JSON.stringify(u.form));
-    if (u.unitId === 'R37' && floorR37) {
-      // Floor models fact (ii) unknown: no dateline, no date.
-      form.when = { ...form.when, date: null, startTime: null, endTime: null };
-      form.evidence = form.evidence.map((e) => ({ ...e, date_quote: null }));
-    }
-    // Excluded rows carry the reviewer's label; clearing it here tests the
-    // verifier's independent judgment (with it set they fail not-news
-    // by construction).
-    form.exclude_reason = null;
-    const url = EVIDENCE_URL.get(u.unitId);
-    const recs = (URL_RECORDS.get(url) || []).filter((r) =>
-      u.spans.some((s) => s.recordId === r.recordId));
-    const signal = { signalId: form.signalId, sourceId: sourceIdFor(u), url,
-      records: recs.map((r) => ({ recordId: r.recordId, typed: r.typed })) };
-    if (u.clockFacts.kind === 'ig') {
-      signal.post = { shortcode: shortCodeOf(u), caption: bodyTextOf(u.bodies[0].file),
-        timestamp: u.clockFacts.timestamp, ownerUsername: u.clockFacts.owner };
-    }
-    signals.push(signal);
-    forms.push(form);
-  }
-  return { signals, forms };
+// Toronto wall-clock helpers (harness-side only: availability gating).
+const tzFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit',
+  day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const tzParts = (at) => Object.fromEntries(tzFmt.formatToParts(new Date(at)).filter((p) => p.type !== 'literal')
+  .map((p) => [p.type, Number(p.value)]));
+const dayOf = (at) => { const p = tzParts(at); return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`; };
+function torontoInstant(day, time = '00:00') {
+  if (!/^\d{4}-\d\d-\d\d$/.test(day || '') || !/^\d\d:\d\d$/.test(time)) return NaN;
+  const wall = Date.parse(`${day}T${time}:00Z`);
+  let at = wall + 5 * 3600000;
+  for (let i = 0; i < 3; i++) { const p = tzParts(at); at += wall - Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute); }
+  return at;
 }
 
 const SLOTS = {
@@ -202,42 +110,189 @@ const SLOTS = {
   39: ['2026-09-23T16:00:00Z', '2026-09-25T16:00:00Z', '2026-09-27T16:00:00Z'],
   40: ['2026-09-29T15:00:00Z'],
 };
+// Backtest verdicts for rows that cannot be re-captured (A4): walled -> 403,
+// truncated article_ URLs -> 404.
+const BLOCKED = new Set(['R10x', 'R11x', 'R25x', 'R30x']);
+const GONE = new Set(['R12x', 'R13x']);
+// §7 conditional spans: the floor scenario models none of them verifying.
+const FLOOR_DROP = new Set(['R22b', 'R57b-ii', 'R59c', 'R61']);
 
-// Pool model: each trial row belongs to exactly one backtest week, its
-// evidence week (A4 capture-time availability guard, owner-approved over
-// the record-metadata alternative, which would publish W38/W39 early). A
-// week's pool is that week's rows only; the product's coverage (published
-// keys via posts) is the sole cross-week state. An earlier held-roll
-// re-presentation was a harness invention that inflated W38 to publish
-// (R22a/R22c rolling in); it is removed — see REVIEW.md.
-function gatePass(u, week) {
-  return u.expected.week === week;
+// ------------------------------------------------------------ product stack ---
+const V = await (async () => {
+  try {
+    const [v, r, e, rec, src] = await Promise.all(['roundup-verify.mjs', 'roundup.mjs', 'roundup-evidence.mjs',
+      'roundup-records.mjs', 'sources.mjs'].map(prodMod));
+    await prodMod('roundup-geo.mjs');
+    if ([v.verifyRoundupForms, r.planRoundupV2, e.roundupSourceQuality, rec.extractRoundupRecords,
+      rec.normalizeRecordText].every((f) => typeof f === 'function') && Array.isArray(src.ROUNDUP_SOURCES)) {
+      console.log(`    product stack: ${PROD}`);
+      return { integrated: true, verify: v.verifyRoundupForms, plan: r.planRoundupV2, quality: e.roundupSourceQuality,
+        extract: rec.extractRoundupRecords, normalize: rec.normalizeRecordText, sources: src.ROUNDUP_SOURCES };
+    }
+  } catch (error) { console.log(`    product stack failed to load: ${error.message}`); }
+  return { integrated: false };
+})();
+
+const sourceOf = (u) => V.sources.find((s) => s.id === u.sourceId) || null;
+const postOf = (u) => {
+  const row = IG_ROWS.get(u.bodies[0].shortCode);
+  return row && { shortcode: row.shortCode, caption: row.caption, timestamp: row.timestamp, ownerUsername: row.ownerUsername };
+};
+const recordCache = new Map();
+/** Production records of one committed body (capture, fragment or IG caption). */
+function recordsOf(key, u, body, post = null) {
+  const source = sourceOf(u);
+  const cacheKey = `${key}|${u.sourceId}|${u.form.evidence[0].url}`;
+  if (!recordCache.has(cacheKey)) {
+    recordCache.set(cacheKey, source ? V.extract({ source, url: u.form.evidence[0].url, body, post }) : []);
+  }
+  return recordCache.get(cacheKey);
+}
+function boundRecords(u) {
+  if (u.bodyKind === 'ig-caption') { const post = postOf(u); return recordsOf(`ig:${post.shortcode}`, u, post.caption, post); }
+  if (u.bodyKind === 'full-capture') { const c = capById.get(u.bodies[0].captureId); return recordsOf(c.captureId, u, readBody(c.file)); }
+  return recordsOf(u.bodies[0].file, u, readBody(u.bodies[0].file));
 }
 
-async function runRealScenario(verify, plan, { floorR37 }) {
+// Availability lane per §7, from the product registry's parse kind.
+function laneOf(u) {
+  if (u.bodyKind === 'ig-caption') return 'ig';
+  const s = sourceOf(u);
+  if (s && (['html-listing', 'jsonld-event', 'json-feed'].includes(s.parse) ||
+    s.parse === 'html-page' && ['org', 'project'].includes(s.identityKind))) return 'record';
+  return 'news';
+}
+const snapshotsFor = (url) => CAPTURES.filter((c) => c.url === url)
+  .sort((a, b) => Date.parse(a.capturedAt) - Date.parse(b.capturedAt));
+function eventStartOf(u) {
+  const typed = u.recordBinding?.typed || {};
+  if (sourceOf(u)?.parse === 'json-feed' && Number.isFinite(typed.startTime)) return typed.startTime;
+  return torontoInstant(u.form.when?.date, u.form.when?.startTime || '00:00');
+}
+
+/** §7 availability of one unit at one clock. Never reads feed createdTime. */
+function availability(u, clock, week) {
+  const at = Date.parse(clock);
+  const lane = laneOf(u);
+  if (lane === 'ig') {
+    const ts = Date.parse(postOf(u)?.timestamp || '');
+    return ts <= at ? { ok: true, lane, served: { kind: 'ig' }, labels: [] } : { ok: false, lane, why: 'posted-after-clock' };
+  }
+  if (lane === 'news') {
+    const dateline = u.clockFacts.dateline;
+    const labels = [];
+    if (dateline) { if (dateline > dayOf(at)) return { ok: false, lane, why: 'dateline-after-clock' }; }
+    else { if (week < u.expected.week) return { ok: false, lane, why: 'dateline-unknown:before-assigned-week' }; labels.push('datelineUnknown'); }
+    const served = u.bodyKind === 'full-capture' ? { kind: 'capture', captureId: u.bodies[0].captureId }
+      : { kind: 'fragment', file: u.bodies[0].file };
+    if (served.kind === 'capture' && Date.parse(capById.get(served.captureId).capturedAt) > at) labels.push('capturedAfterClock');
+    if (served.kind === 'fragment') labels.push('fragment');
+    return { ok: true, lane, served, labels };
+  }
+  const snaps = snapshotsFor(u.form.evidence[0].url);
+  const pre = snaps.filter((c) => Date.parse(c.capturedAt) <= at).pop();
+  if (pre && recordsOf(pre.captureId, u, readBody(pre.file)).some((r) => r.recordId === u.form.recordId)) {
+    return { ok: true, lane, served: { kind: 'capture', captureId: pre.captureId }, labels: [] };
+  }
+  if (u.bodyKind !== 'full-capture') return { ok: false, lane, why: 'no-capture' };
+  const bound = capById.get(u.bodies[0].captureId);
+  if (Date.parse(bound.capturedAt) <= at) return { ok: false, lane, why: pre ? 'absent-from-latest-capture' : 'no-capture' };
+  if (week !== u.expected.week) return { ok: false, lane, why: 'captured-after-clock:not-assigned-week' };
+  if (!(eventStartOf(u) > at)) return { ok: false, lane, why: 'captured-after-clock:event-started-before-clock' };
+  return { ok: true, lane, served: { kind: 'capture', captureId: bound.captureId }, labels: ['capturedAfterClock'] };
+}
+
+function servedBody(served, u) {
+  if (served.kind === 'capture') return readBody(capById.get(served.captureId).file);
+  if (served.kind === 'fragment') return readBody(served.file);
+  return postOf(u)?.caption ?? '';
+}
+
+function buildInputs(entries, { floor }) {
+  const signals = [], forms = [];
+  for (const { u, avail } of entries) {
+    const form = JSON.parse(JSON.stringify(u.form));
+    // Excluded rows carry the reviewer's label; clearing it tests the
+    // verifier's own judgment.
+    form.exclude_reason = null;
+    if (floor && u.unitId === 'R37') {
+      form.when = { ...form.when, date: null, startTime: null, endTime: null };
+      form.evidence = form.evidence.map((e) => ({ ...e, date_quote: null }));
+    }
+    const url = form.evidence[0].url;
+    const post = avail.served.kind === 'ig' ? postOf(u) : null;
+    const key = avail.served.kind === 'capture' ? avail.served.captureId : avail.served.kind === 'ig' ? `ig:${post.shortcode}` : avail.served.file;
+    const fresh = recordsOf(key, u, servedBody(avail.served, u), post);
+    // Collection-time snapshot: reference-row records only (§7). Feed typed
+    // fields come from the conversion's snapshot so the verifier's feed
+    // projection check compares against what was collected.
+    const records = fresh.filter((r) => r.recordId === form.recordId).map((r) => ({ recordId: r.recordId,
+      typed: sourceOf(u)?.parse === 'json-feed' && u.recordBinding?.typed ? u.recordBinding.typed : r.typed }));
+    const signal = { signalId: form.signalId, sourceId: u.sourceId, url, records,
+      replay: { unitId: u.unitId, served: avail.served } };
+    if (post) signal.post = post;
+    signals.push(signal);
+    forms.push(form);
+  }
+  return { signals, forms };
+}
+
+/** Read-only replay fetcher bound to one clock. */
+function makeFetcher(clock) {
+  const at = Date.parse(clock);
+  const log = [];
+  const fetcher = async (url, context = {}) => {
+    const replay = context.signal?.replay;
+    const unitId = replay?.unitId;
+    log.push({ url, unitId: unitId || null });
+    if (BLOCKED.has(unitId)) return { status: 403 };
+    if (GONE.has(unitId)) return { status: 404 };
+    if (replay?.served?.kind === 'capture' || replay?.served?.kind === 'fragment') {
+      return { status: 200, body: servedBody(replay.served) };
+    }
+    // Any other URL (e.g. a syndication original): latest capture at/before the clock.
+    const pre = snapshotsFor(url).filter((c) => Date.parse(c.capturedAt) <= at).pop();
+    return pre ? { status: 200, body: readBody(pre.file) } : { status: 404 };
+  };
+  return { fetcher, log };
+}
+
+const unitIdsOf = (item) => [...new Set((item.constituents || [item]).map((m) => bySignal.get(m.signalId)?.unitId || m.signalId))];
+
+async function runReplay(verify, plan, { floor = false } = {}) {
   const weeks = {};
   const posts = [];
   for (const week of [37, 38, 39, 40]) {
     weeks[week] = [];
     for (const clock of SLOTS[week]) {
-      const pool = UNITS.filter((u) => gatePass(u, week));
-      const { signals, forms } = buildInputs(pool, { floorR37 });
-      const result = await verify({ signals, forms, now: clock, posts,
-        fetcher, recordExtractor });
-      const p = plan(result.items, { now: clock, posts });
-      const ids = p.countedItems.map((i) => i.subject);
-      weeks[week].push({ clock, decision: p.decision, reasons: p.reasons,
-        units: p.units, core: p.coreUnits, anchors: p.coreAnchorUnits,
-        ids, keys: p.countedItems.map((i) => i.identityKey),
-        cut: p.excluded.filter((e) => e.reason === 'cap').map((e) => e.item.subject),
-        still: p.stillInEffect.map((i) => i.subject),
-        excluded: p.excluded.map((e) => ({ subject: e.item.subject, reason: e.reason })),
-        verifyExcluded: result.excluded, digest: result.verifyDigest });
+      const entries = [], unavailable = [];
+      for (const u of UNITS) {
+        if (floor && FLOOR_DROP.has(u.unitId)) continue;
+        const avail = availability(u, clock, week);
+        if (avail.ok) entries.push({ u, avail }); else unavailable.push({ unitId: u.unitId, why: avail.why });
+      }
+      const { signals, forms } = buildInputs(entries, { floor });
+      const { fetcher, log } = makeFetcher(clock);
+      const args = { signals, forms, now: clock, posts: [...posts], fetcher };
+      assert.ok(!('recordExtractor' in args) && !('recordTools' in args), 'no extractor seam');
+      const result = await verify(args);
+      const p = plan(result.items, { now: clock, posts: [...posts] });
+      const slot = {
+        clock, decision: p.decision, reasons: p.reasons, units: p.units, core: p.coreUnits, anchors: p.coreAnchorUnits,
+        counted: p.countedItems.map((i) => ({ unitIds: unitIdsOf(i), subject: i.subject, key: i.identityKey,
+          keys: i.keys, locality: i.locality || i.verdict, itemType: i.item_type })),
+        cut: p.excluded.filter((e) => e.reason === 'cap').map((e) => unitIdsOf(e.item).join('+')),
+        still: p.stillInEffect.map((i) => unitIdsOf(i).join('+')),
+        planExcluded: p.excluded.map((e) => ({ unitIds: unitIdsOf(e.item), reason: e.reason })),
+        verifyExcluded: result.excluded.map((e) => ({ unitId: bySignal.get(e.signalId)?.unitId, reason: e.reason })),
+        verified: result.items.map((i) => bySignal.get(i.signalId)?.unitId),
+        pool: entries.map(({ u, avail }) => ({ unitId: u.unitId, lane: avail.lane, served: avail.served, labels: avail.labels })),
+        unavailable, fetches: log, digest: result.verifyDigest, postsBefore: posts.length,
+      };
+      weeks[week].push(slot);
       if (p.decision === 'publish') {
-        posts.push({ roundupCoverage: { version: 1, isoWeek: p.isoWeek,
-          planningCutoff: clock,
-          keys: [...new Set([...p.countedItems.flatMap((i) => i.keys),
-            ...p.stillInEffect.map((i) => i.identityKey)])] } });
+        posts.push({ roundupCoverage: { version: 1, isoWeek: p.isoWeek, planningCutoff: clock,
+          keys: [...new Set([...p.countedItems.flatMap((i) => i.keys), ...p.stillInEffect.map((i) => i.identityKey)])] } });
         break;
       }
     }
@@ -245,297 +300,272 @@ async function runRealScenario(verify, plan, { floorR37 }) {
   return weeks;
 }
 
-// ------------------------------------------------------------------ tests ---
-const V = await (async () => {
-  try {
-    const v = await prodMod('roundup-verify.mjs');
-    const r = await prodMod('roundup.mjs');
-    const e = await prodMod('roundup-evidence.mjs');
-    await prodMod('roundup-geo.mjs');
-    await prodMod('roundup-records.mjs');
-    if (typeof v.verifyRoundupForms === 'function' && typeof r.planRoundupV2 === 'function' &&
-      typeof e.roundupSourceQuality === 'function' && typeof r.roundupCoveredKeys === 'function') {
-      console.log(`    product stack: ${PROD}`);
-      return { integrated: true, verify: v.verifyRoundupForms, plan: r.planRoundupV2,
-        quality: e.roundupSourceQuality, covered: r.roundupCoveredKeys, dir: PROD };
-    }
-  } catch { /* not integrated: REAL tests fail below, no surrogate */ }
-  return { integrated: false };
-})();
+// Approved §7 table (docs/specs/weekly-roundup-v2.md @ 5590d7c), printed for
+// comparison only — never asserted against the captures.
+const APPROVED = {
+  ceiling: { 37: 'publish Wed 8 (3/1)', 38: 'HOLD below-minimum (Wed 2 (1/1); Fri/Sun 1 (0/0))',
+    39: 'publish Fri 3 (1/1)', 40: 'publish 16 (4/3) -> cap 12' },
+  floor: { 37: 'publish Wed 8 (3/1)', 38: 'HOLD below-minimum (Wed 2 (1/1); Fri/Sun 1 (0/0))',
+    39: 'HOLD below-minimum (Fri/Sun 2 (1/1))', 40: 'publish 15 (5/4) -> cap 12' },
+};
+const APPROVED_UNITS = {
+  37: ['IG084', 'IG069', 'IG065', 'R07a', 'R07b', 'R22b', 'R22a', 'R22c', 'R08-i', 'R24-i', 'R09'],
+  38: ['R20', 'R38'],
+  39: ['R39-i', 'IG193', 'R37'],
+  40: ['R50', 'R52', 'IG214', 'IG215', 'R53', 'R54', 'R58-i', 'R59a', 'R59b', 'R59c', 'R55', 'R57a'],
+};
+const fmtSlot = (s) => `${s.decision} ${s.units} (${s.core}/${s.anchors})${s.reasons.length ? ' ' + s.reasons.join('+') : ''}`;
 
+// ------------------------------------------------------------------ tests ---
 test('reference fixtures are immutable byte copies with pinned hashes', () => {
   for (const [rel, pin] of Object.entries(PIN_REFERENCE)) {
-    const actual = sha(readFileSync(path.join(REF, rel)));
-    assert.equal(actual, pin, `reference/${rel} changed`);
+    assert.equal(sha(readFileSync(path.join(REF, rel))), pin, `reference/${rel} changed`);
     assert.equal(header.reference[rel], pin, `header must pin reference/${rel}`);
   }
 });
 
-test('conversion header pins the source archives it was built from', () => {
+test('conversion header pins its archives and does not claim fact (ii) verified', () => {
   for (const [name, pin] of Object.entries(PIN_ARCHIVE)) {
-    const h = name.startsWith('backtest-')
-      ? header.archiveBacktest[name.slice('backtest-'.length)]
-      : header.archive[name];
+    const h = name.startsWith('backtest-') ? header.archiveBacktest[name.slice('backtest-'.length)] : header.archive[name];
     assert.equal(h, pin, `header archive hash mismatch: ${name}`);
   }
   assert.equal(header.unresolvedFact.id, 'ii');
-  assert.equal(header.unresolvedFact.status, 'verified');
+  // R37's only capture is the post-cutoff revision; (ii) is unavailable.
+  assert.equal(header.unresolvedFact.status, 'unavailable');
+  const r37 = byId.get('R37');
+  assert.ok(r37.unavailable.includes('dateline-pre-cutoff-revision'), 'R37 lists the missing pre-cutoff revision');
+  assert.ok(!/datePublished/.test(r37.form.evidence[0].date_quote || ''), 'R37 no longer quotes serialized JSON-LD');
 });
 
-test('every conversion line has a schema-valid form, real bodies and verbatim spans', () => {
+test('full captures are committed raw bytes with pinned hashes and provenance', () => {
+  assert.ok(CAPTURES.length >= 12);
+  for (const c of CAPTURES) {
+    const bytes = readFileSync(path.join(REP, c.file));
+    assert.equal(sha(bytes), c.sha256, `${c.captureId} sha256`);
+    assert.equal(bytes.length, c.bytes, `${c.captureId} byte length`);
+    assert.equal(path.basename(c.file).split('.')[0], c.sha256, `${c.captureId} content-addressed`);
+    assert.match(c.url, /^https:\/\//, `${c.captureId} canonical https url`);
+    assert.ok(!/web\.archive\.org/.test(c.url), `${c.captureId} url is the canonical source, not Wayback`);
+    if (c.capture === 'wayback') {
+      // The capture instant is embedded in the response itself.
+      assert.ok(bytes.toString('utf8').includes(c.waybackMarker), `${c.captureId} embedded Wayback timestamp`);
+      const stamp = c.waybackUrl.match(/\/web\/(\d{14})\//)[1];
+      assert.equal(stamp, c.capturedAt.replace(/[-:TZ]/g, ''), `${c.captureId} capturedAt matches Wayback stamp`);
+    } else {
+      assert.equal(c.capture, 'live');
+      assert.match(c.capturedAtBasis, /declared/, `${c.captureId} live instant is declared, never upgraded`);
+      for (const clock of Object.values(SLOTS).flat()) {
+        assert.ok(Date.parse(c.capturedAt) > Date.parse(clock), `${c.captureId} live capture is after every clock`);
+      }
+    }
+  }
+});
+
+test('Instagram provider rows are minimal and match the archived raw rows', (t) => {
+  for (const r of IG_ROWS.values()) {
+    assert.deepEqual(Object.keys(r).sort(), ['archiveFile', 'caption', 'captionSha256', 'ownerUsername', 'shortCode', 'timestamp', 'type'].sort());
+    assert.equal(sha(r.caption), r.captionSha256);
+  }
+  if (!existsSync(IG_ARCHIVE)) { t.diagnostic(`archive absent at ${IG_ARCHIVE}; archive cross-check skipped (captions pinned by sha)`); return; }
+  for (const [name, pin] of Object.entries(PIN_ARCHIVE)) {
+    if (name.startsWith('backtest-')) continue;
+    assert.equal(sha(readFileSync(path.join(IG_ARCHIVE, name))), pin, `archive ${name}`);
+  }
+  const raw = ['owned-posts.json', ...[1, 2, 3, 4, 5].map((i) => `apify-items${i}.json`)]
+    .flatMap((f) => { const j = JSON.parse(readFileSync(path.join(IG_ARCHIVE, f), 'utf8')); return Array.isArray(j) ? j : []; });
+  for (const r of IG_ROWS.values()) {
+    const row = raw.find((x) => x.shortCode === r.shortCode);
+    assert.ok(row, `${r.shortCode} in archive`);
+    assert.equal(row.caption ?? '', r.caption, `${r.shortCode} raw caption (line breaks intact)`);
+    assert.equal(row.timestamp, r.timestamp);
+    assert.equal(row.ownerUsername, r.ownerUsername);
+  }
+});
+
+test('every conversion line is schema-valid with honest body provenance', () => {
   const VERDICTS = new Set(['core', 'adjacent', 'not-LV']);
-  const ITYPES = new Set(['event', 'class', 'concert', 'sports', 'expo', 'community',
-    'opening', 'closure', 'road', 'transit', 'project', 'news']);
-  assert.ok(UNITS.length > 100, `expected >100 units, got ${UNITS.length}`);
+  const ITYPES = new Set(['event', 'class', 'concert', 'sports', 'expo', 'community', 'opening', 'closure', 'road',
+    'transit', 'project', 'news']);
   const cp = (s) => [...s].length;
+  assert.ok(UNITS.length > 100, `expected >100 units, got ${UNITS.length}`);
   for (const u of UNITS) {
-    assert.ok(u.unitId && u.form && u.bodies?.length >= 1 && u.spans?.length >= 1 && u.expected,
-      `unit shape: ${u.unitId}`);
     const f = u.form;
-    for (const k of ['signalId', 'recordId', 'subject', 'what', 'where_it_happens', 'when',
-      'who_is_affected', 'relevance_reason', 'verdict', 'evidence', 'item_type', 'people',
-      'risk', 'exclude_reason']) assert.ok(k in f, `${u.unitId} form.${k}`);
+    for (const k of ['signalId', 'recordId', 'subject', 'what', 'where_it_happens', 'when', 'who_is_affected',
+      'relevance_reason', 'verdict', 'evidence', 'item_type', 'people', 'risk', 'exclude_reason']) assert.ok(k in f, `${u.unitId} form.${k}`);
     assert.ok(cp(f.subject) <= 120 && cp(f.what) <= 200 && cp(f.where_it_happens) <= 200 &&
       cp(f.who_is_affected) <= 200 && cp(f.relevance_reason) <= 300, `${u.unitId} lengths`);
     assert.ok(VERDICTS.has(f.verdict) && ITYPES.has(f.item_type), `${u.unitId} enums`);
     assert.ok(f.evidence.length >= 1 && f.evidence.length <= 3, `${u.unitId} evidence`);
-    for (const e of f.evidence) {
-      assert.ok(e.url?.startsWith('https://') || e.url?.startsWith('http://') ||
-        e.url?.startsWith('repo:'), `${u.unitId} url`);
-      for (const [qk, lim] of [['subject_quote', 300], ['place_quote', 300], ['date_quote', 200]]) {
-        if (e[qk] != null) assert.ok([...e[qk]].length <= lim, `${u.unitId} ${qk}`);
-      }
+    assert.ok(['ig-caption', 'full-capture', 'fragment'].includes(u.bodyKind), `${u.unitId} bodyKind`);
+    assert.equal(u.bodies.length, 1, `${u.unitId} one bound body (never concatenated)`);
+    const b = u.bodies[0];
+    if (u.bodyKind === 'full-capture') assert.ok(capById.has(b.captureId), `${u.unitId} capture in manifest`);
+    if (u.bodyKind === 'ig-caption') assert.ok(IG_ROWS.has(b.shortCode), `${u.unitId} provider row`);
+    if (u.bodyKind === 'fragment') {
+      assert.equal(sha(readFileSync(path.join(REP, b.file))), path.basename(b.file).split('.')[0], `${u.unitId} fragment hash`);
+      assert.ok(u.unavailable.includes('record-text-fragment'), `${u.unitId} fragment is labelled`);
+      assert.notEqual(u.expected.class, 'eligible', `${u.unitId} eligible units never rest on fragments`);
     }
-    const texts = u.bodies.map((b) => bodyTextOf(b.file));
-    for (const b of u.bodies) {
-      const fp = path.join(REP, b.file);
-      assert.ok(existsSync(fp), `${u.unitId} missing ${b.file}`);
-      assert.equal(sha(readFileSync(fp)), path.basename(b.file).split('.')[0],
-        `${u.unitId} body hash must match filename`);
-      assert.ok(['live', 'wayback', 'archive', 'provider-archive'].includes(b.capture), `${u.unitId} capture`);
-    }
-    for (const s of u.spans) {
-      assert.ok(s.text.length > 0, `${u.unitId} empty span`);
-      assert.ok(texts.some((t) => t.slice(s.start, s.end) === s.text),
-        `${u.unitId} span must resolve verbatim in one of its bodies`);
-    }
-    if (u.occurrenceKey) assert.match(u.occurrenceKey, /^(occ:|road:|news:)/, `${u.unitId} key`);
-  }
-});
-
-test('A4 trap rows carry the reviewed reason classes', () => {
-  const pins = {
-    R44x: 'not-LV', R03x: 'not-LV', R02x: 'unverifiable', R65x: 'unverifiable',
-    R43x: 'not-LV', R41x: 'not-LV', R62x: 'not-LV', R63x: 'not-LV', R64x: 'not-LV',
-    R23x: 'duplicate', R04x: 'risky', R42x: 'risky',
-    R01x: 'weak-source', R05x: 'weak-source', R06x: 'weak-source', R21x: 'weak-source',
-    R32x: 'weak-source', R33x: 'weak-source', R36x: 'weak-source',
-    R51x: 'weak-source', R60x: 'weak-source',
-    R10x: 'unverifiable', R25x: 'unverifiable', R11x: 'unverifiable', R30x: 'unverifiable',
-    R12x: 'unverifiable', R13x: 'unverifiable',
-    R16x: 'not-LV', R17x: 'weak-source', R18x: 'weak-source', R19x: 'stale',
-    R31x: 'not-LV', R40x: 'undated', R48x: 'not-LV', R49x: 'weak-source',
-    R61: 'undated', R34x: 'undated', R35x: 'undated', R59c: 'eligible',
-  };
-  for (const [id, cls] of Object.entries(pins)) {
-    assert.equal(byId.get(id)?.expected.class, cls, `${id} class`);
-  }
-  const igPins = {
-    IG034x: 'lead', IG099x: 'lead', IG100x: 'lead',
-    IG124x: 'retrospective', IG227x: 'retrospective',
-    IG157x: 'unverifiable', IG158x: 'concluded', IG200x: 'concluded',
-    IG221x: 'unverifiable', IG223x: 'class-cap', IG117x: 'unverifiable',
-    IG074x: 'duplicate-ambiguous', IG042x: 'unverifiable', IG132x: 'record-missing',
-    IG192x: 'not-LV', IG218x: 'not-LV', IG134x: 'not-LV', IG162x: 'not-LV',
-    IG001x: 'stale',
-  };
-  for (const [id, cls] of Object.entries(igPins)) {
-    assert.equal(byId.get(id)?.expected.class, cls, `${id} class`);
   }
 });
 
 if (V.integrated) {
-  test('REAL replay: ceiling table from verifyRoundupForms+planRoundupV2', async () => {
-    // Honest table on the integrated stack (no forcing): the trial IG
-    // captions lack the Toronto context and bindable venue spans the
-    // product requires (U1/U3), the RBC JSON-LD writes one-word
-    // 'Lakeshore', and the watch list lacks deltatrainlv — so W37 has no
-    // anchor, W39 is empty, and R20/R50/IG214 carry W38/W40.
-    const w = await runRealScenario(V.verify, V.plan, { floorR37: false });
-    const first = (t) => t[0];
-    for (const slot of w[37]) {
-      assert.equal(slot.decision, 'hold');
-      assert.ok(slot.reasons.includes('no-core'));
+  test('record ids, typed snapshots and spans come from the production extractor', () => {
+    let bound = 0;
+    for (const u of UNITS) {
+      const records = boundRecords(u);
+      if (u.recordBinding.recordId === null) {
+        assert.ok(u.unavailable.includes('record'), `${u.unitId} unbound record is listed unavailable`);
+        assert.ok(!records.some((r) => r.recordId === u.form.recordId), `${u.unitId} no fixture id masquerades as a record`);
+        continue;
+      }
+      const rec = records.find((r) => r.recordId === u.form.recordId);
+      assert.ok(rec, `${u.unitId} ${u.form.recordId} is emitted by extractRoundupRecords on its bound body`);
+      assert.equal(u.form.evidence[0].recordId, rec.recordId, `${u.unitId} evidence recordId`);
+      assert.deepEqual(u.recordBinding.typed, JSON.parse(JSON.stringify(rec.typed)), `${u.unitId} typed snapshot`);
+      const n = V.normalize(rec.text);
+      for (const s of u.spans) {
+        assert.equal(s.recordId, rec.recordId, `${u.unitId} span record`);
+        assert.equal(n.slice(s.start, s.end), s.text, `${u.unitId} ${s.field} span offsets resolve in the normalized record`);
+      }
+      const e = u.form.evidence[0];
+      for (const [qk, field] of [['subject_quote', 'subject'], ['place_quote', 'place'], ['date_quote', 'date']]) {
+        if (e[qk] == null) continue;
+        const f = field === 'date' && u.form.when?.kind === 'news-update' ? 'dateline' : field;
+        const contiguous = n.includes(V.normalize(e[qk]));
+        assert.equal(contiguous, !u.unavailable.includes(f), `${u.unitId} ${qk} contiguity matches its unavailable list`);
+      }
+      bound++;
     }
-    assert.deepEqual([first(w[37]).units, first(w[37]).core, first(w[37]).anchors], [5, 1, 0]);
-    // W38 holds below-minimum at every slot: single-week pools admit only
-    // W38 evidence (R20 + Tove Lo). The earlier publish was a harness
-    // artifact of rolling W37's Tempo games forward.
-    for (const slot of w[38]) {
-      assert.equal(slot.decision, 'hold');
-      assert.ok(slot.reasons.includes('below-minimum'));
+    assert.ok(bound >= 80, `bound ${bound}`);
+    for (const u of UNITS.filter((x) => x.expected.class === 'eligible')) {
+      assert.notEqual(u.bodyKind, 'fragment', `${u.unitId} eligible unit uses a full body`);
+      assert.ok(u.spans.some((s) => s.field === 'subject'), `${u.unitId} subject span`);
     }
-    assert.deepEqual([first(w[38]).units, first(w[38]).core, first(w[38]).anchors], [2, 1, 1]);
-    assert.ok(first(w[38]).ids.includes('Give Me Liberty'), 'R20 anchors W38');
-    // IG117's caption states the Lamport lot but carries no Toronto
-    // context, so it fails at verify under the U1 rule (like IG084) and
-    // never reaches the venue-day tiebreak against R20.
-    const ig117sig = byId.get('IG117x').form.signalId;
-    assert.ok(first(w[38]).verifyExcluded.some((e) => e.signalId === ig117sig &&
-      e.reason === 'unverifiable'), 'IG117 unverifiable (U1 Toronto context)');
-    // W39 is empty in both scenarios: the RBC rows fail on the 'Lakeshore'
-    // spelling, R37's DD/MM/YYYY dateline is outside the record grammar
-    // (plus the frozen revision post-dates the clock), and IG193 fails on
-    // the NRG alias gap.
-    for (const slot of w[39]) {
-      assert.equal(slot.decision, 'hold');
-      assert.deepEqual([slot.units, slot.core, slot.anchors], [0, 0, 0]);
-    }
-    const r37sig = byId.get('R37').form.signalId;
-    for (const slot of w[39]) assert.ok(slot.verifyExcluded.some((e) =>
-      e.signalId === r37sig && e.reason === 'undated'), 'R37 undated in ceiling too');
-    // IG193 never verifies; the recorded reason is clock-relative (NRG
-    // alias gap at Wed, day-first date grammar at Fri/Sun).
-    const ig193sig = byId.get('IG193').form.signalId;
-    assert.ok(w[39][0].verifyExcluded.some((e) =>
-      e.signalId === ig193sig && e.reason === 'unverifiable'), 'IG193 Wed unverifiable');
-    for (const slot of w[39].slice(1)) assert.ok(slot.verifyExcluded.some((e) =>
-      e.signalId === ig193sig && e.reason === 'undated'), 'IG193 Fri/Sun undated');
-    assert.equal(first(w[40]).decision, 'publish');
-    assert.deepEqual([first(w[40]).units, first(w[40]).core, first(w[40]).anchors], [12, 3, 3]);
-    assert.deepEqual(first(w[40]).cut, [], 'no cap cut at 12');
-    assert.ok(first(w[40]).ids.includes(byId.get('IG214').form.subject), 'IG214 anchors W40');
-    assert.ok(first(w[40]).ids.includes('Open House'), 'R50 anchors W40');
-    // R59c verifies solo but shares R59b's venue-day with a different
-    // subject, so the planner holds it duplicate-ambiguous (F3 resolved by
-    // mechanism, not by label).
-    assert.ok(first(w[40]).excluded.some((e) => e.subject.includes('Baby Show') &&
-      e.reason === 'duplicate-ambiguous'), 'R59c held as ambiguous vs R59b');
+    // F1: R22 punctuation comes from the real row, not the fragment.
+    assert.equal(byId.get('R22a').form.evidence[0].date_quote, 'Friday | Sep 18, 2026');
+    // F3: R59 rows are the genuine captured rows.
+    assert.equal(byId.get('R59a').form.recordId, 'row:7c5442462325e6b189bffd5b65f54675');
+    assert.equal(byId.get('R59b').form.recordId, 'row:40f104176844a06a2551b8b3d969ef66');
+    assert.equal(byId.get('R59c').form.recordId, 'row:3fdaa0679cffa3b219cbef9290b1bba8');
   });
 
-  test('REAL replay: floor holds W39 and publishes W40 without R37', async () => {
-    // R37 is undated-by-construction in both scenarios, so floor and
-    // ceiling agree exactly (identical digests in the census run).
-    const w = await runRealScenario(V.verify, V.plan, { floorR37: true });
-    for (const slot of w[37]) assert.equal(slot.decision, 'hold');
-    for (const slot of w[38]) assert.equal(slot.decision, 'hold');
-    assert.deepEqual([w[38][0].units, w[38][0].core, w[38][0].anchors], [2, 1, 1]);
-    for (const slot of w[39]) {
-      assert.equal(slot.decision, 'hold');
-      assert.deepEqual([slot.units, slot.core, slot.anchors], [0, 0, 0]);
+  const REPLAY = {};
+  const replay = async (floor) => (REPLAY[floor] ??= await runReplay(V.verify, V.plan, { floor }));
+
+  test('REAL replay: availability follows §7 one-pool capture-time rules', async () => {
+    for (const floor of [false, true]) {
+      const w = await replay(floor);
+      const seen = new Map();
+      for (const week of [37, 38, 39, 40]) {
+        for (const s of w[week]) {
+          const at = Date.parse(s.clock);
+          for (const p of s.pool) {
+            const u = byId.get(p.unitId);
+            if (p.lane === 'ig') assert.ok(Date.parse(postOf(u).timestamp) <= at, `${p.unitId} posted by ${s.clock}`);
+            if (p.lane === 'news' && u.clockFacts.dateline) assert.ok(u.clockFacts.dateline <= dayOf(at), `${p.unitId} dateline by ${s.clock}`);
+            if (p.served.kind === 'capture' && p.lane === 'record') {
+              const c = capById.get(p.served.captureId);
+              if (Date.parse(c.capturedAt) > at) {
+                assert.ok(p.labels.includes('capturedAfterClock'), `${p.unitId} labelled capturedAfterClock`);
+                assert.equal(week, u.expected.week, `${p.unitId} after-clock record only in its assigned week`);
+                assert.ok(eventStartOf(u) > at, `${p.unitId} after-clock record only for a later event`);
+              } else {
+                // Served snapshot is the LATEST capture at or before the clock.
+                const later = snapshotsFor(c.url).filter((x) => Date.parse(x.capturedAt) <= at && Date.parse(x.capturedAt) > Date.parse(c.capturedAt));
+                assert.equal(later.length, 0, `${p.unitId} served the latest pre-clock capture`);
+              }
+            }
+            // One pool: IG and dated news, once available, stay available.
+            if (p.lane !== 'record') seen.set(p.unitId, s.clock);
+          }
+          for (const [id] of seen) {
+            if (floor && FLOOR_DROP.has(id)) continue;
+            assert.ok(s.pool.some((p) => p.unitId === id), `${id} rolls forward to ${s.clock}`);
+          }
+          // Every unit fetched through its own served body; no concatenation.
+          for (const f of s.fetches) if (f.unitId) assert.ok(s.pool.some((p) => p.unitId === f.unitId), 'fetch belongs to a pooled unit');
+        }
+      }
     }
-    assert.equal(w[40][0].decision, 'publish');
-    assert.deepEqual([w[40][0].units, w[40][0].core, w[40][0].anchors], [12, 3, 3]);
   });
 
-  test('REAL planner names covered roads still in effect (product pattern)', async () => {
-    // Mirrors the product's own plan test: items verified against older posts
-    // are re-planned against current coverage. R09 verifies post-free, then
-    // the W37 coverage post moves it to stillInEffect (road, active).
-    const u = byId.get('R09');
-    const r = await V.verify({ ...buildInputs([u]), now: SLOTS[38][0], posts: [],
-      fetcher, recordExtractor });
-    assert.equal(r.items.length, 1, 'R09 verifies post-free');
-    const post = { roundupCoverage: { version: 1, isoWeek: 37,
-      planningCutoff: SLOTS[37][0], keys: [r.items[0].identityKey] } };
-    const p = V.plan(r.items, { now: SLOTS[38][0], posts: [post] });
-    assert.ok(p.stillInEffect.some((i) => i.subject === u.form.subject), 'R09 still in effect');
-    assert.ok(p.excluded.some((e) => e.reason === 'previously-covered'), 'covered drop recorded');
+  test('REAL replay: publish rule, cap and sequential coverage invariants', async () => {
+    for (const floor of [false, true]) {
+      const w = await replay(floor);
+      const publishedKeys = new Set();
+      for (const week of [37, 38, 39, 40]) {
+        const slots = w[week];
+        slots.forEach((s, i) => {
+          assert.equal(s.decision === 'publish', s.units >= 3 && s.anchors >= 1, `W${week} ${s.clock} publish rule`);
+          assert.ok(s.units <= 12, 'cap 12');
+          assert.equal(s.units, s.counted.length);
+          if (s.decision === 'publish') assert.equal(i, slots.length - 1, 'a week stops at its first publishing slot');
+          for (const c of s.counted) for (const k of c.keys) {
+            assert.ok(!publishedKeys.has(k), `W${week} ${k} was already published`);
+          }
+        });
+        const last = slots[slots.length - 1];
+        if (last.decision === 'publish') for (const c of last.counted) for (const k of c.keys) publishedKeys.add(k);
+      }
+    }
   });
 
-  test('REAL harness integrity: the census follows the injected verifier, not the fixtures', async () => {
-    assert.equal(V.verify.name, 'verifyRoundupForms', 'real verifier wired');
-    assert.equal(V.plan.name, 'planRoundupV2', 'real planner wired');
-    // GREEN with the product verifier+planner (honest table, not the
-    // printed spec table: W37 holds for no core on the integrated stack).
-    const green = await runRealScenario(V.verify, V.plan, { floorR37: false });
-    assert.equal(green[37][0].decision, 'hold');
-    assert.deepEqual([green[37][0].units, green[37][0].core, green[37][0].anchors], [5, 1, 0]);
-    // RED-1: a verifier that returns nothing empties W37 (0 units vs 5).
-    const emptyVerify = async () => ({ items: [], excluded: [], verifyDigest: 'empty-stub' });
-    const red1 = await runRealScenario(emptyVerify, V.plan, { floorR37: false });
-    assert.equal(red1[37][0].digest, 'empty-stub', 'empty stub really ran');
-    assert.equal(red1[37][0].units, 0, 'empty verifier admits nothing');
-    assert.ok(red1[37][0].reasons.includes('no-core'));
-    // RED-2: an evidence-blind mock admitting every form as core publishes
-    // the held weeks. If the eval read expectations off the fixtures, the
-    // mock would still print the pinned table; instead the holds flip.
+  test('REAL replay: no trap, lead or reviewer-excluded row is ever counted', async () => {
+    for (const floor of [false, true]) {
+      const w = await replay(floor);
+      for (const week of [37, 38, 39, 40]) for (const s of w[week]) for (const c of s.counted) for (const id of c.unitIds) {
+        assert.equal(byId.get(id)?.expected.class, 'eligible', `W${week} ${s.clock} counted non-eligible ${id} (${c.subject})`);
+      }
+      // Floor: fact (ii) and the conditional spans never count.
+      if (floor) for (const week of [37, 38, 39, 40]) for (const s of w[week]) for (const c of s.counted) {
+        assert.ok(!c.unitIds.some((id) => id === 'R37' || FLOOR_DROP.has(id)), `floor counted ${c.unitIds}`);
+      }
+    }
+  });
+
+  test('REAL harness integrity: outcomes follow the injected verifier, not the fixtures', async () => {
+    const empty = await runReplay(async () => ({ items: [], excluded: [], verifyDigest: 'empty-stub' }), V.plan);
+    assert.equal(empty[37][0].digest, 'empty-stub');
+    for (const week of [37, 38, 39, 40]) for (const s of empty[week]) assert.equal(s.units, 0);
     const acceptAll = async ({ forms }) => ({
-      items: forms.map((f) => ({ subject: f.subject, identityKey: 'stub:' + f.signalId,
-        keys: ['stub:' + f.signalId], locality: 'core', verdict: 'core', item_type: 'event',
-        when: { date: '2026-09-16', kind: 'event' }, active: true, tier: 'official' })),
-      excluded: [], verifyDigest: 'accept-stub',
-    });
-    const red2 = await runRealScenario(acceptAll, V.plan, { floorR37: false });
-    assert.equal(red2[38][0].digest, 'accept-stub', 'mock really ran');
-    assert.equal(red2[38][0].decision, 'publish', 'evidence-blind mock publishes held weeks');
-    assert.equal(red2[39][0].decision, 'publish', 'evidence-blind mock publishes held weeks');
+      items: forms.map((f) => ({ ...f, identityKey: 'stub:' + f.signalId, keys: ['stub:' + f.signalId], locality: 'core',
+        verdict: 'core', item_type: 'event', when: { date: '2026-10-30', kind: 'event' }, date: '2026-10-30', active: true,
+        tier: 'official' })),
+      excluded: [], verifyDigest: 'accept-stub' });
+    const all = await runReplay(acceptAll, V.plan);
+    for (const week of [37, 38, 39, 40]) assert.equal(all[week][0].decision, 'publish', `evidence-blind mock publishes W${week}`);
   });
 
-  test('REAL planner drops the ambiguous duplicate and aggregates concerts', async () => {
-    const w = await runRealScenario(V.verify, V.plan, { floorR37: false });
-    const w40drop = w[40][0].excluded;
-    assert.ok(w40drop.some((e) => e.reason === 'duplicate-ambiguous' &&
-      e.subject.includes('Baby Show')), `R59c dropped: ${JSON.stringify(w40drop)}`);
-    assert.ok(w40drop.some((e) => e.reason === 'concert-aggregate'),
-      `concert parts aggregated: ${JSON.stringify(w40drop)}`);
-    assert.ok(w[37][0].excluded.some((e) => e.reason === 'concert-aggregate'),
-      'W37 concert parts aggregated');
-  });
-
-  test('REAL sensitivity: W37 holds for no core with or without IG084', async () => {
-    // The spec's sensitivity scenario assumed the Eco-Fair posts anchor.
-    // Under the product's U1/U3 rules neither IG084 (no Toronto context in
-    // caption) nor IG074 (no relation marker) verifies, so W37 holds
-    // without them too — removing IG084 only shrinks the pool 5 to 4.
-    const pool37 = UNITS.filter((u) => gatePass(u, 37));
-    const run = async (drop) => {
-      const keep = pool37.filter((u) => !drop.includes(u.unitId));
-      const { signals, forms } = buildInputs(keep);
-      const clock = SLOTS[37][0];
-      const result = await V.verify({ signals, forms, now: clock, posts: [],
-        fetcher, recordExtractor });
-      return V.plan(result.items, { now: clock, posts: [] });
-    };
-    const a = await run([]);
-    assert.equal(a.decision, 'hold');
-    assert.ok(a.reasons.includes('no-core'));
-    assert.equal(a.units, 5);
-    const b = await run(['IG084']);
-    assert.equal(b.decision, 'hold');
-    assert.ok(b.reasons.includes('no-core'));
-    assert.deepEqual(b.countedItems.map((i) => i.subject), a.countedItems.map((i) => i.subject),
-      'IG084 never verifies, so removing it changes nothing');
-  });
-
-  test('REAL negative controls: exact verifier reasons where deterministic', async () => {
-    // Discovery rows can never reach the tier check (dateFromRecord returns
-    // null for news-discovery), so their real reasons are date/identity
-    // outcomes; the weak-source substance is covered by the predicate test.
-    const controls = [
-      ['R05x', '2026-09-10T16:00:00Z', 'undated'],
-      ['R06x', '2026-09-12T16:00:00Z', 'undated'],
-      ['R36x', '2026-09-27T12:00:00Z', 'undated'],
-      ['R04x', '2026-09-09T16:00:00Z', 'unverifiable'],
-      ['R02x', '2026-09-13T16:00:00Z', 'unverifiable'],
-      ['R61', '2026-09-29T15:00:00Z', 'unverifiable'],  // no place evidence: identity precedes temporal; 'undated' unreachable
-      ['IG221x', '2026-09-29T15:00:00Z', 'unverifiable'],
-      ['IG117x', '2026-09-16T16:00:00Z', 'unverifiable'],
-      ['IG042x', '2026-09-09T16:00:00Z', 'source-swapped'],
-      ['IG124x', '2026-09-16T16:00:00Z', 'retrospective'],
-      ['IG227x', '2026-09-29T15:00:00Z', 'unverifiable'],  // recap but venue-free caption + multi-location: no identity, no fallback
-      ['IG158x', '2026-09-20T16:00:00Z', 'unverifiable'],  // quest multi-location: no fallback without quotable place
-      ['IG200x', '2026-09-27T16:00:00Z', 'unverifiable'],  // deltatrainlv absent from product watch list (registry gap)
-      ['R10x', '2026-09-09T16:00:00Z', 'unverifiable'],
-      ['R12x', '2026-09-09T16:00:00Z', 'record-missing'],
-    ];
-    for (const [id, clock, reason] of controls) {
-      const { signals, forms } = buildInputs([byId.get(id)]);
-      const r = await V.verify({ signals, forms, now: clock, posts: [],
-        fetcher, recordExtractor });
-      assert.equal(r.items.length, 0, `${id} must not verify`);
-      assert.equal(r.excluded[0]?.reason, reason, `${id} real reason`);
+  test('REAL replay census (printed; compared with the approved §7 table, not asserted)', async () => {
+    const out = {};
+    for (const floor of [false, true]) {
+      const name = floor ? 'floor' : 'ceiling';
+      const w = await replay(floor);
+      out[name] = w;
+      console.log(`    ---- scenario ${name} (real verifier + planner + production extractor) ----`);
+      for (const week of [37, 38, 39, 40]) {
+        for (const s of w[week]) {
+          const after = s.pool.filter((p) => p.labels.includes('capturedAfterClock')).map((p) => p.unitId);
+          console.log(`    W${week} ${s.clock} ${fmtSlot(s)} pool=${s.pool.length} verified=${s.verified.length} digest=${s.digest.slice(0, 12)}`);
+          console.log(`      counted: ${s.counted.map((c) => `${c.unitIds.join('+')}[${c.locality}${c.itemType === 'class' ? ',class' : ''}]`).join(' ') || '-'}`);
+          if (s.cut.length) console.log(`      cap cut: ${s.cut.join(' ')}`);
+          if (s.still.length) console.log(`      still in effect: ${s.still.join(' ')}`);
+          if (after.length) console.log(`      capturedAfterClock: ${after.join(' ')}`);
+          const ex = s.verifyExcluded.filter((e) => byId.get(e.unitId)?.expected.class === 'eligible');
+          if (ex.length) console.log(`      eligible excluded by verifier: ${ex.map((e) => `${e.unitId}:${e.reason}`).join(' ')}`);
+          const px = s.planExcluded.filter((e) => e.reason !== 'cap');
+          if (px.length) console.log(`      planner dropped: ${px.map((e) => `${e.unitIds.join('+')}:${e.reason}`).join(' ')}`);
+        }
+        const last = w[week][w[week].length - 1];
+        const observed = new Set(w[week].flatMap((s) => s.counted.flatMap((c) => c.unitIds)));
+        const approved = APPROVED_UNITS[week].filter((id) => !(floor && (id === 'R37' || FLOOR_DROP.has(id))));
+        console.log(`      approved: ${APPROVED[name][week]} | observed deciding: ${last.clock} ${fmtSlot(last)}`);
+        console.log(`      approved units missing: ${approved.filter((id) => !observed.has(id)).join(' ') || '-'}; ` +
+          `extra: ${[...observed].filter((id) => !APPROVED_UNITS[week].includes(id)).join(' ') || '-'}`);
+      }
     }
+    if (process.env.RV_CENSUS_OUT) writeFileSync(process.env.RV_CENSUS_OUT, JSON.stringify(out, null, 1));
   });
 
   test('REAL source-quality predicate on fixture evidence tiers', () => {
@@ -546,23 +576,10 @@ if (V.integrated) {
     assert.equal(V.quality([entry('reputable', 'thestar.com')]), false);
     assert.equal(V.quality([entry('lead', 'blogto.com'), entry('lead', 'cbc.ca')]), true);
   });
-
-  test('REAL census table (evidence)', async () => {
-    for (const floorR37 of [false, true]) {
-      const w = await runRealScenario(V.verify, V.plan, { floorR37 });
-      console.log(`    scenario ceiling=${!floorR37} (real verifier+planner)`);
-      for (const week of [37, 38, 39, 40]) {
-        for (const s of w[week]) {
-          console.log(`    W${week} ${s.clock} ${s.decision} units=${s.units} core=${s.core} anchor=${s.anchors} ` +
-            `reasons=${s.reasons.join('+') || '-'} digest=${s.digest.slice(0, 12)}`);
-        }
-      }
-    }
-  });
 }
 
-// No surrogate: without the full product stack every REAL test below is
+// No surrogate: without the full product stack every REAL test above is
 // skipped by its guard, so this gate fails loudly instead of passing.
 test('product stack present (no surrogate)', () => {
-  assert.ok(V.integrated, `real product stack absent in ${PROD} (needs verify/plan/evidence/geo/records)`);
+  assert.ok(V.integrated, `real product stack absent in ${PROD} (needs verify/plan/evidence/geo/records/sources)`);
 });
