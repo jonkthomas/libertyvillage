@@ -54,6 +54,7 @@ test('diagnostic IO failure cannot bypass transient-unit stop ordering', () => {
   assert.match(generatorBlock, /except subprocess\.TimeoutExpired:\s+stop_ok = _stop_unit\(unit\)\s+diag\.event\('unit-timeout'\)/);
   assert.match(generatorBlock, /except Exception:\s+stop_ok = _stop_unit\(unit\) if unit else True\s+diag\.event\('unit-error'\)/);
   assert.match(fs.readFileSync(path.join(owned, 'generator_diag.py'), 'utf8'), /except OSError:\s+# Logging is best-effort/);
+  assert.match(generatorBlock, /finally:\s+try:\s+diag\.close\(\)\s+except Exception:\s+# Diagnostics must not skip[\s\S]*?pass\s+if result != 0 and not _unit_inactive\(unit\):/);
 });
 
 test('generator path persists only bounded root diagnostics and never raw model output', () => {

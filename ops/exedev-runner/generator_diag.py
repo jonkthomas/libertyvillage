@@ -18,7 +18,7 @@ MCP = re.compile(r'(gsc|ga4|playwright|dataforseo|serper)\((connected|failed|dis
 BUILTIN_TOOLS = frozenset(('Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep',
                            'Task', 'ToolSearch', 'WebSearch', 'WebFetch', 'NotebookEdit'))
 MCP_SERVERS = frozenset(('gsc', 'ga4', 'playwright', 'dataforseo', 'serper'))
-SUMMARY = re.compile(r'^(Success: (?:true|false)|Turns: \d{1,4}|Duration: \d+(?:\.\d+)?s)$')
+SUMMARY = re.compile(r'^(Success: (?:true|false)|Turns: \d{1,4}|Duration: \d{1,4}(?:\.\d)?s)$')
 STOP_REASONS = frozenset(('post-written', 'unsupported-grounding', 'duplicate',
                           'insufficient-sources', 'no-post-unspecified',
                           'sdk-error', 'generator-error'))
@@ -37,6 +37,7 @@ class GeneratorDiagnostic:
         self.seen_init = False
         self.seen_mcp = False
         self.seen_summary = False
+        self.summary_fields = set()
         self.seen_outcome = False
         self.pending = b''
         self.dropping_line = False
@@ -92,11 +93,19 @@ class GeneratorDiagnostic:
             self.reason = 'generator-error'
             self.event('generator-error', reason=self.reason)
             return
-        if text.startswith('Success: '):
-            self.seen_summary = bool(SUMMARY.fullmatch(text))
         if SUMMARY.fullmatch(text):
             name, value = text.split(': ', 1)
-            self.event('summary', field=name.lower(), value=value)
+            field = name.lower()
+            if field in self.summary_fields or (field != 'success' and not self.seen_summary):
+                return
+            if field == 'turns' and int(value) > 999:
+                return
+            if field == 'duration' and float(value[:-1]) > 2700:
+                return
+            self.summary_fields.add(field)
+            if field == 'success':
+                self.seen_summary = True
+            self.event('summary', field=field, value=value)
             return
         if self.seen_summary and not self.seen_outcome and text.startswith('[outcome] '):
             try:
@@ -105,7 +114,7 @@ class GeneratorDiagnostic:
                     self.seen_outcome = True
                     self.reason = value['stopReason']
                     self.event('outcome', postWritten=value['postWritten'], stopReason=self.reason)
-            except (ValueError, AttributeError, TypeError):
+            except (ValueError, AttributeError, TypeError, RecursionError):
                 pass
 
     def feed_lines(self, chunk):

@@ -80,7 +80,11 @@ try:
         diag.event('unit-error')
         sys.exit(1)
     finally:
-        diag.close()
+        try:
+            diag.close()
+        except Exception:
+            # Diagnostics must not skip the inactive check or stop a live unit.
+            pass
     if result != 0 and not _unit_inactive(unit):
         stop_ok = _stop_unit(unit)
         if not stop_ok:

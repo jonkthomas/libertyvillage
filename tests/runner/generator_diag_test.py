@@ -62,6 +62,22 @@ class GeneratorDiagnosticTest(unittest.TestCase):
             self.assertIn({'event': 'outcome', 'postWritten': False, 'stopReason': 'unsupported-grounding'}, rows)
             self.assertIn({'event': 'tools', 'counts': {'mcp:gsc': 1}}, rows)
 
+    def test_recursive_outcome_and_repeated_numeric_summary_are_not_persisted(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            log = diag.GeneratorDiagnostic(str(path))
+            log.feed_lines(b'[agent] starting\nSuccess: true\n')
+            log.feed_lines(b'[outcome] ' + b'[' * 4000 + b'\n')
+            log.feed_lines(b'Turns: 13\nTurns: 847\nDuration: 5550100s\nDuration: 42.3s\nDuration: 43s\n')
+            log.close()
+            text = path.read_text()
+            rows = [json.loads(row) for row in text.splitlines()]
+            self.assertNotIn('5550100', text)
+            self.assertEqual([row for row in rows if row.get('field') == 'turns'],
+                             [{'event': 'summary', 'field': 'turns', 'value': '13'}])
+            self.assertEqual([row for row in rows if row.get('field') == 'duration'],
+                             [{'event': 'summary', 'field': 'duration', 'value': '42.3s'}])
+
     def test_diagnostic_write_failure_never_interrupts_generator_cleanup(self):
         class BrokenFile:
             def write(self, _data):
