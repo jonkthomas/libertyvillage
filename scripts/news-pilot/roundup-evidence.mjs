@@ -81,6 +81,14 @@ const canonicalJson = (value) => JSON.stringify(value, (_, item) =>
 export const roundupPackDigest = (pack) => createHash('sha256').update(canonicalJson(pack)).digest('hex');
 const postUrls = (post) => [post?.canonicalUrl, ...(String(post?.content ?? post?.body ?? '').match(/https:\/\/[^\s)\]>'"]+/g) || [])].filter(Boolean).map(canonical);
 
+/** Source tiers are supplied by trusted registry resolution, never by a form. */
+export function roundupSourceQuality(entries) {
+  const substantive = (entries || []).filter((entry) => entry?.itemBound === true &&
+    entry?.extractionSubstantive === true && entry?.fetchOk !== false);
+  if (substantive.some((entry) => ['official', 'primary'].includes(entry.tier))) return true;
+  return new Set(substantive.map((entry) => entry.publisherDomain).filter(Boolean)).size >= 2;
+}
+
 /** Each item is judged independently; no source from another item can support it. */
 export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), livePosts = [], dailyNews = [] } = {}) {
   const reasons = [];
