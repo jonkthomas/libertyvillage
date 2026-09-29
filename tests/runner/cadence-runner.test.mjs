@@ -127,6 +127,44 @@ test('Sunday pending blog resumes its original key on Monday before any new-week
   assert.equal(result.contentCount, 2, 'late smoke counts only in the actual week');
 });
 
+test('gate terminal error closes its attempt and allows a distinct next intent', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
+  world.gatePlan = ['error'];
+  run(world);
+  const first = attemptsOf(world)[0];
+  assert.equal(first.outcome, 'error');
+  assert.equal(world.submissions.get(first.submission_id).state, 'error');
+  assert.ok(attemptsOf(world).some((attempt) => attempt.outcome === 'consumed'));
+});
+
+test('gate operational exit 1 does not close an open submission', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee] });
+  world.gatePlan = ['operational'];
+  assert.throws(() => run(world), /submission lacks smoke success/);
+  const [first] = attemptsOf(world);
+  assert.equal(first.outcome, null);
+  assert.equal(world.submissions.get(first.submission_id).state, 'open');
+});
+
+test('Monday recovery settles a Sunday gate error under the original key', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
+  world.gatePlan = ['pending'];
+  world.deployCode = 3;
+  assert.throws(() => run(world), /publish or propagation pending/);
+  const [old] = attemptsOf(world);
+  world.submissions.get(old.submission_id).state = 'error'; // gate recorded an error before runner could settle it
+  world.now = new Date('2026-10-05T12:30:00.000Z');
+  world.deployCode = 0;
+  run(world);
+  assert.equal(old.outcome, 'error');
+  assert.equal(attemptsOf(world).filter((attempt) => attempt.idempotency_key === old.idempotency_key).length, 1);
+  assert.ok(attemptsOf(world).filter((attempt) => attempt.week_start_utc === '2026-10-05').every((attempt) => attempt.idempotency_key !== old.idempotency_key), 'new week uses distinct keys only after old terminal settlement');
+  const lookupIndex = world.calls.findIndex((args) => args[0] === 'lookup' && args.includes(old.idempotency_key));
+  const newSubmitIndex = world.calls.findIndex((args) => args[0] === 'submit' && args.includes('20261005'));
+  assert.ok(lookupIndex >= 0 && (newSubmitIndex < 0 || lookupIndex < newSubmitIndex));
+  assert.ok(world.alerts.has('2026-09-28|WEEKLY_CONTENT_MISSED'));
+});
+
 test('Sunday crash before submit is reconciled under its old key before Monday candidates', (t) => {
   const world = withWorld(t, { now: SUN, queue: [TOPICS.happy, TOPICS.coffee] });
   world.submitPlan = ['network'];

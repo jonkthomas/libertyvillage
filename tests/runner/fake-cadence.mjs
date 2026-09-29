@@ -215,7 +215,10 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     if (command === 'gate') {
       const sub = world.submissions.get(Number(f.submission));
       if (sub.state === 'published') return ok({}, sub.smokedAt ? 0 : 3);
+      if (sub.state === 'error') { if (!allowExit.includes(1)) throw cliError('cli-operation', 1); return ok({}, 1); }
       const plan = world.gatePlan.shift() ?? 'pass';
+      if (plan === 'operational') { if (!allowExit.includes(1)) throw cliError('cli-operation', 1); return ok({}, 1); }
+      if (plan === 'error') { sub.state = 'error'; if (!allowExit.includes(1)) throw cliError('cli-operation', 1); return ok({}, 1); }
       if (plan === 'reject' || plan === 'block') { sub.state = plan === 'reject' ? 'rejected' : 'blocked'; if (!allowExit.includes(2)) throw cliError('cli-operation'); return ok({}, 2); }
       sub.state = 'published';
       if (plan === 'pending') return ok({}, 3);

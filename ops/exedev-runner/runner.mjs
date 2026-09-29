@@ -349,7 +349,9 @@ function cadenceCaller(deps, target, week) {
 }
 
 function gateState(deps, target, id, actor) {
-  const result = deps.cli(['gate', '--submission', String(id), '--target', target, '--actor', actor], [2, 3]);
+  // Gate exits 1 after durably recording a terminal fixer error. Consult the
+  // trusted submission state rather than losing the old attempt on recovery.
+  const result = deps.cli(['gate', '--submission', String(id), '--target', target, '--actor', actor], [1, 2, 3]);
   deps.log('gate', { id, exit: result.code });
   if (result.code === 3) {
     const resume = deps.cli(['deploy', '--target', target], [3]);
