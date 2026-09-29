@@ -1,6 +1,6 @@
 # Weekly roundup v2: "Liberty Village + Exhibition Place this week"
 
-Status: **draft spec, revision 2, for independent re-review.** No implementation until it is accepted. Date: 2026-09-29. Base: `origin/staging` @ `26cb824` (PR #192 merged).
+Status: **draft spec, revision 3 (final repair round), for independent re-review.** No implementation until it is accepted. Date: 2026-09-29. Base: `origin/staging` @ `26cb824` (PR #192 merged).
 
 This spec replaces the free-text roundup writer, which PR #192 held in `ROUNDUP_PUBLICATION.mode='census-only'`, with a structured-source pipeline. It depends on `docs/specs/content-cadence-2026.md` (the cadence count, slot and receipt contract) and changes only the parts named in §11. Nothing here authorizes a production timer, a production mode flip, a migration against production, a protected merge or a production publication. Those remain John's actions.
 
@@ -43,6 +43,20 @@ See §4.4, §6.1, §6.2, §6.4, §6.7, §7, §10 and §12.
 
 The raw data also corrected the timestamp cross-check band (§4.4).
 
+### Revision 3 log (final repair round)
+
+The focused recheck of `bf2d81f` found 8 of the 10 original findings resolved. It left R3 (BLOCKER) and R6 (MAJOR) partial, and raised N1–N3 (BLOCKER). Each is fixed with the simplest correct rule:
+
+| # | Finding | Resolution | Sections |
+|---|---|---|---|
+| R3 | Caption-block records could not verify the pinned Instagram positives; time proof needed a year-bearing span | **Event records.** A caption with exactly one distinct date is **one** record: the whole caption, raw formatting preserved. A caption with several dates splits into blocks, with bracket headings attached to their body. Each block must be self-contained, or that event holds. **Time proof** is a verified date resolution plus a literal time span from the same record. A stated start with an unknown end is ineligible after the start. A4 is recomputed from those records. | §6.1, §6.4, §7, A2, A4 |
+| R6 | `roundupCoverage` could be changed by non-roundup edits | Roundup-only trusted metadata on **all** write paths, in the shared `checkRecordPolicy`. Non-roundup inserts cannot create it. Non-roundup edits and fixers must preserve it byte-identically. Only the roundup policy sets it, bound to the pack. More than 64 keys refuses the roundup submission; it is never truncated. | §6.6, §9.4, §11, A3 |
+| N1 | Submit could not reach the Instagram provider without leaking the token | A source-only helper, `ig-refetch.mjs`, run by the runner under `sourceEnv('weekly-roundup')` immediately before `content submit`. It writes provider responses for exactly the pack's shortcodes, with `fetchedAt`, to a runner-owned file. Submit validates the pack deterministically against that file. The token never enters `trustedEnv`, the generator or the gate. | §4.4, §9.4, §10.3, A5 |
+| N2 | Image-only dates depended on a reviewer that runs after verification | **Image-only-dated Instagram units are excluded from v2.** They stay leads. Image transcription is a possible later addendum. | §4.4, §6.4, §7, A2 |
+| N3 | Instagram had no canonical event or venue identity | One shared venue registry supplies `canonicalVenueId` (the normalized verified address) for watch entries, core addresses and venue sources. The occurrence key is `(canonicalVenueId, Toronto date, start time or 'all-day')`. Same-key reminders and corroborations merge; different start times stay separate; ambiguous matches keep one and hold the other. The class cap is per canonical venue, and coverage stores occurrence keys. | §4.4, §6.2, §6.6, §7, A3 |
+
+Recomputed replay: **W37 publish, W38 HOLD, W39 publish only if the Canada Soccer dateline verifies (otherwise HOLD), W40 publish** (§7).
+
 ---
 
 ## 1. Product decisions (fixed; not reopened here)
@@ -65,7 +79,7 @@ The raw data also corrected the timestamp cross-check band (§4.4).
 | Backtest finding | Design response (section) |
 |---|---|
 | All four weeks (37–40) reached ≥3 qualified items under the backtest's lens, with 1, 1, 1 and 3 core items. | That lens did not apply the inherited source-quality rule or the replay clocks. Recomputed without Instagram, the only core items in weeks 37 and 39 are single-publisher blogTO listings (`weak-source`), so those weeks would hold (§7). |
-| The Instagram trial found first-party core items the other sources missed. By the trial's own count, core items went from 1/1/1/3 to 4/5/3/7. | Instagram is an enabled first-party source with a committed watch list (§4.4). Recomputed honestly at the cadence clocks (§7): W37 and W40 publish. W38 and W39 publish only if named spans verify: the OHA carousel image-text date and the Canada Soccer dateline. Otherwise they hold. |
+| The Instagram trial found first-party core items the other sources missed. By the trial's own count, core items went from 1/1/1/3 to 4/5/3/7. | Instagram is an enabled first-party source with a committed watch list (§4.4). Recomputed honestly at the cadence clocks (§7), with image-only dates excluded: W37 and W40 publish, W38 holds, and W39 publishes only if the Canada Soccer dateline verifies. |
 | Venue calendars (BMO Field, Coliseum, Exhibition Place, RBC Amphitheatre) supplied 11 of 29 qualified items, with clean dates and venue identity. | Venue listings are identity sources. The trusted venue ID comes from the source registry, never from page text (§4, §6.2). |
 | Keyword locality failed: site-nav mentions, NY Liberty, publisher labels, name-only events, Parkdale results, a lat/lon bbox. | Locality comes from **one item-bound record**: a venue listing row, a JSON-LD Event, a feed record, or a page section that states where the item happens. The agent's verdict can only lower locality, never raise it (§6). All traps are mandatory negative tests (§12, A1/A4). |
 | Serper's `cdr` filter leaks old items; syndication re-dates stories; Star JSON-LD dates are malformed. | Dates come from the page's own dateline. Search metadata is never date evidence. Syndicated copies are dated from a resolved original, or are `unverifiable` (§6.4). |
@@ -181,7 +195,7 @@ Results are filtered to the window using the **page's** dateline after fetch (§
 **Watch list (trusted registry data).** `scripts/news-pilot/data/ig-watch.json` is committed, reviewed and changed only by PR. Each entry holds:
 
 - `handle`, `business`;
-- `address`: the verified LV-core address, or a named core venue such as Liberty Village Park, 70 East Liberty St;
+- `canonicalVenueId`: the account's venue in the shared venue registry (§6.2), for example `addr:116-atlantic-ave` or `addr:171-east-liberty-st#113`. It resolves to a verified LV-core address, or a named core venue such as Liberty Village Park, 70 East Liberty St;
 - `verificationUrl` and `verificationMethod`: the business's or organisation's own site linking the handle and giving the address;
 - `ownDomain` (the `primary` domain in §4.1);
 - `multiLocation: bool`;
@@ -195,7 +209,7 @@ The address must classify core under §6.2: an address point in the table, or a 
 - **Owned.** It is owned by the watch account: the provider's `ownerUsername` equals the handle. Tagged, collaborator, pinned-old and reposted content is dropped.
 - **Dated event.** It announces a dated event, opening or closure (`item_type` event, opening, closure or class). Routine promos, daily specials, menus, holiday hours, "come visit" posts and generic recurring classes with no specific dated session are `not-news`.
 - **Forward-looking.** The post's timestamp is before the event's start instant. Retrospective posts ("last Saturday", "what a night", recaps) **never** qualify, even when the date is recoverable.
-- **Class cap.** Recurring classes and workshops (`item_type: 'class'`) count at most one per venue per edition week, and they cannot be the edition's only core item (§7).
+- **Class cap.** Recurring classes and workshops (`item_type: 'class'`) count at most one per **canonical venue** per edition week, whichever account posts them. They cannot be the edition's only core item (§7).
 
 **Locality** (§6.2). It comes from the verified account address when the post's event is at the account's own venue: the post names the venue, its handle or its address as the location, or it is a single-location account and states no other place. It can also come from an **explicitly named core venue or core address in the post**.
 
@@ -205,10 +219,12 @@ The address must classify core under §6.2: an address point in the table, or a 
 
 **Dates** (§6.4). The date must be explicit, from one of two sources:
 
-- a calendar date (month and day, with an optional weekday and year) in the caption or the post's image text; or
+- a calendar date (month and day, with an optional weekday and year) in the **caption**; or
 - an **unambiguous relative day word**: `today`, `tonight`, `tomorrow`, `this <weekday>` or `next <weekday>`. It is resolved deterministically against the post's **platform timestamp** in America/Toronto. That timestamp is trusted provider metadata, not caption text.
 
 Ambiguous phrases ("this weekend", "next week", "soon", "coming up") are `undated`. See §6.4 for the exact resolution rules (parent decision, 2026-09-29).
+
+**Image-only dates are excluded from v2.** A post whose date, time or place appears only in image text is a `lead`. It never counts, and it can only point to a qualifying source. Provider alt text is generic in practice ("Photo by … on September 10, 2026."), and a sound transcription proof would need its own blinded, media-bound model stage. That is a possible later addendum, not part of v2.
 
 **Source quality** (§6.7). A first-party account announcing **its own** event at its own verified address, or at a core venue it names, is `primary` for **that event**. Anything else from Instagram is a `lead` that needs corroboration.
 
@@ -217,7 +233,7 @@ Ambiguous phrases ("this weekend", "next week", "soon", "coming up") are `undate
 **Provider (pluggable).** `scripts/news-pilot/ig-provider.mjs` defines:
 
 - `listRecentPosts({handles, newerThan, limit})`, returning rows of `{handle, ownerUsername, shortcode, url, timestamp, caption, images:[{url, altText}], type}`;
-- `getPost(url)`, for re-verification.
+- `getPosts(shortcodes)`, for re-verification by the submit helper.
 
 Two adapters implement the same watch-list contract:
 
@@ -230,7 +246,20 @@ Two adapters implement the same watch-list contract:
 - The trial's 253 owned posts support this band: a median lag of 0.4 min, 22 posts over 5 min, a maximum of 50 h, and none earlier than the encoded time by more than 1 min. IG214 lags by 20 min.
 - Only the provider timestamp is used, never the encoded time. It is the later of the two, so the choice is conservative.
 
-**Failure.** Any provider error, timeout, budget stop or empty response makes the source `unavailable` in the census. Other sources proceed, and Instagram never blocks a run. An Instagram unit that cannot be re-verified at submit fails re-verification like any other unit (§9.4). The runner then rebuilds, and that may hold.
+**Submit re-fetch (credential boundary).** `content submit` runs under `trustedEnv` and never holds `APIFY_API_TOKEN`. Instagram re-verification for submit therefore works like this:
+
+1. Immediately before `content submit`, the runner calls `deps.source('scripts/news-pilot/ig-refetch.mjs', ['--pack', <attemptDir>/pack.json, '--out', <attemptDir>/ig-refetch.json])` under `sourceEnv('weekly-roundup')`. This is trusted code at the pinned SHA.
+2. The helper calls `getPosts` for **exactly** the Instagram shortcodes cited in the pack. It writes `{fetchedAt, provider, rows:[{shortcode, ownerUsername, timestamp, caption, status: 'ok'|'missing'|'private'}]}` to the runner-owned attempt dir (mode 0600, not scratch).
+3. The runner passes `--ig-refetch <file>` to `content submit`. Submit does not call the provider. It validates deterministically:
+   - the file lists exactly the pack's shortcodes;
+   - `0 ≤ T_submit − fetchedAt ≤ 30 min`;
+   - each row has status `ok`, the same `ownerUsername` and `timestamp`, and a caption that contains the cited record text **verbatim**, with the event record re-extracted by the same code;
+   - any deleted, private, missing or changed post **refuses that unit**. The §7 rule is then re-applied, and a pack below 3/1 is refused and rebuilt.
+4. A missing or stale file is treated as every Instagram unit changed.
+
+An idempotent replay returns the stored context and needs no file.
+
+**Failure.** Any provider error, timeout, budget stop or empty response makes the source `unavailable` in the census. Other sources proceed, and Instagram never blocks a run. At submit, a helper failure refuses only the Instagram units, as above.
 
 **Terms and continuity risk.** A third-party scraper of public data carries platform-terms and continuity risk. Public page behaviour, handles and privacy settings can change without notice. Mitigations:
 
@@ -312,7 +341,7 @@ An item is admitted only on evidence bound to **one trusted record** per evidenc
 | `jsonld-event` (and JSON-LD on any page) | One JSON-LD object whose `@type` is `Event` or an Event subtype. Organization, Person, WebPage, NewsArticle and publisher objects are **never** records. | url + `name` + `startDate` + `location.name` | subject = `name`; start/end = `startDate`/`endDate`; place = that Event's own `location` (name and `address`) |
 | `json-feed` | One feed record, located by its trusted `id`. | the record `id` | typed fields per §6.1 step 4 |
 | `html-page` (news, org, project) | One **section** of the main region: a heading element and its content up to the next heading of the same or higher level. A page with no headings is one section. | url + heading text + section ordinal | none; subject, place and date must be quoted from the section |
-| `ig-post` | One **caption block** (the caption split at blank lines and `[ … ]` bracket groups; a single-block caption is one record), or one carousel image's text. | shortcode + block or image ordinal | owner handle; post timestamp (checked against the shortcode, §4.4); subject, place and date must be quoted from the block, or place from the watch entry (§6.2) |
+| `ig-post` | One **event record**. A caption with exactly one distinct resolved date (repeats of the same date count once) is **one** record: the whole caption, with raw line breaks and emoji preserved. A caption with more than one distinct date is split into blocks at blank lines. A `[ … ]` bracket heading stays attached to the lines under it up to the next blank line. Each block must itself hold the subject, date and place of its event, or that event is `unverifiable`. Image text is never a record (§4.4). | shortcode + record ordinal | owner handle; provider timestamp (checked against the shortcode, §4.4); subject, place, date and any time must be quoted from the same record, or place from the watch entry (§6.2) |
 
 **Steps.**
 
@@ -364,8 +393,12 @@ Locality uses one checked-in, reviewed geography module plus two generated data 
   - An event on a project page (an open house, meeting or consultation) takes its locality from **its own stated location**, classified by this module. For example, the 34 Hanna Ave park open house at 171 East Liberty St is core by address.
   - An off-site, virtual or unlocated meeting is `not-LV` or `unverifiable`, never core by project identity.
 - **Org locality.** An `org:*` ID (the BIA) never supplies locality by itself. Each event section is classified by its own stated location under §6.3.
-- **Named core venues.** The geo module lists a small set of named core venues with their address points: Liberty Village Park (70 East Liberty St) and Lamport Stadium (75 Fraser Ave), plus any added by PR. In prose or a caption, a named core venue counts like a core address when the §6.3 relation rules hold.
-- **Instagram locality.** An `ig:<handle>` post takes the watch entry's verified core address only when the post's event is at the account's own venue (§4.4). An explicitly named core venue or core address in the same caption block also counts. The caption alone never supplies locality: hashtags, "in Liberty Village" and list membership confer nothing. A `multiLocation` or `requiresVenueInPost` account needs the LV address or venue in the post, in the caption block or the image text. A post stating another location takes that location's classification.
+- **Shared venue registry** (`scripts/news-pilot/data/lv-venues.json`, committed and changed by PR). One registry serves the watch list, core addresses and venue sources.
+  - Each venue has a `canonicalVenueId`: the normalized verified address, `addr:<number>-<street>[#<unit>]`, lower-case with standard street suffixes. The unit is kept when the verified address has one, so separate businesses in one building (NRG Haus #113 and Oxygen Yoga #126 at 171 East Liberty St) are separate venues.
+  - Each venue also has its name aliases, locality (from the address point), and any registry `venue:*` ID mapped onto it. For example `venue:bmo-field` maps to BMO Field's address point, and Enercare Centre and the Queen Elizabeth Building are their own entries.
+  - It includes named core venues: Liberty Village Park (70 East Liberty St) and Lamport Stadium (75 Fraser Ave). In prose or a caption, a named core venue counts like a core address when the §6.3 relation rules hold.
+  - A record whose stated venue name and stated address resolve to **different** canonical venues is `unverifiable`.
+- **Instagram locality.** An `ig:<handle>` post takes the watch entry's verified core address only when the post's event is at the account's own venue (§4.4). An explicitly named core venue or core address in the same event record also counts. The caption alone never supplies locality: hashtags, "in Liberty Village" and list membership confer nothing. A `multiLocation` or `requiresVenueInPost` account needs the LV address or venue in the post's event record. Image text does not count. A post stating another location takes that location's classification.
 - **Transit locality.** A TTC alert qualifies only if its route is in {504, 29, 509, 511, 63} **and** its affected stop or segment text matches the per-route stop allowlist in `roundup-geo.mjs`. Examples: 504 on King St W between Strachan and Dufferin; 509/511 at Exhibition Loop; 29 at Dufferin Gate or Exhibition; 63 at Liberty Village. A whole-route or city-wide alert with no allowlisted stop is `not-LV`. The CP24 "weekend TTC/GO closures" pattern is `not-LV`.
 - **Final verdict** = `min(agentVerdict, identityVerdict)`. If `identityVerdict` cannot be computed, the item is `unverifiable`, whatever the agent said.
 
@@ -416,7 +449,7 @@ The deterministic rules are a floor, not a proof of meaning. Review round 1 also
   - a dated listing row in an identity **venue** source. A row with no year (for example "Sat Oct 3") resolves deterministically to the **unique** occurrence of that month and day in `[weekStart − 7d, weekStart + 28d]`. If there is none, or more than one, the item is `undated`. Year inference is allowed **only** for identity venue rows;
   - an **explicitly year-bearing** date in an item-bound section of an official `org:*` or `project:*` source, in the same section as the subject and the event location. The two real layouts are the BIA's "On Thursday, September 17th, 2026, the iconic Lamport Stadium parking lot (75 Fraser Avenue) will transform…" and the City's "Open House Date: October 3, 2026 Time: Noon to 4 p.m. Location: Liberty Market Building, 171 East Liberty St." Ordinals and weekday names are accepted by the existing `fullDatesInSpan` grammar.
 
-  - an **explicit** date in an Instagram caption block or carousel image text of a watch-list post (§4.4). A yearless month and day resolves to the unique occurrence in `[post date, post date + 60 days]`.
+  - an **explicit** date in the event record of a watch-list post's caption (§4.4, §6.1). A yearless month and day resolves to the unique occurrence in `[post date, post date + 60 days]`.
 
     **Relative day words** resolve against the post's provider timestamp, converted to the America/Toronto date `P`:
     - `today` and `tonight` → `P`;
@@ -426,12 +459,16 @@ The deterministic rules are a floor, not a proof of meaning. Review round 1 also
 
     Ambiguous phrases ("this weekend", "next week", "soon", "coming up", "later this month") are `undated`. If a block contains both a relative word and a calendar date that resolve to different dates ("tomorrow, Sept 20" posted Sep 18), the item is `undated`. Retrospective use ("last Saturday", "today was…", "tonight" in a post after the event) is caught by the forward-looking rule in §4.4.
 
-    **Image text** is admissible only as either:
-    - provider-returned alt text containing the quote verbatim; or
-    - a model transcription stored with the image's sha256 that an **independent second transcription** agrees with exactly on the date expression. The second transcription is round 1's fact reviewer, given the image without the first transcription. This is a model assessment and fails closed: disagreement or a missing image means `undated`. The gate sees both transcriptions.
+    Image text is never date evidence in v2 (§4.4).
 
   A yearless date in org or project prose is `undated`. So is a date from another section, or an unrelated page date such as "Last updated". Free-text news prose is never event-date evidence: a news item is dated by its dateline and admitted as a news-update.
-- **Time.** Keep the existing rule: a time is stated only if the cited span proves it (`sourceSpanProvesTime`). Otherwise the post uses the local date only.
+- **Time.** A time is used only when it is proven. There are two ways:
+  - **Year-bearing spans:** the existing `sourceSpanProvesTime` rule, unchanged for news, listings and JSON-LD.
+  - **Resolved dates:** for records whose date was resolved by an accepted rule (a yearless venue row, a yearless or relative Instagram date, or an org or project section), the time proof is the **verified date resolution plus a literal time span in the same record**. Accepted forms are `7pm`, `7 PM`, `6:30pm`, `11:30AM`, `Noon`, and ranges such as `4-7 pm` or `7-10PM`.
+    - A new helper, `recordProvesTime(record, resolvedDate, instant)`, checks both. It never fabricates a year-bearing quote.
+    - A range gives a stated end.
+    - A start with "until sold out", or no end, is a **stated start with unknown end**. Under §6.5 it becomes ineligible at its start.
+  - Without a proven time, an event is date-only and ends at end of day. A stated time is never dropped to extend eligibility: if a time span is present in the record but fails proof, the item is `undated`.
 
 ### 6.5 Clocks, windows, risk and exclusions
 
@@ -507,26 +544,35 @@ The deterministic rules are a floor, not a proof of meaning. Review round 1 also
 
 ### 6.6 Identity, duplicates, prior coverage and cancellations
 
-- **Item identity key:**
-  - venue items: `venue:<id>:<local date>:<normalized event name>`
+- **Identity keys.** Event keys are independent of post URL, account and record ID.
+  - **Events at a place** (venue listings, JSON-LD Events, BIA and project event sections, Instagram): the **occurrence key** is `occ:<canonicalVenueId>:<Toronto date>:<HH:MM start | all-day>`.
   - road items: `road:<record id>`
   - transit items: `ttc:<alert id>`
-  - project and org items: `<project|org>:<id>:<record id>:<statement or event date>`
-  - news items: `news:<canonical url of the original>`
-- **Cross-source duplicates.** When a news article covers an event that is also in a listing, the verifier merges them into one item. The official or identity source becomes the primary citation, and the news URL may be a second citation on the same item.
+  - project developments that are not events: `project:<id>:<record id>:<statement date>`
+  - news-updates: `news:<canonical url of the original>`
+- **Merging events.**
+  - Records with the **same occurrence key** are one item: reminders, repeat posts, an Instagram post plus the business's own-domain page, or a listing plus a news article. The highest-tier record is the primary citation, and the others are extra citations. Two accounts posting the same occurrence give one item.
+  - The **same venue and date with different stated start times** are separate items.
+  - **Ambiguous** means the same venue and date where one record is `all-day` and another has a start time, or two different subjects share one occurrence key (for example two Enercare shows both all-day on one date). Then one item is kept and the other is held (`duplicate-ambiguous`, not counted). The item kept is chosen by higher tier, then a stated start time, then the earliest publication.
+  - A **next-date recurrence** of the same event is a new key and counts.
 - **Shared feed URLs.** Items from the same listing or feed may share one citation URL when their `recordId`s differ. This changes the current "roundup URL shared across items" rule for sources flagged `feed:true` or `listing:true` only (§11).
 - **Prior coverage comes from the live export.**
   - Every roundup post published by this pipeline carries a structured field:
 
     ```jsonc
     "roundupCoverage": { "version": 1, "isoWeek": "2026-W40", "planningCutoff": "<T_plan ISO>",
-                         "keys": ["road:Tor-RD042026-1044-5", "venue:bmo-field:2026-10-03:toronto argonauts vs bc lions", "..."] }
+                         "keys": ["road:Tor-RD042026-1044-5", "occ:addr:170-princes-blvd:2026-10-03:15:00", "..."] }
     ```
 
-    `keys` holds every constituent identity key of the counted units, including each concert inside an aggregate, plus the "Still in effect" items. It is capped at 64 keys of ≤200 chars each.
-  - The assembler derives the field from the pack. Submit re-derives it and refuses a mismatch, on every revision including fixer revisions (§9.4).
+    `keys` holds every constituent identity key (occurrence keys for events) of the counted units, including each concert inside an aggregate and each merged record's key, plus the "Still in effect" items. Keys are ≤200 chars. **More than 64 keys refuses the roundup submission**; keys are never truncated or dropped.
+  - The assembler derives the field from the pack, and submit re-derives it (§9.4).
+  - **Integrity on every write path.** `roundupCoverage` is roundup-only trusted metadata. It is enforced in the shared `checkRecordPolicy` (`submit.mjs`), which every kind's submit and the gate fixer (`repair-adapter.mjs`) already call:
+    - **Non-roundup kinds** (`seo`, `manual`, `news`, `blog` and every other kind) may not create the field on an insert. On an update, the field must be **byte-identical** (canonical JSON) to the live record's value, including absence. Removing, clearing or changing it is refused. A harmless visible edit that preserves it passes.
+    - **Only `kind='roundup'`** may set it, and only to the value re-derived from the verified pack.
+    - A fixer revision runs under its submission's kind, so the same rules apply.
+    - Deleting the whole post (an unpublish) is allowed. Its keys stop being covered, because nothing live covers them.
   - The runner's normal `exportSnapshot()` writes live posts to `data/posts.json` from the trusted DB, and the pipeline reads coverage from there. The source process needs no DB access, and a VM rebuild loses nothing.
-  - **Previously covered** means the key is in any live roundup post's `roundupCoverage.keys`. Such an item appears only under "Still in effect" if it is still active, and it does not count. A new occurrence date or a different record on the same venue calendar URL is a new key and counts.
+  - **Previously covered** means the key is in any live roundup post's `roundupCoverage.keys`. Such an item appears only under "Still in effect" if it is still active, and it does not count. A new occurrence date or a different start at the same venue is a new key and counts.
   - An unpublished or superseded edition is not in the live export, so its keys are no longer covered. Nothing live covers them.
   - A held week has no post. It adds no coverage, and the next week's roll-forward uses the §6.5 fallback.
   - **Legacy roundup posts** without the field contribute `news:<url>` keys for their cited URLs. If they fall in the previous week, their `publishedAt` is the cutoff.
@@ -553,16 +599,16 @@ Consequence, stated plainly: a lone blogTO, CityNews, Star, CBC or TFC Republic 
 
 1. **Counted units.**
    - All `concert` items (music or performance listings) at the same `venue:*` in the window collapse into **one** aggregate unit per venue, rendered as one line. Example: "RBC Amphitheatre: Red Clay Strays (Sep 30), …".
-   - Every other qualified item is its own unit, after identity dedupe.
+   - Every other qualified item is its own unit, after identity dedupe by occurrence key (§6.6).
    - `previously-covered` items are not units.
-   - `class` items count at most one unit per venue per edition week. A venue is a watch account or venue ID. Further classes at that venue are dropped from the edition.
+   - `class` items count at most one unit per **canonical venue** (§6.2) per edition week, whichever account posted them. The earliest by start is kept, and further classes at that venue are dropped. Class typing comes from the verified form before counting, and round 2 re-checks it.
 2. **Decision.** `publish` iff `units ≥ 3` **and** `coreAnchorUnits ≥ 1`, where `coreAnchorUnits` counts core units that are **not** `class`. A class at a core venue is a counted core unit for wording, but it cannot be the edition's only core item. Otherwise `hold`, with reasons (`below-minimum`, `no-core`, or both) and the census. The census reports `units`, `coreUnits` and `coreAnchorUnits`.
 3. **Cap and order.** At most 12 units per edition. Order: core first, then roads and transit, then venues, then news and announcements. Ties break by first date, then identity key. "Still in effect" is not numbered and not counted. The copy never claims coverage it does not have.
 4. **Two clocks.** The plan and the writer use `T_plan`. Submit re-verification re-applies this rule at `T_submit`, and a pack that falls below 3/1 is refused (§9.4). An idempotent replay keeps the original context, including both instants.
 
 ### Expected replay result (A4)
 
-This was recomputed under this revision's rules from the backtest rows (`R<line>` in `items.jsonl`) and the Instagram trial rows (`IG<line>` in `ig-items.jsonl`). It supersedes revision 1's table, which assumed every week published, and the trial's own 4/5/3/7 core tally, which did not apply clocks, prior coverage, the explicit-date rule or the class rule.
+This was recomputed under this revision's rules from the backtest rows (`R<line>` in `items.jsonl`) and the Instagram trial rows (`IG<line>` in `ig-items.jsonl`). It supersedes revision 1's table, which assumed every week published, and revision 2's table, which counted image-only dates. It also supersedes the trial's own 4/5/3/7 core tally, which did not apply clocks, prior coverage, event records, occurrence keys or the class rule.
 
 **Replay clocks.**
 
@@ -572,60 +618,91 @@ This was recomputed under this revision's rules from the backtest rows (`R<line>
 **One pool, replayed in sequence.** Every converted unit is available at every clock it is available for:
 
 - A news report is available only if its dateline is at or before the clock.
-- An Instagram post is available only if its timestamp is at or before the clock. Timestamps are decoded from the shortcode and cross-checked in conversion.
+- An Instagram post is available only if its provider timestamp (from the archived raw rows) is at or before the clock.
 - A listing, feed, org or project record is available at clocks at or after its capture. A record captured after the clock is used only in the week the backtest assigned it, and only for events after the clock. It is labelled `capturedAfterClock`.
 - Only records that correspond to a reference row are converted. Other records in the same frozen bodies are out of scope, which can only undercount.
-- Replay is sequential. A published edition's `roundupCoverage` removes its keys from later weeks, and a held week rolls its news forward.
+- Replay is sequential. A published edition's `roundupCoverage` (occurrence keys) removes its keys from later weeks, and a held week rolls its news forward.
+- Instagram records are extracted from the **raw** archived captions with line breaks intact (§6.1), never from the flattened `ig-items.jsonl` excerpts.
 
-**Two unresolved facts** decide weeks 38 and 39. The conversion must establish each one, or it is unavailable. The OHA and LVRA images are archived and legible. The trial's transcription in `classify.py` matches a second reading made while preparing this revision: "September 17th at 6:45PM", "Wednesday September 30th | 8:00 pm", and IG034's "SATURDAY, SEPTEMBER 19, 2026 … LIBERTY VILLAGE PARK, 70 EAST LIBERTY STREET". So (i) is expected to verify, but it counts only once the conversion records the independent second transcription.
+**One unresolved fact** decides week 39:
 
-- **(i)** The OHA Wellness carousel image text (post `DdHSweujA9B`). It dates IG099 (sound bath, Sep 17) and IG100 (stretch class, Sep 30). The image text also dates IG034 (Liberate Your Locker, Sep 19). It must pass the image-text rule in §6.4.
-- **(ii)** The visible dateline on the Canada Soccer page for R37 (the Nations League announcement, Sep 24).
+- **(ii)** The visible dateline on the Canada Soccer page for R37 (the Nations League announcement, Sep 24). The conversion must establish it, or it is unavailable.
 
-"Ceiling" means both verify; "floor" means neither does.
+Image-only-dated Instagram units are excluded (§4.4): IG034 Liberate Your Locker, IG099 OHA sound bath and IG100 OHA stretch class. So revision 2's fact (i) no longer exists. "Ceiling" means (ii) and the other conditional spans verify; "floor" means none do.
 
 | ISO week | Deciding clock | Ceiling: units (core / anchor) | Floor: units (core / anchor) | Decision |
 |---|---|---|---|---|
-| 37 | Wed 2026-09-09T16:00Z | 9 (4 / 2) | 8 (3 / 1) | **publish** in both |
-| 38 | Wed 2026-09-16T16:00Z | 3 (2 / 1) | 2 (1 / 1) | **publish** only if (i) verifies; otherwise **HOLD `below-minimum`** at all three slots |
-| 39 | Fri 2026-09-25T16:00Z | 4 (2 / 1) | 2 (1 / 1) at Fri and Sun | **publish** at Fri if (i) or (ii) verifies; otherwise **HOLD `below-minimum`** |
-| 40 | 2026-09-29T15:00Z | 16 (4 / 3) → cap **12** | 15 (5 / 4) → cap **12** | **publish** in both |
+| 37 | Wed 2026-09-09T16:00Z | 8 (3 / 1) | 8 (3 / 1) | **publish** |
+| 38 | Wed, Fri and Sun all hold | 2 (1 / 1) at Wed; 1 (0 / 0) at Fri and Sun | same | **HOLD `below-minimum`** |
+| 39 | Fri 2026-09-25T16:00Z | 3 (1 / 1) | 2 (1 / 1) at Fri and Sun | **publish** at Fri only if (ii) verifies; otherwise **HOLD `below-minimum`** |
+| 40 | 2026-09-29T15:00Z | 16 (4 / 3) → cap **12** | 15 (5 / 4) → cap **12** | **publish** |
 
 **Pinned eligible units.**
 
 - **W37 (Wed).**
-  - Core: IG084 Green Liberty Village Eco-Fair, Sep 12 4–7 p.m. at Liberty Village Park (anchor; first-party organiser; explicit "Saturday, Sept 12"); IG069 NRG Haus Alchemy special edition, Sep 10 7 p.m. (class); IG065 Oxygen Yoga "Sculpt It to Latin Musica", Sep 15 (class; a different venue); IG034 Liberate Your Locker, Sep 19 at Liberty Village Park (anchor; ceiling only, via (i)).
+  - Core:
+    - IG084 Green Liberty Village Eco-Fair: `occ:addr:70-east-liberty-st:2026-09-12:16:00`. It is the anchor: the organiser's own event, the caption names Liberty Village Park, and the whole caption is one record. Its single date is "Saturday, Sept 12, 4-7 pm", so the time range is proven.
+    - IG069 NRG Haus Alchemy special edition, Sep 10 7 p.m.: a class at `addr:171-east-liberty-st#113`. "September 10th at 7pm" and "September 10 · 7 PM" are one distinct date.
+    - IG065 Oxygen Yoga "Sculpt It to Latin Musica", Sep 15 5:30 p.m.: a class at `addr:171-east-liberty-st#126`, a different canonical venue.
   - Adjacent: R07 + R22b Coliseum concert aggregate (Sonu Nigam, Yeat, Suki Waterhouse); R22a Tempo vs Fever, Sep 18; R22c Tempo vs NY Liberty, Sep 20; R08 + R24 RBC concert aggregate, Sep 9–20; R09 Strachan/Fleet hydro.
-  - Merged or excluded: R02 blogTO Eco-Fair merges into IG084 as a second citation. R01 Board Game Night is `weak-source`: a single `lead` publisher, and Left Field's Instagram was restricted.
-- **W38 (Wed).**
-  - Units: R20 Give Me Liberty at the Lamport lot (anchor; BIA official section; `capturedAfterClock`); IG099 OHA sound bath, Sep 17 (class; ceiling only); R38 Coliseum concert aggregate (Tove Lo, Sep 23).
-  - Already covered by W37, so not counted: R22a, R22c, R24 and IG034. R09 is listed under "Still in effect".
-  - Not available at the Wednesday clock: IG157 and IG158, posted Sep 18 at 21:54Z and 22:47Z. Their relative dates resolve to Sep 19, so both have concluded by the Sunday clock, and neither affects W38. IG157 names no venue (`requiresVenueInPost`), so it would be `unverifiable` anyway; its event is IG034, already covered. IG117, Burger Drops at Give Me Liberty, merges into R20.
-  - At the Friday and Sunday slots R20 has concluded, so the floor holds at every slot.
+  - Merged or held:
+    - IG074 ("📅 Sept 12 | Liberty Village Park", all-day) is ambiguous against IG084's 16:00 key, so IG084 is kept.
+    - IG042 names no venue, so it is `unverifiable`.
+    - R02 blogTO Eco-Fair has no venue, so it is `unverifiable`; with no key, it does not merge.
+    - R01 Board Game Night is `weak-source`.
+    - IG034 is image-only, so it is a lead.
+- **W38 (all slots hold).**
+  - Wed units: R20 Give Me Liberty at the Lamport lot (anchor; BIA official section; `capturedAfterClock`); R38 Coliseum concert aggregate (Tove Lo, Sep 23).
+  - Not counted at Wed:
+    - IG099 is image-only, so it is a lead.
+    - R22a, R22c, R24 and R09 are covered by W37; R09 appears under "Still in effect".
+    - IG117 (Burger Drops at "Lamport Stadium parking lot (73 Fraser Avenue)", Sep 17 4 p.m.) never adds a unit. Either its stated address conflicts with Lamport's canonical venue (`unverifiable`), or its 16:00 key matches or is ambiguous against R20 (merged or held).
+  - Fri and Sun: R20 has concluded. IG157 and IG158 were posted after the Friday clock, and their Sep 19 events have concluded by Sunday. Only R38 remains.
 - **W39 (Fri).**
-  - Ceiling units: R39 RBC concert aggregate (Sep 25–27; captured Sep 24); IG100 OHA stretch class, Sep 30 (class); IG193 NRG Haus "Station 9: The Recovery", Oct 3 (anchor; posted Sep 24 23:49Z); R37 Nations League announcement (news-update).
-  - The floor has only R39 and IG193.
-  - Excluded: R32 Liberty Laughs (`weak-source`); R33, R36 (`weak-source`); R34, R35 (`undated`: event dates only in news prose); IG200 DeltaTrain simulation (posted Sep 25 20:21Z, after the Friday clock; concluded by Sunday); IG227 (retrospective).
-  - If W38 held, R38 Tove Lo would be new here, but it concludes Sep 23 before the Friday clock. So the floor stays at 2 units.
+  - Units: R39 RBC concert aggregate (Sep 25–27; captured Sep 24); IG193 NRG Haus "Station 9: The Recovery", `occ:addr:171-east-liberty-st#113:2026-10-03:19:00` (anchor; posted 2026-09-24T23:50:34Z; the single date "Saturday 3 October | 7-10PM" makes the whole caption one record); R37 Nations League announcement (news-update, only with (ii)).
+  - At Wed there are only 2 units, R38 Tove Lo (new, since W38 held) and the RBC aggregate, with no core.
+  - Excluded:
+    - IG100 is image-only.
+    - R32, R33 and R36 are `weak-source`.
+    - R34 and R35 are `undated`.
+    - IG200 was posted after the Friday clock and has concluded by Sunday.
+    - IG227 is retrospective.
 - **W40.**
-  - Core anchors: R50 34 Hanna park open house at 171 East Liberty St (City project section); R52 Hanna Ave Bell repair; IG214 Burger Drops' George Motz Oct 3 burger event at 116 Atlantic Ave (the Oct 3 caption block only; the Oct 2 Downsview block is `not-LV`); IG193 (floor only, since it is covered by W39 in the ceiling).
-  - Core class: IG215 QUEST XO "Chocolate Painting: Open Studio", Sep 30 6:30 p.m. ("This Wednesday", posted Sun Sep 27 19:07 Toronto → 2026-09-30). IG223 ("this Saturday", posted Mon Sep 28 → Oct 3) is the same venue's second class that week, so the class cap drops it.
+  - Core anchors:
+    - R50, the 34 Hanna park open house at 171 East Liberty St ("Time: Noon to 4 p.m." is a literal span with a year-bearing date);
+    - R52 Hanna Ave Bell repair;
+    - IG214 Burger Drops' George Motz event, `occ:addr:116-atlantic-ave:2026-10-03:11:30`. The caption has three dates, so it splits into blocks. The block "[ OCT. 3: $6 Fried Onion Burgers by George Motz ] ⏰ 11:30AM until sold out 📍 116 Atlantic Ave. Patio" is self-contained, with a stated start and unknown end. The Oct 2 block is `not-LV`, and the ticket-sale line is not an event;
+    - IG193, floor only. In the ceiling it is covered by W39.
+  - Core class: IG215 QUEST XO "Chocolate Painting: Open Studio", Sep 30 18:30. The whole caption is one record, since both "This Wednesday" mentions resolve to 2026-09-30. The date comes from the post timestamp and the time from the literal "6:30pm".
   - Roads: R53 King St W at Strachan; R54 Lake Shore at Newfoundland.
-  - Venues: R58 RBC aggregate (from Sep 30); R59a HYROX; R59b Fall Home Show; R59c Fall Baby Show (ceiling only); R55 Argos Oct 3; R57a Marlies Oct 3; R57b Coliseum concert aggregate (Steve Lacy, Brand New); R56a TFC Oct 10; R56b Canada WNT Oct 12.
-  - News: R61 Sceptres opener (ceiling only; its dateline must verify like (ii)). R37 is covered by W39 in the ceiling, and its dateline is unavailable in the floor.
-  - **Cut by the cap in §7 order:** R57b, R56a and R56b in both cases, plus R61 in the ceiling. This assumes R59c starts by Oct 3; if the conversion dates it after Oct 5, R59c is cut instead of R57b.
-  - Excluded: R51 and R60 (`weak-source`); IG223 (class cap); IG221 merges into IG214; IG100 is covered by W39 in the ceiling and unavailable in the floor.
+  - Venues: R58 RBC aggregate (from Sep 30); R59a HYROX; R59b Fall Home Show; R59c Fall Baby Show (ceiling only, and only if its occurrence key differs from R59b's; otherwise it is held as ambiguous); R55 Argos Oct 3; R57a Marlies Oct 3; R57b Coliseum concert aggregate (Steve Lacy, Brand New); R56a TFC Oct 10; R56b Canada WNT Oct 12.
+  - News: R61 Sceptres opener (ceiling only; its dateline must verify like (ii)). R37 is covered by W39 in the ceiling.
+  - **Cut by the cap in §7 order:** R57b, R56a and R56b in both cases, plus R61 in the ceiling. This assumes R59c starts by Oct 3.
+  - Held or excluded:
+    - IG221 is a single block with two dates, and "116 Altantic Ave." does not resolve, so it is `unverifiable` and never adds a unit to IG214.
+    - IG223 (QUEST XO, Oct 3) loses to IG215 under the class cap for that canonical venue.
+    - R51 and R60 are `weak-source`.
+
+**Record-count sensitivity.** IG069, IG215 and IG223 repeat one date twice. The rule counts distinct resolved dates, so each is one whole-caption record. If a reviewer instead required a single literal date expression, IG069 and IG215 would hold. W37 would then have 7 units (2 / 1), W40 would still cap at 12, and no decision would change.
 
 **Other conditional spans.** Some units need an exact span in the frozen body: R22b (Suki Waterhouse row), R57b's Brand New row, R59c, R61's dateline, and the per-record RBC JSON-LD objects. They change only the counts shown, never a decision. If a span is absent, that unit is excluded, and the expected table is updated by review. Nothing is relaxed to keep a unit.
 
-**What this means.** Without Instagram, weeks 37 and 39 hold under the inherited source rule. With the Instagram rules in §4.4, W37 and W40 publish outright. W38 and W39 depend on one image-text verification and one dateline. The trial's larger gain (13 items) shrinks here because:
+**What this means.** Without Instagram, weeks 37 and 39 hold under the inherited source rule. With Instagram under this revision's rules:
+
+- W37 and W40 publish;
+- W38 holds;
+- W39 publishes only if the Canada Soccer dateline verifies.
+
+The trial's 13 items shrink because:
 
 - IG124 and IG227 are retrospective;
-- IG157 and IG158 were posted after W38's deciding clock, and their Sep 19 events had concluded by the next usable slot. IG223 is dropped by the class cap;
-- classes cannot anchor an edition;
-- W37's edition previews and covers some W38 items.
+- IG034, IG099 and IG100 are image-only;
+- IG157 and IG158 arrive after the deciding clocks;
+- IG221 merges or holds;
+- IG223 is capped;
+- classes cannot anchor.
 
-A hold in either week is the correct result of the settled rules, not a defect to engineer around.
+These holds are the correct result of the settled rules, not a defect to engineer around.
 
 ## 8. Evidence snapshots
 
@@ -703,10 +780,12 @@ A hold in either week is the correct result of the settled rules, not a defect t
 ### 9.4 Submit and gate
 
 - **Submit.** `content submit --kind roundup --roundup-out <dir>` takes `T_submit` from its own clock as today, and on the first submit runs the §6 verifier **again** at `T_submit` against fresh fetches. This replaces the v1 whole-excerpt digest comparison in `revalidateRoundupItems`, because feed and listing excerpts change every fetch.
+  - **Instagram units** are validated against the runner-provided `--ig-refetch` file (§4.4), never by a provider call from submit.
   - The check is per record and per quote. A missing record, a missing quote, a changed date, a changed locality, a lost source-quality pass, a changed risk result, or a unit no longer eligible at `T_submit` (§6.5) all raise `ValidationError('roundup source evidence changed or unreachable; rebuild before submit')`.
   - It re-applies the §7 rule at `T_submit`. A pack that falls below 3/1 is refused.
   - It reconstructs prior coverage from the current live roundup posts in the DB, using the same function the pipeline uses on the export. It refuses if the pack counts a key that is now covered.
-  - It re-derives `roundupCoverage` from the re-verified pack and refuses any mismatch with the post record.
+  - It re-derives `roundupCoverage` from the re-verified pack and refuses any mismatch with the post record. More than 64 keys is refused (§6.6).
+  - For every other kind, `checkRecordPolicy` enforces the coverage integrity rules in §6.6.
   - It stores `now` (`T_plan`) and `temporalValidationNow` (`T_submit`) in the context. An idempotent replay returns the stored context unchanged.
 - **Gate context.** For `kind='roundup'`, `gate.mjs` passes per-unit evidence: verdict, identity label, record ID, quotes, typed record fields, tier, actual dates and citation URLs. Temporal checks use `temporalValidationNow`, as today.
 - **Lenses.** The roundup lenses in `scripts/automation/review-agent.mjs` `LENSES.roundup` add three checks:
@@ -753,7 +832,7 @@ The flow keeps the existing reservation, attempt, resume, retry, gate settle, fi
 2. **`recoverPriorRoundup`** (new, §10.3.1). It runs **before** the current-week count and its early return, so a prior-week attempt is settled even when the current week is already met.
 3. `cadence count` for the current week. The early return when `roundupCount ≥ 1` is unchanged.
 4. Current-week resume or retry: unchanged.
-5. The v2 pipeline, then the rest of the existing flow.
+5. The v2 pipeline, then the rest of the existing flow. `submitRoundup` first runs the source-only `ig-refetch.mjs` helper through `deps.source` (under `sourceEnv('weekly-roundup')`) when the pack cites Instagram. It then passes `--ig-refetch <attemptDir>/ig-refetch.json` to `content submit` (§4.4). The helper also runs before each resumed first submit. If the helper fails, submit still runs and refuses the Instagram units.
 
 **Changes to the pipeline steps:**
 
@@ -763,7 +842,7 @@ The flow keeps the existing reservation, attempt, resume, retry, gate settle, fi
   - Later slots in the week re-collect fresh signals.
   - After the week ends, the unchanged `cadence deadline` emits `WEEKLY_NEWS_MISSED` once.
 - **Schedule.** The runner stays on-demand in staging. The cadence schedule (Wednesday primary, Friday recovery, Sunday final) applies when John later authorizes timers. No timer is added by this spec.
-- **Environment.** `SOURCE_ENV['weekly-roundup']` becomes `SERPER_API_KEY`, `APIFY_API_TOKEN` and model keys. `SERPAPI_API_KEY` is dropped. If `APIFY_API_TOKEN` is missing, Instagram is `unavailable` for that run (§4.4); the run does not fail.
+- **Environment.** `SOURCE_ENV['weekly-roundup']` becomes `SERPER_API_KEY`, `APIFY_API_TOKEN` and model keys. `SERPAPI_API_KEY` is dropped. If `APIFY_API_TOKEN` is missing, Instagram is `unavailable` for that run (§4.4); the run does not fail. The token is **not** added to `trustedEnv`, the generator environment, the gate, or any model request.
 - **`validateRoundupOutput`** keeps all identity checks (week, slug, one new post, pack digest). It adds `pipeline === 'structured-v2'`, `units ≥ 3`, `coreAnchorUnits ≥ 1`, `HEX64 verifyDigest`, and a present, well-formed `roundupCoverage` on the new post.
 - `request.dryRun` for `weekly-roundup` stays **rejected** by the runner, as today. The only dry run is the direct one in §10.4.
 
@@ -835,6 +914,8 @@ Post-merge (runner VM, staging): the PR is merged to `staging` by the normal pro
 | `scripts/news-pilot/data/lv-core.geojson`, `lv-address-points.json`, `lv-segments.json` (**new, generated**) | These come from City Centreline and Address Points via `scripts/news-pilot/build-lv-geography.mjs` (**new**, offline, run by hand). The source dataset versions are recorded in the files. |
 | `scripts/news-pilot/sources.mjs` | Add `ROUNDUP_SOURCES` (§4.1, with `tier` and `recordSelector`), `ROUNDUP_PUBLISHER_TIERS`, `SYNDICATION_PARTNERS`, and the fixed Serper query set (§4.2). Daily-news `SOURCES` are unchanged. |
 | `scripts/news-pilot/ig-provider.mjs` (**new**) | The provider interface (`listRecentPosts`, `getPost`), the `apify` adapter (public profile URLs only, no credentials beyond `APIFY_API_TOKEN`, pre-call result and cost cap), the shortcode-timestamp check, and `unavailable` classification. The `meta` adapter slot is defined but not implemented until John provides credentials (§4.4). |
+| `scripts/news-pilot/ig-refetch.mjs` (**new**) | Source-only submit helper (§4.4). It reads the pack's Instagram shortcodes, calls `getPosts`, and writes `ig-refetch.json` with `fetchedAt`. It runs only through the runner's `deps.source`. |
+| `scripts/news-pilot/data/lv-venues.json` (**new, committed**) | The shared venue registry: `canonicalVenueId`, aliases, locality and `venue:*` mappings (§6.2). The watch list, address classification and venue sources all resolve through it. |
 | `scripts/news-pilot/data/ig-watch.json` (**new, committed**) | The Instagram watch list (§4.4), built from the trial's `accounts.csv` after the builder re-verifies each entry. It is changed only by PR. |
 | `scripts/news-pilot/fetch.mjs` | Add a robots.txt check with a per-run cache, and a per-host minimum interval. Both are opt-in via options and used by roundup collectors. |
 | `scripts/news-pilot/url-guard.mjs` | Add `classifyBlockedResponse(status, body)`, which returns `blocked` for 401/402/403/406/429 and challenge markers. |
@@ -845,16 +926,16 @@ Post-merge (runner VM, staging): the PR is merged to `staging` by the normal pro
 | `scripts/news-pilot/roundup-write.mjs` (**new**) | Writer, the two review rounds (round 2 includes the people re-assessment) and the deterministic assembly, including `roundupCoverage` (§9). |
 | `scripts/news-pilot/roundup-v2-run.mjs` (**new**) | CLI entry point: `--collect`, and the full run with `--dry-run`. It writes `result.json`, `pack.json`, `verify-report.json` and the posts append (none under `--dry-run`). |
 | `scripts/news-pilot/roundup.mjs` | Add `planRoundupV2` (§7) and `buildRoundupPostV2` (title, tags, unit sections, still-in-effect, `roundupCoverage`). `isoWeekOf` and `roundupSlug` are unchanged. v1 `planRoundup` and `buildRoundupPost` are removed with their callers. |
-| `scripts/news-pilot/roundup-evidence.mjs` | Keep `provenPublicationMs`, `sourceSpanProvesTime`, `fullDatesInSpan`, the risk constants and `roundupPackDigest`. **Extract and export the inherited source-quality predicate as `roundupSourceQuality(entries)`** (§6.7) with its existing semantics. Remove the v1 `validateRoundupItem`/`validateRoundupPack`/`revalidateRoundupItems` text-locality path (`scoreLocalRelevance`) together with its tests, once v2 tests replace them. The source-quality tests move to the new predicate and are not deleted. |
+| `scripts/news-pilot/roundup-evidence.mjs` | Keep `provenPublicationMs`, `sourceSpanProvesTime`, `fullDatesInSpan`, and add `recordProvesTime` (§6.4), the risk constants and `roundupPackDigest`. **Extract and export the inherited source-quality predicate as `roundupSourceQuality(entries)`** (§6.7) with its existing semantics. Remove the v1 `validateRoundupItem`/`validateRoundupPack`/`revalidateRoundupItems` text-locality path (`scoreLocalRelevance`) together with its tests, once v2 tests replace them. The source-quality tests move to the new predicate and are not deleted. |
 | `scripts/news-pilot/roundup-run.mjs` | **Deleted.** It was the v1 free-text cluster writer; its reusable helpers move to `roundup-verify.mjs`. The `legacy-fixture` tests are removed. |
 | `scripts/content/roundup-mode.mjs` (**new**) | Per-target mode and the Instagram source constant: enabled, provider `apify` (§10.1). |
-| `scripts/content/cli.mjs` | Conditional roundup submit boundary (§10.2). `cadence unresolved --lane`. |
+| `scripts/content/cli.mjs` | Conditional roundup submit boundary (§10.2). `cadence unresolved --lane`. `submit --ig-refetch <file>`. |
 | `scripts/content/validate.mjs` | Add `roundupCoverage` to the allowed (not required) `posts` fields. It is valid only on a `category:'news'` post whose slug matches the roundup slug pattern: `version:1`, a matching `isoWeek`, an ISO `planningCutoff`, and ≤64 string keys of ≤200 chars. Any other post with the field fails validation. |
-| `scripts/content/submit.mjs` | `checkRoundupRecord` becomes `checkRoundupRecordV2`: the §7 counts; label `Liberty Village + Exhibition Place this week` (replacing "news roundup"/"weekly update"); near/in wording per verdict; the impact-wording refusal; feed/listing shared-URL exception with distinct record IDs; per-unit citation and date checks (kept); `roundupCoverage` equality on every revision. `buildContext`/`submitContent` use the v2 verifier at `T_submit` (`temporalValidationNow`) with DB-reconstructed prior coverage (§9.4). `ROUNDUP_REVALIDATE_MAX_AGE_MS` (6 h) is unchanged. |
+| `scripts/content/submit.mjs` | `checkRecordPolicy` gains the `roundupCoverage` integrity rules for every kind (§6.6), so they also cover the fixer through `repair-adapter.mjs`. Submit gains `--ig-refetch` validation (§4.4). `checkRoundupRecord` becomes `checkRoundupRecordV2`: the §7 counts; label `Liberty Village + Exhibition Place this week` (replacing "news roundup"/"weekly update"); near/in wording per verdict; the impact-wording refusal; feed/listing shared-URL exception with distinct record IDs; per-unit citation and date checks (kept); `roundupCoverage` equality on every revision. `buildContext`/`submitContent` use the v2 verifier at `T_submit` (`temporalValidationNow`) with DB-reconstructed prior coverage (§9.4). `ROUNDUP_REVALIDATE_MAX_AGE_MS` (6 h) is unchanged. |
 | `scripts/content/cadence.mjs` | `unresolvedAttempts` with `lane` (replacing `unresolvedContentAttempts`); roundup `late-smoked` proof; new `currentLiveSubmission` (§10.3.1). |
 | `scripts/content/gate.mjs` | Roundup evidence projection: per-unit verdict, identity, record ID, quotes, typed fields and tier (§9.4). |
 | `scripts/automation/review-agent.mjs` | `LENSES.roundup`: add the three checks from §9.4. The threshold and severity rules are unchanged. |
-| `ops/exedev-runner/runner.mjs` | Mode from `roundup-mode.mjs`; v2 pipeline invocation; hold notice; `validateRoundupOutput` additions; `SOURCE_ENV` change; `legacy-fixture` removed; `settleAttempt` roundup late-smoke; new `recoverPriorRoundup` called from `runWeeklyRoundup` before `count`; `recoverPriorContent` passes `--lane content` (§10). |
+| `ops/exedev-runner/runner.mjs` | Mode from `roundup-mode.mjs`; v2 pipeline invocation; hold notice; `validateRoundupOutput` additions; `SOURCE_ENV` change; `legacy-fixture` removed; `settleAttempt` roundup late-smoke; new `recoverPriorRoundup` called from `runWeeklyRoundup` before `count`; `submitRoundup` runs `ig-refetch.mjs` via `deps.source` and passes `--ig-refetch`; `APIFY_API_TOKEN` is only in `SOURCE_ENV['weekly-roundup']`; `recoverPriorContent` passes `--lane content` (§10). |
 | `ops/exedev-runner/README.md` | Rewrite the weekly-roundup bullet for `structured-v2` (staging), `census-only` (production), prior-week reconciliation, and the §10.4 dry-run and verification commands. Document `APIFY_API_TOKEN` in the root-only target env files, scoped to `SOURCE_ENV['weekly-roundup']` and never passed to the generator. |
 | `ops/exedev-runner/launcher.sh` | Unchanged (staging-only guard stays). |
 | Migrations | **None.** Existing `kind='roundup'`, the cadence tables (0003/0004) and `submissions.context` are sufficient. `roundupCoverage` is a post record field, not a column. |
@@ -944,13 +1025,32 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - Ambiguous negatives: "this weekend", "next week", "soon", "coming up" → `undated`.
   - Conflict negative: "tomorrow, Sept 20" posted Sep 18 → `undated`.
   - Timestamp band: provider timestamps 20 min and 50 h after the encoded time pass. 3 min before, or 4 days after, → `unverifiable`.
-  - Image-text dates: provider alt text containing the quote passes. Two agreeing transcriptions pass. Disagreeing transcriptions, or a missing image, → `undated`.
+  - **Image-only exclusion (N2):**
+    - IG099/IG100 (OHA carousel) and IG034 (LVRA poster), whose dates exist only in image text, are leads and never counted units.
+    - End to end, a synthetic edition where an image-only unit would be the third unit needed for 3/1 **holds** `below-minimum`. Its census names the image-only lead.
+  - **Event records (R3), raw captions with line breaks intact:**
+    - IG084, IG193, IG215, IG065 and IG069 each have one distinct date, so each is **one** whole-caption record that verifies subject, date, time and place.
+    - The same captions split at blank lines would fail. This is a regression test against paragraph splitting.
+    - IG214 (three dates) splits into blocks. The bracketed Oct 3 heading stays with its ⏰ and 📍 lines and verifies; the Oct 2 block is `not-LV`.
+    - IG221 (two dates in one block) is `unverifiable`.
+    - A multi-date caption whose Oct 3 block lacks a place → that event holds.
+  - **Time proof (R3):**
+    - `recordProvesTime` accepts "This Wednesday at 6:30pm" with the resolved date 2026-09-30 → 2026-09-30T22:30Z, and "Tuesday, September 15 @ 5:30PM" → 2026-09-15T21:30Z. The existing `sourceSpanProvesTime` returns false for both. That is why a resolved-date proof is needed.
+    - "7-10PM" gives a stated end.
+    - "11:30AM until sold out" is a stated start with unknown end: eligible at 11:29 Toronto, ineligible at 11:30.
+    - A record with a time span that fails proof → `undated`, never silently date-only.
   - Tagged or collaborator rows (owner ≠ handle) are dropped.
   - Source quality: an own event at the own verified address passes as `primary`. The same account posting another business's event, or a collaboration hosted elsewhere, is `lead` → `weak-source` unless independently corroborated.
   - Routine promo, daily special and holiday-hours posts → `not-news`.
   - Env scoping: `APIFY_API_TOKEN` is present in `sourceEnv('weekly-roundup')` and absent from the `lv-generator` env and every other job's `sourceEnv` (runner env test).
   - Provider failure: the adapter throws or times out → Instagram `unavailable` in the census, every other source's signals are unchanged, and the run completes. A missing `APIFY_API_TOKEN` behaves the same.
-  - An Instagram unit whose post was deleted or made private between plan and submit → `record-missing` at submit.
+  - **Submit re-fetch file (N1):**
+    - Unchanged rows pass.
+    - A row with status `missing` or `private` refuses that unit.
+    - A changed caption (cited record text no longer verbatim), owner or timestamp refuses that unit.
+    - A shortcode set that differs from the pack's, or `fetchedAt` older than 30 min or later than `T_submit`, refuses every Instagram unit.
+    - A missing file refuses every Instagram unit.
+    - In each refusal case, the §7 rule is re-applied and a pack below 3/1 is refused.
 - **Impact wording:** unsupported crowd or closure wording in the draft is refused. With a same-date verified road item, it is accepted.
 
 ### A3: Publish-rule, clock and coverage tests (`tests/news-pilot/roundup-plan.test.mjs`)
@@ -974,9 +1074,26 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - A new occurrence on the same venue calendar URL (a different date or record) counts.
   - Roll-forward after a hold: a held W39 means W40 counts a W39-dated news item. After a published W39, only items dated on or after its cutoff date count, and covered keys are excluded.
   - Deleting the VM state root and snapshots between runs gives an identical plan, because coverage comes from the export.
-  - A fixer revision that changes `roundupCoverage` is refused.
   - A pack counting a key that the DB now shows as covered is refused at submit.
   - `validate.mjs` rejects `roundupCoverage` on a non-roundup post.
+- **Identity (N3), `tests/news-pilot/roundup-identity.test.mjs`:**
+  - IG214 + IG221 give exactly one unit. IG221 is `unverifiable`. A synthetic IG221 with the address spelled correctly and 11:30 stated has the same occurrence key and merges as a second citation.
+  - An Instagram post plus the business's own-domain page for the same occurrence give one unit, with the higher tier as primary.
+  - Two watch accounts announcing classes at one canonical venue in a week count 1 class unit.
+  - NRG Haus #113 and Oxygen Yoga #126 at 171 East Liberty St are two canonical venues and count 2.
+  - Same venue and date, starts at 18:00 and 20:00 → 2 units.
+  - Same venue and date, one all-day and one 16:00 → 1 unit kept, 1 held `duplicate-ambiguous`.
+  - A next-date recurrence (the same class a week later) is a new key and counts. After an edition publishes the first date, only the second counts next week.
+  - A reminder post for a published occurrence is `previously-covered` in the next edition.
+- **Coverage integrity (R6), `tests/content/roundup-coverage-integrity.test.mjs` against local PG, through `checkRecordPolicy` and the fixer adapter:**
+  - An `seo` or `manual` **insert** of a post carrying `roundupCoverage` → refused.
+  - An `seo` or `manual` **edit** of a live roundup post that changes, clears or **removes** the field → refused.
+  - The same edit that changes only visible copy and preserves the field byte-identically → accepted, and coverage is unchanged in the next export.
+  - A gate-fixer revision on an `seo` submission that touches the field → refused.
+  - A fixer revision on a roundup submission that changes it → refused.
+  - A `roundup` submission whose field differs from the pack-derived value → refused.
+  - A roundup pack deriving 65 keys → the submission is refused. Nothing is truncated.
+  - Deleting the whole roundup post is allowed, and its keys leave coverage.
 
 ### A4: Backtest replay (`tests/news-pilot/roundup-v2-backtest.eval.mjs`, run in `test:news-pilot`)
 
@@ -999,11 +1116,10 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - Ellipsis-joined backtest quotes are never used as quotes. Each part becomes its own span in its own record, or is unavailable.
 - **Review.** The conversion file and its expected classes are reviewed by someone other than the builder before the replay expectations are frozen.
 - **Instagram units.** The conversion is built from the archived raw trial data, **not** by re-collecting. The archive is `lib_village/.state/archive/2026-09-29-ig-trial/`, and its sha256 values are pinned in the conversion header:
-  - `apify-items1..5.json` (raw provider rows) and `owned-posts.json`;
-  - the carousel and check images (`oha-sept10-*.jpg`, `check-*.jpg`);
-  - `website-audit.json` (watch-list verification) and `classify.py` (the trial's classification and transcriptions).
+  - `apify-items1..5.json` and `owned-posts.json`: the raw provider rows, with **raw captions including line breaks**;
+  - `website-audit.json` (watch-list verification) and `classify.py` (the trial's classification).
 
-  The committed fixtures copy **only** the minimal fields: `ownerUsername`, `shortCode`, `timestamp`, `type`, the exact caption block spans used, image sha256s, and both image transcriptions (the trial's, plus the reviewer's independent one). Raw dumps and images stay in the archive and are never committed. A missing second transcription makes the image date `unavailable`, which is fact (i) in §7.
+  The committed fixtures copy **only** the minimal fields: `ownerUsername`, `shortCode`, `timestamp`, `type`, and the exact event-record text and spans used. Raw dumps and images stay in the archive and are never committed. Image-only units (IG034, IG099, IG100) are converted as leads with `unavailable: ['text-date']`.
 - **Rows that cannot be re-captured** stay in the replay with the expected class `unverifiable`: bot-walled pages, R12 and R13 (truncated `article_` URLs, empty quotes, no canonical metadata), and the Globe. They are **not** asserted as detected syndication; stale detection is proven only by the A2 synthetic fixtures.
 - **No model calls.** The replay runs `verify → plan` with the converted forms as the reasoner's output.
 
@@ -1012,16 +1128,15 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
 **Assertions:**
 
 - The per-week decisions, eligible unit IDs, unit and core counts, and cap cuts equal the §7 table, as updated by conversion review:
-  - W37 publish at the Wednesday slot, with IG084 as its anchor;
-  - W38 publish at the Wednesday slot if (i) verifies, otherwise HOLD `below-minimum` at all three slots;
-  - W39 publish at the Friday slot if (i) or (ii) verifies, otherwise HOLD `below-minimum`;
+  - W37 publish at the Wednesday slot, 8 (3/1), with IG084 as its anchor;
+  - W38 HOLD `below-minimum` at all three slots;
+  - W39 publish at the Friday slot, 3 (1/1), if (ii) verifies; otherwise HOLD `below-minimum`;
   - W40 publish 12, with IG215 as a core class, and R57b, R56a and R56b cut by the cap (plus R61 in the ceiling).
-- The eval runs both the ceiling and the floor scenario by toggling facts (i) and (ii) in the conversion, and asserts both columns of §7. The real conversion then selects one.
+- The eval runs both the ceiling and the floor scenario by toggling (ii) and the other conditional spans, and asserts both columns of §7. The real conversion then selects one.
 - **No expectation may override a verifier rule.** A deviation is reported for review, never forced.
-- Removing R20 turns week 38 into `hold` in both scenarios.
 - Removing IG084 turns week 37 into `hold` (`no-core`) in the floor, because the classes IG069 and IG065 cannot anchor.
-- Every Instagram row in `ig-items.jsonl` that the trial did not qualify stays excluded: `undated`, `outside-window`, `promo-only`, `recurring-generic`, `routine-holiday-hours`, `off-site event` and `no-caption` map to `undated`, `concluded` or `stale`, `not-news`, `not-news`, `not-news`, `not-LV` and `record-missing`. Trial duplicates merge into their event. Of the trial's 13 qualified rows, IG124 and IG227 are `retrospective`. IG157 and IG158 date correctly but become available only after W38's deciding clock, and IG157 is also `unverifiable` for place. IG223 is dropped by the class cap in favour of IG215, which the trial had excluded and which now counts. Trial rows with relative words that are promos, off-site, holiday hours or recaps stay excluded for those reasons (for example IG134, IG162, IG217 and IG218 are off-site; IG119 and IG133 are recaps).
-- Every trap row is excluded with the expected reason class: R44 TorontoToday stabbing (`not-LV`); R03 Toro Toro (`not-LV`); R02 Eco-Fair and R65 Don't Tell Comedy (`unverifiable`); R43 CBC Parkdale and R41 Parkdale Barbers (`not-LV`); R62 Joe Shuster Way, R63 Temple Ave and R64 Douro St (`not-LV`). R23 CBC Tempo/NY Liberty is a venue-qualified row: it is future at the W38 Wednesday clock, and at later clocks it is a merged `duplicate` of R22c.
+- Every Instagram row in `ig-items.jsonl` that the trial did not qualify stays excluded: `undated`, `outside-window`, `promo-only`, `recurring-generic`, `routine-holiday-hours`, `off-site event` and `no-caption` map to `undated`, `concluded` or `stale`, `not-news`, `not-news`, `not-news`, `not-LV` and `record-missing`. Trial duplicates merge into their event. Of the trial's 13 qualified rows, IG124 and IG227 are `retrospective`. IG034, IG099 and IG100 are image-only leads. IG157 and IG158 date correctly but arrive after the deciding clocks, and IG157 is also `unverifiable` for place. IG221 is `unverifiable`, so it never adds to IG214. IG223 loses the class cap to IG215, which the trial had excluded and which now counts. Trial rows with relative words that are promos, off-site, holiday hours or recaps stay excluded for those reasons (for example IG134, IG162, IG217 and IG218 are off-site; IG119 and IG133 are recaps).
+- Every trap row is excluded with the expected reason class: R44 TorontoToday stabbing (`not-LV`); R03 Toro Toro (`not-LV`); R02 Eco-Fair and R65 Don't Tell Comedy (`unverifiable`; R02 has no venue, so no occurrence key); R43 CBC Parkdale and R41 Parkdale Barbers (`not-LV`); R62 Joe Shuster Way, R63 Temple Ave and R64 Douro St (`not-LV`). R23 CBC Tempo/NY Liberty is a venue-qualified row: it is future at the W38 Wednesday clock, and at later clocks it is a merged `duplicate` of R22c.
 - Every crime, election and weak-source row is excluded: R04, R42, R17, R18, R19, R26, R28, R49, plus R01, R05, R06, R21, R32, R33, R36, R51 and R60 as `weak-source`. So is every blocked row: R10 TorontoToday, R25 Toronto Life, R11 NOW and R30 Globe.
 - No Reddit, directory or Ontario Place row is admitted (R16, R17, R18, R19, R31, R40, R41, R48, R49).
 - The eval prints a per-week, per-slot census table, including the `capturedAfterClock` labels, which is kept as evidence.
@@ -1049,6 +1164,11 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - A late roundup whose old slug is not current-live holds its original key with `stuckSubmissionId`.
   - More than 2 unresolved prior roundup attempts throws the backlog error.
   - The content lane's existing prior-week tests pass unchanged, using `unresolvedAttempts({lane:'content'})`.
+- **Instagram credential boundary (N1), run through the real env builders in `runner.mjs`:**
+  - `sourceEnv(env,'weekly-roundup')` contains `APIFY_API_TOKEN`.
+  - `trustedEnv(env)`, the generator environment, every other job's `sourceEnv`, and the gate's environment do not contain it.
+  - A runner test with a fake provider runs `submitRoundup` end to end: the helper under `sourceEnv` writes `ig-refetch.json`, and `content submit` under `trustedEnv` accepts the unchanged Instagram unit. The same test with the post marked deleted, or private, refuses the unit, and the pack is refused below 3/1.
+  - A spy on the model request builder asserts that no request payload (reasoner, writer, reviewers, gate) contains the token value.
 - All existing cadence, count, deadline and alert tests stay green: `npm run test:content` against local PG, plus `test:news-pilot` and `test:automation`.
 
 ### A6: Live staging evidence (required before claiming done)
@@ -1084,8 +1204,9 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
 
 ## 14. Open questions for the owner (do not block staging)
 
-1. **Holds under the inherited source rule.** With Instagram, the replay publishes W37 and W40. W38 and W39 depend on one image-text verification and one dateline, and hold otherwise (§7). Holds emit `WEEKLY_NEWS_MISSED`. Relaxing §6.7 would be a substantive cadence change needing its own review. This spec does not propose it.
+1. **Holds under the inherited source rule.** With Instagram, the replay publishes W37 and W40 and holds W38. W39 publishes only if the Canada Soccer dateline verifies (§7). Holds emit `WEEKLY_NEWS_MISSED`. Relaxing §6.7 would be a substantive cadence change needing its own review. This spec does not propose it.
 2. **Brand fit.** In published weeks, most counted units are stadium and expo items. The ≥1 core rule enforces a local anchor but not a local majority. Is that the intended brand balance? (The title's "+ Exhibition Place" is intended to make this honest.)
-3. **Meta Business Discovery (optional).** Apify is approved for production (2026-09-29). Should the Meta adapter be added later? It needs John to provide a professional Instagram account, a Facebook Page and a Facebook app (§4.4).
-4. **Bot-walled local coverage.** Should TorontoToday or Toronto Life access be licensed? Their tower stories would be human-only under current policy anyway.
-5. **Production activation.** The criterion and timing are John's call (A6.5).
+3. **Image-text dates (possible later addendum).** Image-only Instagram dates are excluded from v2 (§4.4). They cost W38 its IG099 unit and W39 the IG100 class. A later addendum could add blinded, media-bound transcription before the verifier, with submit binding to the image hash.
+4. **Meta Business Discovery (optional).** Apify is approved for production (2026-09-29). Should the Meta adapter be added later? It needs John to provide a professional Instagram account, a Facebook Page and a Facebook app (§4.4).
+5. **Bot-walled local coverage.** Should TorontoToday or Toronto Life access be licensed? Their tower stories would be human-only under current policy anyway.
+6. **Production activation.** The criterion and timing are John's call (A6.5).
