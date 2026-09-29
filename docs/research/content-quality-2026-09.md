@@ -1,0 +1,226 @@
+# Content quality vs the gate, and how to reach the publishing cadence (2026-09)
+
+Status: research report (plan role). No product code, gate, linter, rubric, or data was changed to produce it.
+Author: overnight content-quality research worker, branch `overnight/cq-research` off `fa3c881`.
+Evidence captured: 2026-09-29 03:19–03:45 UTC.
+
+## 0. Summary
+
+**The gate is not the main problem. Candidate quality and topic choice are.** In the Neon-era record (production + staging, 2026-09-28 → 29):
+
+1. **No blog candidate has ever passed on its first round.** Round-0 scores for the four gated blog candidates were 5.5, 4.0, 5.5, 4.0 (mean 4.75). Both posts that published needed the fixer: staging #6 after one repair (5.5 → 8.0), production #4 after three (5.5 → 7.0 → 7.5 → 8.0, passing on the last round allowed).
+2. **Most blog slots never produce a candidate.** Of 14 weekly-blog runner slots, 8 ended without a gated submission: 6 were grounding refusals or no-post exits on operational-premise topics (pet-friendly, happy hour), 1 was stopped by the claim linter (two HIGH `unsupported-address`), and 1 log has no terminal event. Only 2 of the 14 slots published (14%).
+3. **The topic queue is the biggest upstream defect.** The 22 queued blog topics are mostly raw Google Search Console or People-Also-Ask strings. At least 13 of them are ungroundable from our data, duplicate an existing post, or duplicate another queued topic (§3.3). The one production post that published, "Liberty Village Farmers Market", came from a queue entry whose premise **contradicts our own `/guide/farmers-market` page**: "Liberty Village does not have a permanent weekly farmers market". The gate rightly scored every version of that post generic (all 7 of its rounds across staging #7 and production #4 flagged "never names a market, day, or location"). It passed at 8.0 only after the fixer removed every claim that the market exists. That post may now read as a guide to a market we say does not exist. See §6, risk R1.
+4. **We gate on business records alone, so any topic that needs other facts can't pass.** Beyond the slug and image inventory, the only evidence given to the gate and the fixer is the `data/businesses.json` records the draft names (`scripts/automation/review-agent.mjs:120-150`). Facts about streets, parks, markets, transit, parking, or population can't be supported, even when our own reviewed `data/topics.json` pages already state them. That is why the walking-route post (staging #4) and both farmers-market posts failed. Blocking findings on those were about local geography and operations, not businesses.
+5. **The drafting and repair model is a year behind the judge.** The drafter (`scripts/weekly-blog-agent.js:148`) and the fixer (`FIXER_MODEL`, `scripts/automation/constants.mjs`) both run `claude-sonnet-4-5-20250929`, while the gate runs `claude-opus-5`. The fixer has no tools (`tools: []`) and only sees the same business records. When the finding is "add real local detail", all it can do is delete. That explains the non-converging runs (staging #7: 4.0 → 5.0 → 4.0) and the "safe but generic" pass on production #4.
+6. **Gate severity varies between runs.** The same topic-queue entry ("Jukebox Print Toronto Liberty Village Toronto", same finding text) was rated MEDIUM on staging (#3, pass at 8.0) and HIGH on production (#2, blocked at 6.0). Candidates therefore need margin above the bar, not a borderline 8.0.
+7. **News is not blocked by writing quality.** Two news runs looked at about 269 candidates each and auto-published nothing, by design ("rare + certain"). For a *weekly roundup*, the pipeline already finds enough cited, dated, local items. What's missing is a roundup content type with its own rules (§5, remedy 6).
+
+**Cadence plan (ranked, §5):** (1) fix topic intake with a groundability check before drafting, (2) give the drafter a source pack and give the gate and fixer the same evidence, (3) run a rubric self-check before submitting and pick the best of several candidates, (4) use templated content types that are reliably groundable, including the weekly news roundup, (5) move the drafter and fixer to a current model, confirmed by a staging A/B, (6) schedule several attempts across the week with topic fallback. None of these lowers the gate threshold (score ≥ 8, no HIGH/CRITICAL findings) or weakens the linter.
+
+## 1. Scope, method, coverage
+
+**Data sources (all read-only):**
+
+- Content store, both targets, via the runner's own env files and the repo CLI at `/srv/lv-runner/repo` on `lv-content-runner`: `list --submissions`, `show --submission N` for every submission, and `stats`. CLI stderr (target host) was discarded. No secret was printed or stored. No mutating command was run.
+- Runner logs `/var/log/lv-runner/*.jsonl` (bounded, secret-free by design), generator diagnostics `/var/log/lv-generator/*.jsonl`, two root-only replay logs (`repro-diagblog-*`, excerpted for model/outcome only), `/var/lib/lv-runner/topic-state.json`, and news run artifacts under `/var/lib/lv-runner/news/*/` (candidate counts and evaluation codes only).
+- Repo at `fa3c881`: generator prompt `scripts/prompts/weekly-blog-system.md`, generator `scripts/weekly-blog-agent.js`, gate/fixer `scripts/automation/review-agent.mjs`, `scripts/content/gate.mjs`, `scripts/automation/constants.mjs`, linter `scripts/lib/referenced-businesses.mjs`, `data/topic-queue.json`, `data/topics.json`, `data/posts.json`, `data/businesses.json`.
+- Issues #187, #186, #182, #181, #177 (merged PR), #176, #152, #109.
+- Web research on grounded generation, verification, self-correction, selection, automated local news, and Google Search guidance (§4, all linked).
+
+**Coverage.** Every submission in both content stores was read: production IDs 1–4, staging IDs 1–7, 21 gate rounds in total (excluding the two seed submissions, which have no rounds). All 14 weekly-blog runner slot logs and all 6 generator diagnostics present on the VM were read.
+
+**Unknowns and limits.**
+
+- The corpus is small (4 gated blog candidates, 13 blog gate rounds). The percentages below describe what happened; they are not stable rates.
+- Pre-Neon (Git/PR-era) outcomes are summarized only from issue #109's candidate-state ladder and #152. Those failures were mostly infrastructure (`GENERATION_FAILED_PRE_PR`, ingest timeouts), not gate findings, and are not re-categorized here.
+- Runner stdout for the first four production blog runs was discarded at the time (#187). Their topic attribution (pet ×2, happy hour ×2) comes from `topic-state.json` attempt counters and the #186/#187 narrative, not from per-run records. Staging slot `20260928200450-f6a668e6` has no terminal log event.
+- Candidate bodies are not stored in the `show` output (payloads are stripped). Findings are quoted from the gate verdicts, not re-read from drafts.
+- The discrepancy between the brief/#187 ("blog production scheduling remains disabled") and the VM is recorded, not resolved. `systemctl is-enabled` shows `lv-runner-weekly-blog.timer` **enabled**, next run Wed 2026-09-30 11:00 UTC. SEO is disabled (#182).
+
+## 2. Inventory of submissions and outcomes
+
+| Target | ID | Kind | Outcome | Rounds (score → …) | Repairs | Topic / items |
+|---|---|---|---|---|---|---|
+| prod | 2 | topic-discovery | blocked `unrepairable` | 6.0 | 0 | 3 queue entries; raw GSC "Jukebox Print Toronto Liberty Village Toronto" HIGH |
+| prod | 3 | business | blocked `exhausted` | 5.0 → 5.0 → 5.5 → 5.5 | 3 | OVO Athletic Centre (Raptors practice facility) as `gyms` `$$`; Flame-Wise Tattoo |
+| prod | 4 | blog | **published**, smoke passed | 5.5 → 7.0 → 7.5 → 8.0 | 3 | `liberty-village-farmers-market` |
+| stg | 2 | business | `error` (operational) | 7.5 (0 blocking) | 0 | Flame-Wise Tattoo |
+| stg | 3 | topic-discovery | **published** | 8.0 | 0 | same 3 entries as prod 2 (Jukebox rated MEDIUM here) |
+| stg | 4 | blog | blocked `exhausted` | 4.0 → 4.5 → 5.0 → 6.0 | 3 | `walking-liberty-village-self-guided-neighbourhood-route` |
+| stg | 5 | seo | stuck `gating` (lease lost, #182) | 2.0 (8 blocking) | 0 | 11 business/post/topic records |
+| stg | 6 | blog | **published**, smoke passed | 5.5 → 8.0 | 1 | `breakfast-liberty-village-mildreds-oeb` |
+| stg | 7 | blog | blocked `not-converging` | 4.0 → 5.0 → 4.0 | 2 | `liberty-village-farmers-market-guide` |
+
+Seeds (prod 1, stg 1) are omitted. Gate model on every round: `claude-opus-5`.
+
+### 2.1 Blog runner funnel (14 slots)
+
+| Outcome | Slots | Detail |
+|---|---|---|
+| Published (gate PASS → deploy → smoke) | 2 | prod `0e414bc6` → #4; stg `c5653772` → #6 (after 2 `scratch output outside allowlist` retries) |
+| Gate blocked | 2 | stg `2ed948bc` → #4 exhausted (after 1 allowlist retry); stg `stageblog4` → #7 not-converging |
+| Generator wrote no post (grounding refusal / exhausted topic) | 8 | prod `d435ad53`, `2710e529` (pet); `ce29b07c`, `78435b82`, `931f5779` (happy hour; last one logged `unsupported-grounding`); stg `4da969ed` (no post), `stageblog2` (pet, `unsupported-grounding`), `stageblog3` (happy hour, `unsupported-grounding`) |
+| Stopped by trusted CLI linter before submit | 1 | stg `stageblog1`: 2× HIGH `unsupported-address` (59 turns, 428 s) |
+| No terminal event logged | 1 | stg `f6a668e6` |
+
+The table accounts for all 14 slots. Refusals have two opposite causes. The pet-friendly topic has **zero** supporting business records (a `pet-friendly|dog-friendly|dogs welcome` regex over `businesses.json` matches 0 of 219), so refusing it is correct. The happy-hour topic has **two** supporting records (LOCAL Public Eatery, Cibo Wine Bar). Prompt §2.3 explicitly allows a post limited to those two businesses, and an isolated replay with the same model and prompt did write one (`repro-diagblog-20260928234241`). Yet the scheduled generator refused it four times. The same inputs produce opposite decisions, which is instability in the model's reading of the prompt, not a data gap.
+
+## 3. Why candidates fail: categorized findings
+
+### 3.1 Blocking (HIGH/CRITICAL) findings in blog rounds: 13 across 13 rounds
+
+| Category | Count | Where | Root cause |
+|---|---|---|---|
+| Topic premise unsupported or false → title promises what the body can't deliver / generic filler | 4 | prod #4 r0; stg #7 r0, r1, r2 | Queue topic "Liberty Village Farmers Market" presumes a market our own guide says doesn't exist; no evidence available |
+| Image path not in gate inventory (`/media/<hash>/` vs `/images/blog/`) | 4 | stg #4 r0–r3 | Pipeline/gate inventory mismatch; fixed by later staging SHAs (from #6 on, the `/media` path is inventory-verified and only draws LOW/MEDIUM "convention" nits) |
+| Invented specific local facts (turn-by-turn route geometry; reservation policy) | 3 | stg #4 r0, r1; stg #6 r0 | Drafter writes from memory on topics the records don't cover; operational-premise rule broken in body text |
+| Broken internal link (invented slug) | 2 | stg #4 r0 (`…-guide-2026`); stg #7 r0 (`/guide/grocery-stores`) | Drafter guesses slugs instead of copying them from the inventory |
+
+Without the image-path defect (a pipeline bug, since fixed), **9 of the 9 remaining blockers are topic grounding or invented facts**. None are about style.
+
+### 3.2 MEDIUM findings in blog rounds: 24 (they cap the score even without blockers)
+
+| Theme | Count | Examples |
+|---|---|---|
+| Unsupported or embellished facts beyond the records | 15 | wait times "30–45 min"; décor; "Toronto's breakfast destination"; "15,000 residents"; Green P address and rates; step-free/snow-clearing accessibility claims; market cadence, vendors, "harvested within 24 hours"; extending one record's "made from scratch" to a second business |
+| Generic / thin / duplicate of an existing page | 4 | farmers-market posts overlap `/guide/farmers-market` and the grocery guide |
+| Unsupported comparison or disparagement of a named business | 2 | "big-box experience at FreshCo or Longo's"; FAQ comparison with FreshCo |
+| Internal inconsistency | 1 | seasons listed twice, contradictory |
+| Editorial leak of internal data structure | 1 | "(mentioned in Mildred's pro tip)" |
+| Image path convention | 1 | stg #6 r1 |
+
+LOW findings recur in every round and add noise: the `/media/<hash>` vs `/images/blog/<slug>` convention (flagged in 10 of the 13 blog rounds) and link-target style nits. They don't block, but they take up judge attention and repair budget in every round.
+
+### 3.3 Topic-queue quality (22 blog entries in `data/topic-queue.json`)
+
+| Class | Entries | Groundable from our data? |
+|---|---|---|
+| Operational premise | Pet-Friendly Restaurants (0 supporting records); Happy Hour (2 records) | Pet: no. Happy hour: only as a 2-business post |
+| False / unsupported entity premise | Liberty Village Farmers Market (our guide says no permanent market) | Only if reframed ("Farmers markets near Liberty Village") and grounded in the guide page |
+| Branded / navigational single-business queries | Goodlife (existing review post + gym guide), Jukebox Printing, Aroma Espresso Bar | Thin single-record posts; Goodlife duplicates an existing post |
+| Address / facility queries | 34 Hanna Ave Parking, Green P Parking | No parking-facility records exist; ungroundable under current evidence |
+| Head terms, not topics | "Liberty Village Toronto", "Liberty Village Gyms" (duplicate of fitness guide), "Liberty Village Spa" (6 spa records → groundable roundup) | Mixed |
+| PAA questions | 11 entries: "things to do" ×4 variants, "downtown" ×2, "known for"/"famous for" ×2 (one already a post), "good area" (already a post), "expensive", "walkable", "best place to eat" (overlaps the restaurants guide) | After dedupe, about 4 distinct intents, 2 already covered |
+
+Conclusion: about 13 of the 22 entries are ungroundable, duplicate an existing post, or duplicate another entry. The generator is asked to pick the "highest combined score" from SEO demand, and the queue has no *groundability* column (prompt §2.3 scores demand, gap, season, diversity, cross-references, and locality, but not evidence coverage). The topic-discovery gate caught the malformed Jukebox string in production but passed it on staging.
+
+### 3.4 Other lanes (same failure pattern)
+
+- **Business discovery (prod #3):** the gate correctly blocked OVO Athletic Centre, a private Raptors practice facility filed as a `$$` gym, for 4 rounds. The fixer kept rewording the record instead of excluding it. Default `priceRange: '$$'` on un-enriched records and unsourced review counts were repeat MEDIUMs. The fix belongs at intake (classification and exclusion before submit), not in repair.
+- **SEO (stg #5):** 2.0 with 8 blockers, including two invalid-JSON breaks and invented amenities, prices, promotions, and phone numbers across 7 business records. The SEO generator is embellishing, the same failure as the blog MEDIUMs but more severe. It is also operationally stuck (lease lost, #182).
+- **Topic discovery:** raw query strings are passed through verbatim with a duplicated geo suffix, and near-duplicate PAA variants are queued separately.
+
+### 3.5 Cross-cutting causes
+
+1. **No groundability check before drafting.** Topics are chosen for demand, and whether our evidence can support them is only discovered by the gate (or a refusal) after drafting.
+2. **Evidence mismatch.** The drafter can read anything in the repo. The gate and fixer see only the named business records plus a slug inventory. Anything else the drafter writes, even if true and on our own guide pages, is "unsupported".
+3. **Repair can only delete.** A tool-less fixer on an older model, holding the same limited evidence, cannot add grounded specifics. It removes claims until the draft is safe and generic (production #4) or stops converging (staging #7).
+4. **Model gap.** `claude-sonnet-4-5-20250929` drafts and repairs. `claude-opus-5` judges.
+5. **Pass margin.** Judge severity varies (§0.6), so borderline 8.0 candidates can flip.
+6. **No first-party templates** for the content types that are reliably groundable from our own data (directory roundups, "new this month", what's on, weekly news).
+
+## 4. External research: best practice for grounded AI local content
+
+Only sources that were actually opened are cited. Items that could not be opened are listed as unverified at the end of this section and are not relied on.
+
+### 4.1 Research before drafting, and grounding on supplied sources
+
+- [RARR: Researching and Revising What Language Models Say](https://arxiv.org/abs/2210.08726) (Google Research, 2023). Retrieve evidence, check whether it supports each claim, and edit only the unsupported spans; most of the original text is kept. *Implication:* repair should target unsupported spans *with evidence in hand*. Our fixer has no evidence beyond business records, so it can only delete.
+- [Self-RAG](https://arxiv.org/abs/2310.11511) (Asai et al., 2023). The model decides when retrieval is needed and critiques its own output against what was retrieved, improving factuality and citation accuracy. *Implication:* decide whether a topic is answerable *before* drafting.
+- ["According to…" prompting](https://arxiv.org/abs/2305.13252) (Weller et al., EACL 2024). Telling the model to answer "according to" a named source increases verbatim grounding without hurting the task. *Implication:* a cheap prompt lever: every local-fact sentence is written "according to" a record ID in the source pack.
+- [Anthropic Citations API](https://platform.claude.com/docs/en/build-with-claude/citations) (Anthropic docs). Given documents, Claude returns citations whose `cited_text` is extracted verbatim from the source, not generated. *Implication:* the drafter can emit a claim→span ledger that can be checked mechanically.
+
+### 4.2 Claim/evidence ledgers and verification
+
+- [FActScore](https://arxiv.org/abs/2305.14251) (Min et al., EMNLP 2023). Break a generation into atomic facts and score the share supported by a knowledge source. The automated estimator is within 2% of human error. ChatGPT scored 58% on biographies.
+- [SAFE: Long-form factuality in LLMs](https://arxiv.org/abs/2403.18802) (Google DeepMind, 2024). Split a response into self-contained facts and verify each one. Agrees with human raters 72% of the time at about 20× lower cost.
+- [Chain-of-Verification](https://arxiv.org/abs/2309.11495) (Dhuliawala et al., ACL Findings 2024). Draft → plan verification questions → answer them *independently of the draft* → revise. Reduces hallucinated claims.
+- *Implication for us:* a deterministic-first **claim ledger** before submission. Extract atomic claims, match each to a source-pack span, and drop or rewrite unmatched claims before the Opus gate sees the draft. This targets the 15 "unsupported/embellished" MEDIUMs and the 3 invented-fact HIGHs directly (§3.1–3.2).
+
+### 4.3 Self-critique, the judge/drafter gap, and repair that doesn't converge
+
+- [Large Language Models Cannot Self-Correct Reasoning Yet](https://arxiv.org/abs/2310.01798) (Huang et al., ICLR 2024). Self-correction without external feedback does not help and often makes results worse.
+- [When Can LLMs Actually Correct Their Own Mistakes?](https://arxiv.org/abs/2406.01297) (Kamoi et al., TACL 2024). Self-correction works reliably only with **external** feedback (tools, retrieval, a separate verifier) or fine-tuning.
+- [Judging LLM-as-a-Judge (MT-Bench)](https://arxiv.org/abs/2306.05685) (Zheng et al., NeurIPS 2023). Strong LLM judges agree with humans about as often as humans agree with each other, but show position, verbosity, and self-enhancement bias.
+- [Constitutional AI](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback) (Anthropic, 2022). Critique-then-revise against explicit written principles is effective.
+- *Implication:* our fixer gets the gate verdict (external feedback, good) but **no new evidence**. Findings like "name the market, day, and location" can't be satisfied, which matches staging #7 (4.0 → 5.0 → 4.0). Run the self-check against the *exact gate lenses and threshold* before submitting (critique-then-revise), and let repair fetch evidence or abandon the topic instead of sanding it down. Because judge severity varies (§0.6), aim candidates at ≥ 8.5 in the self-check to leave margin.
+
+### 4.4 Generating several candidates and selecting with a verifier
+
+- [Training Verifiers to Solve Math Word Problems](https://arxiv.org/abs/2110.14168) (Cobbe et al., OpenAI, 2021). Sampling many candidates and choosing with a verifier "significantly improves performance" and scales better with data than fine-tuning. The domain is math, not prose, so treat this as directional evidence.
+- *Implication:* draft 2–3 candidates on *different* topics or angles per slot. Pre-screen them cheaply (linter + claim ledger + rubric self-score) and submit only the best. The gate still judges it once, at full strength.
+
+### 4.5 Templates and roundups in automated local news
+
+- [RADAR / Urbs Media on automated local news (CJR Tow Center, Diakopoulos)](https://www.cjr.org/tow_center/diakopoulos-automation-local.php). Journalists write templates with if/then logic over open datasets, humans pick which patterns are newsworthy, and outlets rework 20–50% of output. *Implication:* templated content types backed by data we already hold ("new businesses this month", category roundups, what's on) are the reliable cadence base. The template decides which fields exist, so a post can't invent a field (reservation policy, wait time).
+- [AP automated earnings stories (Poynter, 2015)](https://www.poynter.org/reporting-editing/2015/robot-writing-increased-aps-earnings-stories-by-tenfold/). AP co-designed its templates with the standards editor before scaling and got a tenfold increase in volume.
+- [JournalismAI "Generating Change" survey (LSE, 2023)](https://www.journalismai.info/research/2023-generating-change) (landing page only). Newsrooms stress human accuracy checks on AI output. *Implication:* keep an owner spot-check of a sample of *passed* posts, not just failed ones (R1 shows why).
+
+### 4.6 Google Search guidance (why the bar should stay where it is)
+
+- [Creating helpful, reliable, people-first content](https://developers.google.com/search/docs/fundamentals/creating-helpful-content) (Google Search Central). Self-assessment asks for original information beyond summarizing other sources, and no filler.
+- [Using generative AI content](https://developers.google.com/search/docs/fundamentals/using-gen-ai-content) (Google Search Central). AI content is acceptable, but generating many pages without adding value may violate the scaled-content-abuse policy.
+- [Spam policies: scaled content abuse](https://developers.google.com/search/docs/essentials/spam-policies) (Google Search Central). Verbatim: "Scaled content abuse is when many pages are generated for the primary purpose of manipulating search rankings and not helping users", including "Using generative AI tools … to generate many pages without adding value for users."
+- *Implication:* a generic "farmers market guide" that names no market is exactly the low-value pattern. Raising cadence by lowering the bar would add search risk as well as quality risk. The gate's CONTENT lens is aligned with Google's guidance.
+
+### 4.7 Checking a topic is answerable, and turning queries into topics
+
+- [SQuAD 2.0: Know What You Don't Know](https://arxiv.org/abs/1806.03822) (Rajpurkar et al., ACL 2018). Detecting unanswerable questions is a separate and harder skill; strong models drop from 86 to 66 F1 once they must also abstain. *Implication:* don't leave answerability to the drafter's judgement mid-run, where it has proven unstable (happy hour: refused 4×, drafted 1× in replay). Make it a deterministic pre-dispatch check: count the evidence records per required fact class.
+- Query clustering by search intent is standard SEO practice (no primary academic source verified). Group GSC/PAA strings into intents, drop head terms, branded navigational queries, and existing-post duplicates, then rewrite each as a topic *with its evidence requirements*.
+
+### 4.8 Model choice
+
+- [Vectara next-generation hallucination leaderboard](https://www.vectara.com/blog/introducing-the-next-generation-of-vectaras-hallucination-leaderboard) (2025). Verbatim: "Other notable thinking models like **Claude Sonnet 4.5**, GPT-5, GPT-OSS-120B, Grok-4, or Deepseek-R1 all have a hallucination rate > 10%" on grounded summarization. Our drafter and fixer are exactly `claude-sonnet-4-5-20250929`.
+- [FACTS Grounding (Google DeepMind, 2024)](https://deepmind.google/blog/facts-grounding-a-new-benchmark-for-evaluating-the-factuality-of-large-language-models/). Scores grounding in a supplied document with three judges from different model families to reduce single-judge bias.
+- *Implication:* moving to a current model (e.g. `claude-sonnet-5` or `claude-opus-5-5`) is worth an A/B test, but newer is not automatically less hallucination-prone. Source packs and claim ledgers matter more. Decide the model upgrade on staging with the unchanged gate as the measure.
+
+### 4.9 Could not verify (not relied on)
+
+Nieman Lab pieces on Hoodline's AI local news and Patch's AI newsletters (HTTP 403). Google's March 2024 core-update/spam-policy blog post (fetch returned only the index; the spam-policies page above is cited instead). Poynter's AI ethics guideline page (navigation only).
+
+## 5. Ranked plan to hit the cadence (≥ 2 content pieces + ≥ 1 news roundup per week)
+
+Principles: the gate threshold (overall ≥ 8, zero HIGH/CRITICAL), the lenses, the claim linter, and the per-business grounding rule stay unchanged. Items marked **(rubric/evidence change → spec review)** alter what the gate is *shown*, not what it *requires*, and need an independent reviewer before implementation. Impact estimates come from the §3 counts, not from new experiments.
+
+| Rank | Remedy | Fixes (evidence) | Effort | Owner type |
+|---|---|---|---|---|
+| 1 | **Groundability check before dispatch plus a cleaned topic pipeline.** Topic-discovery clusters GSC/PAA strings into intents, drops head terms, navigational queries, and existing-post duplicates (title+slug overlap against `posts.json`), and rewrites titles. Each queued topic carries `requiredFacts` classes (e.g. `business:category=spas ≥3`, `topic:farmers-market`) and a computed `evidenceCount`. The runner dispatches only topics meeting their minimums. Operational premises reuse `OPERATIONAL_PREMISES` from `referenced-businesses.mjs` so the drafter and the pre-check agree (happy hour = 2 records → a two-business post is allowed; pet = 0 → never queued). Keep ≥ 6 eligible topics queued; alert below 3. | 8/14 no-post slots; farmers-market false premise (4 HIGH); Jukebox HIGH; #186 remainder | M | code (topic-queue.mjs, runner selectTopic) |
+| 2 | **Source pack for the drafter; same pack for the gate and fixer** **(rubric/evidence change → spec review)**. Before drafting, build a bounded pack: the business records in scope, plus the relevant first-party reviewed records (`topics.json` guide sections, `neighborhoods.json` stats, prior posts' grounded facts), each with a stable ID. The drafter may state local facts only from the pack (prompt: "according to [record-id]"). The gate's GROUNDING lens and the fixer receive the same pack instead of businesses only. The bar is unchanged: a fact still needs support, but first-party reviewed facts become admissible evidence. External web facts stay out of scope until a cited-source evidence type is specified. | walking route & market HIGHs; 15 unsupported MEDIUMs; fixer non-convergence | M–L | spec + code (review-agent.mjs evidence block, weekly-blog prompt) |
+| 3 | **Claim ledger and rubric self-check before submit.** After drafting: (a) run the existing linter locally inside the generator loop, not only in the trusted CLI (stageblog1 spent 428 s to be linter-rejected); (b) extract atomic claims and match each to a pack record, rewriting or dropping unmatched ones (CoVe-style, independent of the draft); (c) validate every internal link/slug against the inventory; (d) self-score against the literal `LENSES.blog` text and the ≥ 8 bar, targeting ≥ 8.5 for margin. Emit the ledger as a declared transfer artifact for diagnostics. The trusted gate still decides. | 2 broken-link HIGHs; 3 invented-fact HIGHs; most MEDIUMs; linter rejects | M | code (weekly-blog-agent + prompt) |
+| 4 | **Several candidates per slot, and repair that fetches evidence or gives up.** Generate up to 2–3 candidates on *different* eligible topics or angles within a slot's budget, pre-screen with #3, and submit only the best. The fixer gets the source pack. If a finding needs facts the pack lacks, the fixer returns `abandon-topic` (terminal, topic marked ungroundable) instead of deleting until the draft is generic. Tighten the not-converging rule to stop after the first non-improving round (already largely in `policy.mjs`). | stg #7 non-convergence; prod #4 generic pass (R1); cost | M | code (runner, gate policy) |
+| 5 | **Templated content types that are reliably groundable** (each with its own prompt, field schema, and evidence minimum): (a) **"New in Liberty Village this month"** from newly published business records (discover-businesses output after gate); (b) **category roundups** ("Spas in Liberty Village": ≥ 3 records, facts copied verbatim); (c) **what's on / events** from dated, sourced event items; (d) **Q&A explainers** from first-party guide records (walkable, downtown, cost) once #2 lands. Operational-premise posts only when ≥ 2 records support the premise. | Gives the 2/week content target a fallback that doesn't depend on SEO-demand topics | M per type | spec + code |
+| 6 | **Weekly neighbourhood news roundup** (a separate content kind, not the "rare + certain" single-story publisher). Inputs: the existing news discovery candidates (≈ 269/run; 37 dated within 7 days in the last run). Eligible item: dated within the ISO week, Liberty Village–relevant (existing relevance scoring ≥ current floor), at least one usable canonical URL from an `official`/`reputable` source, or two independent `lead` publishers. Each item is a 1–3-sentence summary that states only what the linked source says, with the link and date. Risk-flagged items (safety, civic controversy, crime) and development applications are **linked as headlines only, with no summary**, or excluded, per existing human-only policy. Minimum 3 eligible items. On a quiet week, publish a shorter "quiet week" edition only if ≥ 2 items exist (including dated upcoming events); otherwise skip and alert. Never pad with stale items. Gate lens: the existing `news` lenses apply per item. | Today there is no roundup; news runs publish 0 by design | M | spec + code (news-pilot) |
+| 7 | **Move the drafter and fixer to a current model** via a staging A/B: same topics, same source pack, compare round-0 score, blocker count, and repairs. Candidates: `claude-sonnet-5`, `claude-opus-5-5`. Keep the gate on its pinned model (changing the judge moves the bar and needs its own evidence and review). | Sonnet 4.5 >10% hallucination on Vectara; stronger-judge/weaker-drafter gap | S (config) + eval | code + staging eval |
+| 8 | **Cadence scheduling with slot fallback.** Content slot A on Wed; if it has no PASS by Thu, a retry slot on Fri with the next eligible topic or a template type; slot B on Sun (template type preferred). News roundup on Fri (≥ 3 items) with a Sun fallback. The weekly objective, "≥ 2 content + ≥ 1 roundup published by Sun 23:59 UTC", is checked by a Monday alert (as in the #152 spec). Timer changes are production actions for John. | Turns a 14% slot yield into multiple attempts a week | S–M | ops (protected) |
+| 9 | **Hygiene that frees judge attention:** normalize the post image path the gate expects (every round logs a LOW or MEDIUM `/media` vs `/images/blog` nit), stop defaulting `priceRange:'$$'` for un-enriched businesses, and classify/exclude non-public venues (OVO) at discovery. | recurring LOW/MEDIUM noise; prod #3 | S | code |
+
+**What "guaranteed" can honestly mean.** No pipeline that keeps a strict gate can guarantee publication. What can be guaranteed is *enough attempts on groundable inputs*. With items 1, 3, 4, 5, and 8, each week has ≥ 4 content attempts drawn from eligible topics or templates. If the per-attempt pass rate on groundable templated inputs reaches ~50% (measure it on staging, it is not established here), the chance of < 2 passes in 4 independent attempts is about 31%. At 6 attempts it is about 11%, and at a 70% pass rate with 4 attempts about 8%. The spec should therefore set the attempt count from a measured staging pass rate, and escalate to the owner by Friday when the week is at risk.
+
+**Suggested order:** 1 → 3 → 9 → 7 (A/B) → 2 (spec review) → 5 → 6 → 4 → 8. Items 1, 3, 9, and 7 need no rubric change and can ship first. Items 2 and 6 need spec review.
+
+## 6. Risks and open items
+
+- **R1 (production content risk, needs owner decision):** `/blog/liberty-village-farmers-market` (production submission 4, published 2026-09-29 02:11 UTC) is built on a queue premise that contradicts our own `/guide/farmers-market` ("Liberty Village does not have a permanent weekly farmers market"). The final gate round passed at 8.0 while still flagging it as generic and as overlapping the guide. Recommend an owner read, then either rewrite it as "Farmers markets near Liberty Village" grounded in the guide page, or unpublish. Both are production writes, left to John.
+- **R2 (schedule):** `lv-runner-weekly-blog.timer` is enabled in production (next run Wed 2026-09-30 11:00 UTC), but #187 says production blog scheduling stays disabled. The remaining queue has pet (exhausted), happy hour (attempts 3), and several ungroundable or duplicate entries, so an unchanged Wednesday run will most likely end "no post" or pick a weak topic. Whether to disable the timer is John's call.
+- **R3 (judge variance):** the same finding was rated MEDIUM on staging and HIGH on production (Jukebox). Borderline passes (both published posts were exactly 8.0) may not repeat. Target a self-check margin, and consider a periodic cross-family audit (FACTS-style) rather than changing the per-post gate.
+- **R4 (evidence widening):** remedy 2 changes what counts as evidence. First-party pages were themselves AI-assisted, and some predate the current gate, so the pack must include only records that passed a gate or owner review. That needs spec review.
+- **R5 (small sample):** 4 gated blog candidates and 13 blog rounds. The category counts are directional. Re-measure after remedies 1 and 3 on staging.
+- **R6 (unrecoverable history):** stdout for the first four production blog runs was discarded. Their per-run causes are inferred from topic-state counters and issue narratives.
+- **Open:** SEO lane (#182 lease loss and 8-blocker embellishment) and #181 (pending-news index) are operational and scale items outside this report's quality scope, except that the SEO generator shows the same invented-fact failure (§3.4).
+
+## Appendix A: Evidence commands (read-only)
+
+```sh
+# on lv-content-runner, as root; /tmp/lvq.sh sources /etc/lv-runner.env + /etc/lv-runner-$target.env,
+# cd /srv/lv-runner/repo, runs: node scripts/content/cli.mjs "$@" 2>/dev/null
+bash /tmp/lvq.sh production list --submissions
+bash /tmp/lvq.sh production show --submission {2,3,4}
+bash /tmp/lvq.sh staging list --submissions
+bash /tmp/lvq.sh staging show --submission {2..7}
+cat /var/log/lv-runner/weekly-blog-*.jsonl /var/log/lv-generator/*.jsonl
+python3 -m json.tool /var/lib/lv-runner/topic-state.json
+systemctl is-enabled lv-runner-*.timer; systemctl list-timers 'lv-runner-*'
+```
+
+Raw `show` JSON was copied to the worker's local `/tmp/lvcq/` for analysis. It is not committed because it contains full gate verdict text. Nothing was written to either content store.
