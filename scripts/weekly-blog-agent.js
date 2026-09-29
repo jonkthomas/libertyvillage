@@ -16,7 +16,10 @@
  *   GITHUB_STEP_SUMMARY - GitHub Actions job summary file path
  */
 
+// This entrypoint is CommonJS so it can run under the isolated generator's Node runtime.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs = require("fs");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require("path");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
