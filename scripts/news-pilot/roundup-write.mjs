@@ -45,7 +45,11 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   if (!units.length) throw new Error('roundup_no_units');
   const author = resolved || await resolveModelProvider(env);
   if (!author.ok) throw new Error(`roundup_writer_unavailable:${author.error}`);
-  const critic = reviewer || await resolveModelProvider(env, { prefer: author.provider?.id === 'anthropic' ? 'google-gemini' : 'anthropic' });
+  // The retired Gemini 2.0 endpoint returns 404; prefer the available
+  // independent DeepSeek reviewer and refuse silent same-provider fallback.
+  const critic = reviewer || await resolveModelProvider(env, { prefer: env.ROUNDUP_REVIEW_PROVIDER ||
+    (author.provider?.id === 'deepseek' ? 'anthropic' : 'deepseek') });
+  if (!critic.ok || critic.provider.id === author.provider.id) throw new Error('roundup_independent_reviewer_unavailable');
   const material = units.map(compact);
   const cappedCall = (args) => {
     const remaining = deadline - Date.now();
