@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, copyGenerated, copyScratchTree, failureReason, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, copyGenerated, copyScratchTree, failureReason, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, slotKey, sourceEnv, trustedEnv, generatorEnv } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -287,4 +287,31 @@ test('scheduled and on-demand slot names stay valid for every job, including wee
   }
   assert.throws(() => slotKey('weekly-roundupx', 'staging', '202610041600-scheduled'), /invalid run identity/);
   assert.throws(() => slotKey('news', 'staging', 'bad slot!'), /invalid run identity/);
+});
+
+test('APIFY_API_TOKEN reaches only sourceEnv(weekly-roundup): never trustedEnv, the generator, the gate/CLI or any other job', () => {
+  const env = { PATH: '/bin', HOME: '/root', APIFY_API_TOKEN: 'apify-secret-token', SERPER_API_KEY: 'serper', SERPAPI_API_KEY: 'serpapi', ANTHROPIC_API_KEY: 'anthropic',
+    CONTENT_DATABASE_URL: 'postgres://db', CONTENT_DEPLOY_HOOK_URL: 'https://hook', SLACK_WEBHOOK_URL: 'https://slack' };
+  const roundup = sourceEnv(env, 'weekly-roundup');
+  assert.equal(roundup.APIFY_API_TOKEN, 'apify-secret-token');
+  assert.equal(roundup.SERPER_API_KEY, 'serper');
+  assert.equal(roundup.SERPAPI_API_KEY, undefined, 'SerpApi dropped from the roundup source env');
+  for (const key of ['CONTENT_DATABASE_URL', 'CONTENT_DEPLOY_HOOK_URL', 'SLACK_WEBHOOK_URL']) assert.equal(roundup[key], undefined, key);
+  // trustedEnv runs content submit, gate, deploy and smoke.
+  assert.equal(trustedEnv(env).APIFY_API_TOKEN, undefined);
+  assert.equal(generatorEnv(env).APIFY_API_TOKEN, undefined);
+  for (const job of Object.keys(JOBS).filter((name) => name !== 'weekly-roundup')) assert.equal(sourceEnv(env, job).APIFY_API_TOKEN, undefined, job);
+  assert.doesNotMatch(JSON.stringify({ trusted: trustedEnv(env), generator: generatorEnv(env) }), /apify-secret-token/);
+});
+
+test('a structured-v2 hold notice names the week and bounded counts only', async () => {
+  let body;
+  const sent = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-roundup', target: 'staging', slot: '202609301100-abcd1234',
+    holdCensus: { units: 2, coreUnits: 1, coreAnchorUnits: 0, byReason: { 'below-minimum': 1, 'no-core': 1 }, url: 'https://evidence.example/', quote: 'verbatim text' },
+    holdWeek: '2026-09-28' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.equal(sent, true);
+  assert.match(body.text, /publication held \(staging\); week 2026-09-28; .*"units":2.*"coreUnits":1.*below-minimum/);
+  assert.doesNotMatch(body.text, /evidence.example|verbatim/);
+  assert.equal(failureReason(new Error('prior roundup smoke not current-live')), 'prior roundup smoke not current-live');
+  assert.equal(failureReason(new Error('prior roundup backlog exceeds recovery budget')), 'prior roundup backlog exceeds recovery budget');
 });

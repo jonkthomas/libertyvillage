@@ -13,7 +13,7 @@ test('every autonomous generator kind has an independent review lens', () => {
     assert.match(reviewAgent, new RegExp(`\\n  ['"]?${kind}['"]?: \\[`), `missing ${kind} review lens`);
   }
   assert.match(reviewAgent, /Liberty Township/);
-  assert.match(reviewAgent, /EVIDENCE lens: assess each item independently/);
+  assert.match(reviewAgent, /EVIDENCE lens: assess each counted unit independently/);
 });
 
 test('preflight reuses canonical models and content commands avoid GitHub APIs', () => {

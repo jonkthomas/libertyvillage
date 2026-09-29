@@ -46,3 +46,24 @@ test('fixer evidence is bounded in rows and characters; absent evidence leaves t
   assert.doesNotMatch(plain, /Verified source-pack claims|UNTRUSTED_EVIDENCE_DATA/);
   assert.equal(fixerEvidenceRows({ sourcePack: { sources: [] } }), null);
 });
+
+test('roundup fixer sees the verified v2 units (verdict, date, citations, quotes) as fenced DATA and is told never to change roundupCoverage', async () => {
+  const { roundupEvidence } = await import('../../scripts/content/gate.mjs');
+  const context = { pipeline: 'structured-v2', now: '2026-09-30T11:00:00.000Z', temporalValidationNow: '2026-09-30T11:05:00.000Z', isoWeek: '2026-W40',
+    weekStartUtc: '2026-09-28T00:00:00.000Z', counts: { units: 1, coreUnits: 1, coreAnchorUnits: 1 }, stillInEffect: [],
+    units: [{ identityKey: 'occ:addr:40-hanna-ave:2026-10-03:15:00', label: 'Open house', verdict: 'core', itemType: 'event', date: '2026-10-03',
+      citations: [{ url: 'https://example.org/open-house', publisher: 'City', recordId: 'sec-2', tier: 'official' }],
+      evidence: [{ url: 'https://example.org/open-house', recordId: 'sec-2', tier: 'official', subject_quote: 'Open House', place_quote: '171 East Liberty St', date_quote: 'October 3, 2026' }] }] };
+  const evidence = roundupEvidence(context);
+  assert.equal(evidence.submittedAt, '2026-09-30T11:05:00.000Z', 'temporal checks use temporalValidationNow');
+  assert.equal(evidence.units[0].identity, 'occ:addr:40-hanna-ave:2026-10-03:15:00');
+  const rows = fixerEvidenceRows(evidence);
+  assert.deepEqual(rows, [{ unit: 'occ:addr:40-hanna-ave:2026-10-03:15:00', verdict: 'core', date: '2026-10-03',
+    citations: ['https://example.org/open-house'], quotes: ['Open House', '171 East Liberty St', 'October 3, 2026'] }]);
+  queueAgent(reply());
+  await planRecordRepair({ kind: 'news', gateVerdict, payload, validate: () => ({ ok: true, errors: [] }), evidence });
+  const prompt = fakeAgent.calls[0].prompt;
+  assert.match(prompt, /Verified weekly roundup units \(1 rows/);
+  assert.match(prompt, /Never change roundupCoverage/);
+  assert.doesNotMatch(prompt, /Verified source-pack claims/);
+});

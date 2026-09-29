@@ -4,7 +4,7 @@ import { registry } from './canonical.mjs';
 export const SECRET_FINGERPRINT = /(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|sk-[A-Za-z0-9_-]{16,}|-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----)/i;
 const fields = {
   businesses: 'slug name category subcategory address description rating reviewCount priceRange hours phone website tags categories featured proTip image answerBlock bestFor reviewExcerpt reviewFaqs _discoveredAt _needsEnrichment',
-  posts: 'slug title description content publishedAt updatedAt category tags answerBlock faqs image relatedServices relatedTopics relatedPosts keyTakeaways author crossLinks exploreCta canonicalUrl',
+  posts: 'slug title description content publishedAt updatedAt category tags answerBlock faqs image relatedServices relatedTopics relatedPosts keyTakeaways author crossLinks exploreCta canonicalUrl roundupCoverage',
   buildings: 'slug name alternateNames address postalCode latitude longitude yearBuilt units floors buildingType developer avgRent1BR avgRent2BR avgPricePerSqft maintenanceFeePerSqft walkScore transitScore bikeScore nearestTTC amenities hasParking hasLockers petFriendly nearestBusinessSlugs description answerBlock keyTakeaways proTips pros cons specificFaqs tags image metaTitle metaDescription',
   neighborhoods: 'slug name avgRent1BR avgRent2BR transitScore walkScore bikeScore population medianAge medianIncome vibe bestFor pros cons distanceFromLV keyDifference verdict detailedComparison faqs image answerBlock',
   services: 'slug name pluralName description icon relatedServices searchVolume competitiveness image answerBlock definition specificFaqs comparisonTable keyTakeaways proTips neighbourhoodContext sections',
@@ -25,7 +25,7 @@ const required = {
 const numberFields = new Set('rating reviewCount avgRent1BR avgRent2BR transitScore walkScore bikeScore population medianAge medianIncome distanceFromLV latitude longitude yearBuilt units floors avgPricePerSqft maintenanceFeePerSqft attempts'.split(' '));
 const booleanFields = new Set('featured hasParking hasLockers petFriendly _needsEnrichment'.split(' '));
 const arrayFields = new Set('tags categories bestFor reviewFaqs faqs relatedServices relatedTopics relatedPosts keyTakeaways crossLinks alternateNames amenities nearestBusinessSlugs proTips pros cons specificFaqs quickTips definitions sections quickFacts'.split(' '));
-const objectFields = new Set('exploreCta verdict detailedComparison comparisonTable prosCons'.split(' '));
+const objectFields = new Set('exploreCta verdict detailedComparison comparisonTable prosCons roundupCoverage'.split(' '));
 const stringArrays = new Set('tags categories bestFor relatedServices relatedTopics keyTakeaways alternateNames amenities nearestBusinessSlugs proTips pros cons quickTips'.split(' '));
 const faqArrays = new Set('faqs reviewFaqs specificFaqs'.split(' '));
 const enums = {
@@ -49,6 +49,28 @@ function checkWellFormed(value, path, errors) {
     if (!value.isWellFormed()) errors.push(`non-well-formed string: ${path}`);
   } else if (Array.isArray(value)) value.forEach((item, index) => checkWellFormed(item, `${path}[${index}]`, errors));
   else if (plainObject(value)) for (const [field, item] of Object.entries(value)) checkWellFormed(item, `${path}.${field}`, errors);
+}
+// Roundup-only trusted coverage metadata (docs/specs/weekly-roundup-v2.md §6.6).
+// Allowed, never required, and valid only on a category:'news' post whose slug is
+// the weekly roundup slug. Keys are never truncated: more than 64 is invalid.
+export const ROUNDUP_SLUG = /^liberty-village-news-week-(\d{4})-w(\d{2})$/;
+export const ROUNDUP_COVERAGE_MAX_KEYS = 64;
+export const ROUNDUP_COVERAGE_MAX_KEY_CHARS = 200;
+export function roundupCoverageErrors(post) {
+  const coverage = post?.roundupCoverage;
+  const slug = ROUNDUP_SLUG.exec(typeof post?.slug === 'string' ? post.slug : '');
+  if (!slug || post?.category !== 'news') return ['roundupCoverage is only valid on a weekly roundup news post'];
+  if (!plainObject(coverage) || Object.keys(coverage).some((field) => !['version', 'isoWeek', 'planningCutoff', 'keys'].includes(field)))
+    return ['invalid roundupCoverage'];
+  const errors = [];
+  if (coverage.version !== 1) errors.push('roundupCoverage version must be 1');
+  if (coverage.isoWeek !== `${slug[1]}-W${slug[2]}`) errors.push('roundupCoverage isoWeek must match the slug');
+  const cutoff = typeof coverage.planningCutoff === 'string' ? Date.parse(coverage.planningCutoff) : NaN;
+  if (!Number.isFinite(cutoff) || new Date(cutoff).toISOString() !== coverage.planningCutoff) errors.push('roundupCoverage planningCutoff must be an ISO instant');
+  if (!Array.isArray(coverage.keys) || coverage.keys.some((entry) => !str(entry) || !entry || entry.length > ROUNDUP_COVERAGE_MAX_KEY_CHARS))
+    errors.push(`roundupCoverage keys must be non-empty strings of at most ${ROUNDUP_COVERAGE_MAX_KEY_CHARS} chars`);
+  else if (coverage.keys.length > ROUNDUP_COVERAGE_MAX_KEYS) errors.push(`roundupCoverage has more than ${ROUNDUP_COVERAGE_MAX_KEYS} keys`);
+  return errors;
 }
 export function validateRecord(dataset, key, record) {
   const errors = [];
@@ -87,6 +109,7 @@ export function validateRecord(dataset, key, record) {
   if (record.comparisonTable && (!plainObject(record.comparisonTable) || !strArray(record.comparisonTable.columns)
     || !Array.isArray(record.comparisonTable.rows) || !record.comparisonTable.rows.every((row) => plainObject(row) && Object.values(row).every(str))
     || Object.keys(record.comparisonTable).some((field) => !['columns','rows'].includes(field)))) errors.push('invalid comparisonTable');
+  if (dataset === 'posts' && Object.hasOwn(record, 'roundupCoverage')) errors.push(...roundupCoverageErrors(record));
   if (dataset === 'topic-queue' && (!Number.isInteger(record.attempts) || record.attempts < 0)) errors.push('invalid attempts');
   return { ok: errors.length === 0, errors };
 }

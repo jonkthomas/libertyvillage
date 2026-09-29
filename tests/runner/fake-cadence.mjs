@@ -12,8 +12,11 @@ import { checkTopicGroundability, reserveGuideEligibility } from '../../scripts/
 import { buildSourcePack, verifySourcePack, canonicalJson, checkDraftAgainstPack } from '../../scripts/automation/blog-source-pack.mjs';
 import { roundupPackDigest } from '../../scripts/news-pilot/roundup-evidence.mjs';
 import { isoWeekOf, roundupSlug } from '../../scripts/news-pilot/roundup.mjs';
+import { ROUNDUP_PUBLICATION } from '../../scripts/content/roundup-mode.mjs';
+import { roundupCoverageErrors } from '../../scripts/content/validate.mjs';
 
-export const modules = Object.freeze({ weekStartUtc, checkTopicGroundability, reserveGuideEligibility, buildSourcePack, verifySourcePack, canonicalJson, checkDraftAgainstPack, roundupPackDigest, isoWeekOf, roundupSlug });
+export const modules = Object.freeze({ weekStartUtc, checkTopicGroundability, reserveGuideEligibility, buildSourcePack, verifySourcePack, canonicalJson, checkDraftAgainstPack, roundupPackDigest, isoWeekOf, roundupSlug,
+  roundupPublication: ROUNDUP_PUBLICATION, roundupCoverageErrors });
 
 const FAILED = new Set(['failed-before-submit', 'rejected', 'blocked', 'error']);
 const cliError = (reason, exit = 2) => Object.assign(new Error(`node scripts/content/cli.mjs exit ${exit}`), { cliFailure: { reason, action: 'x', exit } });
@@ -94,7 +97,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
   const count = (week) => {
     const rows = [...world.submissions.values()].filter((sub) => world.live.has(sub.id) && inWeek(sub, week));
     const content = rows.filter((sub) => sub.kind === 'blog').map((sub) => ({ slug: sub.slug, submissionId: sub.id }));
-    const roundup = rows.filter((sub) => sub.kind === 'roundup').map((sub) => ({ slug: sub.slug, submissionId: sub.id }));
+    const roundup = rows.filter((sub) => sub.kind === 'roundup' && sub.slug === cadenceRoundupSlug(week)).map((sub) => ({ slug: sub.slug, submissionId: sub.id }));
     return { content, roundup, contentCount: content.length, roundupCount: roundup.length, met: content.length >= 2 && roundup.length >= 1, dbOnly: { contentCount: content.length, roundupCount: roundup.length } };
   };
   const cadence = (sub, f) => {
@@ -103,8 +106,12 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     const n = Number(f['slot-number']);
     switch (sub) {
       case 'count': return count(week);
-      case 'unresolved': return world.attempts.filter((a) => a.target === target && a.lane === 'content' && [null,'published','smoked'].includes(a.outcome))
+      case 'unresolved': return world.attempts.filter((a) => a.target === target && a.lane === (f.lane ?? 'content') && [null,'published','smoked'].includes(a.outcome))
         .sort((a, b) => a.week_start_utc.localeCompare(b.week_start_utc) || a.slot_number - b.slot_number || a.ordinal - b.ordinal).slice(0, 3).map((a) => ({ ...a }));
+      case 'current-live': {
+        const sub = world.submissions.get(Number(f['submission-id']));
+        return { submissionId: sub?.id ?? null, slug: sub?.slug ?? null, live: Boolean(sub && sub.smokedAt && world.live.has(sub.id)) };
+      }
       case 'status': return {
         slots: [...world.slots.values()].filter((slot) => slot.week_start_utc === week).map(publicSlot),
         attempts: world.attempts.filter((a) => a.week_start_utc === week).map((a) => ({ ...a })), alerts: [],
@@ -155,7 +162,11 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         if (attempt.outcome === 'smoked' && !['consumed','late-smoked'].includes(outcome)) throw cliError('cli-state', 1);
         // Like cadence.mjs: consumed only if current-live AND counted in the ATTEMPT's week.
         if (outcome === 'consumed' && (attempt.outcome !== 'smoked' || !count(attempt.week_start_utc)[attempt.lane === 'roundup' ? 'roundup' : 'content'].some((item) => item.submissionId === attempt.submission_id))) throw cliError('cli-state', 1);
-        if (outcome === 'late-smoked' && (attempt.lane !== 'content' || attempt.outcome !== 'smoked' || ![...world.submissions.values()].some((sub) => sub.id === attempt.submission_id && sub.smokedAt && weekStartUtc(sub.smokedAt) > attempt.week_start_utc && count(weekStartUtc(sub.smokedAt)).content.some((item) => item.submissionId === sub.id)))) throw cliError('cli-state', 1);
+        if (outcome === 'late-smoked' && (attempt.outcome !== 'smoked' || ![...world.submissions.values()].some((sub) => sub.id === attempt.submission_id && sub.smokedAt && weekStartUtc(sub.smokedAt) > attempt.week_start_utc
+          && (attempt.lane === 'roundup'
+            // Like cadence.mjs currentLiveSubmission: the OLD week's own slug, current-live.
+            ? sub.kind === 'roundup' && sub.slug === cadenceRoundupSlug(attempt.week_start_utc) && world.live.has(sub.id)
+            : count(weekStartUtc(sub.smokedAt)).content.some((item) => item.submissionId === sub.id))))) throw cliError('cli-state', 1);
         attempt.outcome = outcome;
         slot.state = FAILED.has(outcome) ? 'ready' : outcome;
         return attempt;
@@ -208,7 +219,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       const id = world.nextId++;
       world.submissions.set(id, {
         id, kind: f.kind, key: f['idempotency-key'], state: 'open', smokedAt: null, slug: added[0]?.slug ?? null,
-        sourcePack: f['source-pack'] ? fs.readFileSync(f['source-pack'], 'utf8') : null, roundupOut: f['roundup-out'] ?? null,
+        sourcePack: f['source-pack'] ? fs.readFileSync(f['source-pack'], 'utf8') : null, roundupOut: f['roundup-out'] ?? null, igRefetch: f['ig-refetch'] ?? null,
       });
       return ok({ submissionId: id, existing: false });
     }
@@ -230,7 +241,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       return ok({});
     }
     if (command === 'deploy') {
-      if (world.deployCode === 0) for (const sub of world.submissions.values()) if (sub.state === 'published' && !sub.smokedAt) { sub.smokedAt = world.now.toISOString(); world.live.add(sub.id); }
+      if (world.deployCode === 0) for (const sub of world.submissions.values()) if (sub.state === 'published' && !sub.smokedAt) { sub.smokedAt = world.now.toISOString(); if (!world.deployNotLive) world.live.add(sub.id); }
       return ok({}, world.deployCode);
     }
     if (command === 'show') {
@@ -287,16 +298,33 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         fs.writeFileSync(path.join(arg('out'), 'candidates.json'), JSON.stringify({ meta: { sourcesOk: 1 }, candidates: [] }));
         return { code: 0 };
       }
-      if (script === 'scripts/news-pilot/roundup-run.mjs') {
+      // Weekly roundup v2 entry: --collect --out <dir> --now, then --run <dir> --out <out> --root <repo> --now [--dry-run].
+      const value = (name) => { const index = args.indexOf(`--${name}`); return index >= 0 ? args[index + 1] : undefined; };
+      if (script === 'scripts/news-pilot/roundup-v2-run.mjs' && args.includes('--collect')) {
+        if (world.collectFails) throw cliError('cli-operation', 1);
+        const dir = value('out');
+        fs.mkdirSync(path.join(dir, 'snapshots', 'rv2-venue'), { recursive: true });
+        fs.writeFileSync(path.join(dir, 'signals.jsonl'), '');
+        for (const digest of world.snapshotDigests ?? []) fs.writeFileSync(path.join(dir, 'snapshots', 'rv2-venue', `${digest}.html`), '<html></html>');
+        return { code: 0 };
+      }
+      if (script === 'scripts/news-pilot/roundup-v2-run.mjs') {
         const writer = world.roundupPlan.shift();
-        fs.mkdirSync(arg('out'), { recursive: true });
-        writer({ out: arg('out'), root: arg('root'), now: arg('now'), world, dryRun: args.includes('--dry-run') });
+        fs.mkdirSync(value('out'), { recursive: true });
+        writer({ out: value('out'), root: value('root'), now: value('now'), world, dryRun: args.includes('--dry-run') });
+        return { code: 0 };
+      }
+      if (script === 'scripts/news-pilot/ig-refetch.mjs') {
+        const plan = world.igPlan.shift() ?? 'ok';
+        if (plan === 'fail') throw cliError('cli-operation', 1);
+        fs.writeFileSync(value('out'), JSON.stringify({ fetchedAt: world.now.toISOString(), provider: 'apify', rows: [] }));
         return { code: 0 };
       }
       throw new Error(`unexpected source ${script}`);
     },
   };
   world.roundupPlan = [];
+  world.igPlan = [];
   return world;
 }
 

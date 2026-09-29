@@ -158,9 +158,13 @@ test('reviewRows uses reviewContent\'s prompt structure and throws unless the ve
 test('lenses: automated kinds reuse LENSES verbatim, manual gets DATA/CONTENT/SHAPE per site dataset', () => {
   for (const kind of ['business', 'blog', 'blog-live', 'news', 'roundup', 'topic-discovery', 'seo'])
     assert.equal(lensesFor(kind, 'posts'), LENSES[kind]);
-  assert.match(LENSES.roundup[3], /rolling prior seven days/);
-  assert.match(LENSES.roundup[3], /upcoming 14 days/);
-  assert.doesNotMatch(LENSES.roundup[3], /in-week announcement/);
+  // Weekly roundup v2 (spec §9.4): per-unit evidence plus the three added checks.
+  assert.match(LENSES.roundup[3], /each counted unit independently/);
+  assert.match(LENSES.roundup[3], /starts within 14 days/);
+  assert.doesNotMatch(LENSES.roundup.join('\n'), /weekly update|rolling prior seven days/);
+  assert.match(LENSES.roundup[4], /near vs in must match each unit's verdict/);
+  assert.match(LENSES.roundup[5], /no unsupported impact claims/);
+  assert.match(LENSES.roundup[6], /PEOPLE lens \(blocking\): no private individual outside the allowed roles/);
   const datasets = ['businesses', 'posts', 'buildings', 'neighborhoods', 'services', 'topics', 'guide-hub'];
   assert.deepEqual(Object.keys(MANUAL_LENSES).sort(), [...datasets].sort());
   for (const dataset of datasets) {

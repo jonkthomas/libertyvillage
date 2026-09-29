@@ -9,6 +9,8 @@ import { exportContent } from './export.mjs';
 import { restoreSnapshot } from './restore-snapshot.mjs';
 import { registry } from './canonical.mjs';
 import * as cadence from './cadence.mjs';
+import { roundupPublicationMode } from './roundup-mode.mjs';
+import fs from 'node:fs';
 const migrationsDir = path.dirname(fileURLToPath(new URL('./migrations/0001_content.sql',import.meta.url)));
 function parse(argv) {
   const [command,...rest] = argv;
@@ -52,15 +54,33 @@ async function gcAssets(db,{apply}) {
   if (apply) for (const a of candidates) await db.query('delete from content.assets where sha256=$1',[a.sha256]);
   return {deleted:apply ? candidates.length : 0,bytes:apply ? candidates.reduce((sum,a) => sum+a.byte_size,0) : 0};
 }
-export async function runCli(argv = process.argv.slice(2), { delegates = {} } = {}) {
-  // Reject the equals spelling before argument parsing or DB setup too.
-  if (argv[0] === 'submit' && argv.includes('--kind=roundup'))
-    throw new store.ValidationError('roundup publication disabled pending structured-source review');
+const ROUNDUP_DISABLED = 'roundup publication disabled pending structured-source review';
+const MAX_ROUNDUP_RESULT_BYTES = 2 * 1024 * 1024;
+// Independent trusted boundary (docs/specs/weekly-roundup-v2.md §10.2), applied
+// before any DB is opened, whatever runner or operator invoked it: a roundup
+// submit needs the compiled per-target mode to be structured-v2 AND a v2 writer
+// result carrying its verify digest. The equals spelling (which this parser does
+// not bind to opts.kind) is always refused rather than silently reinterpreted.
+function roundupSubmitAllowed(argv, opts, env) {
+  if (argv.includes('--kind=roundup')) return false;
+  if (opts.target && env.CONTENT_TARGET && opts.target !== env.CONTENT_TARGET) return false;
+  const target = opts.target ?? env.CONTENT_TARGET;
+  if (roundupPublicationMode(target) !== 'structured-v2') return false;
+  if (!opts.roundupOut || opts.roundupOut === true) return false;
+  let result;
+  try {
+    const file = path.join(path.resolve(opts.roundupOut), 'result.json');
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.size > MAX_ROUNDUP_RESULT_BYTES) return false;
+    result = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch { return false; }
+  return result?.pipeline === 'structured-v2' && typeof result.verifyDigest === 'string' && /^[0-9a-f]{64}$/.test(result.verifyDigest);
+}
+export async function runCli(argv = process.argv.slice(2), { delegates = {}, env = process.env } = {}) {
+  const roundupSubmit = argv[0] === 'submit' && (argv.includes('--kind=roundup') || argv.some((arg, i) => arg === '--kind' && argv[i + 1] === 'roundup'));
+  if (roundupSubmit && argv.includes('--kind=roundup')) throw new store.ValidationError(ROUNDUP_DISABLED);
   const {command,opts} = parse(argv);
-  // Independent trusted boundary: an operator cannot submit a free-text weekly
-  // roundup even if a writer or runner was invoked outside its census-only mode.
-  if (command === 'submit' && opts.kind === 'roundup')
-    throw new store.ValidationError('roundup publication disabled pending structured-source review');
+  if (roundupSubmit && !roundupSubmitAllowed(argv, opts, env)) throw new store.ValidationError(ROUNDUP_DISABLED);
   if (command === 'restore-snapshot') {
     console.error(JSON.stringify({target:{db:null,host:null}}));
     return { result:await restoreSnapshot({from:required(opts.from,'--from'),root:required(opts.root,'--root')}),exitCode:0 };
@@ -97,7 +117,9 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
           case 'count': result = await cadence.countCurrentWeek(db, { target, weekStart, observe: await aliasObserver() }); break;
           // Read-only, target-scoped, all-time smoked/consumed intent fingerprints.
           case 'consumed': result = await cadence.consumedFingerprints(db, { target }); break;
-          case 'unresolved': result = await cadence.unresolvedContentAttempts(db, { target }); break;
+          case 'unresolved': result = await cadence.unresolvedAttempts(db, { target, lane: opts.lane ?? 'content' }); break;
+          // Read-only: is this submission's own posts insert current-live at the alias?
+          case 'current-live': result = await cadence.currentLiveSubmission(db, { target, submissionId: Number(required(opts.submissionId, '--submission-id')), observe: await aliasObserver() }); break;
           case 'deadline': result = await cadence.evaluateDeadline(db, { target, weekStart, now: opts.now ?? new Date(), observe: await aliasObserver() }); break;
           case 'deliver-alerts': {
             const webhook = required(process.env.SLACK_WEBHOOK_URL, 'SLACK_WEBHOOK_URL');

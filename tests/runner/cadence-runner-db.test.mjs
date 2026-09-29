@@ -12,13 +12,13 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import { command, parseJson, runWeeklyBlog, runWeeklyRoundup } from '../../ops/exedev-runner/runner.mjs';
+import { classifyCliFailure, command, parseJson, runWeeklyBlog, runWeeklyRoundup } from '../../ops/exedev-runner/runner.mjs';
+import { spawnSync } from 'node:child_process';
 import { hasTestDb, publishDirect, seededDb } from '../content/fixtures/content-db.mjs';
 import { topicKey } from '../../scripts/automation/topic-queue.mjs';
 import { buildSourcePack, canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
 import { weekStartUtc } from '../../scripts/content/cadence.mjs';
-import { planRoundup, buildRoundupPost, isoWeekOf } from '../../scripts/news-pilot/roundup.mjs';
-import { roundupPackDigest } from '../../scripts/news-pilot/roundup-evidence.mjs';
+import { buildFixture, igUnit, unit } from '../content/fixtures/roundup-v2.mjs';
 import { modules } from './fake-cadence.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -56,18 +56,22 @@ async function stack(t) {
     CONTENT_DB_NAME: handle.name, CONTENT_SITE_URL: origin, CONTENT_DEPLOY_HOOK_URL: `${origin}/hook`, SLACK_WEBHOOK_URL: `${origin}/slack`,
   };
   const ctx = {
-    db: handle.db, repo, stateRoot, origin, calls: [], gateScripts: [], defaultScript: PASS, crash: null, generated: [], shiftMs: 0,
+    db: handle.db, repo, stateRoot, origin, calls: [], sources: [], igStatus: 'ok', gateScripts: [], defaultScript: PASS, crash: null, generated: [], shiftMs: 0,
     scriptFile(script) { const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lv-e2e-script-')), 'script.json'); fs.writeFileSync(file, JSON.stringify(script)); return file; },
   };
   const cli = (args, allowExit = []) => {
     ctx.calls.push(args);
     if (ctx.crash && ctx.crash(args)) { ctx.crash = null; throw new Error('simulated runner crash'); }
     const full = args[0] === 'gate' ? [...args, '--script', ctx.scriptFile(ctx.gateScripts.shift() ?? ctx.defaultScript)] : args;
-    // The synthetic example.org source has no live public page. Only this test's
-    // roundup submit runs through a local-DB fixture with an injected refetch;
-    // the real submitContent validator and every other CLI command run unchanged.
-    if (args[0] === 'submit' && args.includes('roundup'))
-      return command(process.execPath, [path.join(ROOT, 'tests/runner/roundup-submit-fixture.mjs'), ...args.slice(1)], { cwd: repo, env, allowExit });
+    // Only this test's roundup submit runs through a local-DB fixture whose v2
+    // verifier is the contract stub; the real submitContent policy and every
+    // other CLI command run unchanged.
+    if (args[0] === 'submit' && args.includes('roundup')) {
+      // Classify the fixture's refusal exactly as the runner classifies the real CLI's.
+      const result = spawnSync(process.execPath, [path.join(ROOT, 'tests/runner/roundup-submit-fixture.mjs'), ...args.slice(1)], { cwd: repo, env, encoding: 'utf8' });
+      if (result.status === 0) return { code: 0, stdout: result.stdout };
+      throw Object.assign(new Error(`roundup submit fixture exit ${result.status}`), { cliFailure: classifyCliFailure(process.execPath, ['scripts/content/cli.mjs', 'submit'], result) });
+    }
     return command(process.execPath, ['scripts/content/cli.mjs', ...full], { cwd: repo, env, allowExit });
   };
   ctx.cliJson = (args) => parseJson(cli(args).stdout);
@@ -104,10 +108,19 @@ async function stack(t) {
       return ['data/posts.json', `public/images/blog/${slug}.jpg`, sidecar];
     },
     source: (script, args) => {
-      const arg = (name) => args.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
-      fs.mkdirSync(arg('out'), { recursive: true });
-      if (script === 'scripts/news-pilot/run.mjs') { fs.writeFileSync(path.join(arg('out'), 'candidates.json'), JSON.stringify({ meta: { sourcesOk: 1 } })); return { code: 0 }; }
-      ctx.roundupWriter({ out: arg('out'), now: arg('now'), root: arg('root') });
+      const value = (name) => { const index = args.indexOf(`--${name}`); return index >= 0 ? args[index + 1] : undefined; };
+      ctx.sources.push({ script, args });
+      if (script === 'scripts/news-pilot/ig-refetch.mjs') {
+        // Fake provider under the source env: rows for exactly the pack's shortcodes.
+        const pack = readJson(value('pack'));
+        const rows = pack.signals.filter((signal) => signal.post).map((signal) => ({ shortcode: signal.post.shortcode, ownerUsername: signal.post.ownerUsername,
+          timestamp: signal.post.timestamp, caption: signal.post.caption, status: ctx.igStatus }));
+        fs.writeFileSync(value('out'), JSON.stringify({ fetchedAt: new Date().toISOString(), provider: 'apify', rows }));
+        return { code: 0 };
+      }
+      if (args.includes('--collect')) { fs.mkdirSync(value('out'), { recursive: true }); fs.writeFileSync(path.join(value('out'), 'signals.jsonl'), ''); return { code: 0 }; }
+      fs.mkdirSync(value('out'), { recursive: true });
+      ctx.roundupWriter({ out: value('out'), now: value('now'), root: value('root') });
       return { code: 0 };
     },
   };
@@ -123,9 +136,8 @@ async function stack(t) {
 }
 
 const blog = (ctx, slot) => runWeeklyBlog({ target: 'test', slot, request: {}, deps: ctx.deps });
-// Legacy lifecycle contract exercised in the isolated DB harness; the installed
-// runner defaults to census-only and the trusted CLI refuses roundup submit.
-const roundup = (ctx, slot) => runWeeklyRoundup({ target: 'test', slot, request: {}, deps: { ...ctx.deps, roundupPublicationMode: 'legacy-fixture' } });
+// The local test target has no compiled mode; inject staging's structured-v2.
+const roundup = (ctx, slot) => runWeeklyRoundup({ target: 'test', slot, request: {}, deps: { ...ctx.deps, roundupPublicationMode: 'structured-v2' } });
 const blogSubmissions = async (db) => (await db.query("select id,idempotency_key,state,context from content.submissions where kind='blog' order by id")).rows;
 
 test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count increments via the hosted alias', { skip, timeout: 300_000 }, async (t) => {
@@ -191,48 +203,27 @@ test('E2E (c): gate score 7 → terminal outcome; the next run uses a new ordina
   assert.equal(ctx.count().contentCount, 1);
 });
 
-function roundupWriter(items) {
+// v2 entry contract: hold writes no post; publish appends one post with roundupCoverage.
+function roundupWriter({ hold = false, units = null } = {}) {
   return ({ out, now, root }) => {
-    const isoWeek = isoWeekOf(now).isoWeek;
-    const pack = { items };
-    const result = { isoWeek, slug: `liberty-village-news-week-${isoWeek.slice(0, 4)}-w${isoWeek.slice(6)}`, now, packDigest: roundupPackDigest(pack), decision: items.length ? 'publish' : 'hold', published: items.length ? 1 : 0, census: { candidates: 3, eligible: items.length } };
-    fs.writeFileSync(path.join(out, 'pack.json'), JSON.stringify(pack));
+    const date = now.slice(0, 10);
+    const fixture = buildFixture({ now, units: units ?? [unit(`a${date}`, { date }), unit(`b${date}`, { verdict: 'adjacent', date }), unit(`c${date}`, { verdict: 'adjacent', date })] });
+    const result = hold ? { ...fixture.result, decision: 'hold', published: false, units: 2, coreUnits: 1, coreAnchorUnits: 1, reasons: ['below-minimum'] } : fixture.result;
+    fs.writeFileSync(path.join(out, 'pack.json'), JSON.stringify(fixture.pack));
     fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify(result));
-    if (!items.length) return;
-    const plan = planRoundup({ isoWeek, now, items }, { nowMs: Date.parse(now) });
-    const post = buildRoundupPost(plan, { image: '/images/og/og-home.jpg', root: ROOT });
+    if (hold) return;
     const postsFile = path.join(root, 'data', 'posts.json');
-    fs.writeFileSync(postsFile, JSON.stringify([...readJson(postsFile), post]));
-  };
-}
-
-function newsItem(id, now) {
-  const weekStart = Date.parse(`${weekStartUtc(now)}T00:00:00.000Z`);
-  const announced = new Date(Math.max(weekStart + 60_000, now.getTime() - 2 * 3600_000));
-  const extracted = new Date(Math.min(now.getTime() - 1000, announced.getTime() + 30_000)).toISOString();
-  const url = `https://example.org/weekly/${id}`;
-  const localDate = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', month: 'long', day: 'numeric', year: 'numeric' }).format(announced);
-  const localTime = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', hour: 'numeric', minute: '2-digit', hour12: true }).format(announced);
-  const dateSpan = `${localDate} at ${localTime}`;
-  return {
-    id, title: `Liberty Village update ${id}`, location: 'Liberty Village', actor: 'Liberty Village community group', category: 'community',
-    summary: 'A local event at Hanna Avenue was announced.', announcedAt: announced.toISOString(), announcedAtVerified: true,
-    announcedAtSourceUrl: url, announcedAtSpan: dateSpan, riskFlags: [], fingerprint: id,
-    sources: [{ canonicalUrl: url, publisher: 'Example', publisherDomain: 'example.org', sourceTier: 'official',
-      excerpt: `${dateSpan}: Liberty Village community group announced a new local event at Hanna Avenue.`,
-      extractionSubstantive: true, extractedAt: extracted, fetchOk: true, urlUsable: true }],
-    claims: [{ text: `The group announced a local event on ${localDate}.`, sourceUrl: url, span: 'announced a new local event' }],
+    fs.writeFileSync(postsFile, JSON.stringify([...readJson(postsFile), fixture.post]));
   };
 }
 
 test('E2E (d): roundup zero → hold with no attempt row; items → one roundup submission; second run same week → no duplicate', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  ctx.roundupWriter = roundupWriter([]);
-  assert.deepEqual(roundup(ctx, '202609301100-e2ed0001'), { noChanges: true, reason: 'zero-eligible-hold' });
+  ctx.roundupWriter = roundupWriter({ hold: true });
+  assert.equal(roundup(ctx, '202609301100-e2ed0001').reason, 'roundup-hold');
   assert.equal((await ctx.attempts('roundup')).length, 0, 'zero run records no attempt');
   assert.equal((await ctx.db.query('select count(*)::int as n from content.cadence_alerts where week_start_utc=$1', [weekStartUtc(new Date())])).rows[0].n, 0, 'a zero hold never raises a missed alert for its own week');
-  const now = new Date();
-  ctx.roundupWriter = roundupWriter([newsItem('one', now), newsItem('two', now)]);
+  ctx.roundupWriter = roundupWriter();
   const published = roundup(ctx, '202609301105-e2ed0002');
   assert.equal(published.success, true);
   const [attempt] = await ctx.attempts('roundup');
@@ -240,6 +231,12 @@ test('E2E (d): roundup zero → hold with no attempt row; items → one roundup 
   const rows = (await ctx.db.query("select id,idempotency_key,state from content.submissions where kind='roundup'")).rows;
   assert.deepEqual(rows.map((r) => [r.idempotency_key, r.state]), [[attempt.idempotency_key, 'published']]);
   assert.equal(ctx.count().roundupCount, 1);
+  const context = (await ctx.db.query("select context from content.submissions where kind='roundup'")).rows[0].context;
+  assert.equal(context.pipeline, 'structured-v2');
+  const slug = (await ctx.db.query('select key from content.submission_items where submission_id=$1', [rows[0].id])).rows[0].key;
+  ctx.cliJson(['export', '--root', '.', '--target', 'test']);
+  const exported = readJson(path.join(ctx.repo, 'data', 'posts.json')).find((post) => post.slug === slug);
+  assert.deepEqual(exported.roundupCoverage, context.roundupCoverage, 'the live export carries the verified coverage');
   ctx.roundupWriter = () => assert.fail('writer must not run once the week has its roundup');
   assert.deepEqual(roundup(ctx, '202609301110-e2ed0003'), { cadenceMet: true, noChanges: true });
   assert.equal((await ctx.db.query("select count(*)::int as n from content.submissions where kind='roundup'")).rows[0].n, 1, 'no duplicate roundup');
@@ -258,9 +255,58 @@ test('E2E (e): the next week\'s first run records WEEKLY_CONTENT_MISSED + WEEKLY
   const first = await alertsFor();
   assert.deepEqual(first.map((row) => [row.alert_kind, row.counts]), [['WEEKLY_CONTENT_MISSED', { content: 1, roundup: 0 }], ['WEEKLY_NEWS_MISSED', { content: 1, roundup: 0 }]]);
   assert.ok(first.every((row) => row.delivered_at && row.delivery_attempts === 1), 'delivered to the webhook stand-in');
-  ctx.roundupWriter = roundupWriter([]);
-  assert.deepEqual(roundup(ctx, '202610071105-e2ee0003'), { noChanges: true, reason: 'zero-eligible-hold' }, 'roundup run also evaluates the prior week');
+  ctx.roundupWriter = roundupWriter({ hold: true });
+  assert.equal(roundup(ctx, '202610071105-e2ee0003').reason, 'roundup-hold', 'roundup run also evaluates the prior week');
   const again = await alertsFor();
   assert.equal(again.length, 2, 'idempotent per target/week/type');
   assert.ok(again.every((row) => row.delivery_attempts === 1), 'no re-delivery once acknowledged');
+});
+
+test('E2E (f): Instagram units re-verify only from the source-only helper file; a private post refuses the edition', { skip, timeout: 300_000 }, async (t) => {
+  const ctx = await stack(t);
+  const withIg = () => {
+    const date = new Date().toISOString().slice(0, 10);
+    return roundupWriter({ units: [unit(`a${date}`, { date }), unit(`b${date}`, { verdict: 'adjacent', date }), igUnit(`ig${date}`, date)] });
+  };
+  ctx.igStatus = 'private';
+  ctx.roundupWriter = withIg();
+  assert.throws(() => roundup(ctx, '202609301100-e2ef0001'), /roundup submit refused/);
+  const [refused] = await ctx.attempts('roundup');
+  assert.equal(refused.outcome, 'failed-before-submit');
+  const helper = ctx.sources.find((entry) => entry.script === 'scripts/news-pilot/ig-refetch.mjs');
+  const submit = ctx.calls.find((args) => args[0] === 'submit');
+  assert.equal(submit[submit.indexOf('--ig-refetch') + 1], helper.args[helper.args.indexOf('--out') + 1]);
+  ctx.igStatus = 'ok';
+  ctx.roundupWriter = withIg();
+  assert.equal(roundup(ctx, '202609301105-e2ef0002').success, true, 'the unchanged Instagram unit is accepted');
+  const context = (await ctx.db.query("select context from content.submissions where kind='roundup' and state='published'")).rows[0].context;
+  assert.deepEqual(context.instagram, { refetch: 'ok' });
+});
+
+test('E2E (g): a published prior-week roundup whose smoke lands next Monday is reconciled with its ORIGINAL key after VM state loss', { skip, timeout: 300_000 }, async (t) => {
+  const ctx = await stack(t);
+  const week = weekStartUtc(new Date());
+  const nextWeek = weekStartUtc(new Date(Date.parse(`${week}T00:00:00Z`) + 7 * 86400000));
+  ctx.roundupWriter = roundupWriter();
+  // Crash right after gate/deploy/smoke, before the runner records any outcome.
+  ctx.crash = (args) => args[0] === 'cadence' && args[1] === 'outcome';
+  assert.throws(() => roundup(ctx, '202609301100-e2eg0001'), /simulated runner crash/);
+  const [open] = await ctx.attempts('roundup');
+  assert.equal(open.outcome, null);
+  // The smoke receipt landed after the week ended (Sunday publish, Monday smoke).
+  await ctx.db.query('update content.submissions set smoke_passed_at=$2 where id=$1', [open.submission_id, `${nextWeek}T01:00:00Z`]);
+  fs.rmSync(ctx.stateRoot, { recursive: true, force: true });
+  fs.mkdirSync(ctx.stateRoot, { recursive: true });
+  ctx.shiftMs = Date.parse(`${nextWeek}T11:00:00Z`) - Date.now();
+  ctx.roundupWriter = roundupWriter({ hold: true });
+  const submitsBefore = ctx.calls.filter((args) => args[0] === 'submit').length;
+  assert.equal(roundup(ctx, '202610051100-e2eg0002').reason, 'roundup-hold', 'the new week then runs its own pipeline');
+  const settled = (await ctx.attempts('roundup')).find((a) => a.idempotency_key === open.idempotency_key);
+  assert.equal(settled.outcome, 'late-smoked');
+  assert.equal(ctx.calls.filter((args) => args[0] === 'submit').length, submitsBefore, 'nothing submitted for the old week');
+  const missed = (await ctx.db.query("select alert_kind from content.cadence_alerts where week_start_utc=$1 and alert_kind='WEEKLY_NEWS_MISSED'", [week])).rows;
+  assert.equal(missed.length, 1, 'the old week stays missed');
+  const count = ctx.cliJson(['cadence', 'count', '--week-start', nextWeek, '--target', 'test']);
+  assert.equal(count.roundupCount, 0, 'the old-week slug never counts for the new week');
+  assert.deepEqual(ctx.cliJson(['cadence', 'unresolved', '--lane', 'roundup', '--week-start', nextWeek, '--target', 'test']), []);
 });
