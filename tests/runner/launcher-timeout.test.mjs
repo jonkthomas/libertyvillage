@@ -50,12 +50,15 @@ test('unknown manager/status output is never classified as confirmed inactive', 
   assert.match(generatorBlock, /Unknown manager\/status|explicit inactive/i);
 });
 
-test('generator path logs no secrets and captures no scratch/model output', () => {
+test('generator path persists only bounded root diagnostics and never raw model output', () => {
   assert.equal((generatorBlock.match(/print\(/g) || []).length, 0, 'no print() in generator block');
-  for (const run of generatorBlock.match(/subprocess\.run\(.*\)/g) || []) {
-    assert.match(run, /DEVNULL/, `subprocess output must be discarded or compared, never logged: ${run}`);
-  }
+  assert.match(generatorBlock, /GeneratorDiagnostic\(f'\/var\/log\/lv-generator\/generator-/);
+  assert.match(generatorBlock, /capture_generator\(cmd, diag, CLIENT_TIMEOUT\)/);
   assert.doesNotMatch(generatorBlock, /print\(env|print\(secrets|os\.environ/);
+  const sanitizer = fs.readFileSync(path.join(owned, 'generator_diag.py'), 'utf8');
+  assert.match(sanitizer, /MAX_BYTES = 64 \* 1024/);
+  assert.match(sanitizer, /O_NOFOLLOW, 0o600/);
+  assert.match(sanitizer, /candidate text, tool output, environment values and raw errors are never persisted/);
 });
 
 test('launcher.sh passes bash syntax check and embedded generator python parses', () => {

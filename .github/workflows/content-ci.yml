@@ -32,6 +32,8 @@ jobs:
       - run: npx eslint scripts/content tests/content
       - run: npm run test:content
       - run: npm run test:automation
+      - run: node --test tests/runner/*.test.mjs
+      - run: python3 -B -m unittest discover -s tests/runner -p '*_test.py'
       - run: npm run build
         env:
           CONTENT_SOURCE: json

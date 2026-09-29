@@ -15,7 +15,9 @@ Collect search performance and analytics data to inform topic selection.
 Use the GSC MCP tools to pull data for **sc-domain:libertyvillage.co**:
 
 #### Search Analytics (last 7 days)
+
 Call `mcp__gsc__search_analytics` with:
+
 - `siteUrl`: `sc-domain:libertyvillage.co`
 - `startDate`: 7 days ago (YYYY-MM-DD format)
 - `endDate`: today (YYYY-MM-DD format)
@@ -25,13 +27,17 @@ Call `mcp__gsc__search_analytics` with:
 This returns: queries, pages, impressions, clicks, CTR, position.
 
 #### Quick Wins (position 4-20, high impressions)
+
 Call `mcp__gsc__detect_quick_wins` with:
+
 - `siteUrl`: `sc-domain:libertyvillage.co`
 
 This identifies pages ranking in positions 4-20 with high impressions but low CTR — prime targets for new content.
 
 #### Sitemap Status
+
 Call `mcp__gsc__list_sitemaps` with:
+
 - `siteUrl`: `sc-domain:libertyvillage.co`
 
 Check how many URLs are submitted vs indexed.
@@ -41,7 +47,9 @@ Check how many URLs are submitted vs indexed.
 Use the GA4 MCP tools for property **523614078**:
 
 #### Traffic Overview (last 7 days)
+
 Call `mcp__google-analytics__run_report` with:
+
 - `propertyId`: `523614078`
 - `dateRanges`: `[{"startDate": "7daysAgo", "endDate": "today"}]`
 - `dimensions`: `[{"name": "pagePath"}]`
@@ -51,6 +59,7 @@ Call `mcp__google-analytics__run_report` with:
 ### 1.3 Save Raw Data
 
 Save the collected data to `tasks/seo-data-latest.json`:
+
 ```json
 {
   "collectedAt": "ISO timestamp",
@@ -70,6 +79,7 @@ Use the Write tool to save this file.
 ### 1.4 Analysis Summary
 
 Generate a brief analysis identifying:
+
 - **Top performing queries**: Highest impressions/clicks
 - **Content gaps**: Queries with impressions but no dedicated page on the site
 - **Underperforming pages**: Pages with high impressions but low CTR (< 2%)
@@ -77,6 +87,7 @@ Generate a brief analysis identifying:
 ### 1.5 Fallback: No Data Available
 
 If the site is new and GSC/GA4 returns no data (0 impressions, 0 sessions):
+
 - Log: "No SEO data available — site is in early indexing phase"
 - Skip the analysis summary
 - Proceed to topic selection using evergreen topics (Step 2 will handle this)
@@ -109,6 +120,7 @@ jq -c '.[] | select(.slug=="<slug>")' data/businesses.json
 ### 2.2 Check for Topic Override
 
 If the `TOPIC_OVERRIDE` environment variable is set (non-empty):
+
 - **Skip all analysis below**
 - Use the override value as the topic
 - Generate a title, slug, keywords, and category from the override
@@ -118,14 +130,14 @@ If the `TOPIC_OVERRIDE` environment variable is set (non-empty):
 
 Score potential topics on these factors (1-5 scale each):
 
-| Factor | Description |
-|--------|-------------|
-| **Search demand** | Does GSC data show queries related to this topic? Higher impressions = higher score |
-| **Content gap** | Is there a query with impressions but NO dedicated page? Big gap = high score |
-| **Seasonal relevance** | Is this topic timely? (e.g., summer patios in June, holiday events in Dec) |
-| **Topic diversity** | Does this category differ from recent posts? Avoid 3+ posts in same category |
-| **Cross-reference potential** | Can this topic link to many existing service/business/guide pages? |
-| **Local specificity** | Is this specific to Liberty Village, not generic Toronto content? |
+| Factor                        | Description                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| **Search demand**             | Does GSC data show queries related to this topic? Higher impressions = higher score |
+| **Content gap**               | Is there a query with impressions but NO dedicated page? Big gap = high score       |
+| **Seasonal relevance**        | Is this topic timely? (e.g., summer patios in June, holiday events in Dec)          |
+| **Topic diversity**           | Does this category differ from recent posts? Avoid 3+ posts in same category        |
+| **Cross-reference potential** | Can this topic link to many existing service/business/guide pages?                  |
+| **Local specificity**         | Is this specific to Liberty Village, not generic Toronto content?                   |
 
 Select the topic with the highest combined score.
 
@@ -133,8 +145,11 @@ Do **not** select a topic whose slug or title asserts an operational attribute �
 pet-friendly / dog policy, happy hour, accessibility / wheelchair access, or
 reservations — unless every attributed `data/businesses.json` record you present
 as satisfying that premise actually contains that attribute in its own record
-text (tags, description, hours, or other fields). One supported record cannot
-license unsupported peers. Outdoor dining / patio guides without those
+text (tags, description, hours, or other fields). Two or more supporting
+business records are enough for a post limited to those businesses; do not
+require proof for businesses the post does not attribute. One supported record
+cannot license unsupported peers. Omit unrecorded details and assertions that
+an offer is still current. Outdoor dining / patio guides without those
 operational claims are allowed. Do not invent a pet policy, happy hour,
 accessibility fact, or reservation policy from memory.
 
@@ -153,24 +168,25 @@ If any check fails, select the next-highest-scoring topic.
 
 If no SEO data is available (Step 1 returned no data), select from this evergreen topic bank:
 
-| Topic | Category | Keywords |
-|-------|----------|----------|
-| Best patios in Liberty Village | food-drink | patios, outdoor dining, summer |
-| Liberty Village park guide | lifestyle | parks, green space, recreation |
-| Getting around Liberty Village without a car | transit | transit, bike, walking |
-| Liberty Village for young professionals | community | young professionals, networking |
-| Pet services in Liberty Village | lifestyle | pets, dog walking, vet |
-| Liberty Village weekend activities | events | weekend, things to do |
-| Home renovation tips for LV condos | real-estate | renovation, condo, upgrades |
-| Liberty Village coffee shop guide | food-drink | coffee, cafes, work |
-| Nightlife in Liberty Village | food-drink | bars, nightlife, drinks |
-| Liberty Village family guide | community | family, kids, family-friendly |
-| Best patios near BMO Field | food-drink | patios, bmo field, outdoor |
-| Liberty Village grocery guide | lifestyle | grocery, freshco, shopping |
-| Liberty Village running routes | lifestyle | running, martin goodman trail |
-| Toronto rental deals 2026 | real-estate | rent, deals, incentives |
+| Topic                                        | Category    | Keywords                        |
+| -------------------------------------------- | ----------- | ------------------------------- |
+| Best patios in Liberty Village               | food-drink  | patios, outdoor dining, summer  |
+| Liberty Village park guide                   | lifestyle   | parks, green space, recreation  |
+| Getting around Liberty Village without a car | transit     | transit, bike, walking          |
+| Liberty Village for young professionals      | community   | young professionals, networking |
+| Pet services in Liberty Village              | lifestyle   | pets, dog walking, vet          |
+| Liberty Village weekend activities           | events      | weekend, things to do           |
+| Home renovation tips for LV condos           | real-estate | renovation, condo, upgrades     |
+| Liberty Village coffee shop guide            | food-drink  | coffee, cafes, work             |
+| Nightlife in Liberty Village                 | food-drink  | bars, nightlife, drinks         |
+| Liberty Village family guide                 | community   | family, kids, family-friendly   |
+| Best patios near BMO Field                   | food-drink  | patios, bmo field, outdoor      |
+| Liberty Village grocery guide                | lifestyle   | grocery, freshco, shopping      |
+| Liberty Village running routes               | lifestyle   | running, martin goodman trail   |
+| Toronto rental deals 2026                    | real-estate | rent, deals, incentives         |
 
 Select the first topic from this list that:
+
 - Has NOT been covered in existing posts
 - Has a different category from the most recent post
 
@@ -232,24 +248,24 @@ export interface BlogPost {
 
 ### 3.2 Field Requirements
 
-| Field | Type | Constraints |
-|-------|------|-------------|
-| `slug` | string | Kebab-case, unique, matches the proposed slug from Step 2 |
-| `title` | string | 50-70 characters, includes primary keyword |
-| `description` | string | 120-160 characters, compelling for search results |
-| `content` | string | 800-1200 words, markdown format |
-| `publishedAt` | string | Today's date in ISO format (YYYY-MM-DD) |
-| `updatedAt` | string | Same as publishedAt for new posts |
-| `category` | enum | One of: news, development, food-drink, events, transit, real-estate, lifestyle, community |
-| `tags` | string[] | 4-6 relevant tags, lowercase |
-| `answerBlock` | string | 40-60 words, AEO-optimized direct answer |
-| `faqs` | FAQ[] | 4-5 questions with substantive answers (>20 words each) |
-| `image` | string | `/images/blog/{slug}.jpg` |
-| `relatedServices` | string[] | 2-4 real slugs from data/services.json |
-| `relatedTopics` | string[] | 2-4 real slugs from data/topics.json |
-| `relatedPosts` | string[] | 1-3 real slugs from data/posts.json |
-| `keyTakeaways` | string[] | 4-6 concise bullet points |
-| `author` | string | Always `"LibertyVillage.co"` |
+| Field             | Type     | Constraints                                                                               |
+| ----------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `slug`            | string   | Kebab-case, unique, matches the proposed slug from Step 2                                 |
+| `title`           | string   | 50-70 characters, includes primary keyword                                                |
+| `description`     | string   | 120-160 characters, compelling for search results                                         |
+| `content`         | string   | 800-1200 words, markdown format                                                           |
+| `publishedAt`     | string   | Today's date in ISO format (YYYY-MM-DD)                                                   |
+| `updatedAt`       | string   | Same as publishedAt for new posts                                                         |
+| `category`        | enum     | One of: news, development, food-drink, events, transit, real-estate, lifestyle, community |
+| `tags`            | string[] | 4-6 relevant tags, lowercase                                                              |
+| `answerBlock`     | string   | 40-60 words, AEO-optimized direct answer                                                  |
+| `faqs`            | FAQ[]    | 4-5 questions with substantive answers (>20 words each)                                   |
+| `image`           | string   | `/images/blog/{slug}.jpg`                                                                 |
+| `relatedServices` | string[] | 2-4 real slugs from data/services.json                                                    |
+| `relatedTopics`   | string[] | 2-4 real slugs from data/topics.json                                                      |
+| `relatedPosts`    | string[] | 1-3 real slugs from data/posts.json                                                       |
+| `keyTakeaways`    | string[] | 4-6 concise bullet points                                                                 |
+| `author`          | string   | Always `"LibertyVillage.co"`                                                              |
 
 ### 3.3 Content Guidelines
 
@@ -275,13 +291,15 @@ Write 800-1200 words in markdown format:
 > title asserts pet-friendly / dog policy, happy hour, accessibility, or
 > reservations unless every attributed `data/businesses.json` record you present
 > as satisfying that premise actually contains that attribute in its own record.
-> One supported record cannot license unsupported peers. Those topics are refused
-> before a pull request is opened. Patio / outdoor-dining guides that do not
+> Two or more supporting business records suffice for a post limited to those
+> businesses; do not require proof for other neighbourhood businesses. Omit
+> unrecorded details and current-offer assertions. One supported record cannot
+> license unsupported peers. Unsupported topics are refused before a pull request. Patio / outdoor-dining guides that do not
 > assert those policies are allowed.
 
 > **Attribution format (non-negotiable, machine-checked).** The claim linter can only
 > adjudicate a specific against the business it belongs to, so every business you make
-> a specific claim about must be *attributable in the text itself*, in one of exactly
+> a specific claim about must be _attributable in the text itself_, in one of exactly
 > these forms:
 >
 > 1. `[Name](/directory/<slug>)` — a link to that business's directory page. The slug
@@ -298,12 +316,14 @@ Write 800-1200 words in markdown format:
 > the rail corridor", "a two-minute walk from BMO Field") are all as specific as a civic
 > address and are checked the same way. If the business's own record does not contain
 > that geography, do not write it. Say "in Liberty Village" instead.
+
 - Natural paragraph flow with subheadings every 150-200 words
 - Include a brief intro paragraph and conclusion
 
 #### Answer Block (`answerBlock` field)
 
 Write a 40-60 word direct answer to the post's core question:
+
 - Should work as a standalone answer in search results
 - Front-load the most important information
 - No filler words or preamble
@@ -312,6 +332,7 @@ Write a 40-60 word direct answer to the post's core question:
 #### FAQs (`faqs` field)
 
 Generate 4-5 FAQs:
+
 - Each question should be a real question a Liberty Village resident would ask
 - Each answer must be >20 words and substantive (not generic)
 - Include specific local details only where a `businesses.json` record supports them (business names, street names)
@@ -320,6 +341,7 @@ Generate 4-5 FAQs:
 #### Key Takeaways (`keyTakeaways` field)
 
 4-6 concise bullet points summarizing the post:
+
 - Each should be 1 sentence, actionable or informative
 - Summarize the post; do not introduce a specific that the body has not already grounded
 
@@ -373,6 +395,7 @@ ls -la public/images/blog/SLUG_HERE.jpg
 Check the file size. If it's >10KB, Tier 1 succeeded — skip to Image Validation.
 
 If the first photo doesn't work, try photos[1] through photos[4]:
+
 ```bash
 echo "$PEXELS_RESPONSE" | jq -r '.photos[1].src.landscape'
 ```
@@ -382,6 +405,7 @@ Only move to Tier 2 if ALL 5 Pexels results fail or `PEXELS_API_KEY` is empty.
 ### Tier 2: Web Search + Download (Fallback)
 
 If Pexels fails or returns irrelevant images:
+
 1. Use `WebSearch` tool: search "{topic} free stock photo site:unsplash.com OR site:pixabay.com"
 2. Try 2-3 different search queries with variations
 3. Download using Bash: `curl -L -o public/images/blog/{slug}.jpg "{url}"`
@@ -393,23 +417,25 @@ If all external sources fail, generate a branded card using Playwright MCP.
 
 1. Determine the category color and emoji:
 
-| Category | color1 | color2 | Emoji |
-|----------|--------|--------|-------|
-| news | #1e40af | #3b82f6 | 📰 |
-| food-drink | #c2410c | #f97316 | 🍽️ |
-| events | #7e22ce | #a855f7 | 🎉 |
-| transit | #0f766e | #14b8a6 | 🚇 |
-| real-estate | #b91c1c | #ef4444 | 🏙️ |
-| lifestyle | #4338ca | #818cf8 | ✨ |
-| community | #15803d | #22c55e | 🤝 |
-| development | #0369a1 | #0ea5e9 | 🏗️ |
+| Category    | color1  | color2  | Emoji |
+| ----------- | ------- | ------- | ----- |
+| news        | #1e40af | #3b82f6 | 📰    |
+| food-drink  | #c2410c | #f97316 | 🍽️    |
+| events      | #7e22ce | #a855f7 | 🎉    |
+| transit     | #0f766e | #14b8a6 | 🚇    |
+| real-estate | #b91c1c | #ef4444 | 🏙️    |
+| lifestyle   | #4338ca | #818cf8 | ✨    |
+| community   | #15803d | #22c55e | 🤝    |
+| development | #0369a1 | #0ea5e9 | 🏗️    |
 
 2. Get the absolute path to the template and use a file:// URL:
+
 ```bash
 echo "file://$(pwd)/scripts/templates/hero-card.html"
 ```
 
 3. Use Playwright MCP `browser_navigate` to open the template URL with query params:
+
 ```
 file:///absolute/path/to/scripts/templates/hero-card.html?title={url_encoded_title}&emoji={url_encoded_emoji}&color1={color1_without_hash}&color2={color2_without_hash}
 ```
@@ -419,16 +445,19 @@ file:///absolute/path/to/scripts/templates/hero-card.html?title={url_encoded_tit
 5. Use `browser_take_screenshot` with `filename` parameter to save to `public/images/blog/{slug}.jpg`
 
 **Alternative if file:// doesn't work:** Start a local HTTP server:
+
 ```bash
 npx -y serve scripts/templates -p 8787 --no-clipboard &
 sleep 2
 ```
+
 Then navigate to `http://localhost:8787/hero-card.html?title=...&emoji=...&color1=...&color2=...`
 After screenshotting, kill the server: `kill %1`
 
 ### Image Validation
 
 After sourcing from ANY tier, verify:
+
 - File exists at `public/images/blog/{slug}.jpg`
 - File size is >10KB (`ls -la public/images/blog/{slug}.jpg`)
 - If validation fails, fall through to the next tier
@@ -458,6 +487,7 @@ If any check fails: select the next-best topic and re-check. If 3 topics fail, u
 ### Retry Logic
 
 If quality checks fail:
+
 1. Identify which checks failed
 2. Provide specific feedback and regenerate content
 3. Maximum 2 retries — if still failing, **abort and exit with an error**. Never
@@ -473,6 +503,7 @@ If quality checks fail:
 Before updating `data/posts.json`, verify ALL required fields and cross-references as described above.
 
 If ANY validation fails:
+
 1. Log which validation failed and why
 2. Attempt to fix (e.g., adjust word count, remove invalid cross-reference)
 3. Re-validate
@@ -489,6 +520,7 @@ If ANY validation fails:
 ### 6.3 Post-Write Validation
 
 #### Diagnostic Check
+
 Run: `node scripts/diagnostic.js`
 
 - **Exit code 0** = PASS (warnings are acceptable, errors are not)
@@ -500,6 +532,7 @@ Run: `node scripts/diagnostic.js`
   4. If still failing after 2 attempts, revert posts.json and abort
 
 #### Build Check
+
 Run: `npm run build`
 
 - Must complete without errors
@@ -514,6 +547,7 @@ Run: `npm run build`
 Leave the generated files on disk. The GitHub Actions workflow performs the commit and push in a separate step using its own whitelist. Your job ends after the build check succeeds.
 
 Files the workflow will pick up:
+
 - `data/posts.json`
 - `public/images/blog/{slug}.jpg`
 - `tasks/seo-data-latest.json`
@@ -536,6 +570,7 @@ Do NOT run `git add`, `git commit`, or `git push`. Do NOT configure git user. Do
 ## DRY_RUN Mode
 
 If `DRY_RUN` is `true`:
+
 - Run ALL steps including validations (diagnostic, build)
 - Save the generated BlogPost JSON to `tasks/auto-blog-dry-run.json` for review
 - Do NOT modify `data/posts.json` permanently (revert after validation)
@@ -547,6 +582,7 @@ If `DRY_RUN` is `true`:
 ## Final Checklist
 
 Before declaring success, confirm:
+
 - [ ] Blog post matches BlogPost interface with all required fields
 - [ ] No duplicate slugs in posts.json
 - [ ] No fabricated businesses — all bold names exist in businesses.json
