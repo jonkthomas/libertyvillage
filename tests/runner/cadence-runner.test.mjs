@@ -294,10 +294,17 @@ test('R2 first run ignores pre-start weeks, but a fully dead configured active p
   assert.equal(world.alerts.size, 0);
   world.now = new Date('2026-10-07T11:00:00.000Z');
   assert.throws(() => run(world), /cadence content deficit/);
-  assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-28'], 'fully dead W40 has no rows but is evaluated as immediate prior week');
+  assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-28'], 'the configured active W40 is evaluated as immediate prior week');
   assert.deepEqual([...world.alerts.values()].map((alert) => alert.kind), ['WEEKLY_CONTENT_MISSED', 'WEEKLY_NEWS_MISSED']);
   assert.throws(() => run(world), /cadence content deficit/);
   assert.equal(world.alerts.size, 2, 'alert keys are deduplicated across runs');
+
+  const noRows = withWorld(t, { now: new Date('2026-10-07T11:00:00.000Z'), queue: [] });
+  noRows.cadenceStartWeek = '2026-09-28';
+  assert.equal(noRows.slots.size, 0, 'no cadence activity in the active prior week');
+  assert.throws(() => run(noRows), /cadence content deficit/);
+  assert.deepEqual(noRows.deadlineCalls.map((call) => call.week), ['2026-09-28'], 'a fully dead active week still gets evaluated');
+  assert.deepEqual([...noRows.alerts.values()].map((alert) => alert.kind), ['WEEKLY_CONTENT_MISSED', 'WEEKLY_NEWS_MISSED']);
 });
 
 test('R2 excludes even row-bearing older weeks before the target cutoff', (t) => {
