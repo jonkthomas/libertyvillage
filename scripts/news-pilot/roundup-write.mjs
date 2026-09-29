@@ -6,6 +6,10 @@ import { roundupSlug } from './roundup.mjs';
 
 const unsafeImpact = /\b(?:crowd(?:s|ing)?|congestion|detours?|traffic disruption|parking restrictions?|road closures?)\b/i;
 const unsafeCopy = /\b(?:crime|murder|stabbing|robbery|election|candidate|vote for)\b/i;
+// Fail-closed copy guard (Fable L1): bidi overrides/isolates, zero-width and
+// C0/C1 controls must never reach public Markdown. Supported whitespace
+// (space, tab, newline) and ordinary glyphs are untouched; rejection, not mutation.
+const unsafeControls = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF\uFFF9-\uFFFB\uFFFE\uFFFF\u061C]/;
 const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max;
 const compact = (unit) => ({ unitId: unit.identityKey, subject: unit.subject, what: unit.what,
   verdict: unit.verdict, when: unit.when, date: unit.date, itemType: unit.itemType,
@@ -15,11 +19,13 @@ const compact = (unit) => ({ unitId: unit.identityKey, subject: unit.subject, wh
 export function checkRoundupDraft(draft, units) {
   const errors = [];
   if (!text(draft?.intro, 450) || !Array.isArray(draft?.units) || draft.units.length !== units.length) errors.push('draft-shape');
+  if (typeof draft?.intro === 'string' && unsafeControls.test(draft.intro)) errors.push('unsafe-control-chars');
   const ids = new Set();
   for (const entry of draft?.units || []) {
     const unit = units.find((u) => u.identityKey === entry?.unitId);
     if (!unit || ids.has(entry.unitId) || !text(entry.heading, 120) || !text(entry.body, 650)) { errors.push('unit-shape'); continue; }
     ids.add(entry.unitId);
+    if (unsafeControls.test(`${entry.heading} ${entry.body}`)) errors.push('unsafe-control-chars');
     if (/https?:\/\/|\]\(/.test(`${entry.heading} ${entry.body}`)) errors.push('writer-link');
     if (unsafeCopy.test(`${entry.heading} ${entry.body}`)) errors.push('risk-wording');
     if (unsafeImpact.test(entry.body) && !unit.verifiedImpact && !['road', 'transit'].includes(unit.itemType) &&
@@ -56,6 +62,9 @@ async function jsonCall(callModel, resolved, system, user, maxTokens = 7000) {
   return parsed.value;
 }
 
+/** Writer budget (§9.2): reviewer probes count inside the six-call writer ceiling. */
+export const WRITER_MAX_CALLS = 6;
+
 /** Model calls have no tools; only verified items enter the copywriter. Two separate review roles run before assembly. */
 export async function writeRoundup(pack, { env = process.env, resolved, reviewer, callModel = generateDraftWithModel,
   deadline = Date.now() + 600_000 } = {}) {
@@ -63,13 +72,19 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   if (!units.length) throw new Error('roundup_no_units');
   const author = resolved || await resolveModelProvider(env);
   if (!author.ok) throw new Error(`roundup_writer_unavailable:${author.error}`);
-  const critic = reviewer || await selectRoundupReviewer({ author, env, callModel, deadline });
+  let modelCalls = 0;
+  const countingCall = async (args) => {
+    modelCalls += 1;
+    if (modelCalls > WRITER_MAX_CALLS) throw new Error('roundup_writer_failed:writer-budget');
+    return callModel(args);
+  };
+  const critic = reviewer || await selectRoundupReviewer({ author, env, callModel: countingCall, deadline });
   if (!critic.ok || critic.provider.id === author.provider.id) throw new Error('roundup_independent_reviewer_unavailable');
   const material = units.map(compact);
   const cappedCall = (args) => {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
-    return callModel({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
+    return countingCall({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
   };
   const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
   let draft = await jsonCall(cappedCall, author, instructions, { units: material }, 9000);
@@ -93,6 +108,13 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     { draft, units: material });
   if (!Array.isArray(risk?.findings)) throw new Error('roundup_risk_review_invalid');
   findings.push({ round: 2, findings: risk.findings });
+  // Fail closed (Fable M2, §6.5/§9.2): any private-individual finding whose
+  // unitId is absent or not a known unit key fails the whole writer safely.
+  const known = new Set(units.map((unit) => unit.identityKey));
+  for (const f of risk.findings) {
+    if (f?.problem === 'private-individual' && !known.has(f?.unitId))
+      throw new Error('roundup_writer_failed:unknown-private-individual-unit');
+  }
   const refused = new Set(risk.findings.filter((f) => f?.problem === 'private-individual').map((f) => f.unitId));
   const safeUnits = units.filter((unit) => !refused.has(unit.identityKey));
   if (risk.findings.some((f) => f?.problem !== 'private-individual')) {
@@ -102,7 +124,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   draft = { ...draft, units: (draft.units || []).filter((entry) => !refused.has(entry.unitId)) };
   errors = checkRoundupDraft(draft, safeUnits);
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
-  return { draft, findings, refused: [...refused], units: safeUnits };
+  return { draft, findings, refused: [...refused], units: safeUnits, modelCalls };
 }
 
 const escapeMarkdown = (value) => String(value || '').replace(/[\[\]()]/g, '');

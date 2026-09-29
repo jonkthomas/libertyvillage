@@ -24,6 +24,7 @@ export const IG_LIMITS = Object.freeze({
   maxRunUsd: 1,
   timeoutMs: 300_000,
   lookbackDays: 21,
+  maxBodyBytes: 10_000_000,
 });
 
 export const APIFY_ACTOR = 'apify~instagram-scraper';
@@ -121,32 +122,52 @@ function apifyAdapter({ token, fetcher = globalThis.fetch, budgetUsd = IG_LIMITS
       maxTotalChargeUsd: String(budgetUsd),
       timeout: String(Math.floor(timeoutMs / 1000)),
     });
+    // The abort deadline stays armed through response-body consumption, so a
+    // peer that sends headers then stalls still hits the provider timeout.
+    // Error messages never carry the token value.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs + 15_000);
-    let res;
     try {
-      res = await fetcher(`${APIFY_BASE}/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?${params}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(input),
-        signal: controller.signal,
-        redirect: 'error',
-      });
-    } catch (e) {
-      throw new IgProviderError(e?.name === 'AbortError' ? 'timeout' : 'network', 'Instagram provider request failed');
+      let res;
+      try {
+        res = await fetcher(`${APIFY_BASE}/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?${params}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(input),
+          signal: controller.signal,
+          redirect: 'error',
+        });
+      } catch (e) {
+        throw new IgProviderError(e?.name === 'AbortError' ? 'timeout' : 'network', 'Instagram provider request failed');
+      }
+      const status = Number(res?.status);
+      if (!(status >= 200 && status < 300)) throw new IgProviderError(status === 402 ? 'budget' : 'http', `Instagram provider HTTP ${status}`);
+      let items;
+      try {
+        if (typeof res.text === 'function') {
+          const raw = await res.text();
+          if (raw.length > IG_LIMITS.maxBodyBytes) throw new IgProviderError('too-large', 'Instagram provider response exceeded size bound');
+          items = JSON.parse(raw);
+        } else if (typeof res.json === 'function') {
+          items = await res.json();
+          if (JSON.stringify(items)?.length > IG_LIMITS.maxBodyBytes)
+            throw new IgProviderError('too-large', 'Instagram provider response exceeded size bound');
+        } else {
+          const raw = String(res.body ?? '');
+          if (raw.length > IG_LIMITS.maxBodyBytes) throw new IgProviderError('too-large', 'Instagram provider response exceeded size bound');
+          items = JSON.parse(raw);
+        }
+      } catch (e) {
+        if (e instanceof IgProviderError) throw e;
+        if (e?.name === 'AbortError' || controller.signal.aborted)
+          throw new IgProviderError('timeout', 'Instagram provider request failed');
+        throw new IgProviderError('malformed', 'Instagram provider returned non-JSON');
+      }
+      if (!Array.isArray(items)) throw new IgProviderError('malformed', 'Instagram provider returned a non-array');
+      return items;
     } finally {
       clearTimeout(timer);
     }
-    const status = Number(res?.status);
-    if (!(status >= 200 && status < 300)) throw new IgProviderError(status === 402 ? 'budget' : 'http', `Instagram provider HTTP ${status}`);
-    let items;
-    try {
-      items = typeof res.json === 'function' ? await res.json() : JSON.parse(String(res.body ?? ''));
-    } catch {
-      throw new IgProviderError('malformed', 'Instagram provider returned non-JSON');
-    }
-    if (!Array.isArray(items)) throw new IgProviderError('malformed', 'Instagram provider returned a non-array');
-    return items;
   };
 
   return {
