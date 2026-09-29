@@ -108,6 +108,9 @@ if [[ "$mode" == lv-runner-service ]]; then
   [[ ! -e /etc/lv-runner.hold ]] || { echo 'runner hold active' >&2; exit 1; }
   for file in /etc/lv-runner.env "/etc/lv-runner-${target}.env"; do
     [[ -f "$file" && $(stat -c '%a' "$file") == 600 && $(stat -c '%u' "$file") == 0 ]] || { echo 'runner env missing or unsafe' >&2; exit 1; }
+    # Only the target-specific file may set this cutoff; never inherit a
+    # shared or caller value into the other target's missed-week decisions.
+    [[ "$file" != "/etc/lv-runner-${target}.env" ]] || unset CADENCE_START_ISO_WEEK
     set -a; source "$file"; set +a
   done
   export CONTENT_TARGET="$target"

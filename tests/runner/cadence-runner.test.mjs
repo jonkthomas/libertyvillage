@@ -286,7 +286,51 @@ test('R3 a restart after one Sunday reserve never reuses its category (durable, 
   assert.deepEqual(attemptsOf(world).map((a) => a.topic_key), ['reserve:dir:bakery', 'reserve:dir:salon']);
 });
 
-test('R2 catches up active older weeks; older inactive weeks stay quiet while the immediate prior week is unconditional', (t) => {
+test('R2 first run ignores pre-start weeks, but a fully dead configured active prior week alerts exactly once', (t) => {
+  const world = withWorld(t, { queue: [] });
+  world.cadenceStartWeek = '2026-09-28';
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.deepEqual(world.deadlineCalls, [], 'initial W40 run never evaluates pre-start W39');
+  assert.equal(world.alerts.size, 0);
+  world.now = new Date('2026-10-07T11:00:00.000Z');
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-28'], 'fully dead W40 has no rows but is evaluated as immediate prior week');
+  assert.deepEqual([...world.alerts.values()].map((alert) => alert.kind), ['WEEKLY_CONTENT_MISSED', 'WEEKLY_NEWS_MISSED']);
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(world.alerts.size, 2, 'alert keys are deduplicated across runs');
+});
+
+test('R2 excludes even row-bearing older weeks before the target cutoff', (t) => {
+  const world = withWorld(t, { now: new Date('2026-10-21T11:00:00.000Z'), queue: [] });
+  world.cadenceStartWeek = '2026-09-28';
+  world.slots.set('2026-09-21|content|1', { week_start_utc: '2026-09-21', lane: 'content', slot_number: 1 });
+  world.attempts.push({ target: 'staging', week_start_utc: '2026-09-21', lane: 'content', slot_number: 1, ordinal: 1 });
+  world.slots.set('2026-09-28|content|1', { week_start_utc: '2026-09-28', lane: 'content', slot_number: 1 });
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-28', '2026-10-12'], 'active older W40 and immediate W42 only');
+  assert.equal(world.alerts.has('2026-09-21|WEEKLY_CONTENT_MISSED'), false);
+});
+
+test('R2 absent cutoff defaults to this run\'s week; invalid dates stop before any CLI or spend', (t) => {
+  const world = withWorld(t, { queue: [] });
+  world.cadenceStartWeek = undefined;
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.deepEqual(world.deadlineCalls, []);
+  assert.equal(events(world, 'cadence-start-week-defaulted')[0].week, '2026-09-28');
+  world.now = new Date('2026-10-07T11:00:00.000Z');
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.deepEqual(world.deadlineCalls, [], 'no fixed config means no past-week alerts on any later run');
+  assert.equal(events(world, 'cadence-start-week-defaulted')[1].week, '2026-10-05');
+  for (const bad of ['2026-09-29', '2026-02-30', '2026-9-28', 'garbage']) {
+    const invalid = withWorld(t, { queue: [] });
+    invalid.cadenceStartWeek = bad;
+    assert.throws(() => run(invalid), /invalid cadence start week/);
+    assert.deepEqual(invalid.calls, [], 'invalid setting refuses before count or deadline');
+    assert.deepEqual(invalid.generated, [], 'invalid setting refuses before generator spend');
+  }
+});
+
+test('R2 catches up active older weeks; older inactive weeks stay quiet while the immediate prior week is eligible', (t) => {
   const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
   const missed = (week) => [...world.alerts.values()].filter((alert) => alert.week === week).map((alert) => alert.kind);
   run(world);  // week 2026-09-28: cadence active (slots + attempts), no roundup

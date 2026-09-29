@@ -66,6 +66,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
   fs.mkdirSync(path.join(repo, 'data'), { recursive: true });
   const world = {
     repo, stateRoot, now, queue, posts, businesses, snapshotId: 'a'.repeat(40),
+    cadenceStartWeek: '2026-09-21',
     slots: new Map(), attempts: [], submissions: new Map(), nextId: 100, live: new Set(),
     calls: [], logs: [], generated: [], sources: [],
     heldByOther: new Set(), gatePlan: [], deployCode: 0, submitPlan: [], generatorPlan: [], deadlineCalls: [], alerts: new Map(), deliverCalls: 0, deliverFails: false, deadlineFails: false, alertsEnabled: true, smokeAt: null,
@@ -233,6 +234,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
   world.deps = {
     repo, stateRoot, modules, now: () => world.now,
     get alertsEnabled() { return world.alertsEnabled; },
+    get cadenceStartWeek() { return world.cadenceStartWeek; },
     cli: world.cli,
     log: (event, details = {}) => world.logs.push({ event, ...details }),
     exportSnapshot: () => {

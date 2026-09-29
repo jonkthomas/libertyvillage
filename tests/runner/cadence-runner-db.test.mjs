@@ -73,6 +73,7 @@ async function stack(t) {
   ctx.cliJson = (args) => parseJson(cli(args).stdout);
   ctx.deps = {
     repo, stateRoot, modules, now: () => new Date(Date.now() + ctx.shiftMs), cli, log: () => {}, alertsEnabled: true,
+    cadenceStartWeek: weekStartUtc(new Date()), // Explicit activated test target; remains fixed when the E2E clock advances.
     exportSnapshot: () => {
       cli(['export', '--root', '.', '--target', 'test']);
       const data = (name) => readJson(path.join(repo, 'data', name));

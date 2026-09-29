@@ -38,6 +38,13 @@ test('on-demand and timer enter the same service and each scheduled occurrence g
   assert.equal(slotKey('news', 'staging', '202609281217-scheduled'), 'runner:news:staging:202609281217-scheduled');
 });
 
+test('cadence start week comes only from the target-specific runner env file', () => {
+  const launcher = read('launcher.sh');
+  assert.match(launcher, /for file in \/etc\/lv-runner\.env "\/etc\/lv-runner-\$\{target\}\.env"; do/);
+  assert.match(launcher, /\[\[ "\$file" != "\/etc\/lv-runner-\$\{target\}\.env" \]\] \|\| unset CADENCE_START_ISO_WEEK\s+set -a; source "\$file"/);
+  assert.equal(failureReason(new Error('invalid cadence start week')), 'invalid cadence start week');
+});
+
 test('target guard rejects wrong DB, site, bypass, and GitHub write bindings', () => {
   const stage = {
     CONTENT_TARGET: 'staging', CONTENT_DB_NAME: 'lv_staging',

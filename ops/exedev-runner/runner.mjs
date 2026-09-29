@@ -388,17 +388,30 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
 }
 
 // Deadline alerts are durable DB intents: every weekly-blog/roundup run first
-// evaluates ended prior ISO weeks, oldest first: always the immediate prior week,
-// plus up to CADENCE.catchUpWeeks older weeks where cadence was active for this
-// target (`cadence status` shows a slot or attempt), so a failed evaluation is
-// retried later. Older pre-activation weeks do not alert, but the immediate
-// prior week can emit one bounded pre-activation alert on the first run; it has
-// no durable activation marker yet. The DB deadline is
-// idempotent per target/week/type. Failures are logged, never abort the run.
+// evaluates ended prior ISO weeks, oldest first: the immediate prior week,
+// plus older weeks with a slot or attempt within CADENCE.catchUpWeeks, but only
+// if their Monday is on/after the target's configured first missed-alert week.
+// A missing config defaults to THIS run's week: no retroactive missed alerts,
+// and no missed alerts at all until the operator sets a fixed start week.
+// Deadline intents remain idempotent per target/week/type; per-week failures
+// are logged and do not abort the run. Malformed configuration fails BEFORE it.
+function missedAlertStartWeek(deps, target, week) {
+  const value = deps.cadenceStartWeek;
+  if (value === undefined || value === null || value === '') {
+    deps.log('cadence-start-week-defaulted', { target, week });
+    return week;
+  }
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null;
+  if (!date || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value
+    || deps.modules.weekStartUtc(date) !== value) throw new Error('invalid cadence start week');
+  return value;
+}
 function evaluatePriorWeek(deps, target, week, now) {
+  const firstWeek = missedAlertStartWeek(deps, target, week);
   const weekAt = (back) => deps.modules.weekStartUtc(new Date(Date.parse(`${week}T00:00:00Z`) - back * 7 * 86400000));
   for (let back = CADENCE.catchUpWeeks; back >= 1; back--) {
     const prior = weekAt(back);
+    if (prior < firstWeek) continue;
     const call = cadenceCaller(deps, target, prior);
     try {
       if (back > 1) {
@@ -921,6 +934,7 @@ function exportSnapshot(target, log) {
 async function cadenceDeps(job, target, slot, log) {
   return {
     repo, stateRoot, modules: await trustedModules(repo), now: () => new Date(), alertsEnabled: Boolean(process.env.SLACK_WEBHOOK_URL),
+    cadenceStartWeek: process.env.CADENCE_START_ISO_WEEK,
     cli: (args, allowExit = []) => cli(args, repo, allowExit),
     log: (event, details) => logLine(log, event, details),
     exportSnapshot: () => exportSnapshot(target, log),
@@ -1032,6 +1046,7 @@ export const SAFE_FAILURES = Object.freeze(new Set([
   'weekly-roundup is staging-only', 'weekly-roundup options unsupported', 'roundup artifact invalid', 'roundup artifact inconsistent',
   'roundup submit refused', 'roundup intent already attempted', 'idempotency kind mismatch', 'submission lacks smoke success',
   'smoked but not counted for week', 'late smoke; old week missed', 'roundup consumed but no longer live',
+  'invalid cadence start week',
 ]));
 export function failureReason(error) {
   return error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : SAFE_FAILURES.has(error?.message) ? error.message : 'operational-error');
