@@ -93,7 +93,7 @@ export const LENSES = {
     'DATA lens: every local claim, date, number, actor, and source link must be grounded, current, Liberty Village-relevant, and mutually consistent.',
     'CONTENT lens: original useful local reporting with no fabricated quotes, events, closures, allegations, images, or implied firsthand knowledge; risk-sensitive stories remain human-only.',
     'CODE lens: posts.json entry must match the site schema, use an existing image, and preserve autonomous publish invariants.',
-    'EVIDENCE lens: assess each item independently for a verified in-week announcement and substantive source; cite its own source inline, never transfer a citation across items. Crime, safety, civic controversy, development applications and weak-source items are human-only even as link-only mentions. Exactly one eligible item must be clearly labelled weekly update.',
+    'EVIDENCE lens: assess each item independently. Verified local news may be announced in the rolling prior seven days, or a verified neighbourhood event may start in the upcoming 14 days even if announced earlier; the ISO publication-week fence still applies. Inspect year-bearing cited passages and the correct source URL for each date and local claim: metadata alone cannot prove a time, and date-only proof cannot imply an exact hour. Confirm visible dates, own-source inline citations, and no transferred claims. Crime, safety, elections/civic controversy, development applications and weak-source items are human-only even as link-only mentions. Exactly one eligible item must be clearly labelled weekly update.',
   ],
   business: [
     'DATA lens: records must be consistent, deduplicated, geographically relevant, and avoid unsupported facts.',

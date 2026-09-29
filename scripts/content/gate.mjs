@@ -363,7 +363,13 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         const inventory = grounded ? await inventoryFor(live, candidates) : null;
         const evidence = kind === 'news' ? trimEvidence(context.evidence)
           : kind === 'roundup' ? { items: (context.items || []).map((item) => ({
-            title: String(item.title || '').slice(0, 300), announcedAt: item.announcedAt, riskFlags: item.riskFlags,
+            title: String(item.title || '').slice(0, 300), location: String(item.location || '').slice(0, 200),
+            actor: String(item.actor || '').slice(0, 200), announcedAt: item.announcedAt,
+            announcedAtVerified: item.announcedAtVerified, announcedAtSourceUrl: item.announcedAtSourceUrl,
+            announcedAtSpan: String(item.announcedAtSpan || '').slice(0, 400), eventStart: item.eventStart,
+            eventStartDate: item.eventStartDate, eventStartVerified: item.eventStartVerified,
+            eventStartSourceUrl: item.eventStartSourceUrl, eventStartSpan: String(item.eventStartSpan || '').slice(0, 400),
+            eventEnd: item.eventEnd, eventConcluded: item.eventConcluded, riskFlags: item.riskFlags,
             sources: item.sources?.map((source) => ({
               canonicalUrl: source.canonicalUrl, publisher: String(source.publisher || '').slice(0, 200),
               excerpt: String(source.excerpt || '').slice(0, 1200),
