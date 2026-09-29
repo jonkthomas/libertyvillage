@@ -75,6 +75,29 @@ test('row mode forwards rowRepairSchema(files) and the per-dataset contract to t
   assert.match(describeRowContract('data/guide-hub.json'), /population, medianRent, walkScore, transitScore[\s\S]*boundaries, history, prosCons, quickFacts, answerSummary/);
 });
 
+test('content-store row fixer prompts the schema key and trusted identity, not a slug-shaped plan', async () => {
+  const service = services[0];
+  const repaired = { ...service, description: `${service.description} Clarified for local readers.` };
+  const candidate = { dataset: 'services', key: service.slug, op: 'update', payload: service };
+  const validate = makeRowRepairValidator({ kind: 'seo', candidates: [candidate],
+    ctx: { now: NEWS_NOW }, live: { services }, deps });
+  const good = plan([{ file: 'data/services.json', records: [{ key: service.slug, record: repaired }] }]);
+  assert.equal(validate(good).ok, true, validate(good).errors.join('; '));
+  assert.match(validate(plan([{ file: 'data/services.json', records: [{ slug: service.slug, record: repaired }] }])).errors.join(),
+    /must be an object with a key/);
+  queueAgent({ files: good.files, reason: good.reason });
+  const result = await planRecordRepair({ kind: 'seo', gateVerdict: {},
+    payload: [{ file: 'data/services.json', records: [service] }], validate,
+    schema: rowRepairSchema(['data/services.json']), describeContract: describeRowContract,
+    candidateKeys: [{ file: 'data/services.json', key: service.slug }],
+  });
+  assert.equal(result.attempts, 1);
+  assert.match(fakeAgent.calls[0].prompt, /each repaired entry must be \{key, record\}/);
+  assert.match(fakeAgent.calls[0].prompt, new RegExp(`data/services\\.json.*${service.slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  assert.doesNotMatch(fakeAgent.calls[0].prompt, /unchanged slug, and the complete repaired record/);
+  assert.deepEqual(fakeAgent.calls[0].options.outputFormat.schema.properties.files.items.properties.records.items.required, ['key', 'record']);
+});
+
 test('repair rules: legacy three are exactly the legacy objects; new datasets follow the spec table', () => {
   for (const file of ['data/posts.json', 'data/businesses.json', 'data/topics.json']) {
     assert.equal(CONTENT_REPAIR_RULES[file], RECORD_REPAIR_RULES[file], `${file} must not be weakened or copied`);

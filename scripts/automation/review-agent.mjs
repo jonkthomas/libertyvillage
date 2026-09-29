@@ -419,14 +419,19 @@ export function fixerEvidenceRows(evidence) {
 
 function recordRepairPrompt({
   kind, gateVerdict, payload, previousErrors, references = [], inventory = null, lintFindings = [],
-  describeContract = describeRepairContract, evidence = null,
+  describeContract = describeRepairContract, evidence = null, candidateKeys = null,
 }) {
   const evidenceRows = fixerEvidenceRows(evidence);
   return [
     `Repair only the supplied appended or modified ${kind} records to resolve the trusted gate findings.`,
     `Trusted gate verdict: ${JSON.stringify(gateVerdict)}`,
     ...(lintFindings.length ? [`Trusted claim-linter findings: ${JSON.stringify(lintFindings)}`] : []),
-    'Return one entry per record that must change: its file, its unchanged slug, and the complete repaired record object.',
+    ...(candidateKeys ? [
+      'Return one entry per record that must change: its file and complete repaired record object;',
+      'each repaired entry must be {key, record}. Use the exact unchanged candidate key in key (not slug at entry level).',
+      'For guide-hub the key is "guide-hub"; preserve the record\'s own top-level fields and return the complete record.',
+      `Trusted candidate identities (file + key): ${JSON.stringify(candidateKeys)}`,
+    ] : ['Return one entry per record that must change: its file, its unchanged slug, and the complete repaired record object.']),
     'Every repair is validated against these per-file contracts and the whole plan is rejected if it breaks one:',
     ...payload.map(({ file }) => describeContract(file)),
     'Preserve the exact top-level key set of every record. Make the smallest editorial repair: resolve findings',
@@ -469,16 +474,25 @@ function recordRepairPrompt({
 // gate passes rowRepairSchema(files) and its per-dataset contract instead (§4.7).
 export async function planRecordRepair({
   kind, gateVerdict, payload, validate, references = [], inventory = null, lintFindings = [],
-  schema = RECORD_REPAIR_SCHEMA, describeContract, evidence = null,
+  schema = RECORD_REPAIR_SCHEMA, describeContract, evidence = null, candidateKeys = null,
 }) {
   const bytes = Buffer.byteLength(JSON.stringify(payload, null, 2));
   if (bytes > RECORD_REPAIR_MAX_BYTES) throw new Error(`record fixer input budget exceeded: ${bytes} bytes`);
+  if (candidateKeys) {
+    const fileCounts = new Map(payload.map(({ file, records }) => [file, records.length]));
+    for (const { file, key } of candidateKeys) {
+      if (!fileCounts.has(file) || typeof key !== 'string' || !key || fileCounts.get(file) < 1)
+        throw new Error('row fixer candidate identities mismatch');
+      fileCounts.set(file, fileCounts.get(file) - 1);
+    }
+    if ([...fileCounts.values()].some((count) => count !== 0)) throw new Error('row fixer candidate identities mismatch');
+  }
   let errors = ['fixer produced no plan'];
   for (let attempt = 1; attempt <= MAX_FIXER_ATTEMPTS; attempt += 1) {
     const raw = await runStructured({
       model: FIXER_MODEL, schema, budget: 3,
       prompt: recordRepairPrompt({
-        kind, gateVerdict, payload, references, inventory, lintFindings, evidence,
+        kind, gateVerdict, payload, references, inventory, lintFindings, evidence, candidateKeys,
         previousErrors: attempt === 1 ? [] : errors,
         ...(describeContract ? { describeContract } : {}),
       }),
