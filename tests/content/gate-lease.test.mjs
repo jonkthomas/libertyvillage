@@ -56,8 +56,9 @@ test('heartbeat renews serially while work is pending, even when a renewal outla
 
 test('heartbeat drains an in-flight renewal before returning the work result', async () => {
   const gate = deferred();
+  let calls = 0;
   let renewalDone = false;
-  const renew = async () => { await gate.promise; renewalDone = true; };
+  const renew = async () => { if (++calls === 1) return; await gate.promise; renewalDone = true; };
   let returned = false;
   const run = withHeartbeat(async () => { await delay(20); return 1; }, { renew, intervalMs: 5 }).then((v) => { returned = true; return v; });
   await delay(50);
@@ -67,29 +68,46 @@ test('heartbeat drains an in-flight renewal before returning the work result', a
   assert.equal(renewalDone, true);
 });
 
-test('heartbeat does not renew for work that finishes inside one interval', async () => {
+test('heartbeat renews once before the work starts, and not again inside one interval', async () => {
   let renewals = 0;
-  assert.equal(await withHeartbeat(async () => 'fast', { renew: async () => { renewals += 1; }, intervalMs: 1_000 }), 'fast');
-  assert.equal(renewals, 0);
+  let settledRenewalsAtStart;
+  const renew = async () => { await delay(10); renewals += 1; };
+  assert.equal(await withHeartbeat(async () => { settledRenewalsAtStart = renewals; return 'fast'; }, { renew, intervalMs: 1_000 }), 'fast');
+  assert.equal(settledRenewalsAtStart, 1, 'the up-front renewal completed before the work started');
+  assert.equal(renewals, 1);
 });
 
-test('a failed renewal rejects at once, is marked, and wins over the work outcome', async () => {
+test('a failed up-front renewal is a marked lease failure and the work never starts', async () => {
+  const lost = new store.ClaimError();
+  let started = false;
+  await assert.rejects(withHeartbeat(async () => { started = true; }, { renew: async () => { throw lost; }, intervalMs: 5 }), (error) => error === lost);
+  assert.equal(started, false);
+  assert.equal(isLeaseFailure(lost), true);
+
+  const network = Object.assign(new Error('connect ECONNRESET'), { code: 'ECONNRESET' });
+  await assert.rejects(withHeartbeat(async () => { started = true; }, { renew: () => { throw network; } }), (error) => error === network && isLeaseFailure(error));
+  assert.equal(started, false, 'a synchronous renew throw is caught too');
+
+  // A non-object rejection still surfaces as a marked Error.
+  await assert.rejects(withHeartbeat(async () => { started = true; }, { renew: () => Promise.reject(undefined) }),
+    (error) => error instanceof Error && isLeaseFailure(error));
+  assert.equal(started, false);
+});
+
+test('a failed periodic renewal rejects at once, is marked, and wins over the work outcome', async () => {
+  const thenFail = (error) => { let calls = 0; return async () => { if (++calls > 1) throw error; }; };
   const lost = new store.ClaimError();
   const work = deferred();
   const started = Date.now();
-  await assert.rejects(withHeartbeat(() => work.promise, { renew: async () => { throw lost; }, intervalMs: 5 }), (error) => error === lost);
+  await assert.rejects(withHeartbeat(() => work.promise, { renew: thenFail(lost), intervalMs: 5 }), (error) => error === lost);
   assert.ok(Date.now() - started < 1_000, 'did not wait for the still-pending work');
   assert.equal(isLeaseFailure(lost), true);
   work.resolve('late');
 
   const network = Object.assign(new Error('connect ECONNRESET'), { code: 'ECONNRESET' });
   await assert.rejects(withHeartbeat(async () => { await delay(30); throw new Error('fixer boom'); }, {
-    renew: async () => { throw network; }, intervalMs: 5,
+    renew: thenFail(network), intervalMs: 5,
   }), (error) => error === network && isLeaseFailure(error));
-
-  // A non-object rejection still surfaces as a marked Error.
-  await assert.rejects(withHeartbeat(() => delay(50), { renew: () => Promise.reject(undefined), intervalMs: 5 }),
-    (error) => error instanceof Error && isLeaseFailure(error));
 });
 
 test('work errors pass through unmarked when renewals succeed', async () => {
@@ -158,6 +176,21 @@ async function submitEdit(db, record, key) {
   return result.submissionId;
 }
 
+// Leaves the claim one second from expiry, as if the work before the call had used it up.
+const nearExpiry = (db, id) => db.query("update content.submissions set claimed_until = now() + interval '1 second' where id=$1", [id]);
+// The same handle, but `spend` runs once, awaited, right after the g2 base-payload read —
+// the last store read before the review call (onPhase is fire-and-forget).
+const spendBeforeReview = (db, spend) => {
+  let spent = false;
+  return {
+    ...db,
+    query: async (sql, params) => {
+      const result = await db.query(sql, params);
+      if (!spent && sql.startsWith('select payload from content.revisions where dataset=$1')) { spent = true; await spend(); }
+      return result;
+    },
+  };
+};
 const claimOf = async (db, id) => (await db.query('select claim_token, claimed_until, claimed_until > now() + interval \'14 minutes 50 seconds\' as fresh from content.submissions where id=$1', [id])).rows[0];
 // Five minutes of wall clock, as the lease sees it.
 const ageFiveMinutes = (db, id) => db.query("update content.submissions set claimed_until = claimed_until - interval '5 minutes' where id=$1", [id]);
@@ -208,6 +241,97 @@ test('control: a 20-minute review with no renewal loses the lease at recordRound
       review: async ({ contentSha }) => { for (let i = 0; i < 4; i += 1) await ageFiveMinutes(db, id); return pass(contentSha); },
     }), (error) => error instanceof store.ClaimError);
     assert.deepEqual((await store.getSubmission(db, id)).rounds.map((round) => round.decision), [null]);
+  });
+});
+
+test('a claim nearly spent before the review is renewed before the call starts', async () => {
+  await withSite(async (db, site) => {
+    const id = await submitEdit(db, { ...BIZ, description: `${BIZ.description} Open late.` }, 'lease-near-review');
+    let token;
+    const out = await gate(spendBeforeReview(db, () => nearExpiry(db, id)), site, id, {
+      heartbeatMs: 3_600_000, // no periodic renewal: only the up-front one can save the claim
+      review: async ({ contentSha }) => {
+        const claim = await claimOf(db, id);
+        assert.equal(claim.fresh, true, 'renewed before the review started');
+        token = claim.claim_token;
+        await ageFiveMinutes(db, id); // the first heartbeat interval passes
+        return pass(contentSha);
+      },
+    });
+    assert.equal(out.exitCode, 0, JSON.stringify(out.result));
+    assert.equal(out.result.state, 'published');
+    assert.ok(token);
+  });
+});
+
+test('a claim nearly spent before the fixer is renewed before the call starts', async () => {
+  await withSite(async (db, site) => {
+    const fabricated = { ...BIZ, description: `${BIZ.description} Voted best tacos in Canada.` };
+    const id = await submitEdit(db, fabricated, 'lease-near-fixer');
+    let phase = null;
+    let spent = false;
+    let reviews = 0;
+    let fixes = 0;
+    const out = await gate(db, site, id, {
+      heartbeatMs: 3_600_000,
+      onPhase: (next) => { phase = next; },
+      // The gate's own renewal after recording the repair round succeeds, then the fixer
+      // payload, validator, references and inventory use up the rest of the claim.
+      renewClaim: async (...args) => {
+        const renewed = await store.renewClaim(...args);
+        if (phase === 'recordRound:repair' && !spent) { spent = true; await nearExpiry(db, id); }
+        return renewed;
+      },
+      review: async ({ contentSha }) => (reviews++ === 0
+        ? { overall: 6.5, findings: [HIGH(BIZ.slug)], model: GATE_MODEL, commit_sha: contentSha }
+        : pass(contentSha)),
+      fix: async ({ validate }) => {
+        fixes += 1;
+        assert.equal((await claimOf(db, id)).fresh, true, 'renewed before the fixer started');
+        await ageFiveMinutes(db, id);
+        return { check: validate(buildRecordRepairPlan({ files: [{ file: 'data/businesses.json', records: [{ key: BIZ.slug, record: { ...fabricated, description: BIZ.description } }] }], reason: 'remove claim' })) };
+      },
+    });
+    assert.equal(spent, true);
+    assert.equal(out.exitCode, 0, JSON.stringify(out.result));
+    assert.deepEqual([out.result.state, out.result.repairs, fixes], ['published', 1, 1]);
+  });
+});
+
+test('a lease lost before the review starts ends the gate with ClaimError; the review never runs', async () => {
+  await withSite(async (db, site) => {
+    const id = await submitEdit(db, { ...BIZ, description: `${BIZ.description} Open late.` }, 'lease-review-lost-early');
+    let reviewed = false;
+    const expire = () => db.query("update content.submissions set claimed_until = now() - interval '1 second' where id=$1", [id]);
+    await assert.rejects(gate(spendBeforeReview(db, expire), site, id, {
+      review: async ({ contentSha }) => { reviewed = true; return pass(contentSha); },
+    }), (error) => error instanceof store.ClaimError);
+    assert.equal(reviewed, false);
+    assert.deepEqual((await store.getSubmission(db, id)).rounds.map((round) => round.decision), [null]);
+  });
+});
+
+test('an up-front renewal failure before the fixer escapes the fixer catch', async () => {
+  await withSite(async (db, site) => {
+    const fabricated = { ...BIZ, description: `${BIZ.description} Voted best tacos in Canada.` };
+    const id = await submitEdit(db, fabricated, 'lease-fixer-lost-early');
+    let calls = 0;
+    let fixes = 0;
+    const phases = [];
+    const network = Object.assign(new Error('connect ECONNRESET 127.0.0.1:5432'), { code: 'ECONNRESET' });
+    await assert.rejects(gate(db, site, id, {
+      // Call 1: the review's up-front renewal. Call 2: the gate's renewal after the repair
+      // round. Call 3: the fixer's up-front renewal.
+      onPhase: (phase) => { phases.push(`${phase}@${calls}`); },
+      renewClaim: async (...args) => { if (++calls === 3) throw network; return store.renewClaim(...args); },
+      review: async ({ contentSha }) => ({ overall: 6.5, findings: [HIGH(BIZ.slug)], model: GATE_MODEL, commit_sha: contentSha }),
+      fix: async () => { fixes += 1; throw new Error('unreachable'); },
+    }), (error) => error === network);
+    assert.equal(calls, 3);
+    assert.deepEqual(phases, ['review:0@0', 'recordRound:repair@1'], 'failed after the repair round, before any fixer work');
+    assert.equal(fixes, 0, 'the fixer never started and no fixer failure was counted');
+    const { submission } = await store.getSubmission(db, id);
+    assert.deepEqual([submission.state, submission.repairs, submission.claim_token], ['gating', 0, null]);
   });
 });
 
@@ -318,12 +442,19 @@ test('a network error from the heartbeat wins over the fixer failure and release
     const renewed = deferred();
     const network = Object.assign(new Error('connect ECONNRESET 127.0.0.1:5432'), { code: 'ECONNRESET' });
     const run = gate(db, site, id, {
-      renewClaim: async () => { renewals += 1; renewed.resolve(); throw network; },
+      // Calls 1-3 (review up front, after the repair round, fixer up front) succeed; the
+      // fixer's first periodic renewal fails.
+      renewClaim: async (...args) => {
+        renewals += 1;
+        if (renewals <= 3) return store.renewClaim(...args);
+        renewed.resolve();
+        throw network;
+      },
       review: async ({ contentSha }) => ({ overall: 6.5, findings: [HIGH(BIZ.slug)], model: GATE_MODEL, commit_sha: contentSha }),
       fix: async () => { fixes += 1; await renewed.promise; await delay(HEARTBEAT); throw new Error('invalid repair plan: rejected'); },
     });
     await assert.rejects(run, (error) => error === network);
-    assert.equal(renewals, 1, 'no renewal after the failure');
+    assert.equal(renewals, 4, 'no renewal after the failure');
     assert.equal(fixes, 1, 'the fixer failure was not counted and retried');
     const { submission } = await store.getSubmission(db, id);
     assert.equal(submission.state, 'gating', 'not closed as a fixer error');

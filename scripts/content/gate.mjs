@@ -201,17 +201,29 @@ function inventoryFromLive(agent, live, checkout, { verified, rejected }) {
 }
 
 // #182: the 900 s claim must outlive a slow review or fixer call (four fixer attempts
-// ran 24 min). While `work` is pending the SAME token is renewed serially — the next
-// renewal is scheduled only after the previous one settles. The timer is stopped and
-// any in-flight renewal drained before this returns, so no renewal can race a later
-// write or the final releaseClaim. A renewal failure (lost lease, network) rejects at
-// once with that error, marked so the fixer's catch rethrows it instead of counting a
-// fixer failure; it wins over the work's own outcome. The work itself is not aborted.
+// ran 24 min). The SAME token is renewed once before `work` starts — the claim may be
+// nearly spent by the deterministic checks, live context and media evidence before
+// it — and then serially while `work` is pending: the next renewal is scheduled only
+// after the previous one settles. The timer is stopped and any in-flight renewal
+// drained before this returns, so no renewal can race a later write or the final
+// releaseClaim. A renewal failure (lost lease, network), up front or periodic, rejects
+// at once with that error, marked so the fixer's catch rethrows it instead of counting
+// a fixer failure; it wins over the work's own outcome. The work itself is not aborted.
 export const HEARTBEAT_MS = 300_000;
 const leaseFailures = new WeakSet();
 export const isLeaseFailure = (error) => typeof error === 'object' && error !== null && leaseFailures.has(error);
+const leaseFailure = (error) => {
+  const failure = typeof error === 'object' && error !== null ? error : new Error('claim renewal failed');
+  leaseFailures.add(failure);
+  return failure;
+};
 
 export async function withHeartbeat(work, { renew, intervalMs = HEARTBEAT_MS }) {
+  try {
+    await renew();
+  } catch (error) {
+    throw leaseFailure(error);
+  }
   let timer = null;
   let inflight = null;
   let stopped = false;
@@ -224,8 +236,7 @@ export async function withHeartbeat(work, { renew, intervalMs = HEARTBEAT_MS }) 
     timer = null;
     inflight = Promise.resolve().then(renew).then(schedule, (error) => {
       stopped = true;
-      failure = typeof error === 'object' && error !== null ? error : new Error('claim renewal failed');
-      leaseFailures.add(failure);
+      failure = leaseFailure(error);
       signalFailure(failure);
     });
   }
@@ -369,7 +380,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         if (DECISION_STATE[decision]) continue;
         state = await getSubmission(db, id);
       }
-      await renewClaim(db, id, token);
+      await renew(db, id, token);
 
       if (decision === 'go') {
         try {
