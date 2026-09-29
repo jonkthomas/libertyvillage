@@ -173,12 +173,13 @@ export function parseJson(text) { return JSON.parse(text.trim()); }
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
 
-export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null }, fetchImpl = fetch) {
+export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null, stuckSubmissionId = null }, fetchImpl = fetch) {
   if (!webhook) return false;
   try {
     const text = holdCensus ? `⚠ ${job} publication held (${target}); lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
-      codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` :
-        `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}`;
+      Number.isSafeInteger(stuckSubmissionId) && stuckSubmissionId > 0 ? `⚠ ${job} held (${target}); submission #${stuckSubmissionId} smoked but not current-live; lv-runner ${slot}; inspect original slot` :
+        codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` :
+          `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}`;
     const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }), signal: AbortSignal.timeout(10_000) });
     return response.ok;
   } catch { return false; }
@@ -392,8 +393,20 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
     const late = typeof gate.smokedAt === 'string' && deps.modules.weekStartUtc(new Date(gate.smokedAt)) !== ctx.week;
     if (late && ctx.lane === 'content') {
       // The trusted CLI verifies current-live alias proof in the actual smoke
-      // week before making this original-week attempt terminal.
-      outcome('late-smoked');
+      // week before making this original-week attempt terminal. If it refuses
+      // because the post is not live, hold the original key and name its ID for
+      // the operator; never silently free the slot or invent a smoke receipt.
+      try { outcome('late-smoked'); }
+      catch (error) {
+        if (error?.cliFailure?.reason !== 'cli-state') throw error;
+        const actualWeek = deps.modules.weekStartUtc(new Date(gate.smokedAt));
+        const count = cadenceCaller(deps, ctx.target, actualWeek)('count');
+        if (count.content.some((item) => Number(item.submissionId) === Number(id))) throw error;
+        deps.log('cadence-prior-smoke-hold', { id, week: ctx.week, actualWeek, reason: 'not-current-live' });
+        const hold = new Error('prior content smoke not current-live');
+        hold.stuckSubmissionId = Number(id);
+        throw hold;
+      }
       deps.log('cadence-smoked-uncounted', { id, late: true, consumed: false, counted: false });
       return 'late-smoke';
     }
@@ -1212,6 +1225,8 @@ export const SAFE_FAILURES = Object.freeze(new Set([
   'roundup submit refused', 'roundup intent already attempted', 'idempotency kind mismatch', 'submission lacks smoke success',
   'smoked but not counted for week', 'late smoke; old week missed', 'roundup consumed but no longer live',
   'invalid cadence start week', 'roundup publication disabled', 'roundup census invalid',
+  'prior content slot held', 'prior content publication pending', 'prior content backlog exceeds recovery budget',
+  'prior content smoke not current-live',
 ]));
 export function failureReason(error) {
   return error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : SAFE_FAILURES.has(error?.message) ? error.message : 'operational-error');
@@ -1239,8 +1254,9 @@ export async function main(argv = process.argv.slice(2)) {
     logLine(log, 'success', { sha, result: result && { id: result.id ?? null, dryRun: !!result.dryRun, noChanges: !!result.noChanges, ...(result.cadenceMet !== undefined ? { cadenceMet: result.cadenceMet } : {}), ...(typeof result.reason === 'string' ? { reason: result.reason } : {}) } });
   } catch (error) {
     const reason = failureReason(error);
-    logLine(log, 'failure', { error: reason, ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit } : {}) });
-    const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required' });
+    const stuckSubmissionId = Number.isSafeInteger(error?.stuckSubmissionId) && error.stuckSubmissionId > 0 ? error.stuckSubmissionId : null;
+    logLine(log, 'failure', { error: reason, ...(stuckSubmissionId ? { submissionId: stuckSubmissionId } : {}), ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit } : {}) });
+    const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required', stuckSubmissionId });
     if (!alerted) logLine(log, 'alert-failed');
     throw new Error(`runner failed: ${job}/${target}/${slot}`);
   } finally {

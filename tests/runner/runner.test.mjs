@@ -259,12 +259,23 @@ test('failure alert contains only a non-secret run reference and reports deliver
   assert.equal(held, true);
   assert.match(body.text, /publication held.*candidatesSeen":3.*undated":2/);
   assert.doesNotMatch(body.text, /private|High Park|private.example|DB content job failed/);
+  const stuck = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging',
+    slot: '202609281100-abcd1234', stuckSubmissionId: 123 }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.equal(stuck, true);
+  assert.match(body.text, /submission #123 smoked but not current-live/);
+  assert.doesNotMatch(body.text, /slack.example|secret/);
+  await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging',
+    slot: '202609281100-abcd1234', stuckSubmissionId: 'private slug' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.doesNotMatch(body.text, /private slug|smoked but not current-live/);
   assert.equal(await alertFailure({ webhook: 'https://slack.example/secret', job: 'news', target: 'staging', slot: '202609281217-abcd1234' }, async () => { throw new Error('offline'); }), false);
 });
 
 test('runner failure classes stay a closed, non-secret set', () => {
   assert.equal(failureReason(new Error('weekly content missed')), 'weekly content missed');
   assert.equal(failureReason(new Error('roundup artifact inconsistent')), 'roundup artifact inconsistent');
+  for (const reason of ['prior content slot held', 'prior content publication pending', 'prior content backlog exceeds recovery budget', 'prior content smoke not current-live']) {
+    assert.equal(failureReason(new Error(reason)), reason);
+  }
   assert.equal(failureReason(new Error('private candidate text https://secret.example')), 'operational-error');
   assert.equal(failureReason(Object.assign(new Error('x'), { cliFailure: { reason: 'cli-claim' } })), 'cli-claim');
 });

@@ -297,6 +297,23 @@ test('F1 smoked but not current-live: honest failure, never cadenceMet', (t) => 
   assert.ok(events(world, 'cadence-smoked-uncounted').length === 2);
 });
 
+test('prior smoked-but-not-current-live attempt holds with its trusted submission ID', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [TOPICS.happy, TOPICS.coffee] });
+  world.smokeAt = new Date('2026-10-05T00:10:00.000Z');
+  world.gatePlan = ['not-live'];
+  let firstError;
+  try { run(world); } catch (error) { firstError = error; }
+  const [attempt] = attemptsOf(world);
+  assert.equal(firstError?.message, 'prior content smoke not current-live');
+  assert.equal(firstError?.stuckSubmissionId, attempt.submission_id);
+  assert.equal(attempt.outcome, 'smoked', 'the original attempt remains unresolved');
+  world.now = new Date('2026-10-05T12:30:00.000Z');
+  assert.throws(() => run(world), (error) => error.message === 'prior content smoke not current-live' && error.stuckSubmissionId === attempt.submission_id);
+  assert.equal(attempt.outcome, 'smoked');
+  assert.equal(attemptsOf(world).filter((item) => item.week_start_utc === '2026-10-05').length, 0, 'no new-week spend on unresolved smoke');
+  assert.ok(events(world, 'cadence-prior-smoke-hold').some((event) => event.id === attempt.submission_id));
+});
+
 test('F2 a valid sidecar next to an unrelated post never reaches submit', (t) => {
   const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
   world.generatorPlan = ['unrelated'];
