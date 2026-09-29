@@ -64,7 +64,7 @@ export async function runRoundupV2(args, deps = {}) {
   const modelDeadline = Date.now() + 600_000;
   let reasoned = deps.reasoned;
   if (!reasoned) {
-    try { reasoned = await (deps.reason || reasonRoundupSignals)(signals, { deadline: modelDeadline }); }
+    try { reasoned = await (deps.reason || reasonRoundupSignals)(signals, { now, deadline: modelDeadline }); }
     catch { reasoned = { forms: [], excluded: signals.map((s) => ({ signalId: s.signalId, reason: 'reason-failed' })) }; }
   }
   const forms = reasoned.forms || [];

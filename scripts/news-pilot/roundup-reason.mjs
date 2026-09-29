@@ -34,10 +34,10 @@ export function validateRoundupForm(form, signal) {
   return true;
 }
 
-const SYSTEM = `You are a cautious Toronto local-news signal analyst. Return ONLY JSON {"forms":[...]}, exactly one form per supplied signal. The form shape is signalId,recordId,subject,what,where_it_happens,when:{kind,date,endDate,startTime,endTime},who_is_affected,relevance_reason,verdict,evidence:[{url,recordId,subject_quote,place_quote,date_quote}],item_type,people:[{name,role}],risk:{crime,election,private_individual,development_application,civic_controversy},exclude_reason. Dates are Toronto-local. Quote VERBATIM from one item-bound record; the subject MUST be a verbatim substring of subject_quote (not a paraphrase). The place_quote and date_quote must also be literal substrings of that SAME record; use null when a trusted typed feed field proves the fact without a textual quote. Do not combine page sections or records; recordId must be supplied. Do not use a search snippet, page navigation, images, or another source for missing facts. If uncertain, set exclude_reason and conservative verdict. A person's private life, finances, health or residential opinions are excluded. Crime, elections and development applications are excluded. Your judgement does not establish locality, source quality or evidence: a deterministic verifier decides those.`;
+const SYSTEM = `You are a cautious Toronto local-news signal analyst. Return ONLY JSON {"forms":[...]}, exactly one form per supplied signal. The form shape is signalId,recordId,subject,what,where_it_happens,when:{kind,date,endDate,startTime,endTime},who_is_affected,relevance_reason,verdict,evidence:[{url,recordId,subject_quote,place_quote,date_quote}],item_type,people:[{name,role}],risk:{crime,election,private_individual,development_application,civic_controversy},exclude_reason. EXACT enums: when.kind="event"|"news-update"|"restriction"|"alert" (never "single"); verdict="core"|"adjacent"|"not-LV"; item_type="event"|"class"|"concert"|"sports"|"expo"|"community"|"opening"|"closure"|"road"|"transit"|"project"|"news"; people.role="performer"|"athlete"|"team"|"organisation"|"business"|"public-official"|"private-person"|"unclear". All five risk values must be booleans; exclude_reason is null or a brief string. Dates are Toronto-local YYYY-MM-DD relative to referenceNow; a yearless Oct 03 just after referenceNow 2026-09-29 means 2026-10-03, not 2025-10-03. endDate/startTime/endTime are null when unstated; clock times use HH:mm. Quote VERBATIM from one item-bound record; the subject MUST be a verbatim substring of subject_quote (not a paraphrase). The place_quote and date_quote must also be literal substrings of that SAME record; use null when a trusted typed feed field proves the fact without a textual quote. Do not combine page sections or records; recordId must be supplied. Do not use a search snippet, page navigation, images, or another source for missing facts. If uncertain, set exclude_reason and conservative verdict. A person's private life, finances, health or residential opinions are excluded. Crime, elections and development applications are excluded. Your judgement does not establish locality, source quality or evidence: a deterministic verifier decides those.`;
 
 export async function reasonRoundupSignals(signals, { env = process.env, resolved, callModel = generateDraftWithModel,
-  deadline = Date.now() + 600_000 } = {}) {
+  now = new Date().toISOString(), deadline = Date.now() + 600_000 } = {}) {
   if (!Array.isArray(signals)) throw new Error('signals_not_array');
   if (!signals.length) return { forms: [], excluded: [] };
   const model = resolved || await resolveModelProvider(env);
@@ -70,7 +70,8 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
       records: (s.records || []).map((r) => ({ recordId: r.recordId, text: r.text, typed: r.typed })) }));
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
-    const answer = await callModel({ resolved: model, system: SYSTEM, userText: JSON.stringify(input).slice(0, 32_000),
+    const answer = await callModel({ resolved: model, system: SYSTEM,
+      userText: JSON.stringify({ referenceNow: now, signals: input }).slice(0, 32_000),
       maxTokens: 9000, timeoutMs: Math.min(90_000, remaining) });
     if (!answer.ok) { for (const s of batch) excluded.push({ signalId: s.signalId, reason: 'reason-failed' }); continue; }
     let parsed;

@@ -31,7 +31,7 @@ test('six-call model budget preserves IG even after a large road feed', async ()
   large.push({ ...signal, signalId: 'ig-last', sourceId: 'ig:libertyvillagebia' });
   const offered = [];
   const result = await reasonRoundupSignals(large, { resolved: { ok: true, provider: { id: 'mock' } },
-    callModel: async ({ userText }) => { offered.push(...JSON.parse(userText).map((s) => s.signalId));
+    callModel: async ({ userText }) => { offered.push(...JSON.parse(userText).signals.map((s) => s.signalId));
       return { ok: true, text: '{"forms":[]}' }; } });
   assert.ok(offered.includes('ig-last'));
   assert.ok(offered.includes('bia-last'), 'one listing source must not starve other official sources');
