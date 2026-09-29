@@ -1,6 +1,7 @@
 // `content submit` (§4.4). This module owns the kind policy that submit, gate g1
 // and the repair adapter all apply, so every round and every repair re-runs the
 // exact checks the submission first passed.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,8 +10,12 @@ import { validateSubmittedPost } from '../supervisor/pi-session.mjs';
 import { validateDraft } from '../news-pilot/draft-validate.mjs';
 import { AUTO_PUBLISH_CONFIG, evaluatePublishReadyDraft } from '../news-pilot/publish-gate.mjs';
 import { structuredData } from '../automation/news-preflight.mjs';
-import { loadSiteLinkIndex } from '../news-pilot/draft-evidence.mjs';
+import { loadSiteLinkIndex, buildSourceEvidence } from '../news-pilot/draft-evidence.mjs';
+import { createRequestBudget, fetchWithRetry } from '../news-pilot/fetch.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
+import { roundupPackDigest, validateRoundupPack, revalidateRoundupItems } from '../news-pilot/roundup-evidence.mjs';
+import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
+import { canonicalJson, checkDraftAgainstPack, verifySourcePack } from '../automation/blog-source-pack.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
@@ -18,6 +23,11 @@ import { prepareImages } from './images.mjs';
 
 const MANUAL_DATASETS = Object.freeze(['businesses', 'posts', 'buildings', 'neighborhoods', 'services', 'topics', 'guide-hub']);
 export const BLOG_LIVE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+export const ROUNDUP_REVALIDATE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+export const BLOG_SOURCE_PACK_MAX_BYTES = 128 * 1024;
+export const BLOG_SOURCE_PACK_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const PACK_FACT_CHARS = 600;
+const PACK_FACTS_MAX_CHARS = 48000;
 
 const INSERT = Object.freeze(['insert']);
 const EDIT = Object.freeze(['insert', 'update']);
@@ -30,6 +40,7 @@ export const KIND_RULES = Object.freeze({
   blog: { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, images: true },
   'blog-live': { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, submitted: true, images: true },
   news: { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, news: true },
+  roundup: { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, roundup: true },
   'topic-discovery': { datasets: { 'topic-queue': INSERT }, min: 1, max: 25, queue: true },
   seo: {
     datasets: Object.fromEntries(['services', 'topics', 'neighborhoods', 'buildings', 'guide-hub', 'businesses', 'posts'].map((d) => [d, EDIT])),
@@ -82,6 +93,12 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
   const storage = deps.validateRecord(item.dataset, item.key, record);
   if (!storage?.ok) errors.push(...(storage?.errors?.length ? storage.errors : ['record failed storage validation']));
   const now = ctx.now ? new Date(ctx.now) : null;
+  if (item.dataset === 'posts') {
+    const weeklySlug = /^liberty-village-news-week-\d{4}-w\d{2}$/;
+    if (['blog', 'blog-live'].includes(kind) && (record?.category === 'news' || weeklySlug.test(record?.slug ?? '')))
+      errors.push('blog kind may not submit news or a weekly roundup slug');
+    if (kind === 'news' && weeklySlug.test(record?.slug ?? '')) errors.push('news kind may not submit a weekly roundup slug');
+  }
 
   if (rules.lint) {
     const mode = deps.lintMode || resolveLintMode(process.env);
@@ -98,6 +115,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     if (deps.submittedAt !== undefined) errors.push(...checkGeneratedAt(ctx.now, deps.submittedAt));
   }
   if (rules.news) errors.push(...checkNewsRecord({ record, ctx, live, news: deps.news }));
+  if (rules.roundup) errors.push(...checkRoundupRecord({ item, record, ctx, live, news: deps.news }));
   if (rules.queue) {
     const queue = Array.isArray(live['topic-queue']) ? live['topic-queue'] : [];
     if (queue.some((entry) => entry?.key === item.key)) errors.push('duplicate topic key already in the live queue');
@@ -147,6 +165,81 @@ function checkNewsRecord({ record, ctx, live, news }) {
     errors.push(`news draft is not publish-ready${reasons.length ? `: ${[...new Set(reasons)].slice(0, 5).join(', ')}` : ''}`);
   }
   return errors;
+}
+
+export function checkRoundupRecord({ item, record, ctx, live, news }) {
+  const errors = [];
+  if (record?.category !== 'news') errors.push('roundup category must be news');
+  let expected;
+  try {
+    expected = roundupSlug(ctx.isoWeek);
+    if (isoWeekOf(ctx.weekStartUtc).isoWeek !== ctx.isoWeek ||
+      isoWeekOf(ctx.weekStartUtc).weekStartUtc !== ctx.weekStartUtc) errors.push('roundup weekStartUtc mismatch');
+  } catch { errors.push('roundup ISO week is invalid'); }
+  if (item.key !== expected || record?.slug !== expected) errors.push('roundup key/slug mismatch');
+  const nowMs = Date.parse(ctx.temporalValidationNow ?? ctx.now ?? '');
+  if (!Number.isFinite(nowMs) || isoWeekOf(nowMs).isoWeek !== ctx.isoWeek) errors.push('roundup now must be in its ISO week');
+  if (typeof record?.image !== 'string' || !record.image.startsWith('/images/') ||
+    !news || typeof news.imageExists !== 'function' || !news.imageExists(record.image))
+    errors.push('roundup image must be an existing /images/ path');
+  const posts = (Array.isArray(live.posts) ? live.posts : []).filter((post) => post?.slug !== record?.slug);
+  const roundupSlugPattern = /^liberty-village-news-week-\d{4}-w\d{2}$/;
+  const dailyNews = posts.filter((post) => post?.category === 'news' && !roundupSlugPattern.test(post?.slug ?? ''));
+  const livePosts = posts.filter((post) => post?.category !== 'news' || roundupSlugPattern.test(post?.slug ?? ''));
+  const checked = validateRoundupPack(ctx.items, {
+    weekStartUtc: ctx.weekStartUtc, nowMs,
+    livePosts, dailyNews,
+  });
+  const accepted = checked.accepted.map((entry) => entry.item);
+  if (!accepted.length) errors.push('roundup pack has no accepted items');
+  const sections = String(record?.content || '').match(/^##\s+\d+\.\s+.+$/gm) || [];
+  if (sections.length !== accepted.length) errors.push('roundup item section count mismatch');
+  const body = String(record?.content || '');
+  const bodyUrls = [...body.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((match) => match[1]);
+  const everyBodyUrl = [...body.matchAll(/https?:\/\/[^\s)\]>'"]+/g)].map((match) => match[0].replace(/[.,;:!?]+$/, ''));
+  const sourceUrls = new Set();
+  for (const entry of checked.accepted) {
+    for (const source of entry.item.sources) {
+      if (sourceUrls.has(source.canonicalUrl)) errors.push('roundup URL shared across items');
+      sourceUrls.add(source.canonicalUrl);
+      if (!bodyUrls.includes(source.canonicalUrl)) errors.push('roundup source URL missing citation');
+    }
+  }
+  for (const url of everyBodyUrl) if (!sourceUrls.has(url)) errors.push('roundup body cites URL outside accepted pack');
+  for (const url of everyBodyUrl) if (!bodyUrls.includes(url)) errors.push('roundup source URL must be a visible Markdown citation');
+  const parts = body.split(/^##\s+\d+\.\s+.+$/m).slice(1);
+  accepted.forEach((entry, index) => {
+    const part = String(parts[index] || '');
+    const partUrls = [...part.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((match) => match[1]);
+    const own = new Set(entry.sources.map((source) => source.canonicalUrl));
+    if (!sections[index]?.includes(entry.title)) errors.push('roundup section title does not match item');
+    if (!partUrls.length || partUrls.some((url) => !own.has(url))) errors.push('roundup section has cross-item or missing citation');
+    for (const claim of entry.claims) if (!part.includes(claim.text) ||
+      !partUrls.includes(claim.sourceUrl)) errors.push('roundup claim lacks own-source citation');
+    const upcoming = checked.accepted[index]?.temporalCategory === 'upcoming-event';
+    const actualInstant = upcoming ? entry.eventStartDate ?? entry.eventStart : entry.announcedAt;
+    const parsedDate = Date.parse(actualInstant ?? '');
+    if (!Number.isFinite(parsedDate)) errors.push('roundup item actual date missing');
+    else {
+      const actualDate = upcoming && entry.eventStartDate ? entry.eventStartDate
+        : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric',
+          month: '2-digit', day: '2-digit' }).format(parsedDate);
+      const humanDate = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', year: 'numeric',
+        month: 'long', day: 'numeric' }).format(Date.parse(actualDate + 'T12:00:00.000Z'));
+      if (!part.includes(actualDate) && !part.includes(humanDate)) errors.push('roundup item actual date missing');
+      for (const claim of entry.claims) {
+        const labelledDates = [...String(claim.text || '').matchAll(/(?:published this update on|lists the event for)\s+(\d{4}-\d{2}-\d{2})\b/gi)];
+        if (labelledDates.some((match) => match[1] !== actualDate))
+          errors.push('roundup claim date conflicts with verified Toronto date');
+      }
+    }
+  });
+  if (accepted.length === 1 && (!/weekly update/i.test(record?.title || '') ||
+    !/weekly update/i.test(record?.description || '') || /roundup/i.test((record?.title || '') + ' ' + (record?.description || ''))))
+    errors.push('one-item roundup must be labelled weekly update');
+  if (accepted.length >= 2 && (!/news roundup/i.test(record?.title || '') ||
+    !/news roundup/i.test(record?.description || ''))) errors.push('multi-item roundup must be labelled news roundup');
+  return [...new Set(errors)];
 }
 
 // Whole-vector policy: shape, then every record. decision is `lint` only when the
@@ -199,7 +292,7 @@ export const assetExistsIn = (db) => async (assetPath) => (await db.query('selec
 // Policy bindings for one submission: storage validation and the news inputs.
 export function policyDeps({ kind, context, checkout }) {
   const deps = { validateRecord };
-  if (kind === 'news') deps.news = { root: context.root, loadSiteIndex: loadSiteLinkIndex, imageExists: createLocalImageExists(checkout) };
+  if (kind === 'news' || kind === 'roundup') deps.news = { root: context.root, loadSiteIndex: loadSiteLinkIndex, imageExists: createLocalImageExists(checkout) };
   return deps;
 }
 
@@ -266,8 +359,91 @@ export function actorFor(opts, env = process.env) {
   return actor;
 }
 
+// Trusted blog source pack: bounded read of a regular file the trusted runner wrote.
+function readSourcePack(file) {
+  let fd;
+  try { fd = fs.openSync(path.resolve(file), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK); }
+  catch (error) { throw new ValidationError(`blog source pack unreadable: ${error.code ?? 'open failed'}`); }
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size < 2 || stat.size > BLOG_SOURCE_PACK_MAX_BYTES) throw new ValidationError('blog source pack must be a bounded regular file');
+    const bytes = Buffer.alloc(stat.size);
+    if (fs.readSync(fd, bytes, 0, stat.size, 0) !== stat.size) throw new ValidationError('blog source pack changed while reading');
+    try { return JSON.parse(bytes.toString('utf8')); } catch { throw new ValidationError('blog source pack is not JSON'); }
+  } finally { fs.closeSync(fd); }
+}
+
+// Bounded facts the gate reviewer and fixer see; never the scratch sidecar.
+export function sourcePackFacts(pack) {
+  const clip = (value) => String(value ?? '').slice(0, PACK_FACT_CHARS);
+  const rows = (list) => (Array.isArray(list) ? list : []).slice(0, 12).map((claim) => ({ field: clip(claim?.field).slice(0, 40), verbatim: clip(claim?.verbatim) }));
+  const facts = {
+    fingerprint: pack.fingerprint, sha256: createHash('sha256').update(canonicalJson(pack)).digest('hex'),
+    topic: clip(pack.topic).slice(0, 300), intentKey: clip(pack.intentKey).slice(0, 200), reserve: pack.reserve === true, generatedAt: pack.generatedAt,
+    sources: pack.sources.slice(0, 12).map((source) => ({ id: clip(source.id).slice(0, 200), name: clip(source.name).slice(0, 200), claims: rows(source.claims), premiseClaims: rows(source.premiseClaims) })),
+    directorySlugs: (pack.internal?.directorySlugs ?? []).slice(0, 12).map((slug) => clip(slug).slice(0, 200)),
+  };
+  if (JSON.stringify(facts).length > PACK_FACTS_MAX_CHARS) throw new ValidationError('blog source pack facts exceed the context bound');
+  return facts;
+}
+
+// The pack's own verified internal inventory (posts/services/topics as captured).
+const packInventory = (pack) => Object.fromEntries([['posts', 'postSlugs'], ['services', 'serviceSlugs'], ['topics', 'topicSlugs']]
+  .map(([name, field]) => [name, (Array.isArray(pack?.internal?.[field]) ? pack.internal[field] : []).map((slug) => ({ slug }))]));
+
+// Every internal link the draft actually uses must still resolve to a live record.
+function draftLinksNotLive(post, live) {
+  const known = (records) => new Set((Array.isArray(records) ? records : []).map((record) => record?.slug));
+  const targets = { blog: known(live.posts), best: known(live.services), guide: known(live.topics), directory: known(live.businesses) };
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const refs = [
+    ...list(post?.relatedPosts).map((slug) => ['blog', slug]), ...list(post?.relatedServices).map((slug) => ['best', slug]),
+    ...list(post?.relatedTopics).map((slug) => ['guide', slug]), ...list(post?.relatedBusinesses).map((slug) => ['directory', slug]),
+    ...[...String(post?.content ?? '').matchAll(/\]\(\/(blog|guide|best|directory)\/([^)/#?\s]+)/g)].map((match) => [match[1], match[2]]),
+  ];
+  return [...new Set(refs.filter(([kind, slug]) => !targets[kind].has(slug)).map(([kind, slug]) => `internal-link-not-live:/${kind}/${String(slug).slice(0, 120)}`))];
+}
+
+// Binds a blog draft to its trusted pack (businesses, topic, premises, internal
+// links, lint) against the pack's OWN captured inventory, so unrelated live
+// posts/services/topics added later cannot unbind it; links the draft uses must
+// still be live. After submit the hero is a verified /media asset owned by the
+// image pipeline, so the gate passes checkImage:false.
+export function blogDraftBindingErrors(post, pack, { live = {}, imagePaths = [], now, checkImage = true } = {}) {
+  const { errors } = checkDraftAgainstPack(post, pack, { businesses: live.businesses ?? [], ...packInventory(pack), imagePaths, now });
+  return [...errors.filter((error) => checkImage || error !== 'missing-or-invalid-hero-image'), ...draftLinksNotLive(post, live)]
+    .slice(0, 20).map((error) => `blog draft is not bound to its source pack: ${error}`);
+}
+
+function workspaceBlogImages(root) {
+  try { return fs.readdirSync(path.join(root, 'public', 'images', 'blog')).filter((name) => /^[a-z0-9-]+\.jpg$/.test(name)).slice(0, 5000).map((name) => `/images/blog/${name}`); }
+  catch { return []; }
+}
+
+async function blogSourcePackContext({ db, opts, live, clock, idempotencyKey, draftItems, root }) {
+  const pack = readSourcePack(opts.sourcePack);
+  // Business claims re-verify against live records; inventory is the pack's own
+  // (live link targets are checked by blogDraftBindingErrors).
+  const checked = verifySourcePack(pack, {
+    businesses: live.businesses, ...packInventory(pack), now: new Date(clock()), maxAgeMs: BLOG_SOURCE_PACK_MAX_AGE_MS,
+  });
+  if (!checked.ok) throw new ValidationError(`blog source pack failed verification: ${checked.errors.slice(0, 5).join(', ')}`);
+  // A cadence key names one durable attempt; its recorded digest must be this pack.
+  if (String(idempotencyKey).startsWith('cadence:')) {
+    const attempt = (await db.query('select source_pack_digest from content.cadence_attempts where idempotency_key=$1 and target=$2', [idempotencyKey, db.target])).rows[0];
+    if (!attempt || attempt.source_pack_digest !== pack.fingerprint) throw new ValidationError('blog source pack does not match its cadence attempt');
+  }
+  // The workspace draft (before /media conversion) must be the post this pack grounds.
+  const binding = blogDraftBindingErrors(draftItems?.[0]?.payload, pack, { live, imagePaths: workspaceBlogImages(root), now: new Date(clock()) });
+  if (binding.length) throw new ValidationError(binding.join('; '));
+  // Facts feed review/fixer evidence; the full verified pack re-binds every gate round.
+  return { ...sourcePackFacts(pack), pack };
+}
+
 // Gate context: identical inputs for every round and every resume.
-async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
+async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live, draftItems, root }) {
+  if (opts.sourcePack !== undefined && kind !== 'blog') throw new ValidationError('--source-pack is only for blog');
+  if (opts.sourcePack === true) throw new ValidationError('--source-pack requires a file');
   if (kind === 'blog-live') {
     if (!opts.topicKey || opts.topicKey === true) throw new ValidationError('blog-live requires --topic-key');
     if (!opts.generatedAt || opts.generatedAt === true) throw new ValidationError('blog-live requires --generated-at');
@@ -284,14 +460,45 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
     const evidence = readJson(path.join(opts.newsOut, `evidence-${result.clusterId}.json`), 'news evidence');
     return { now: result.now, clusterId: result.clusterId, evidence };
   }
+  if (kind === 'roundup') {
+    if (!opts.roundupOut || opts.roundupOut === true) throw new ValidationError('roundup requires --roundup-out');
+    const result = readJson(path.join(opts.roundupOut, 'result.json'), 'roundup result.json');
+    const pack = readJson(path.join(opts.roundupOut, 'pack.json'), 'roundup pack.json');
+    if (!Array.isArray(pack?.items)) throw new ValidationError('roundup pack.json requires items array');
+    const packDigest = roundupPackDigest(pack);
+    if (result.packDigest !== packDigest) throw new ValidationError('roundup packDigest mismatch');
+    if (!result.isoWeek || !result.now || !Number.isFinite(Date.parse(result.now))) throw new ValidationError('roundup result requires isoWeek and now');
+    const week = isoWeekOf(result.now);
+    if (week.isoWeek !== result.isoWeek || result.slug !== roundupSlug(result.isoWeek) ||
+      items.length !== 1 || items[0].key !== result.slug || items[0].payload?.slug !== result.slug)
+      throw new ValidationError('roundup result slug/week does not match candidate');
+    // Keep the original context on idempotent replay, even after its freshness window.
+    const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+    if (prior) return prior.context;
+    const submittedAt = new Date(clock()).getTime();
+    if (!Number.isFinite(submittedAt) || isoWeekOf(submittedAt).isoWeek !== result.isoWeek)
+      throw new ValidationError('roundup submit is outside its ISO week');
+    const ageMs = submittedAt - Date.parse(result.now);
+    if (ageMs < 0 || ageMs > ROUNDUP_REVALIDATE_MAX_AGE_MS)
+      throw new ValidationError('roundup pack must be revalidated before submit');
+    return { now: result.now, temporalValidationNow: new Date(submittedAt).toISOString(), isoWeek: result.isoWeek,
+      weekStartUtc: week.weekStartUtc, items: pack.items, packDigest };
+  }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
-  return { now: prior?.context?.now ?? new Date(clock()).toISOString() };
+  // A cadence blog is always pack-bound; a pack-bound replay must still carry its full stored pack.
+  const cadenceBlog = kind === 'blog' && String(idempotencyKey).startsWith('cadence:');
+  if (cadenceBlog && !opts.sourcePack) throw new ValidationError('cadence blog submit requires --source-pack');
+  if (prior && opts.sourcePack && !prior.context?.sourcePack?.pack) throw new ValidationError('blog replay lacks its stored source pack');
+  // The stored context (including verified pack facts) is immutable on replay.
+  if (prior && opts.sourcePack) return prior.context;
+  const now = prior?.context?.now ?? new Date(clock()).toISOString();
+  return opts.sourcePack ? { now, sourcePack: await blogSourcePackContext({ db, opts, live, clock, idempotencyKey, draftItems, root }) } : { now };
 }
 
 // opts: {kind, idempotencyKey, actor, dir | recordFile+dataset+baseline, topicKey, generatedAt,
-// newsOut}; returns {result, exitCode}. Never gates.
-export async function submitContent(db, opts, { env = process.env, clock = Date.now, checkout = process.cwd() } = {}) {
+// newsOut, roundupOut, sourcePack (blog only: trusted runner pack file)}; returns {result, exitCode}. Never gates.
+export async function submitContent(db, opts, { env = process.env, clock = Date.now, checkout = process.cwd(), roundupRefetch } = {}) {
   const kind = opts.kind;
   if (!KIND_RULES[kind]) throw new ValidationError(`unsupported submit kind: ${kind}`);
   const idempotencyKey = opts.idempotencyKey;
@@ -322,9 +529,27 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
   const images = KIND_RULES[kind].images
     ? await prepareImages({ items, root, sourceRef, registry, resolveAssets: (list) => resolveAssets(db, list), assetExists: assetExistsIn(db) })
     : { items, assets: [], report: [] };
-  const context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey });
   const liveCtx = await liveContext(db);
+  let context;
   try {
+    context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey,
+      live: liveCtx.live, draftItems: items, root });
+    if (kind === 'roundup') {
+      const existing = (await db.query('select 1 from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+      if (!existing) {
+        const budget = createRequestBudget(80);
+        const refetch = roundupRefetch ?? (async (url, source) => {
+          const fetched = await fetchWithRetry(url, { budget, guardPublicHttp: true, sourceId: 'roundup-submit',
+            maxRetries: 1, timeoutMs: 12_000 });
+          const evidence = buildSourceEvidence({ canonicalUrl: url, publisher: source.publisher }, fetched);
+          return { ...source, excerpt: evidence.bodyExcerpt, extractionSubstantive: evidence.extractionSubstantive,
+            fetchOk: evidence.fetchOk, urlUsable: evidence.urlUsable };
+        });
+        const checked = await revalidateRoundupItems(context.items, { refetch });
+        if (checked.excluded.length || checked.accepted.length !== context.items.length)
+          throw new ValidationError('roundup source evidence changed or unreachable; rebuild before submit');
+      }
+    }
     const policy = checkKindPolicy({
       kind, items: images.items, ctx: context, live: liveCtx.live,
       deps: policyDeps({ kind, context: { root: liveCtx.root }, checkout: root }),

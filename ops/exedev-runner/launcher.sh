@@ -101,11 +101,16 @@ if [[ "$mode" == lv-runner-service ]]; then
   IFS=: read -r job target slot extra <<< "$1"
   [[ -z "${extra:-}" && "$slot" =~ ^[a-zA-Z0-9_-]{8,80}$ ]] || exit 2
   if [[ "$slot" == scheduled ]]; then slot="$(date -u +%Y%m%d%H%M)-scheduled"; fi
-  case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog) ;; *) exit 2;; esac
+  case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog|weekly-roundup) ;; *) exit 2;; esac
   [[ "$target" == staging || "$target" == production ]] || exit 2
+  # weekly-roundup is on-demand and staging-only until John authorizes production.
+  [[ "$job" != weekly-roundup || "$target" == staging ]] || { echo 'weekly-roundup is staging-only' >&2; exit 2; }
   [[ ! -e /etc/lv-runner.hold ]] || { echo 'runner hold active' >&2; exit 1; }
   for file in /etc/lv-runner.env "/etc/lv-runner-${target}.env"; do
     [[ -f "$file" && $(stat -c '%a' "$file") == 600 && $(stat -c '%u' "$file") == 0 ]] || { echo 'runner env missing or unsafe' >&2; exit 1; }
+    # Only the target-specific file may set this cutoff; never inherit a
+    # shared or caller value into the other target's missed-week decisions.
+    [[ "$file" != "/etc/lv-runner-${target}.env" ]] || unset CADENCE_START_ISO_WEEK
     set -a; source "$file"; set +a
   done
   export CONTENT_TARGET="$target"
@@ -157,7 +162,7 @@ if [[ "$action" == report ]]; then
 fi
 [[ "$action" == run && $# -ge 1 ]] || usage
 job=$1; shift
-case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog) ;; *) usage;; esac
+case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog|weekly-roundup) ;; *) usage;; esac
 target=''; slot=''; topic=''; dry_run=false; approved=false
 while (($#)); do
   case "$1" in
@@ -170,6 +175,7 @@ while (($#)); do
   esac
 done
 [[ "$target" == staging || "$target" == production ]] || usage
+if [[ "$job" == weekly-roundup && "$target" != staging ]]; then echo 'weekly-roundup is staging-only' >&2; exit 2; fi
 [[ ! -e /etc/lv-runner.hold ]] || { echo 'runner hold active' >&2; exit 1; }
 # No --scheduled on-demand flag: timer units invoke lv-runner-service directly
 # with the :scheduled slot, so any --scheduled here is a spoof and hits usage.

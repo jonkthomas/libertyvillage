@@ -156,7 +156,11 @@ test('reviewRows uses reviewContent\'s prompt structure and throws unless the ve
 });
 
 test('lenses: automated kinds reuse LENSES verbatim, manual gets DATA/CONTENT/SHAPE per site dataset', () => {
-  for (const kind of ['business', 'blog', 'blog-live', 'news', 'topic-discovery', 'seo']) assert.equal(lensesFor(kind, 'posts'), LENSES[kind]);
+  for (const kind of ['business', 'blog', 'blog-live', 'news', 'roundup', 'topic-discovery', 'seo'])
+    assert.equal(lensesFor(kind, 'posts'), LENSES[kind]);
+  assert.match(LENSES.roundup[3], /rolling prior seven days/);
+  assert.match(LENSES.roundup[3], /upcoming 14 days/);
+  assert.doesNotMatch(LENSES.roundup[3], /in-week announcement/);
   const datasets = ['businesses', 'posts', 'buildings', 'neighborhoods', 'services', 'topics', 'guide-hub'];
   assert.deepEqual(Object.keys(MANUAL_LENSES).sort(), [...datasets].sort());
   for (const dataset of datasets) {

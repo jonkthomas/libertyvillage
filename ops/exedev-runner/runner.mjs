@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { createHash, randomUUID } from 'node:crypto';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
@@ -11,7 +11,12 @@ export const JOBS = Object.freeze({
   news: { calendar: '*-*-* 12:17:00 UTC', kind: 'news' },
   'weekly-growth-report': { calendar: 'Thu *-*-* 10:37:00 UTC', kind: null },
   'weekly-blog': { calendar: 'Sun,Wed *-*-* 11:00:00 UTC', kind: 'blog' },
+  // On-demand only (no timer): staging until John authorizes production.
+  'weekly-roundup': { calendar: null, kind: 'roundup', stagingOnly: true },
 });
+// Runner configuration: no free-text roundup may be published until a reviewed
+// structured-source contract replaces this census-only mode. Not an env toggle.
+export const ROUNDUP_PUBLICATION = Object.freeze({ mode: 'census-only' });
 export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
 const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
 const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DB_NAME', 'CONTENT_TARGET', 'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'CONTENT_DEPLOY_HOOK_URL', 'SLACK_WEBHOOK_URL'];
@@ -20,6 +25,7 @@ const SOURCE_ENV = {
   'discover-businesses': ['SERPAPI_API_KEY', 'PEXELS_API_KEY'],
   news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY'],
   'weekly-growth-report': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE'],
+  'weekly-roundup': ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY'],
 };
 
 export function childEnv(source, keys) {
@@ -126,62 +132,6 @@ export function acceptGeneratedOutput(scratch, trusted, job, paths, exportedPost
   return changed;
 }
 
-export function selectTopic(queue, state, target) {
-  const entries = Array.isArray(queue?.topics) ? queue.topics : [];
-  return entries.find((topic) => topic.kind === 'blog' && typeof topic.title === 'string' && typeof topic.key === 'string' && topic.title.trim() && (state[target]?.[topic.key]?.attempts ?? 0) < 3 && !state[target]?.[topic.key]?.consumed && !state[target]?.[topic.key]?.pendingSlot) ?? null;
-}
-
-function writeTopicState(statePath, state) {
-  fs.mkdirSync(path.dirname(statePath), { recursive: true, mode: 0o700 });
-  const temp = `${statePath}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify(state)}\n`, { mode: 0o600 });
-  fs.renameSync(temp, statePath);
-}
-
-export function recordTopic(statePath, target, topic, consumed = false) {
-  const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {};
-  state[target] ??= {};
-  const prior = state[target][topic.key] ?? { attempts: 0, consumed: false };
-  state[target][topic.key] = { attempts: prior.attempts + (consumed ? 0 : 1), consumed: consumed || prior.consumed };
-  writeTopicState(statePath, state);
-}
-
-// A generator that produced no post must not burn the next two calendar slots
-// on the same unsupported topic. This is local eligibility state, not a Neon
-// queue update or a claim that the topic was published.
-export function shouldExhaustTopicOnNoPost(job, request, topic, error) {
-  return job === 'weekly-blog' && !request.dryRun && error?.message === 'blog generated no post' && !!topic?.key;
-}
-
-export function exhaustTopicOnNoPost(statePath, target, topic) {
-  if (!topic?.key) return;
-  const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {};
-  state[target] ??= {};
-  const prior = state[target][topic.key] ?? { attempts: 0, consumed: false };
-  state[target][topic.key] = { ...prior, attempts: Math.max(3, prior.attempts), consumed: prior.consumed };
-  writeTopicState(statePath, state);
-}
-
-// Reserve a real submitted topic while publication/smoke is pending. A new
-// calendar slot must not draft it again, but it is not consumed until smoke.
-export function reserveTopicSubmission(statePath, target, topic, slot, id) {
-  const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {};
-  state[target] ??= {};
-  const prior = state[target][topic.key] ?? { attempts: 0, consumed: false };
-  state[target][topic.key] = { ...prior, pendingSlot: slot, pendingSubmissionId: id };
-  writeTopicState(statePath, state);
-}
-
-export function clearTopicReservation(statePath, target, topic, slot) {
-  if (!fs.existsSync(statePath)) return;
-  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  const prior = state[target]?.[topic.key];
-  if (!prior || prior.pendingSlot !== slot) return;
-  delete prior.pendingSlot;
-  delete prior.pendingSubmissionId;
-  writeTopicState(statePath, state);
-}
-
 // The trusted content CLI emits a JSON error envelope on stdout. Preserve only
 // stable classes and bounded operator guidance; never log its raw message,
 // conflicts, target, candidate bytes or URLs (they may carry private data).
@@ -223,10 +173,14 @@ export function parseJson(text) { return JSON.parse(text.trim()); }
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
 
-export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false }, fetchImpl = fetch) {
+export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null, stuckSubmissionId = null }, fetchImpl = fetch) {
   if (!webhook) return false;
   try {
-    const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` : `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}` }), signal: AbortSignal.timeout(10_000) });
+    const text = holdCensus ? `⚠ ${job} publication held (${target}); lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
+      Number.isSafeInteger(stuckSubmissionId) && stuckSubmissionId > 0 ? `⚠ ${job} held (${target}); submission #${stuckSubmissionId} smoked but not current-live; lv-runner ${slot}; inspect original slot` :
+        codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` :
+          `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}`;
+    const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }), signal: AbortSignal.timeout(10_000) });
     return response.ok;
   } catch { return false; }
 }
@@ -357,36 +311,831 @@ function lookup(job, target, slot, log) {
 
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 
-// A resumed gate may finish publication after the original process died before
-// persisting local topic consumption. Only a confirmed smoke success can consume.
-export function consumeResumedBlogTopic(root, target, slot, request, result) {
-  if (!result?.success || result.id == null || request?.topic) return false;
-  const selectedPath = path.join(root, 'topics', `${slot}.json`);
-  if (!fs.existsSync(selectedPath)) return false;
-  const topic = readJson(selectedPath);
-  if (!topic?.key) return false;
-  recordTopic(path.join(root, 'topic-state.json'), target, topic, true);
+// ---------------------------------------------------------------------------
+// Durable cadence wiring (docs/specs/content-cadence-2026.md). The DB cadence
+// tables are the only truth for slots, attempts, idempotency keys and consumed
+// intents; /var/lib/lv-runner/topic-state.json is no longer read. Every step
+// below takes injected deps so tests drive it with a fake CLI and generator.
+// ---------------------------------------------------------------------------
+export const CADENCE = Object.freeze({
+  contentGoal: 2, maxContentSlot: 4, normalPerSlot: 3, reservePerWeek: 2, generationsPerRun: 4,
+  leaseSeconds: 3600, reserveCategories: 20, catchUpWeeks: 4, sidecarMaxBytes: 128 * 1024, postsMaxBytes: 32 * 1024 * 1024,
+  artifactMaxBytes: 2 * 1024 * 1024,
+});
+const OPEN_OUTCOMES = new Set([null, 'published', 'smoked']);
+const isOpen = (attempt) => OPEN_OUTCOMES.has(attempt?.outcome ?? null);
+const byOrdinal = (a, b) => Number(a.ordinal) - Number(b.ordinal);
+const SIDECAR = /^tasks\/auto-blog-runs\/\d{4}-\d{2}-\d{2}-([a-z0-9-]+)-source-pack\.json$/;
+
+// Wed primary, Fri recovery, Sun final catch-up (reserve intents only on Sunday).
+export function dayPolicy(date) {
+  const day = date.getUTCDay();
+  return { phase: day === 3 ? 'primary' : day === 5 ? 'recovery' : day === 0 ? 'final' : 'on-demand', reserveAllowed: day === 0 };
+}
+
+// Untrusted generator/writer output: regular file, no symlink/FIFO, bounded bytes.
+export function readBoundedJson(file, maxBytes) {
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > maxBytes) throw new Error('artifact is not a bounded regular file');
+    const bytes = Buffer.alloc(stat.size);
+    if (fs.readSync(fd, bytes, 0, stat.size, 0) !== stat.size) throw new Error('artifact changed while reading');
+    return JSON.parse(bytes.toString('utf8'));
+  } finally { fs.closeSync(fd); }
+}
+
+function cadenceCaller(deps, target, week) {
+  return (sub, extra = []) => parseJson(deps.cli(['cadence', sub, '--week-start', week, '--target', target, ...extra.map(String)]).stdout);
+}
+
+function gateState(deps, target, id, actor) {
+  // Gate exits 1 both after a durably notified terminal fixer error AND on
+  // operational failures (e.g. a failed notification). Never let a later
+  // `show` of the terminal state hide the original transport failure.
+  const result = deps.cli(['gate', '--submission', String(id), '--target', target, '--actor', actor], [1, 2, 3]);
+  deps.log('gate', { id, exit: result.code });
+  if (result.code === 1) {
+    let receipt;
+    if (typeof result.stdout === 'string' && Buffer.byteLength(result.stdout) <= 8192) {
+      try { receipt = parseJson(result.stdout); } catch { /* not a terminal receipt */ }
+    }
+    if (Number(receipt?.submissionId) !== Number(id) || receipt?.state !== 'error'
+      || receipt?.decision !== 'error' || receipt?.notified !== true || receipt?.error) {
+      const failure = new Error('content gate failed');
+      failure.cliFailure = classifyCliFailure(node, ['scripts/content/cli.mjs', 'gate'], { stdout: result.stdout, status: 1 });
+      throw failure;
+    }
+  }
+  if (result.code === 3) {
+    const resume = deps.cli(['deploy', '--target', target], [3]);
+    deps.log('deploy-resume', { id, exit: resume.code });
+    if (resume.code === 3) return { state: 'published' };
+  }
+  // Only the trusted DB decides smoke; scratch receipts are never read.
+  const submission = parseJson(deps.cli(['show', '--submission', String(id), '--target', target]).stdout).submission;
+  if (submission?.state === 'published') return submission.smoke_passed_at ? { state: 'smoked', smokedAt: submission.smoke_passed_at } : { state: 'published' };
+  if (['rejected', 'blocked', 'error'].includes(submission?.state)) return { state: submission.state };
+  if (result.code === 2) return { state: 'rejected' };
+  throw new Error('submission lacks smoke success');
+}
+
+// Persist a gate result on the attempt. Smoke alone is never success: the item
+// must be consumed (the CLI observes the hosted alias) AND appear in `cadence
+// count` for the attempt's week; otherwise it is 'late-smoke' (smoke landed in a
+// later week) or 'uncounted' (not current-live / alias not showing it).
+// Publish/propagation pending keeps the attempt open; terminal reject/block/error
+// frees the slot for the next DISTINCT intent.
+function settleAttempt(deps, ctx, key, token, id, gate) {
+  const outcome = (value) => ctx.call('outcome', ['--idempotency-key', key, '--token', token, '--outcome', value]);
+  if (gate.state === 'smoked') {
+    outcome('smoked');
+    const late = typeof gate.smokedAt === 'string' && deps.modules.weekStartUtc(new Date(gate.smokedAt)) !== ctx.week;
+    if (late && ctx.lane === 'content') {
+      // The trusted CLI verifies current-live alias proof in the actual smoke
+      // week before making this original-week attempt terminal. If it refuses
+      // because the post is not live, hold the original key and name its ID for
+      // the operator; never silently free the slot or invent a smoke receipt.
+      try { outcome('late-smoked'); }
+      catch (error) {
+        if (error?.cliFailure?.reason !== 'cli-state') throw error;
+        const actualWeek = deps.modules.weekStartUtc(new Date(gate.smokedAt));
+        const count = cadenceCaller(deps, ctx.target, actualWeek)('count');
+        if (count.content.some((item) => Number(item.submissionId) === Number(id))) throw error;
+        deps.log('cadence-prior-smoke-hold', { id, week: ctx.week, actualWeek, reason: 'not-current-live' });
+        const hold = new Error('prior content smoke not current-live');
+        hold.stuckSubmissionId = Number(id);
+        throw hold;
+      }
+      deps.log('cadence-smoked-uncounted', { id, late: true, consumed: false, counted: false });
+      return 'late-smoke';
+    }
+    let consumed = false;
+    let counted = false;
+    try { outcome('consumed'); consumed = true; }
+    catch (error) { deps.log('cadence-consume-refused', { id, reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+    try {
+      const count = ctx.call('count');
+      counted = (ctx.lane === 'roundup' ? count.roundup : count.content).some((item) => Number(item.submissionId) === Number(id));
+    } catch (error) { deps.log('cadence-count-failed', { id, reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+    if (consumed && counted) { deps.log('cadence-consumed', { id }); return 'counted'; }
+    deps.log('cadence-smoked-uncounted', { id, late, consumed, counted });
+    return late ? 'late-smoke' : 'uncounted';
+  }
+  if (gate.state === 'published') { outcome('published'); return 'pending'; }
+  outcome(gate.state);
+  deps.log('cadence-attempt-closed', { id, outcome: gate.state });
+  return 'closed';
+}
+
+// Deadline alerts are durable DB intents: every weekly-blog/roundup run first
+// evaluates ended prior ISO weeks, oldest first: the immediate prior week,
+// plus older weeks with a slot or attempt within CADENCE.catchUpWeeks, but only
+// if their Monday is on/after the target's configured first missed-alert week.
+// A missing config defaults to THIS run's week: no retroactive missed alerts,
+// and no missed alerts at all until the operator sets a fixed start week.
+// Deadline intents remain idempotent per target/week/type; per-week failures
+// are logged and do not abort the run. Malformed configuration fails BEFORE it.
+function missedAlertStartWeek(deps, target, week) {
+  const value = deps.cadenceStartWeek;
+  if (value === undefined || value === null || value === '') {
+    deps.log('cadence-start-week-defaulted', { target, week });
+    return week;
+  }
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null;
+  if (!date || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value
+    || deps.modules.weekStartUtc(date) !== value) throw new Error('invalid cadence start week');
+  return value;
+}
+function evaluatePriorWeek(deps, target, week, now) {
+  const firstWeek = missedAlertStartWeek(deps, target, week);
+  const weekAt = (back) => deps.modules.weekStartUtc(new Date(Date.parse(`${week}T00:00:00Z`) - back * 7 * 86400000));
+  for (let back = CADENCE.catchUpWeeks; back >= 1; back--) {
+    const prior = weekAt(back);
+    if (prior < firstWeek) continue;
+    const call = cadenceCaller(deps, target, prior);
+    try {
+      if (back > 1) {
+        const status = call('status');
+        if (!(status?.slots?.length || status?.attempts?.length)) continue;
+      }
+      const deadline = call('deadline', ['--now', now.toISOString()]);
+      const alerts = Array.isArray(deadline?.alerts) ? deadline.alerts : [];
+      deps.log('cadence-prior-week', { week: prior, due: Boolean(deadline?.due), alerts: alerts.length, created: alerts.filter((alert) => alert?.created).length });
+    } catch (error) {
+      deps.log('cadence-deadline-failed', { week: prior, reason: failureReason(error) });
+    }
+  }
+  if (!deps.alertsEnabled) { deps.log('cadence-alert-delivery-skipped', { reason: 'no-webhook' }); return; }
+  try {
+    const delivered = cadenceCaller(deps, target, weekAt(1))('deliver-alerts');
+    deps.log('cadence-alerts-delivered', { delivered: Number(delivered?.delivered) || 0, failed: Number(delivered?.failed) || 0, pending: Number(delivered?.pending) || 0 });
+  } catch (error) { deps.log('cadence-alert-delivery-failed', { reason: failureReason(error) }); }
+}
+
+function resumeOpenAttempt(deps, ctx, attempt, token) {
+  const key = attempt.idempotency_key;
+  const found = parseJson(deps.cli(['lookup', '--idempotency-key', key, '--target', ctx.target]).stdout);
+  if (found.submissionId == null) return { state: 'no-submission' };
+  if (found.kind !== ctx.kind) throw new Error('idempotency kind mismatch');
+  if (attempt.submission_id == null) ctx.call('attach', ['--idempotency-key', key, '--token', token, '--submission-id', found.submissionId]);
+  else if (Number(attempt.submission_id) !== Number(found.submissionId)) throw new Error('idempotency kind mismatch');
+  deps.log('resume', { id: found.submissionId, ordinal: attempt.ordinal });
+  ctx.call('renew', ['--lane', ctx.lane, '--slot-number', attempt.slot_number, '--token', token, '--lease-seconds', CADENCE.leaseSeconds]);
+  const gate = gateState(deps, ctx.target, found.submissionId, ctx.actor);
+  return { state: settleAttempt(deps, ctx, key, token, found.submissionId, gate), id: found.submissionId };
+}
+
+function blogCandidate(run, entry, snapshot, { reserve = false, consumed = run.consumed } = {}) {
+  const { checkTopicGroundability, buildSourcePack, reserveGuideEligibility } = run.deps.modules;
+  if (typeof entry?.title !== 'string' || !entry.title.trim() || typeof entry.key !== 'string' || !entry.key) return { skip: 'invalid-entry' };
+  const ground = checkTopicGroundability({ title: entry.title, kind: 'blog', businesses: snapshot.businesses, livePosts: snapshot.posts, consumedFingerprints: [...consumed] });
+  if (!ground.ok) return { skip: ground.reason };
+  if (!ground.fingerprint) return { skip: 'empty-fingerprint' };
+  let built;
+  if (reserve) {
+    const reserved = reservePack(run.deps.modules, { title: ground.editorialTitle, category: entry.category, snapshot, now: run.deps.now() });
+    if (reserved.skip) return { skip: reserved.skip };
+    built = reserved;
+  } else {
+    built = buildSourcePack({ topic: ground.editorialTitle, businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, now: run.deps.now() });
+    if (!built.ok) return { skip: built.reason };
+  }
+  return { title: ground.editorialTitle, fingerprint: ground.fingerprint, topicKey: `${reserve ? 'reserve:' : ''}${entry.key}`, pack: built.pack, reserve };
+}
+
+function queueEntries(run, snapshot) {
+  if (run.request.topic) return [{ title: run.request.topic, key: `manual:${createHash('sha256').update(run.request.topic).digest('hex').slice(0, 32)}` }];
+  return (Array.isArray(snapshot.queue?.topics) ? snapshot.queue.topics : []).filter((entry) => entry?.kind === 'blog');
+}
+
+const humanize = (category) => category.split('-').filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
+const categoryOf = (record) => (typeof record?.category === 'string' ? record.category.trim().toLowerCase() : '');
+
+// A reserve guide pack is built ONLY from its category's live records, so every
+// source is in-category (categories partition the directory, so two reserve
+// packs never share a record). The generator builds its sidecar from the full
+// directory (scripts/weekly-blog-agent.js), so the guide runs only when that
+// selection is the same category-pure pack; otherwise it is skipped before spend.
+export function reservePack(modules, { title, category, snapshot, now }) {
+  const records = (Array.isArray(snapshot.businesses) ? snapshot.businesses : []).filter((record) => categoryOf(record) === category);
+  const input = { topic: title, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, now, reserve: true };
+  const built = modules.buildSourcePack({ ...input, businesses: records });
+  if (!built.ok) return { skip: built.reason };
+  const ids = new Set(built.pack.sources.map((source) => source.id));
+  if (!modules.reserveGuideEligibility({ businesses: records.filter((record) => ids.has(record.slug)) }).ok) return { skip: 'reserve-ineligible' };
+  const full = modules.buildSourcePack({ ...input, businesses: snapshot.businesses });
+  if (!full.ok || full.pack.fingerprint !== built.pack.fingerprint) return { skip: 'reserve-generator-off-category', pack: built.pack };
+  return { ok: true, pack: built.pack };
+}
+
+// Sunday reserve intents are derived from the directory, not the queue: one guide
+// per business category whose live records alone pass reserveGuideEligibility
+// (>=3 records, >=6 verbatim facts). Pack sources must also pass it, and two
+// reserves in one run never share a record.
+function reserveEntries(run, snapshot, { retryKey = null } = {}) {
+  const byCategory = new Map();
+  for (const record of Array.isArray(snapshot.businesses) ? snapshot.businesses : []) {
+    const category = categoryOf(record);
+    // Durable disjointness: a category already attempted as a reserve this week
+    // (DB attempt topic key reserve:dir:<category>) is never reused.
+    if (!/^[a-z0-9][a-z0-9-]{1,60}$/.test(category) || (run.reservedCategories.has(category) && retryKey !== `dir:${category}`)) continue;
+    if (!byCategory.has(category)) byCategory.set(category, []);
+    byCategory.get(category).push(record);
+  }
+  return [...byCategory]
+    .filter(([, records]) => records.length >= 3 && run.deps.modules.reserveGuideEligibility({ businesses: records }).ok)
+    .sort(([a, left], [b, right]) => right.length - left.length || a.localeCompare(b))
+    .slice(0, CADENCE.reserveCategories)
+    .map(([category]) => ({ key: `dir:${category}`, category, title: `${humanize(category)} in Liberty Village`, reserve: true }));
+}
+
+// Next distinct eligible intent, chosen BEFORE any generator spend.
+function eligibleInventory(run, snapshot) {
+  const reserves = [];
+  const used = new Set();
+  for (const entry of reserveEntries(run, snapshot)) {
+    const candidate = blogCandidate(run, entry, snapshot, { reserve: true });
+    if (candidate.skip || run.weekFingerprints.has(candidate.fingerprint)
+      || candidate.pack.sources.some((source) => used.has(source.id))) continue;
+    reserves.push(candidate);
+    for (const source of candidate.pack.sources) used.add(source.id);
+    if (reserves.length >= 2) break;
+  }
+  // Normal and reserve floors describe distinct eligible intents. A queued
+  // bakery/salon guide cannot also fill a directory reserve slot on Sunday.
+  const reserveFingerprints = new Set(reserves.map((candidate) => candidate.fingerprint));
+  const normal = new Set();
+  for (const entry of queueEntries(run, snapshot).slice(0, 100)) {
+    const candidate = blogCandidate(run, entry, snapshot);
+    if (!candidate.skip && !run.weekFingerprints.has(candidate.fingerprint) && !reserveFingerprints.has(candidate.fingerprint)) normal.add(candidate.fingerprint);
+    if (normal.size >= 6) break;
+  }
+  return { normal: normal.size, reserve: reserves.length };
+}
+
+function nextCandidate(run, snapshot, { normal, reserve }) {
+  const passes = [...(normal ? [false] : []), ...(reserve ? [true] : [])];
+  for (const asReserve of passes) {
+    for (const entry of asReserve ? reserveEntries(run, snapshot) : queueEntries(run, snapshot)) {
+      const candidate = blogCandidate(run, entry, snapshot, { reserve: asReserve });
+      if (candidate.skip) {
+        if (!run.skipped.has(entry.key) && run.skipped.size < 50) { run.skipped.add(entry.key); run.deps.log('intent-skipped', { reason: String(candidate.skip).slice(0, 80), reserve: asReserve }); }
+        continue;
+      }
+      if (run.weekFingerprints.has(candidate.fingerprint)) continue;
+      if (asReserve && candidate.pack.sources.some((source) => run.reserveSourceIds.has(source.id))) continue;
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function checkSidecar(run, changed, pack, snapshot) {
+  const matches = changed.filter((rel) => SIDECAR.exec(rel)?.[1] === pack.intentKey);
+  if (matches.length !== 1) return 'missing';
+  const file = path.join(run.deps.repo, matches[0]);
+  let sidecar;
+  try { sidecar = readBoundedJson(file, CADENCE.sidecarMaxBytes); }
+  catch { return 'unreadable'; }
+  finally { fs.rmSync(file, { force: true }); }
+  if (typeof sidecar?.fingerprint !== 'string' || sidecar.fingerprint !== pack.fingerprint) return 'fingerprint-mismatch';
+  const verified = run.deps.modules.verifySourcePack(sidecar, { businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, now: run.deps.now() });
+  return verified.ok ? null : 'unverified';
+}
+
+// The generated post itself must be the draft this pack grounds (same checks the
+// generator ran, re-run here in the trusted process against the fresh export).
+function checkDraftBinding(run, pack, snapshot) {
+  let posts;
+  try { posts = readBoundedJson(path.join(run.deps.repo, 'data', 'posts.json'), CADENCE.postsMaxBytes); }
+  catch { return 'posts-unreadable'; }
+  const existing = new Set(snapshot.posts.map((post) => post?.slug));
+  const added = Array.isArray(posts) ? posts.filter((post) => typeof post?.slug === 'string' && !existing.has(post.slug)) : [];
+  if (added.length !== 1) return 'no-single-post';
+  let imagePaths = [];
+  try { imagePaths = fs.readdirSync(path.join(run.deps.repo, 'public', 'images', 'blog')).filter((name) => /^[a-z0-9-]+\.jpg$/.test(name)).slice(0, 5000).map((name) => `/images/blog/${name}`); }
+  catch { /* no blog images */ }
+  const checked = run.deps.modules.checkDraftAgainstPack(added[0], pack, { businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, imagePaths, now: run.deps.now() });
+  if (checked.ok) return null;
+  run.deps.log('draft-unbound', { errors: [...new Set(checked.errors.map((error) => String(error).split(':')[0].slice(0, 40)))].slice(0, 10) });
+  return 'unbound';
+}
+
+function writeTrustedPack(run, key, pack) {
+  const dir = path.join(run.deps.stateRoot, 'source-packs');
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, `${createHash('sha256').update(key).digest('hex').slice(0, 32)}.json`);
+  fs.writeFileSync(file, `${run.deps.modules.canonicalJson(pack)}\n`, { mode: 0o600 });
+  return file;
+}
+
+// One intent in a reserved content slot: attempt -> generator -> sidecar check ->
+// submit (trusted pack) -> attach -> gate. `existing` retries the SAME key/intent.
+function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing = null) {
+  const { deps, call } = run;
+  let key = existing?.idempotency_key;
+  if (!key) {
+    const recorded = call('attempt', ['--lane', 'content', '--slot-number', slotNumber, '--token', token, '--intent-fingerprint', candidate.fingerprint, '--topic-key', candidate.topicKey, '--source-pack-digest', candidate.pack.fingerprint]);
+    if (recorded.existing) throw new Error('cadence attempt already open');
+    key = recorded.idempotencyKey;
+  }
+  run.weekFingerprints.add(candidate.fingerprint);
+  deps.log('cadence-attempt', { slot: slotNumber, reserve: candidate.reserve, retry: Boolean(existing) });
+  const fail = (reason) => {
+    call('outcome', ['--idempotency-key', key, '--token', token, '--outcome', 'failed-before-submit']);
+    deps.log('cadence-attempt-failed', { slot: slotNumber, reason });
+    return { state: 'closed' };
+  };
+  const packPath = writeTrustedPack(run, key, candidate.pack);
+  let changed;
+  try { changed = deps.generate(candidate.title); }
+  catch (error) {
+    if (error?.message === 'blog generated no post') return fail('no-post');
+    fail('generator-error');
+    throw error;
+  }
+  const refused = checkSidecar(run, changed, candidate.pack, snapshot);
+  if (refused) return fail(`sidecar-${refused}`);
+  const unbound = checkDraftBinding(run, candidate.pack, snapshot);
+  if (unbound) return fail(`draft-${unbound}`);
+  let submitted;
+  try { submitted = parseJson(deps.cli(['submit', '--dir', '.', '--kind', 'blog', '--idempotency-key', key, '--actor', run.actor, '--source-pack', packPath]).stdout); }
+  catch (error) {
+    if (['cli-validation', 'cli-conflict'].includes(error?.cliFailure?.reason)) return fail('submit-refused');
+    throw error;
+  }
+  if (submitted.submissionId == null) return fail('no-submission');
+  deps.log('submission', { id: submitted.submissionId });
+  call('attach', ['--idempotency-key', key, '--token', token, '--submission-id', submitted.submissionId]);
+  call('renew', ['--lane', 'content', '--slot-number', slotNumber, '--token', token, '--lease-seconds', CADENCE.leaseSeconds]);
+  const gate = gateState(deps, run.target, submitted.submissionId, run.actor);
+  return { state: settleAttempt(deps, run, key, token, submitted.submissionId, gate), id: submitted.submissionId };
+}
+
+// Crash-before-submit: retry the same intent with the same key only if the
+// fresh trusted pack is identical; otherwise close it before any next ordinal.
+function retryBlogAttempt(run, slotNumber, token, attempt) {
+  const snapshot = run.deps.exportSnapshot();
+  const reserve = attempt.topic_key.startsWith('reserve:');
+  const baseKey = reserve ? attempt.topic_key.slice('reserve:'.length) : attempt.topic_key;
+  // A same-key retry may re-admit exactly its own reserve category.
+  const entry = (reserve ? reserveEntries(run, snapshot, { retryKey: baseKey }) : queueEntries(run, snapshot)).find((item) => item.key === baseKey);
+  const consumed = new Set([...run.consumed].filter((fingerprint) => fingerprint !== attempt.intent_fingerprint));
+  const candidate = entry ? blogCandidate(run, entry, snapshot, { reserve, consumed }) : { skip: 'intent-missing' };
+  if (candidate.skip || candidate.pack.fingerprint !== attempt.source_pack_digest || candidate.fingerprint !== attempt.intent_fingerprint) {
+    run.call('outcome', ['--idempotency-key', attempt.idempotency_key, '--token', token, '--outcome', 'failed-before-submit']);
+    run.deps.log('cadence-attempt-failed', { slot: slotNumber, reason: 'retry-intent-changed' });
+    return { state: 'closed' };
+  }
+  if (run.budget < 1) return { state: 'deferred' };
+  run.budget -= 1;
+  return attemptBlogIntent(run, slotNumber, token, candidate, snapshot, attempt);
+}
+
+function processContentSlot(run, slotNumber) {
+  const { deps, call } = run;
+  const reservation = call('reserve', ['--lane', 'content', '--slot-number', slotNumber, '--owner', run.owner, '--lease-seconds', CADENCE.leaseSeconds]);
+  if (!reservation.reserved) {
+    deps.log('cadence-slot-held', { slot: slotNumber, holder: reservation.holder === 'self' ? 'self' : 'other' });
+    return { state: 'held' };
+  }
+  const token = reservation.token;
+  try {
+    const attemptsOf = () => call('status').attempts.filter((a) => a.lane === 'content' && Number(a.slot_number) === slotNumber).sort(byOrdinal);
+    let attempts = attemptsOf();
+    const latest = attempts.at(-1);
+    if (reservation.slot?.state === 'consumed' || latest?.outcome === 'consumed') return { state: 'consumed', consumedId: Number(reservation.slot?.submission_id ?? latest?.submission_id) };
+    if (latest && isOpen(latest)) {
+      let resumed = resumeOpenAttempt(deps, run, latest, token);
+      if (resumed.state === 'no-submission') resumed = retryBlogAttempt(run, slotNumber, token, latest);
+      if (resumed.state !== 'closed') return resumed;
+      attempts = attemptsOf();
+    }
+    let normalLeft = CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length;
+    while (run.budget > 0) {
+      const snapshot = deps.exportSnapshot();
+      const candidate = nextCandidate(run, snapshot, { normal: normalLeft > 0, reserve: run.policy.reserveAllowed && run.reserveLeft > 0 });
+      if (!candidate) break;
+      if (candidate.reserve) {
+        run.reserveLeft -= 1;
+        run.reservedCategories.add(candidate.topicKey.slice('reserve:dir:'.length));
+        for (const source of candidate.pack.sources) run.reserveSourceIds.add(source.id);
+      } else normalLeft -= 1;
+      run.budget -= 1;
+      const result = attemptBlogIntent(run, slotNumber, token, candidate, snapshot);
+      if (result.state !== 'closed') return result;
+    }
+    deps.log('cadence-slot-exhausted', { slot: slotNumber, budget: run.budget, normalLeft: Math.max(0, normalLeft), reserveLeft: run.reserveLeft });
+    return { state: 'exhausted' };
+  } finally {
+    // The lease is always released. A pending publication keeps its DB attempt
+    // open (outcome null/published), which fences the slot: the next run resumes
+    // that same idempotency key instead of drafting a new candidate.
+    try { call('release', ['--lane', 'content', '--slot-number', slotNumber, '--token', token]); }
+    catch (error) { deps.log('cadence-release-failed', { slot: slotNumber, reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+  }
+}
+
+// Unresolved work has no age cutoff: a VM may be down for more than the alert
+// lookback. Inspect a bounded oldest-first page and never start new work while
+// an older publication is pending, held by another owner or beyond the cap.
+function recoverPriorContent(deps, target, slot, week) {
+  const attempts = cadenceCaller(deps, target, week)('unresolved');
+  const prior = attempts.filter((a) => a.week_start_utc < week);
+  let budget = CADENCE.generationsPerRun;
+  for (const attempt of prior.slice(0, 2)) {
+    const call = cadenceCaller(deps, target, attempt.week_start_utc);
+    const owner = `runner:weekly-blog:${target}:${slot}`;
+    const reserved = call('reserve', ['--lane', 'content', '--slot-number', attempt.slot_number,
+      '--owner', owner, '--lease-seconds', CADENCE.leaseSeconds]);
+    if (!reserved.reserved) throw new Error('prior content slot held');
+    const run = { deps, call, target, slot, week: attempt.week_start_utc, request: {}, kind: 'blog', lane: 'content',
+      actor: `runner:weekly-blog#${slot}`, owner, budget,
+      consumed: new Set(cadenceCaller(deps, target, week)('consumed')),
+      weekFingerprints: new Set(), reservedCategories: new Set(), reserveSourceIds: new Set(), skipped: new Set() };
+    let result;
+    try {
+      result = resumeOpenAttempt(deps, run, attempt, reserved.token);
+      if (result.state === 'no-submission') result = retryBlogAttempt(run, Number(attempt.slot_number), reserved.token, attempt);
+      budget = run.budget;
+    } finally {
+      try { call('release', ['--lane', 'content', '--slot-number', attempt.slot_number, '--token', reserved.token]); }
+      catch (error) { deps.log('cadence-release-failed', { slot: attempt.slot_number, reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+    }
+    if (!['closed','counted','late-smoke'].includes(result.state)) throw new Error('prior content publication pending');
+  }
+  if (prior.length > 2) throw new Error('prior content backlog exceeds recovery budget');
+  return budget;
+}
+
+export function runWeeklyBlog({ target, slot, request = {}, deps }) {
+  const now = deps.now();
+  const week = deps.modules.weekStartUtc(now);
+  evaluatePriorWeek(deps, target, week, now);
+  const remainingBudget = recoverPriorContent(deps, target, slot, week);
+  const call = cadenceCaller(deps, target, week);
+  const count = call('count');
+  deps.log('cadence-count', { week, contentCount: count.contentCount });
+  const content = call('status').attempts.filter((attempt) => attempt.lane === 'content');
+  // All-time, target-scoped consumed intents from the DB (plus live-post duplicates
+  // inside checkTopicGroundability); never local state.
+  const consumed = new Set(call('consumed'));
+  const run = {
+    deps, call, target, slot, week, request, kind: 'blog', lane: 'content', policy: dayPolicy(now),
+    actor: `runner:weekly-blog#${slot}`, owner: `runner:weekly-blog:${target}:${slot}`,
+    consumed, weekFingerprints: new Set(content.map((attempt) => attempt.intent_fingerprint)),
+    budget: remainingBudget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - content.filter((a) => String(a.topic_key).startsWith('reserve:')).length),
+    reserveSourceIds: new Set(), skipped: new Set(),
+    reservedCategories: new Set(content.map((a) => String(a.topic_key)).filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length))),
+  };
+  // Inventory is eligibility, not queue length. Discover once per ISO week
+  // when either floor is short; export again only after the trusted discovery
+  // submission has passed its own gate/smoke. Empty discovery remains a deficit.
+  if (!request.topic) {
+    const before = eligibleInventory(run, deps.exportSnapshot());
+    const low = before.normal < 6 || before.reserve < 2;
+    deps.log('cadence-inventory', { week, ...before, low });
+    if (low && typeof deps.replenish === 'function') {
+      try { deps.replenish(week); }
+      catch (error) { deps.log('cadence-inventory-replenish-failed', { week, reason: failureReason(error) }); }
+      // Discovery may have written a queue file without passing its trusted
+      // gate. Export restores the DB snapshot before any blog generator spend.
+      const after = eligibleInventory(run, deps.exportSnapshot());
+      deps.log('cadence-inventory-recheck', { week, ...after, low: after.normal < 6 || after.reserve < 2 });
+    }
+  }
+  if (count.contentCount >= CADENCE.contentGoal) return { cadenceMet: true, noChanges: true, contentCount: count.contentCount };
+  deps.log('cadence-plan', { week, phase: run.policy.phase, reserveAllowed: run.policy.reserveAllowed });
+  const live = new Set(count.content.map((item) => Number(item.submissionId)));
+  let have = count.contentCount;
+  let pending = false;
+  let uncounted = false;
+  let late = false;
+  let lastId = null;
+  // Slots 1..2; a consumed slot whose post left the live count (unpublish,
+  // supersede) is final, so catch-up opens the next slot number instead.
+  let consumedSlots = 0;
+  for (let slotNumber = 1; slotNumber <= Math.min(CADENCE.maxContentSlot, CADENCE.contentGoal + consumedSlots) && have < CADENCE.contentGoal; slotNumber++) {
+    const result = processContentSlot(run, slotNumber);
+    if (result.id != null) lastId = result.id;
+    if (result.state === 'consumed' && !live.has(result.consumedId)) consumedSlots += 1;
+    if (result.state === 'counted') {
+      if (!live.has(Number(result.id))) have += 1;
+    } else if (result.state === 'late-smoke') {
+      late = true;
+      break;
+    } else if (['uncounted', 'pending', 'held', 'deferred'].includes(result.state)) {
+      // In flight elsewhere, awaiting propagation or alias: never open a replacement.
+      if (!live.has(Number(result.id))) have += 1;
+      if (result.state === 'uncounted') uncounted = true;
+      if (result.state === 'pending' || result.state === 'deferred') pending = true;
+    }
+  }
+  // Only the DB count for this week decides success; local smoke state never does.
+  const final = call('count');
+  deps.log('cadence-count', { week, contentCount: final.contentCount });
+  if (final.contentCount >= CADENCE.contentGoal) return { cadenceMet: true, id: lastId, contentCount: final.contentCount };
+  if (late) throw new Error('late smoke; old week missed');
+  if (uncounted) throw new Error('smoked but not counted for week');
+  if (pending) throw new Error('publish or propagation pending');
+  if (run.policy.phase === 'final') {
+    deps.log('weekly-content-miss', { week, contentCount: final.contentCount, dbOnlyContentCount: final.dbOnly?.contentCount ?? null });
+    throw new Error('weekly content missed');
+  }
+  deps.log('cadence-deficit', { week, contentCount: final.contentCount, phase: run.policy.phase });
+  throw new Error('cadence content deficit');
+}
+
+// ---------------------------------------------------------------------------
+// weekly-roundup (on-demand, staging-only). Writer output contract (worker E,
+// confirmed by orchestrator): roundup-run.mjs --run --out --root --now always
+// writes <out>/result.json {isoWeek, slug, now, packDigest, decision, published,
+// census} and <out>/pack.json {items}; it appends one data/posts.json post only
+// when >=1 item is eligible. Item eligibility is the writer's job; the runner
+// only enforces post identity (week slot, slug, one new post, pack digest).
+// ---------------------------------------------------------------------------
+const HEX64 = /^[0-9a-f]{64}$/;
+const isIsoInstant = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+
+function censusCounts(census) {
+  if (!census || typeof census !== 'object' || Array.isArray(census)) return {};
+  const counts = Object.fromEntries(Object.entries(census).filter(([key, value]) => /^[a-zA-Z0-9_]{1,40}$/.test(key) && Number.isInteger(value) && value >= 0).slice(0, 20));
+  const reasons = census.byReason && typeof census.byReason === 'object' && !Array.isArray(census.byReason)
+    ? Object.fromEntries(Object.entries(census.byReason).filter(([key, value]) => /^[a-z0-9-]{1,40}$/.test(key) && Number.isInteger(value) && value >= 0).slice(0, 20)) : {};
+  return Object.keys(reasons).length ? { ...counts, byReason: reasons } : counts;
+}
+
+// Returns {zero:true, census} for a consistent zero-eligible hold, {post, result,
+// pack} for a submit-ready roundup, or throws a safe refusal. No DB writes.
+export function validateRoundupOutput({ out, exportedPosts, generatedPosts, week, slotSlug, modules }) {
+  let result;
+  let pack;
+  try {
+    result = readBoundedJson(path.join(out, 'result.json'), CADENCE.artifactMaxBytes);
+    pack = readBoundedJson(path.join(out, 'pack.json'), CADENCE.artifactMaxBytes);
+  } catch { throw new Error('roundup artifact invalid'); }
+  if (!result || typeof result !== 'object' || Array.isArray(result) || !Number.isInteger(result.published) || result.published < 0
+    || typeof result.decision !== 'string' || !pack || typeof pack !== 'object' || Array.isArray(pack) || !Array.isArray(pack.items)
+    || !Array.isArray(generatedPosts)) throw new Error('roundup artifact invalid');
+  const existing = new Set(exportedPosts.map((post) => post?.slug));
+  const kept = generatedPosts.filter((post) => existing.has(post?.slug)).length;
+  const added = generatedPosts.filter((post) => typeof post?.slug === 'string' && post.slug && !existing.has(post.slug));
+  if (kept !== exportedPosts.length || generatedPosts.length !== exportedPosts.length + added.length) throw new Error('roundup artifact inconsistent');
+  if (result.published === 0 && result.decision === 'hold' && pack.items.length === 0 && added.length === 0) return { zero: true, census: censusCounts(result.census) };
+  if (result.published < 1 || pack.items.length < 1 || added.length !== 1) throw new Error('roundup artifact inconsistent');
+  const [post] = added;
+  let expectedWeek;
+  let expectedSlug;
+  try { expectedWeek = modules.isoWeekOf(`${week}T00:00:00.000Z`).isoWeek; expectedSlug = modules.roundupSlug(expectedWeek); }
+  catch { throw new Error('roundup artifact inconsistent'); }
+  if (result.isoWeek !== expectedWeek || !isIsoInstant(result.now) || modules.isoWeekOf(result.now).isoWeek !== expectedWeek
+    || result.slug !== expectedSlug || result.slug !== slotSlug || post.slug !== result.slug || post.category !== 'news') throw new Error('roundup artifact inconsistent');
+  if (!HEX64.test(result.packDigest ?? '') || modules.roundupPackDigest(pack) !== result.packDigest) throw new Error('roundup artifact inconsistent');
+  return { zero: false, result, pack, post, census: censusCounts(result.census) };
+}
+
+function roundupArtifactDir(deps, target, week, digest) {
+  return path.join(deps.stateRoot, 'roundup-attempts', `${target}-${week}-${digest.slice(0, 32)}`);
+}
+
+// Keep the exact validated artifacts per pack digest so a crash-before-submit
+// can resubmit the SAME key/intent instead of burning a new ordinal.
+function persistRoundupArtifacts(dir, out, snapshotId, deps) {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  for (const name of ['result.json', 'pack.json']) fs.copyFileSync(path.join(out, name), path.join(dir, name));
+  fs.copyFileSync(path.join(deps.repo, 'data', 'posts.json'), path.join(dir, 'posts.json'));
+  fs.writeFileSync(path.join(dir, 'snapshot.json'), `${JSON.stringify({ snapshotId })}\n`, { mode: 0o600 });
+}
+
+function submitRoundup(run, token, key, out) {
+  const { deps, call } = run;
+  const fail = (reason) => {
+    call('outcome', ['--idempotency-key', key, '--token', token, '--outcome', 'failed-before-submit']);
+    deps.log('cadence-attempt-failed', { lane: 'roundup', reason });
+    throw new Error('roundup submit refused');
+  };
+  let submitted;
+  try { submitted = parseJson(deps.cli(['submit', '--dir', '.', '--kind', 'roundup', '--roundup-out', out, '--idempotency-key', key, '--actor', run.actor]).stdout); }
+  catch (error) {
+    if (['cli-validation', 'cli-conflict'].includes(error?.cliFailure?.reason)) fail('submit-refused');
+    throw error;
+  }
+  if (submitted.submissionId == null) fail('no-submission');
+  deps.log('submission', { id: submitted.submissionId });
+  call('attach', ['--idempotency-key', key, '--token', token, '--submission-id', submitted.submissionId]);
+  call('renew', ['--lane', 'roundup', '--slot-number', 1, '--token', token, '--lease-seconds', CADENCE.leaseSeconds]);
+  const gate = gateState(deps, run.target, submitted.submissionId, run.actor);
+  return { state: settleAttempt(deps, run, key, token, submitted.submissionId, gate), id: submitted.submissionId };
+}
+
+function retryRoundupAttempt(run, token, attempt, slotSlug) {
+  const { deps } = run;
+  const snapshot = deps.exportSnapshot();
+  const dir = roundupArtifactDir(deps, run.target, run.week, attempt.source_pack_digest);
+  let saved = null;
+  try { saved = readBoundedJson(path.join(dir, 'snapshot.json'), 4096); } catch { /* no retained artifacts */ }
+  if (saved?.snapshotId && saved.snapshotId === snapshot.snapshotId) {
+    fs.copyFileSync(path.join(dir, 'posts.json'), path.join(deps.repo, 'data', 'posts.json'));
+    try {
+      const checked = validateRoundupOutput({ out: dir, exportedPosts: snapshot.posts, generatedPosts: readBoundedJson(path.join(deps.repo, 'data', 'posts.json'), CADENCE.postsMaxBytes), week: run.week, slotSlug, modules: deps.modules });
+      if (!checked.zero && checked.result.packDigest === attempt.source_pack_digest) return submitRoundup(run, token, attempt.idempotency_key, dir);
+    } catch (error) { if (error.message === 'roundup submit refused') throw error; }
+  }
+  run.call('outcome', ['--idempotency-key', attempt.idempotency_key, '--token', token, '--outcome', 'failed-before-submit']);
+  deps.log('cadence-attempt-failed', { lane: 'roundup', reason: 'retry-artifacts-changed' });
+  return { state: 'closed' };
+}
+
+function censusOnlyRoundup({ slot, deps, now, week }) {
+  // Even if the writer mistakenly accepts an off-area item, its dry run cannot
+  // append a post; independently verify the exported posts stayed byte-identical.
+  deps.exportSnapshot();
+  const postsFile = path.join(deps.repo, 'data', 'posts.json');
+  const before = fs.readFileSync(postsFile, 'utf8');
+  const runDir = path.join(deps.stateRoot, 'roundup', slot);
+  const discovery = path.join(runDir, 'discovery');
+  const out = path.join(runDir, 'out');
+  fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
+  fs.rmSync(out, { recursive: true, force: true });
+  if (!fs.existsSync(path.join(discovery, 'candidates.json')))
+    deps.source('scripts/news-pilot/run.mjs', [`--out=${discovery}`, '--dry-run', '--vault=/dev/null']);
+  const discovered = readJson(path.join(discovery, 'candidates.json'));
+  if ((discovered.meta?.sourcesOk ?? 0) < 1) throw new Error('no healthy news source');
+  deps.source('scripts/news-pilot/roundup-run.mjs', [`--run=${discovery}`, `--out=${out}`, `--root=${deps.repo}`, `--now=${now.toISOString()}`, '--dry-run']);
+  let result;
+  let pack;
+  try {
+    result = readBoundedJson(path.join(out, 'result.json'), CADENCE.artifactMaxBytes);
+    pack = readBoundedJson(path.join(out, 'pack.json'), CADENCE.artifactMaxBytes);
+  } catch { throw new Error('roundup census invalid'); }
+  if (result?.published !== 0 || !result.census || typeof result.census !== 'object' || Array.isArray(result.census)
+    || !pack || !Array.isArray(pack.items) || fs.readFileSync(postsFile, 'utf8') !== before)
+    throw new Error('roundup census invalid');
+  const census = censusCounts(result.census);
+  deps.log('roundup-publication-held', { week, mode: ROUNDUP_PUBLICATION.mode, census });
+  return { noChanges: true, reason: 'roundup-publication-disabled', census };
+}
+
+export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
+  // Refused for production here as well as in main() and the launcher.
+  if (target === 'production') throw new Error('weekly-roundup is staging-only');
+  if (request.dryRun || request.topic) throw new Error('weekly-roundup options unsupported');
+  const mode = deps.roundupPublicationMode ?? ROUNDUP_PUBLICATION.mode;
+  if (!['census-only', 'legacy-fixture'].includes(mode)) throw new Error('roundup publication disabled');
+  const now = deps.now();
+  const week = deps.modules.weekStartUtc(now);
+  evaluatePriorWeek(deps, target, week, now);
+  const call = cadenceCaller(deps, target, week);
+  const count = call('count');
+  deps.log('cadence-count', { week, roundupCount: count.roundupCount });
+  if (count.roundupCount >= 1) return { cadenceMet: true, noChanges: true };
+  if (mode === 'census-only') return censusOnlyRoundup({ slot, deps, now, week });
+  // Retained for isolated legacy contract tests only. The installed runner sets
+  // census-only and the trusted submit CLI rejects roundup submissions too.
+  const run = { deps, call, target, week, kind: 'roundup', lane: 'roundup', actor: `runner:weekly-roundup#${slot}` };
+  const reservation = call('reserve', ['--lane', 'roundup', '--slot-number', 1, '--owner', `runner:weekly-roundup:${target}:${slot}`, '--lease-seconds', CADENCE.leaseSeconds]);
+  // Losers of the one-per-week roundup slot never draft a second candidate.
+  if (!reservation.reserved) { deps.log('cadence-slot-held', { lane: 'roundup', holder: reservation.holder === 'self' ? 'self' : 'other' }); return { noChanges: true, reason: 'roundup-slot-held' }; }
+  const token = reservation.token;
+  const slotSlug = reservation.slot?.roundup_slug;
+  const finish = (result) => {
+    if (result.state === 'pending') throw new Error('publish or propagation pending');
+    if (result.state === 'closed') throw new Error('gate blocked or rejected');
+    if (result.state === 'late-smoke') throw new Error('late smoke; old week missed');
+    if (result.state !== 'counted') throw new Error('smoked but not counted for week');
+    return { id: result.id, success: true, cadenceMet: true };
+  };
+  try {
+    const attempts = call('status').attempts.filter((a) => a.lane === 'roundup').sort(byOrdinal);
+    const latest = attempts.at(-1);
+    // count found no current-live roundup, so a consumed slot means its item was
+    // unpublished/superseded. cadence.mjs cannot reopen a consumed slot: operator review.
+    if (reservation.slot?.state === 'consumed' || latest?.outcome === 'consumed') {
+      deps.log('roundup-consumed-not-live', { week });
+      throw new Error('roundup consumed but no longer live');
+    }
+    if (latest && isOpen(latest)) {
+      let resumed = resumeOpenAttempt(deps, run, latest, token);
+      if (resumed.state === 'no-submission') resumed = retryRoundupAttempt(run, token, latest, slotSlug);
+      if (resumed.state !== 'closed') return finish(resumed);
+    }
+    const snapshot = deps.exportSnapshot();
+    const runDir = path.join(deps.stateRoot, 'roundup', slot);
+    const discovery = path.join(runDir, 'discovery');
+    const out = path.join(runDir, 'out');
+    fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
+    fs.rmSync(out, { recursive: true, force: true });
+    if (!fs.existsSync(path.join(discovery, 'candidates.json'))) deps.source('scripts/news-pilot/run.mjs', [`--out=${discovery}`, '--no-dry-run', '--vault=/dev/null']);
+    const discovered = readJson(path.join(discovery, 'candidates.json'));
+    if ((discovered.meta?.sourcesOk ?? 0) < 1) throw new Error('no healthy news source');
+    deps.source('scripts/news-pilot/roundup-run.mjs', [`--run=${discovery}`, `--out=${out}`, `--root=${deps.repo}`, `--now=${now.toISOString()}`]);
+    let generatedPosts;
+    try { generatedPosts = readBoundedJson(path.join(deps.repo, 'data', 'posts.json'), CADENCE.postsMaxBytes); }
+    catch { throw new Error('roundup artifact invalid'); }
+    const checked = validateRoundupOutput({ out, exportedPosts: snapshot.posts, generatedPosts, week, slotSlug, modules: deps.modules });
+    if (checked.zero) {
+      // Non-terminal hold: no attempt, no alert; the slot is released so a later
+      // run this week can retry. Only `cadence deadline` emits a missed alert.
+      deps.log('roundup-zero-hold', { week, census: checked.census });
+      return { noChanges: true, reason: 'zero-eligible-hold' };
+    }
+    const digest = checked.result.packDigest;
+    persistRoundupArtifacts(roundupArtifactDir(deps, target, week, digest), out, snapshot.snapshotId, deps);
+    let recorded;
+    try { recorded = call('attempt', ['--lane', 'roundup', '--slot-number', 1, '--token', token, '--intent-fingerprint', digest, '--topic-key', checked.result.slug, '--source-pack-digest', digest]); }
+    catch (error) {
+      if (error?.cliFailure?.reason === 'cli-validation') throw new Error('roundup intent already attempted');
+      throw error;
+    }
+    if (recorded.existing) throw new Error('cadence attempt already open');
+    deps.log('cadence-attempt', { lane: 'roundup', items: checked.pack.items.length, census: checked.census });
+    return finish(submitRoundup(run, token, recorded.idempotencyKey, out));
+  } finally {
+    try { call('release', ['--lane', 'roundup', '--slot-number', 1, '--token', token]); }
+    catch (error) { deps.log('cadence-release-failed', { lane: 'roundup', reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+  }
+}
+
+// The runner is installed standalone (/usr/local/libexec), so trusted helpers are
+// loaded from the pinned, freshly checked-out repo, never from scratch.
+async function trustedModules(root) {
+  const load = (rel) => import(pathToFileURL(path.join(root, rel)).href);
+  const [cadence, queue, pack, evidence, roundup] = await Promise.all([
+    load('scripts/content/cadence.mjs'), load('scripts/automation/topic-queue.mjs'), load('scripts/automation/blog-source-pack.mjs'),
+    load('scripts/news-pilot/roundup-evidence.mjs'), load('scripts/news-pilot/roundup.mjs'),
+  ]);
+  return {
+    weekStartUtc: cadence.weekStartUtc, checkTopicGroundability: queue.checkTopicGroundability, reserveGuideEligibility: queue.reserveGuideEligibility,
+    buildSourcePack: pack.buildSourcePack, verifySourcePack: pack.verifySourcePack, canonicalJson: pack.canonicalJson, checkDraftAgainstPack: pack.checkDraftAgainstPack,
+    roundupPackDigest: evidence.roundupPackDigest, isoWeekOf: roundup.isoWeekOf, roundupSlug: roundup.roundupSlug,
+  };
+}
+
+function exportSnapshot(target, log) {
+  cli(['export', '--root', '.', '--target', target]);
+  logLine(log, 'export');
+  const data = (name) => readJson(path.join(repo, 'data', name));
+  return {
+    businesses: data('businesses.json'), posts: data('posts.json'), services: data('services.json'), topics: data('topics.json'),
+    queue: data('topic-queue.json'), snapshotId: readJson(path.join(repo, '.content-export', 'manifest.json')).snapshot_id,
+  };
+}
+
+// The runner is single-instance under global.lock, but an empty/failed source
+// produces no submission to find by idempotency key. Persist the *attempt* before
+// discovery so a restart cannot spend the same weekly source call repeatedly.
+export function claimWeeklyInventoryDiscovery(root, target, week) {
+  if (!['staging', 'production'].includes(target) || !/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new Error('invalid inventory claim');
+  const dir = path.join(root, 'inventory-discovery', target);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const marker = path.join(dir, `${week}.json`);
+  let fd;
+  try { fd = fs.openSync(marker, 'wx', 0o600); }
+  catch (error) {
+    if (error.code === 'EEXIST') return false;
+    throw error;
+  }
+  try { fs.writeSync(fd, JSON.stringify({ target, week, attempted: true }) + '\n'); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
   return true;
 }
 
-function runJob(job, target, slot, request, log, notifications = {}) {
+async function cadenceDeps(job, target, slot, log) {
+  return {
+    repo, stateRoot, modules: await trustedModules(repo), now: () => new Date(), alertsEnabled: Boolean(process.env.SLACK_WEBHOOK_URL),
+    cadenceStartWeek: process.env.CADENCE_START_ISO_WEEK, roundupPublicationMode: ROUNDUP_PUBLICATION.mode,
+    cli: (args, allowExit = []) => cli(args, repo, allowExit),
+    log: (event, details) => logLine(log, event, details),
+    exportSnapshot: () => exportSnapshot(target, log),
+    generate: (title) => generator('weekly-blog', slot, { title }, false, log),
+    source: (script, args) => source(script, args, job, log),
+    replenish: (week) => {
+      const refillSlot = `${week.replaceAll('-', '')}-inventory`;
+      const prior = lookup('topic-discovery', target, refillSlot, log);
+      if (prior) return prior;
+      if (!claimWeeklyInventoryDiscovery(stateRoot, target, week)) return { noChanges: true, reason: 'weekly-discovery-already-attempted' };
+      source('scripts/automation/topic-queue.mjs', ['discover'], 'topic-discovery', log);
+      return submitAndGate('topic-discovery', target, refillSlot, log);
+    },
+  };
+}
+
+async function runJob(job, target, slot, request, log, notifications = {}) {
   if (job === 'weekly-growth-report') {
     source('scripts/generate-weekly-growth-report.mjs', ['--out-dir', path.join(stateRoot, 'growth', slot)], job, log);
     return;
   }
-  let previous;
-  try { previous = job === 'news' && request.dryRun ? null : lookup(job, target, slot, log); }
-  catch (error) {
-    if (job === 'weekly-blog' && error.message === 'gate blocked or rejected') {
-      const selectedPath = path.join(stateRoot, 'topics', `${slot}.json`);
-      if (fs.existsSync(selectedPath)) clearTopicReservation(path.join(stateRoot, 'topic-state.json'), target, readJson(selectedPath), slot);
-    }
-    throw error;
+  if (job === 'weekly-roundup') return runWeeklyRoundup({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
+  if (job === 'weekly-blog') {
+    if (!request.dryRun) return runWeeklyBlog({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
+    cli(['export', '--root', '.', '--target', target]);
+    logLine(log, 'export');
+    const changed = generator(job, slot, request.topic ? { title: request.topic } : null, true, log, notifications);
+    return { dryRun: true, paths: changed.length };
   }
-  if (previous) {
-    if (job === 'weekly-blog') consumeResumedBlogTopic(stateRoot, target, slot, request, previous);
-    return previous;
-  }
+  const previous = job === 'news' && request.dryRun ? null : lookup(job, target, slot, log);
+  if (previous) return previous;
   cli(['export', '--root', '.', '--target', target]);
   logLine(log, 'export');
   if (job === 'topic-discovery') {
@@ -399,66 +1148,20 @@ function runJob(job, target, slot, request, log, notifications = {}) {
     cli(['stats', '--alert', '--target', target]);
     return result;
   }
-  if (job === 'weekly-blog' || job === 'seo-improvements') {
-    let baselinePath = null;
-    if (job === 'seo-improvements') {
-      const baseline = command(node, ['scripts/content/seo-guard.mjs', 'capture'], { cwd: repo, env: sourceEnv(process.env, job) }).stdout;
-      baselinePath = path.join(stateRoot, 'seo-baseline', `${slot}.json`);
-      fs.mkdirSync(path.dirname(baselinePath), { recursive: true });
-      fs.writeFileSync(baselinePath, baseline, { mode: 0o600 });
-    }
-    let topic = null;
-    if (job === 'weekly-blog' && !request.topic) {
-      const selectedPath = path.join(stateRoot, 'topics', `${slot}.json`);
-      if (fs.existsSync(selectedPath)) topic = readJson(selectedPath);
-      else {
-        const statePath = path.join(stateRoot, 'topic-state.json');
-        const state = fs.existsSync(statePath) ? readJson(statePath) : {};
-        const queue = readJson(path.join(repo, 'data', 'topic-queue.json'));
-        topic = selectTopic(queue, state, target);
-        const unused = (queue.topics ?? []).filter((entry) => entry.kind === 'blog' && !state[target]?.[entry.key]?.consumed);
-        if (!topic && unused.length) {
-          const reserved = unused.filter((entry) => state[target]?.[entry.key]?.pendingSlot).length;
-          logLine(log, reserved ? 'topic-publication-pending' : 'topic-queue-exhausted', { unused: unused.length, reserved });
-          throw new Error(reserved ? 'topic publication pending; retry original slot' : 'topic queue exhausted; human followup required');
-        }
-        if (topic) {
-          fs.mkdirSync(path.dirname(selectedPath), { recursive: true });
-          fs.writeFileSync(selectedPath, `${JSON.stringify(topic)}\n`, { mode: 0o600 });
-          recordTopic(statePath, target, topic);
-        }
-      }
-    } else if (request.topic) topic = { title: request.topic, key: null };
-    let changed;
-    try {
-      changed = generator(job, slot, topic, !!request.dryRun, log, notifications);
-      if (job === 'weekly-blog' && !request.dryRun && !changed.includes('data/posts.json')) throw new Error('blog generated no post');
-    } catch (error) {
-      if (shouldExhaustTopicOnNoPost(job, request, topic, error)) {
-        exhaustTopicOnNoPost(path.join(stateRoot, 'topic-state.json'), target, topic);
-        logLine(log, 'topic-exhausted-no-post');
-      }
-      throw error;
-    }
+  if (job === 'seo-improvements') {
+    const baseline = command(node, ['scripts/content/seo-guard.mjs', 'capture'], { cwd: repo, env: sourceEnv(process.env, job) }).stdout;
+    const baselinePath = path.join(stateRoot, 'seo-baseline', `${slot}.json`);
+    fs.mkdirSync(path.dirname(baselinePath), { recursive: true });
+    fs.writeFileSync(baselinePath, baseline, { mode: 0o600 });
+    const topic = request.topic ? { title: request.topic, key: null } : null;
+    const changed = generator(job, slot, topic, !!request.dryRun, log, notifications);
     if (request.dryRun) return { dryRun: true, paths: changed.length };
-    if (job === 'seo-improvements') {
-      if (!changed.some((rel) => /^data\/[^/]+\.json$/.test(rel))) return { noChanges: true };
-      const guard = command(node, ['scripts/content/seo-guard.mjs', 'check', baselinePath], { cwd: repo, env: sourceEnv(process.env, job), allowExit: [2] });
-      if (guard.code === 2) throw new Error('SEO data lane blocked');
-      const decision = parseJson(guard.stdout).decision;
-      if (decision !== 'submit') return { noChanges: true };
-    }
-    const topicStatePath = path.join(stateRoot, 'topic-state.json');
-    let result;
-    try {
-      result = submitAndGate(job, target, slot, log, [], topic?.key ? (id) => reserveTopicSubmission(topicStatePath, target, topic, slot, id) : null);
-    } catch (error) {
-      if (topic?.key && error.message === 'gate blocked or rejected') clearTopicReservation(topicStatePath, target, topic, slot);
-      throw error;
-    }
-    if (job === 'weekly-blog' && result.id === null) throw new Error('blog generated no submission');
-    if (topic?.key && result.success && result.id !== null) recordTopic(topicStatePath, target, topic, true);
-    return result;
+    if (!changed.some((rel) => /^data\/[^/]+\.json$/.test(rel))) return { noChanges: true };
+    const guard = command(node, ['scripts/content/seo-guard.mjs', 'check', baselinePath], { cwd: repo, env: sourceEnv(process.env, job), allowExit: [2] });
+    if (guard.code === 2) throw new Error('SEO data lane blocked');
+    const decision = parseJson(guard.stdout).decision;
+    if (decision !== 'submit') return { noChanges: true };
+    return submitAndGate(job, target, slot, log);
   }
   if (job === 'news') {
     // Match the DB workflow: an unfinished news submission takes precedence
@@ -511,6 +1214,24 @@ function runJob(job, target, slot, request, log, notifications = {}) {
   throw new Error('unknown job');
 }
 
+// Stable, non-secret failure classes that may appear in logs; anything else is
+// reduced to operational-error.
+export const SAFE_FAILURES = Object.freeze(new Set([
+  'runner hold active', 'news resume snapshot changed', 'news post artifact missing; manual recovery required',
+  'no healthy news source', 'SEO code suggestion; human PR required', 'blog generated no post', 'blog generated no submission',
+  'gate blocked or rejected', 'publish or propagation pending', 'scratch output outside allowlist', 'scratch output too large',
+  'generator changed pinned commit', 'weekly content missed', 'cadence content deficit', 'cadence attempt already open',
+  'weekly-roundup is staging-only', 'weekly-roundup options unsupported', 'roundup artifact invalid', 'roundup artifact inconsistent',
+  'roundup submit refused', 'roundup intent already attempted', 'idempotency kind mismatch', 'submission lacks smoke success',
+  'smoked but not counted for week', 'late smoke; old week missed', 'roundup consumed but no longer live',
+  'invalid cadence start week', 'roundup publication disabled', 'roundup census invalid',
+  'prior content slot held', 'prior content publication pending', 'prior content backlog exceeds recovery budget',
+  'prior content smoke not current-live',
+]));
+export function failureReason(error) {
+  return error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : SAFE_FAILURES.has(error?.message) ? error.message : 'operational-error');
+}
+
 export async function main(argv = process.argv.slice(2)) {
   const [job, target, slot] = argv;
   slotKey(job, target, slot);
@@ -519,17 +1240,23 @@ export async function main(argv = process.argv.slice(2)) {
   logLine(log, 'start', { job, target, slot });
   const notifications = {};
   try {
+    if (JOBS[job].stagingOnly && target !== 'staging') throw new Error('weekly-roundup is staging-only');
     assertTarget(process.env, target);
     if (fs.existsSync('/etc/lv-runner.hold')) throw new Error('runner hold active');
     const requestPath = path.join(stateRoot, 'requests', `${slot}.json`);
     const request = fs.existsSync(requestPath) ? readJson(requestPath) : {};
     const sha = checkout(target, log);
-    const result = runJob(job, target, slot, request, log, notifications);
-    logLine(log, 'success', { sha, result: result && { id: result.id ?? null, dryRun: !!result.dryRun, noChanges: !!result.noChanges } });
+    const result = await runJob(job, target, slot, request, log, notifications);
+    if (job === 'weekly-roundup' && result?.reason === 'roundup-publication-disabled') {
+      const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, holdCensus: result.census });
+      logLine(log, alerted ? 'roundup-hold-alerted' : 'roundup-hold-alert-skipped', { census: result.census });
+    }
+    logLine(log, 'success', { sha, result: result && { id: result.id ?? null, dryRun: !!result.dryRun, noChanges: !!result.noChanges, ...(result.cadenceMet !== undefined ? { cadenceMet: result.cadenceMet } : {}), ...(typeof result.reason === 'string' ? { reason: result.reason } : {}) } });
   } catch (error) {
-    const reason = error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : /^(?:runner hold active|topic queue exhausted; human followup required|topic publication pending; retry original slot|news resume snapshot changed|news post artifact missing; manual recovery required|no healthy news source|SEO code suggestion; human PR required|blog generated no post|blog generated no submission|gate blocked or rejected|publish or propagation pending|scratch output outside allowlist|scratch output too large|generator changed pinned commit)$/.test(error?.message) ? error.message : 'operational-error');
-    logLine(log, 'failure', { error: reason, ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit } : {}) });
-    const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required' });
+    const reason = failureReason(error);
+    const stuckSubmissionId = Number.isSafeInteger(error?.stuckSubmissionId) && error.stuckSubmissionId > 0 ? error.stuckSubmissionId : null;
+    logLine(log, 'failure', { error: reason, ...(stuckSubmissionId ? { submissionId: stuckSubmissionId } : {}), ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit } : {}) });
+    const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required', stuckSubmissionId });
     if (!alerted) logLine(log, 'alert-failed');
     throw new Error(`runner failed: ${job}/${target}/${slot}`);
   } finally {

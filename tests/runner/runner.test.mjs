@@ -5,14 +5,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, selectTopic, recordTopic, exhaustTopicOnNoPost, shouldExhaustTopicOnNoPost, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, copyGenerated, copyScratchTree, failureReason, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
 const read = (name) => fs.readFileSync(path.join(owned, name), 'utf8');
 
-test('six UTC jobs have the approved schedule', () => {
-  assert.deepEqual(Object.fromEntries(Object.entries(JOBS).map(([job, spec]) => [job, spec.calendar])), {
+test('six UTC jobs have the approved schedule and weekly-roundup has no timer', () => {
+  assert.equal(JOBS['weekly-roundup'].calendar, null);
+  assert.equal(JOBS['weekly-roundup'].stagingOnly, true);
+  assert.equal(fs.existsSync(path.join(owned, 'lv-runner-weekly-roundup.timer')), false, 'on-demand only: no timer unit');
+  const timed = Object.entries(JOBS).filter(([, spec]) => spec.calendar);
+  assert.deepEqual(Object.fromEntries(timed.map(([job, spec]) => [job, spec.calendar])), {
     'topic-discovery': 'Mon *-*-* 10:00:00 UTC',
     'seo-improvements': 'Mon *-*-* 10:11:00 UTC',
     'discover-businesses': 'Mon *-*-* 13:00:00 UTC',
@@ -20,7 +24,7 @@ test('six UTC jobs have the approved schedule', () => {
     'weekly-growth-report': 'Thu *-*-* 10:37:00 UTC',
     'weekly-blog': 'Sun,Wed *-*-* 11:00:00 UTC',
   });
-  for (const [job, spec] of Object.entries(JOBS)) {
+  for (const [job, spec] of timed) {
     const timer = read(`lv-runner-${job}.timer`);
     assert.match(timer, new RegExp(`OnCalendar=${spec.calendar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     assert.match(timer, new RegExp(`Unit=lv-runner@${job}:production:scheduled.service`));
@@ -32,6 +36,13 @@ test('on-demand and timer enter the same service and each scheduled occurrence g
   assert.match(read('launcher.sh'), /if \[\[ "\$slot" == scheduled \]\]; then slot="\$\(date -u \+%Y%m%d%H%M\)-scheduled"/);
   assert.match(read('lv-runner@.service'), /ExecStart=\/usr\/local\/libexec\/lv-runner-service %i/);
   assert.equal(slotKey('news', 'staging', '202609281217-scheduled'), 'runner:news:staging:202609281217-scheduled');
+});
+
+test('cadence start week comes only from the target-specific runner env file', () => {
+  const launcher = read('launcher.sh');
+  assert.match(launcher, /for file in \/etc\/lv-runner\.env "\/etc\/lv-runner-\$\{target\}\.env"; do/);
+  assert.match(launcher, /\[\[ "\$file" != "\/etc\/lv-runner-\$\{target\}\.env" \]\] \|\| unset CADENCE_START_ISO_WEEK\s+set -a; source "\$file"/);
+  assert.equal(failureReason(new Error('invalid cadence start week')), 'invalid cadence start week');
 });
 
 test('target guard rejects wrong DB, site, bypass, and GitHub write bindings', () => {
@@ -185,61 +196,6 @@ test('generator environment is limited and push has an invalid destination', () 
   assert.match(helper, /NoNewPrivileges=yes/);
 });
 
-test('topic attempts stay local and consumption waits for success', (t) => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-topic-test-'));
-  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
-  const statePath = path.join(temp, 'topic-state.json');
-  const queue = { topics: [{ kind: 'blog', title: 'A title', key: 'abc' }, { kind: 'blog', title: 'Another', key: 'def' }] };
-  const slot = '202609281100-topicabc';
-  assert.equal(selectTopic(queue, {}, 'staging').key, 'abc');
-  recordTopic(statePath, 'staging', queue.topics[0]);
-  let state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  assert.deepEqual(state.staging.abc, { attempts: 1, consumed: false });
-  reserveTopicSubmission(statePath, 'staging', queue.topics[0], slot, 17);
-  state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  assert.deepEqual(state.staging.abc, { attempts: 1, consumed: false, pendingSlot: slot, pendingSubmissionId: 17 });
-  assert.equal(selectTopic(queue, state, 'staging').key, 'def', 'next slot must not duplicate a published-pending topic');
-  const selectedPath = path.join(temp, 'topics', `${slot}.json`);
-  fs.mkdirSync(path.dirname(selectedPath));
-  fs.writeFileSync(selectedPath, JSON.stringify(queue.topics[0]));
-  assert.equal(consumeResumedBlogTopic(temp, 'staging', slot, {}, { id: 17, success: false }), false);
-  assert.equal(consumeResumedBlogTopic(temp, 'staging', slot, {}, { id: null, success: true }), false);
-  assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).staging.abc.consumed, false);
-  assert.equal(consumeResumedBlogTopic(temp, 'staging', slot, {}, { id: 17, success: true }), true);
-  state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  assert.deepEqual(state.staging.abc, { attempts: 1, consumed: true });
-  assert.equal(selectTopic(queue, state, 'staging').key, 'def');
-  recordTopic(statePath, 'staging', queue.topics[1]);
-  reserveTopicSubmission(statePath, 'staging', queue.topics[1], slot, 18);
-  clearTopicReservation(statePath, 'staging', queue.topics[1], 'other-slot');
-  assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).staging.def.pendingSlot, slot);
-  clearTopicReservation(statePath, 'staging', queue.topics[1], slot);
-  state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  assert.deepEqual(state.staging.def, { attempts: 1, consumed: false });
-  assert.equal(selectTopic({ topics: [queue.topics[1]] }, state, 'staging').key, 'def', 'terminal rejection releases reservation');
-});
-
-test('no-post exhausts a queued topic immediately without marking it published', (t) => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-topic-no-post-'));
-  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
-  const statePath = path.join(temp, 'topic-state.json');
-  const queue = { topics: [{ kind: 'blog', title: 'Unverifiable premise', key: 'first' }, { kind: 'blog', title: 'Supported premise', key: 'second' }] };
-  recordTopic(statePath, 'staging', queue.topics[0]);
-  exhaustTopicOnNoPost(statePath, 'staging', queue.topics[0]);
-  exhaustTopicOnNoPost(statePath, 'staging', queue.topics[0]);
-  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  assert.deepEqual(state.staging.first, { attempts: 3, consumed: false });
-  assert.equal(selectTopic(queue, state, 'staging').key, 'second');
-  exhaustTopicOnNoPost(statePath, 'staging', { key: null });
-  assert.equal(fs.readFileSync(statePath, 'utf8'), `${JSON.stringify(state)}\n`);
-  const noPost = new Error('blog generated no post');
-  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', { dryRun: false }, queue.topics[0], noPost), true);
-  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', { dryRun: true }, queue.topics[0], noPost), false);
-  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', {}, { title: 'manual', key: null }, noPost), false);
-  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', {}, queue.topics[0], new Error('generator failed')), false);
-  assert.equal(shouldExhaustTopicOnNoPost('news', {}, queue.topics[0], noPost), false);
-});
-
 test('weekly blog requires one new post relative to exported DB, not Git HEAD drift', () => {
   const exported = [{ slug: 'already-in-db' }];
   assert.equal(hasOneNewBlogPost(exported, exported), false);
@@ -273,7 +229,8 @@ test('trusted CLI errors preserve safe classes and guidance without raw candidat
 test('news preflight and artifact handoff are ordered before submit', () => {
   const runner = read('runner.mjs');
   const preflight = runner.indexOf("'--state', 'open,gating'");
-  const drafting = runner.indexOf("source('scripts/news-pilot/run.mjs'");
+  // weekly-roundup reuses the discovery call; the daily news draft must follow its own preflight.
+  const drafting = runner.indexOf("source('scripts/news-pilot/run.mjs'", preflight);
   assert.ok(preflight > 0 && drafting > preflight);
   assert.match(runner, /published\.published !== 1/);
   assert.match(runner, /submitAndGate\(job, target, slot, log, \['--news-out', publish\]\)/);
@@ -296,5 +253,38 @@ test('failure alert contains only a non-secret run reference and reports deliver
   assert.equal(suggested, true);
   assert.match(body.text, /code outside the data lane.*human PR required/);
   assert.doesNotMatch(body.text, /job failed|slack.example|invalid JSON/);
+  const held = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-roundup', target: 'staging',
+    slot: '202609281100-abcd1234', holdCensus: { candidatesSeen: 3, accepted: 1, byReason: { undated: 2 },
+      title: 'private High Park candidate', url: 'https://private.example/' } }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.equal(held, true);
+  assert.match(body.text, /publication held.*candidatesSeen":3.*undated":2/);
+  assert.doesNotMatch(body.text, /private|High Park|private.example|DB content job failed/);
+  const stuck = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging',
+    slot: '202609281100-abcd1234', stuckSubmissionId: 123 }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.equal(stuck, true);
+  assert.match(body.text, /submission #123 smoked but not current-live/);
+  assert.doesNotMatch(body.text, /slack.example|secret/);
+  await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging',
+    slot: '202609281100-abcd1234', stuckSubmissionId: 'private slug' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.doesNotMatch(body.text, /private slug|smoked but not current-live/);
   assert.equal(await alertFailure({ webhook: 'https://slack.example/secret', job: 'news', target: 'staging', slot: '202609281217-abcd1234' }, async () => { throw new Error('offline'); }), false);
+});
+
+test('runner failure classes stay a closed, non-secret set', () => {
+  assert.equal(failureReason(new Error('weekly content missed')), 'weekly content missed');
+  assert.equal(failureReason(new Error('roundup artifact inconsistent')), 'roundup artifact inconsistent');
+  for (const reason of ['prior content slot held', 'prior content publication pending', 'prior content backlog exceeds recovery budget', 'prior content smoke not current-live']) {
+    assert.equal(failureReason(new Error(reason)), reason);
+  }
+  assert.equal(failureReason(new Error('private candidate text https://secret.example')), 'operational-error');
+  assert.equal(failureReason(Object.assign(new Error('x'), { cliFailure: { reason: 'cli-claim' } })), 'cli-claim');
+});
+
+test('scheduled and on-demand slot names stay valid for every job, including weekly-roundup', () => {
+  for (const job of Object.keys(JOBS)) {
+    assert.equal(slotKey(job, 'staging', '202610041600-scheduled'), `runner:${job}:staging:202610041600-scheduled`);
+    assert.equal(slotKey(job, 'production', '20261004160000-abcd1234'), `runner:${job}:production:20261004160000-abcd1234`);
+  }
+  assert.throws(() => slotKey('weekly-roundupx', 'staging', '202610041600-scheduled'), /invalid run identity/);
+  assert.throws(() => slotKey('news', 'staging', 'bad slot!'), /invalid run identity/);
 });

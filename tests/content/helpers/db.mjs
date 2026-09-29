@@ -1,8 +1,9 @@
 import pg from 'pg';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { openDb } from '../../../scripts/content/db.mjs';
-const migration = fileURLToPath(new URL('../../../scripts/content/migrations/0001_content.sql', import.meta.url));
+const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../../scripts/content/migrations');
 export async function testDb() {
   const source = process.env.CONTENT_TEST_DATABASE_URL;
   if (!source) throw new Error('CONTENT_TEST_DATABASE_URL required');
@@ -16,8 +17,13 @@ export async function testDb() {
   url.pathname = `/${name}`;
   process.env.CONTENT_DATABASE_URL = url.href;
   const db = await openDb({ expectDb: name });
-  await db.query(await readFile(migration, 'utf8'));
-  await db.query("insert into content.schema_migrations(version) values('0001')");
+  const files = (await readdir(migrationsDir)).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort();
+  const versions = [];
+  for (const file of files) {
+    await db.query(await readFile(path.join(migrationsDir, file), 'utf8'));
+    versions.push(file.slice(0, 4));
+  }
+  await db.query('insert into content.schema_migrations(version) select v from unnest($1::text[]) v', [versions]);
   return { db, name, url: url.href, close: async () => {
     try {
       await db.close();

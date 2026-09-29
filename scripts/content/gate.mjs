@@ -12,7 +12,7 @@ import { buildReviewDocument, blobSha1 } from './review-document.mjs';
 import { lensesFor } from './lenses.mjs';
 import { makeRowRepairValidator } from './repair-adapter.mjs';
 import { describeRowContract } from './repair-rules.mjs';
-import { actorFor, checkKindPolicy, KIND_RULES, liveContext, policyDeps, recheckImages, sourceRefFor } from './submit.mjs';
+import { actorFor, blogDraftBindingErrors, checkKindPolicy, KIND_RULES, liveContext, policyDeps, recheckImages, sourceRefFor } from './submit.mjs';
 import { notifyFailure, propagate } from './deploy.mjs';
 import { postSlack } from './notify.mjs';
 import { lintPost } from '../blog-lint.mjs';
@@ -28,7 +28,7 @@ import { fileOf } from './repair-rules.mjs';
 
 // Automated kinds map to themselves; operator `manual` edits use the seo policy.
 export const POLICY_KIND = Object.freeze({
-  business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news',
+  business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news', roundup: 'roundup',
   'topic-discovery': 'topic-discovery', seo: 'seo', manual: 'seo',
 });
 
@@ -139,7 +139,44 @@ export function fixerPayload(items) {
 // ---------------------------------------------------------------------------
 // gateContent: g0-g8 driven only by DB state; every mutation carries the claim.
 // ---------------------------------------------------------------------------
-const GROUNDED = Object.freeze(['blog', 'blog-live', 'news']);
+const GROUNDED = Object.freeze(['blog', 'blog-live', 'news', 'roundup']);
+
+// Verified blog source-pack facts stored by trusted submit (submissions.context),
+// re-bounded here; a scratch sidecar never reaches the gate.
+export function blogPackEvidence(context) {
+  const pack = context?.sourcePack;
+  if (!pack || !Array.isArray(pack.sources)) return null;
+  const clip = (value, max) => String(value ?? '').slice(0, max);
+  const rows = (list) => (Array.isArray(list) ? list : []).slice(0, 12).map((claim) => ({ field: clip(claim?.field, 40), verbatim: clip(claim?.verbatim, 600) }));
+  return {
+    sourcePack: {
+      fingerprint: clip(pack.fingerprint, 64), topic: clip(pack.topic, 300), reserve: pack.reserve === true,
+      sources: pack.sources.slice(0, 12).map((source) => ({ id: clip(source?.id, 200), name: clip(source?.name, 200), claims: rows(source?.claims), premiseClaims: rows(source?.premiseClaims) })),
+    },
+  };
+}
+
+// Every round and every repair must stay bound to the verified pack stored at submit.
+// Fail closed: a blog that claims a pack (sourcePack facts or a cadence key) but has
+// no stored full pack cannot be checked, so it is refused rather than skipped.
+function packBindingErrors(kind, context, items, live, idempotencyKey) {
+  if (kind !== 'blog') return [];
+  const posts = items.filter((item) => item.dataset === 'posts');
+  const pack = context?.sourcePack?.pack;
+  if (!pack) {
+    if (!context?.sourcePack && !String(idempotencyKey ?? '').startsWith('cadence:')) return [];
+    return posts.map((item) => `data/posts.json: ${item.key}: blog draft is not bound to its source pack: missing-stored-pack`);
+  }
+  return posts.flatMap((item) => blogDraftBindingErrors(item.payload, pack, { live, now: new Date(), checkImage: false }).map((error) => `data/posts.json: ${item.key}: ${error}`));
+}
+
+function withPackReferences(references, evidence, businesses) {
+  const ids = new Set((evidence?.sourcePack?.sources ?? []).map((source) => source.id));
+  if (!ids.size) return references;
+  const seen = new Set(references.map((record) => record?.slug));
+  const cited = (businesses ?? []).filter((record) => ids.has(record?.slug) && !seen.has(record.slug)).slice(0, 12);
+  return [...references, ...cited];
+}
 const DECISION_STATE = { validation: 'rejected', lint: 'rejected', unrepairable: 'blocked', exhausted: 'blocked', 'not-converging': 'blocked', block: 'blocked' };
 
 export async function roundVector(db, id, round) {
@@ -334,7 +371,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         // g1 deterministic
         const policy = checkKindPolicy({ kind, items: candidates, ctx: context, live: live.live, deps: policyDeps({ kind, context: { root: live.root }, checkout }) });
         const imageErrors = await recheckImages({ db, kind, items: candidates, checkout, sourceRef: sourceRefFor(submission.target) });
-        const errors = [...policy.errors, ...imageErrors];
+        const errors = [...policy.errors, ...imageErrors, ...packBindingErrors(kind, context, candidates, live.live, submission.idempotency_key)];
         // g2 document
         const bases = await basePayloads(db, state.items);
         let doc;
@@ -361,7 +398,25 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         const lenses = lensesFor(kind, candidates[0].dataset);
         const references = grounded ? agent.selectReferenceRecords(doc.document, live.live.businesses ?? []) : [];
         const inventory = grounded ? await inventoryFor(live, candidates) : null;
-        const evidence = kind === 'news' ? trimEvidence(context.evidence) : null;
+        const evidence = kind === 'news' ? trimEvidence(context.evidence)
+          : kind === 'roundup' ? { submittedAt: context.temporalValidationNow ?? context.now,
+            isoWeek: context.isoWeek, weekStartUtc: context.weekStartUtc,
+            items: (context.items || []).map((item) => ({
+            title: String(item.title || '').slice(0, 300), location: String(item.location || '').slice(0, 200),
+            actor: String(item.actor || '').slice(0, 200), announcedAt: item.announcedAt,
+            announcedAtVerified: item.announcedAtVerified, announcedAtSourceUrl: item.announcedAtSourceUrl,
+            announcedAtSpan: String(item.announcedAtSpan || '').slice(0, 400), eventStart: item.eventStart,
+            eventStartDate: item.eventStartDate, eventStartVerified: item.eventStartVerified,
+            eventStartSourceUrl: item.eventStartSourceUrl, eventStartSpan: String(item.eventStartSpan || '').slice(0, 400),
+            eventEnd: item.eventEnd, eventConcluded: item.eventConcluded, riskFlags: item.riskFlags,
+            sources: item.sources?.map((source) => ({
+              canonicalUrl: source.canonicalUrl, publisher: String(source.publisher || '').slice(0, 200),
+              excerpt: String(source.excerpt || '').slice(0, 1200),
+            })), claims: item.claims?.map((claim) => ({
+              text: String(claim.text || '').slice(0, 600), sourceUrl: claim.sourceUrl,
+              span: String(claim.span || '').slice(0, 400),
+            })),
+          })) } : kind === 'blog' ? blogPackEvidence(context) : null;
         rt.onPhase(`review:${n}`);
         const verdict = script
           ? scriptedVerdict(script, n, doc.contentSha)
@@ -398,11 +453,21 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
       const roundRow = state.rounds.find((round) => round.round === n);
       const payload = fixerPayload(candidates);
       const files = payload.map((entry) => entry.file);
-      const validate = makeRowRepairValidator({
+      const validateRows = makeRowRepairValidator({
         kind, candidates, ctx: context, live: live.live,
         deps: policyDeps({ kind, context: { root: live.root }, checkout }),
       });
-      const references = grounded ? agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []) : [];
+      // A repaired blog draft must still be the post its source pack grounds.
+      const validate = (plan) => {
+        const check = validateRows(plan);
+        if (!check.ok) return check;
+        const unbound = packBindingErrors(kind, context, check.repaired, live.live, submission.idempotency_key);
+        return unbound.length ? { ok: false, errors: unbound, repaired: [] } : check;
+      };
+      // Pass the pack to the fixer and include its cited live business records
+      // in the ground-truth references rendered by the fixer prompt.
+      const fixEvidence = kind === 'blog' ? blogPackEvidence(context) : null;
+      const references = grounded ? withPackReferences(agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []), fixEvidence, live.live.businesses) : [];
       const inventory = grounded ? await inventoryFor(live, candidates) : null;
       const lintFindings = KIND_RULES[kind].lint
         ? candidates.flatMap((item) => lintPost(item.payload, { businesses: live.live.businesses ?? [], now: context.now ? new Date(context.now) : undefined }).findings)
@@ -416,7 +481,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
           repaired = check.repaired;
         } else {
           const result = await leased(() => fix({
-            kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings,
+            kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings, evidence: fixEvidence,
             schema: agent.rowRepairSchema(files), describeContract: describeRowContract,
             candidateKeys: candidates.map((item) => ({ file: fileOf(item.dataset), key: item.key })),
           }));
