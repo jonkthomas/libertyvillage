@@ -88,12 +88,19 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
           // Explicit single page: the caller owns paging and knows the page may be partial.
           result = await store.listPendingByKind(db,{target,kind,...(limit !== undefined ? {limit} : {}),...(afterId !== undefined ? {afterId} : {})});
         } else {
-          // Default: enumerate every page so a growing backlog never silently drops pending work.
+          // Default: enumerate pages under an explicit finite cap, probing one
+          // extra row for overflow so a stuck propagation lane fails closed
+          // with an error instead of an unbounded list or a silent truncation.
           result = [];
           for (;;) {
             const page = await store.listPendingByKind(db,{target,kind,afterId: result.length ? result[result.length-1] : null});
             result.push(...page);
             if (page.length < store.PENDING_NEWS_PAGE) break;
+            if (result.length >= store.PENDING_NEWS_BACKLOG_CAP) {
+              const overflow = await store.listPendingByKind(db,{target,kind,afterId: result[result.length-1],limit:1});
+              if (overflow.length) throw new store.ValidationError(`pending backlog exceeds ${store.PENDING_NEWS_BACKLOG_CAP} ids for kind ${kind}; propagation is stuck, investigate instead of truncating`);
+              break;
+            }
           }
         }
         break;
