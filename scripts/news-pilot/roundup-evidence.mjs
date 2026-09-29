@@ -27,12 +27,30 @@ const localDate = (ms) => {
   const { year, month, day } = torontoParts(ms);
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
-const fullDatesInSpan = (span) => [...String(span || '').matchAll(/\b\d{4}-\d{2}-\d{2}\b|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b/gi)]
-  .map(([raw]) => {
-    const parsed = Date.parse(raw.replace(/(\d)(?:st|nd|rd|th)\b/i, '$1'));
-    const date = Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : null;
-    return /^\d{4}-/.test(raw) && date !== raw ? null : date;
-  }).filter(Boolean);
+const FULL_DATE = /\b\d{4}-\d{2}-\d{2}\b|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b/gi;
+const MONTHS = new Map(['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].map((month, index) => [month, index + 1]));
+const fullDatesInSpan = (span) => [...String(span || '').matchAll(FULL_DATE)].map(([raw]) => {
+  const match = raw.match(/^(\w+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
+  const date = match ? `${match[3]}-${String(MONTHS.get(match[1].slice(0, 3).toLowerCase())).padStart(2, '0')}-${match[2].padStart(2, '0')}` : raw;
+  const parsed = Date.parse(date + 'T00:00:00.000Z');
+  return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === date ? date : null;
+}).filter(Boolean);
+/** A timed assertion needs a time in the cited passage, not just a calendar date. */
+export function sourceSpanProvesTime(span, instant) {
+  if (!Number.isFinite(instant)) return false;
+  const text = String(span || '');
+  const absolute = [...text.matchAll(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b/gi)]
+    .some(([value]) => Date.parse(value) === instant);
+  if (absolute) return true;
+  const local = torontoParts(instant);
+  if (!fullDatesInSpan(text).includes(localDate(instant))) return false;
+  return [...text.matchAll(/\b(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)\b|\b(\d{1,2}):(\d{2})\b/gi)]
+    .some(([, hour12, minute12, meridiem, hour24, minute24]) => {
+      const hour = meridiem ? Number(hour12) % 12 + (/^p/i.test(meridiem) ? 12 : 0) : Number(hour24);
+      const minute = Number(meridiem ? minute12 : minute24);
+      return hour === local.hour && minute === local.minute;
+    });
+}
 const sourceProves = (sources, url, span, dates) => {
   if (typeof span !== 'string' || !span.trim() || !fullDatesInSpan(span).some((date) => dates.includes(date))) return false;
   const cited = sources.find((s) => s.canonicalUrl === url && s.fetchOk === true && s.extractionSubstantive === true &&
@@ -43,6 +61,7 @@ const sourceProves = (sources, url, span, dates) => {
     String(s.excerpt || '').includes(span)).map((s) => s.publisherDomain)).size >= 2;
 };
 const RISK_CATEGORIES = new Set(['crime', 'safety', 'election', 'elections', 'civic-controversy', 'development-application']);
+const ELECTION_TEXT = /\b(?:elections?|electoral|ballots?|voters?|voting|candidates?|mayor(?:al)?|advance\s+poll(?:ing)?|polling\s+(?:place|station))\b/i;
 const NON_NEWS = new Set(['directory', 'query', 'landing-page', 'application', 'opinion', 'promotion']);
 const isoTime = (value) => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(value) && Number.isFinite(Date.parse(value));
 const canonical = (url) => { try { const u = new URL(url); u.hash = ''; return u.href.replace(/\/$/, ''); } catch { return ''; } };
@@ -62,9 +81,10 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
   if (detectNonEventLabels({ title: item?.title, snippet: item?.summary }).length) reasons.push('not-news');
   if (isDevelopmentApplication(item)) reasons.push('risky');
   if (!Array.isArray(item?.riskFlags)) reasons.push('risk-unassessed');
-  if (RISK_CATEGORIES.has(item?.category) || item?.weakSource || (item?.riskFlags || []).length ||
-    detectRiskFlags({ title: item?.title, snippet: [item?.summary, ...(item?.claims || []).map((c) => c.text),
-      ...sources.map((s) => s.excerpt)].join(' ') }).length) reasons.push('risky');
+  const riskText = [item?.title, item?.summary, ...(item?.claims || []).map((c) => c.text), ...sources.map((s) => s.excerpt)].join(' ');
+  if (RISK_CATEGORIES.has(String(item?.category || '').toLowerCase()) || ELECTION_TEXT.test(String(item?.category || '')) ||
+    ELECTION_TEXT.test(riskText) || item?.weakSource || (item?.riskFlags || []).length ||
+    detectRiskFlags({ title: item?.title, snippet: riskText }).length) reasons.push('risky');
   const local = scoreLocalRelevance({ title: item?.title, snippet: String(item?.location || '') + ' ' + String(item?.actor || '') + ' ' + String(item?.summary || '') });
   if (local.score < SCORE_CONFIG.minLocalRelevance || !String(item?.location || '').trim() || !String(item?.actor || '').trim()) reasons.push('not-local');
   if (!sources.length) reasons.push('weak-source');
@@ -95,7 +115,12 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
   const publicationProof = item?.announcedAtVerified === true && Number.isFinite(publicationDate) &&
     sourceProves(sources, item?.announcedAtSourceUrl, item?.announcedAtSpan,
       [new Date(publicationDate).toISOString().slice(0, 10), localDate(publicationDate)]);
-  const publicationMs = publicationProof ? Date.parse(item.announcedAt) : NaN;
+  // When only a date is cited, assume its earliest plausible instant; an uncited
+  // metadata time cannot extend the seven-day eligibility window.
+  const citedDate = publicationProof ? fullDatesInSpan(item.announcedAtSpan).find((date) =>
+    date === new Date(publicationDate).toISOString().slice(0, 10) || date === localDate(publicationDate)) : null;
+  const publicationMs = publicationProof ? (sourceSpanProvesTime(item.announcedAtSpan, publicationDate)
+    ? publicationDate : Math.min(Date.parse(citedDate + 'T00:00:00.000Z'), torontoMidnight(citedDate))) : NaN;
   const newsWindow = publicationMs >= nowMs - WEEK_MS && publicationMs <= nowMs &&
     (!item?.updatedOldPage || item?.substantiveDevelopment === true);
   const datedStart = item?.eventStartDate ? torontoMidnight(item.eventStartDate) : NaN;
@@ -105,7 +130,8 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
   const hasEvent = !!(item?.eventStart || item?.eventStartDate);
   const eventDate = item?.eventStartDate || (Number.isFinite(timedStart) ? localDate(timedStart) : null);
   const eventProof = hasEvent && item?.eventStartVerified === true && eventDate &&
-    sourceProves(sources, item?.eventStartSourceUrl, item?.eventStartSpan, [eventDate]);
+    sourceProves(sources, item?.eventStartSourceUrl, item?.eventStartSpan, [eventDate]) &&
+    (!item?.eventStart || sourceSpanProvesTime(item.eventStartSpan, timedStart));
   const eventWindow = eventProof && !item?.eventConcluded &&
     (item?.eventStartDate ? Number.isFinite(datedStart) && datedStart > nowMs && datedEnd <= nowMs + 14 * DAY_MS
       : Number.isFinite(timedStart) && timedStart > nowMs && timedStart < nowMs + 14 * DAY_MS);
@@ -174,18 +200,14 @@ export async function revalidateRoundupItems(items, { refetch } = {}) {
       const oldDigest = sha({ sources: item.sources.map((s) => [s.canonicalUrl, s.excerpt, s.extractionSubstantive, s.publisherDomain, s.fetchOk, s.urlUsable]),
         riskFlags: item.riskFlags, announcedAt: item.announcedAt, eventStart: item.eventStart, eventStartDate: item.eventStartDate,
         eventEnd: item.eventEnd, duplicateRelation: item.duplicateRelation ?? null });
-      const changedRisk = fresh.find((s) => s && Object.hasOwn(s, 'riskFlags'));
-      const changedDate = fresh.find((s) => s && Object.hasOwn(s, 'announcedAt'));
-      const changedEvent = fresh.find((s) => s && (Object.hasOwn(s, 'eventStart') || Object.hasOwn(s, 'eventStartDate') || Object.hasOwn(s, 'eventEnd')));
-      const changedRelation = fresh.find((s) => s && Object.hasOwn(s, 'duplicateRelation'));
       const newDigest = sha({ sources: fresh.map((s) => [s?.canonicalUrl, s?.excerpt, s?.extractionSubstantive, s?.publisherDomain, s?.fetchOk, s?.urlUsable]),
-        riskFlags: changedRisk ? changedRisk.riskFlags : item.riskFlags,
-        announcedAt: changedDate ? changedDate.announcedAt : item.announcedAt,
-        eventStart: changedEvent && Object.hasOwn(changedEvent, 'eventStart') ? changedEvent.eventStart : item.eventStart,
-        eventStartDate: changedEvent && Object.hasOwn(changedEvent, 'eventStartDate') ? changedEvent.eventStartDate : item.eventStartDate,
-        eventEnd: changedEvent && Object.hasOwn(changedEvent, 'eventEnd') ? changedEvent.eventEnd : item.eventEnd,
-        duplicateRelation: changedRelation ? changedRelation.duplicateRelation : item.duplicateRelation ?? null });
-      if (oldDigest !== newDigest) excluded.push({ item, reason: 'source-changed-rebuild' });
+        riskFlags: item.riskFlags, announcedAt: item.announcedAt, eventStart: item.eventStart, eventStartDate: item.eventStartDate,
+        eventEnd: item.eventEnd, duplicateRelation: item.duplicateRelation ?? null });
+      const changedFacts = fresh.some((source) => source &&
+        ['riskFlags', 'announcedAt', 'eventStart', 'eventStartDate', 'eventEnd', 'eventConcluded', 'duplicateRelation']
+          .some((key) => Object.hasOwn(source, key) && (key === 'eventConcluded'
+            ? source[key] === true : JSON.stringify(source[key]) !== JSON.stringify(item[key] ?? null))));
+      if (oldDigest !== newDigest || changedFacts) excluded.push({ item, reason: 'source-changed-rebuild' });
       else accepted.push(item);
     } catch { excluded.push({ item, reason: 'refetch-failed' }); }
   }

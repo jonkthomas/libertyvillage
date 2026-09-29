@@ -13,14 +13,23 @@ const NOW = '2026-09-30T12:00:00.000Z';
 const DATE = '2026-09-29T10:00:00Z';
 const body = (id, date) => `Liberty Village Community Association reported the ${id} event at Hanna Avenue in Liberty Village. Residents can find the ${id} event details at the local community space. Organizers shared a schedule for local visitors.${date ? ` This update is dated ${date.slice(0, 10)}.` : ''} The ${id} event is open to neighbours.${date ? '' : ' The article does not state a publication date.'}`;
 const html = (id, date = DATE, changed = false) => `<html><head>${date ? `<meta property="article:published_time" content="${date}">` : ''}<meta property="og:site_name" content="Local Publisher"></head><body><article><h1>Liberty Village ${id} event</h1><p>${body(id, date)}${changed ? ' The venue changed.' : ''}</p></article></body></html>`;
+const eventTimeText = (start) => {
+  if (!start.includes('T')) return '';
+  if (/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?$/.test(start)) {
+    const hour = Number(start.slice(11, 13));
+    return ` at ${hour % 12 || 12}:${start.slice(14, 16)} ${hour < 12 ? 'AM' : 'PM'}`;
+  }
+  return ' at ' + new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', hour: 'numeric',
+    minute: '2-digit', hour12: true }).format(Date.parse(start));
+};
 const eventHtml = (id, { announced = '2026-09-09T10:00:00Z', start = '2026-10-14T11:00:00Z',
-  end = null, venue = 'Liberty Village community space', name = `Liberty Village ${id} event`, passage = true } = {}) =>
+  end = null, venue = 'Liberty Village community space', name = `Liberty Village ${id} event`, passage = true, showTime = true } = {}) =>
   `<html><head>${announced ? `<meta property="article:published_time" content="${announced}">` : ''}` +
   `<script type="application/ld+json">${JSON.stringify({ '@type': 'Event', name, location: { name: venue },
     startDate: start, ...(end ? { endDate: end } : {}) })}</script></head><body><article><h1>${name}</h1>` +
   `<p>Liberty Village Community Association scheduled the ${id} event at ${venue}. ` +
   `Residents can find details for the ${id} event in Liberty Village. ` +
-  `${passage ? `The event is scheduled for ${start.slice(0, 10)} at ${venue}.` : 'The page does not state an event date.'} ` +
+  `${passage ? `The event is scheduled for ${start.slice(0, 10)}${showTime ? eventTimeText(start) : ''} at ${venue}.` : 'The page does not state an event date.'} ` +
   `${announced ? `The page was published ${announced.slice(0, 10)}.` : ''}</p></article></body></html>`;
 const candidate = (id, overrides = {}) => ({
   id, clusterId: id, title: `Liberty Village ${id} event`,
@@ -89,9 +98,12 @@ test('two verified items append one news roundup with submit-compatible evidence
   assert.match(posts[0].title, /news roundup/);
   assert.match(posts[0].content, /Local Publisher published this update on September 29, 2026\. It concerns Liberty Village Community Association in Liberty Village\./);
   assert.doesNotMatch(posts[0].content, /newly announced|this week/i);
-  assert.deepEqual(checkRoundupRecord({ item: { key: diskResult.slug }, record: posts[0],
+  const policy = (record) => checkRoundupRecord({ item: { key: diskResult.slug }, record,
     ctx: { isoWeek: diskResult.isoWeek, weekStartUtc: '2026-09-28T00:00:00.000Z', now: diskResult.now, items: diskPack.items },
-    live: { posts: [] }, news: { root: f.root, imageExists: () => true } }), []);
+    live: { posts: [] }, news: { root: f.root, imageExists: () => true } });
+  assert.deepEqual(policy(posts[0]), []);
+  const concealedDate = { ...posts[0], content: posts[0].content.replaceAll('September 29, 2026', 'recently').replaceAll('2026-09-29', 'recently') };
+  assert.ok(policy(concealedDate).includes('roundup item actual date missing'));
 });
 
 test('one eligible item appends an honestly labelled weekly update', async () => {
@@ -252,7 +264,7 @@ test('source-swapped claim is rejected by the unchanged submit policy', async ()
   assert.ok(errors.includes('roundup pack has no accepted items'));
 });
 
-describe('temporal policy (pending spec addendum)', () => {
+describe('approved rolling and upcoming temporal policy', () => {
   test('news at 6d23h passes and 7d+1s fails; news wins over a distant future event', () => {
     const nowMs = Date.parse(NOW);
     const news = { announcedAtVerified: true, eventStartVerified: true,
@@ -286,23 +298,25 @@ describe('temporal policy (pending spec addendum)', () => {
     });
   });
 
-  test('writer holds addendum-eligible prior-week news until shared validator accepts it', async () => {
+  test('writer publishes prior-week news within the rolling seven-day window', async () => {
     const f = fixture([candidate('prior')]);
     const prior = '2026-09-27T10:00:00Z';
     const { diskResult, diskPack } = await execute(f, { 'https://example.org/prior': html('prior', prior) });
-    assert.equal(diskResult.decision, 'hold');
-    assert.equal(diskResult.hold.reason, 'shared-temporal-policy');
+    assert.equal(diskResult.decision, 'single-update');
+    assert.equal(diskResult.published, 1);
+    assert.equal(diskResult.hold, undefined);
     assert.equal(diskResult.census.temporalCategories['news-update'], 1);
     assert.equal(diskPack.items.length, 1);
     assert.equal(diskPack.items[0].announcedAt, '2026-09-27T10:00:00.000Z');
-    assert.equal(JSON.parse(fs.readFileSync(f.postsFile)).length, 0);
+    assert.equal(JSON.parse(fs.readFileSync(f.postsFile)).length, 1);
   });
 
-  test('old announcement with verified +13d23h event is temporally eligible but held by shared policy', async () => {
+  test('old announcement with verified +13d23h event publishes a weekly update', async () => {
     const f = fixture([candidate('future', { eventStart: '2026-10-14T11:00:00Z' })]);
     const { diskResult, diskPack } = await execute(f, { 'https://example.org/future': eventHtml('future') });
-    assert.equal(diskResult.decision, 'hold');
-    assert.equal(diskResult.hold.reason, 'shared-temporal-policy');
+    assert.equal(diskResult.decision, 'single-update');
+    assert.equal(diskResult.published, 1);
+    assert.equal(diskResult.hold, undefined);
     assert.equal(diskResult.census.temporalCategories['upcoming-event'], 1);
     assert.equal(diskPack.items.length, 1);
     const item = diskPack.items[0];
@@ -313,7 +327,21 @@ describe('temporal policy (pending spec addendum)', () => {
     const paragraph = contextParagraph(item, 'upcoming-event');
     assert.match(paragraph, /According to example\.org, it is scheduled for October 14, 2026 at 7:00 a\.m\. EDT at Liberty Village community space\./);
     assert.doesNotMatch(paragraph, /https?:|newly announced|this week/i);
-    assert.equal(JSON.parse(fs.readFileSync(f.postsFile)).length, 0);
+    assert.equal(JSON.parse(fs.readFileSync(f.postsFile)).length, 1);
+  });
+
+  test('timestamp metadata cannot invent a time absent from the verified event passage', async () => {
+    const f = fixture([candidate('dateonly', { eventStart: '2026-10-02T19:30:00Z' })]);
+    const { diskPack, diskResult } = await execute(f, { 'https://example.org/dateonly': eventHtml('dateonly', {
+      announced: null, start: '2026-10-02T19:30:00Z', showTime: false,
+    }) });
+    assert.equal(diskPack.items[0].eventStartDate, '2026-10-02');
+    assert.equal(Object.hasOwn(diskPack.items[0], 'eventStart'), false);
+    assert.equal(diskResult.published, 1);
+    const nearCutoff = fixture([candidate('nearcutoff', { eventStart: '2026-10-14T11:00:00Z' })]);
+    const result = await execute(nearCutoff, { 'https://example.org/nearcutoff': eventHtml('nearcutoff', { showTime: false }) });
+    assert.equal(result.diskResult.decision, 'hold');
+    assert.equal(result.diskResult.published, 0);
   });
 
   test('event at +14d is excluded; date-only future and Toronto local timed starts are parsed without guessing hours', async () => {
@@ -324,10 +352,12 @@ describe('temporal policy (pending spec addendum)', () => {
     const accepted = await execute(dated, { 'https://example.org/dated': eventHtml('dated', { announced: null, start: '2026-10-02' }) });
     assert.equal(accepted.diskPack.items[0].eventStartDate, '2026-10-02');
     assert.equal(Object.hasOwn(accepted.diskPack.items[0], 'eventStart'), false);
-    assert.equal(accepted.diskResult.hold.reason, 'shared-temporal-policy');
+    assert.equal(accepted.diskResult.decision, 'single-update');
+    assert.equal(accepted.diskResult.published, 1);
     const timed = fixture([candidate('timed', { eventStart: '2026-10-02T19:30:00' })]);
     const timedOutput = await execute(timed, { 'https://example.org/timed': eventHtml('timed', { announced: null, start: '2026-10-02T19:30:00' }) });
     assert.equal(timedOutput.diskPack.items[0].eventStart, '2026-10-02T23:30:00.000Z');
+    assert.equal(timedOutput.diskResult.published, 1);
   });
 
   test('recent news is selected before upcoming-event even when its event is more than 14 days away', async () => {

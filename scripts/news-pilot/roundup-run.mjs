@@ -9,7 +9,7 @@ import { createRequestBudget, fetchWithRetry } from './fetch.mjs';
 import { canonicalUrl, publisherDomain } from './normalize.mjs';
 import { detectRiskFlags, isDevelopmentApplication } from './score.mjs';
 import { isUnusableUrl } from './url-guard.mjs';
-import { validateRoundupPack, revalidateRoundupItems, roundupPackDigest } from './roundup-evidence.mjs';
+import { validateRoundupPack, revalidateRoundupItems, roundupPackDigest, sourceSpanProvesTime } from './roundup-evidence.mjs';
 import { isoWeekOf, roundupSlug, planRoundup, buildRoundupPost } from './roundup.mjs';
 import { appendPostToPostsJson } from './publish.mjs';
 import { checkRoundupRecord } from '../content/submit.mjs';
@@ -155,7 +155,7 @@ function verifiedEventWindow(html, excerpt, title) {
         const rawStart = value.startDate;
         if (typeof rawStart !== 'string') continue;
         const span = matchingSpan(excerpt, rawStart);
-        if (!span) continue;
+        if (!span || (!/\bevent\b/i.test(span) && !span.includes(venue))) continue;
         let start;
         if (/^\d{4}-\d\d-\d\d$/.test(rawStart)) start = { eventStartDate: rawStart };
         else if (/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?$/.test(rawStart)) {
@@ -164,6 +164,11 @@ function verifiedEventWindow(html, excerpt, title) {
         } else if (/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?(?:Z|[+-]\d\d:\d\d)$/.test(rawStart) &&
           Number.isFinite(Date.parse(rawStart))) start = { eventStart: new Date(rawStart).toISOString() };
         if (!start) continue;
+        if (start.eventStart && !sourceSpanProvesTime(span, Date.parse(start.eventStart))) {
+          const parts = Object.fromEntries(torontoFormatter.formatToParts(Date.parse(start.eventStart))
+            .filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]));
+          start = { eventStartDate: `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}` };
+        }
         const rawEnd = value.endDate;
         let eventEnd;
         if (typeof rawEnd === 'string') {

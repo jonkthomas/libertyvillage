@@ -9,9 +9,10 @@ import { validateSubmittedPost } from '../supervisor/pi-session.mjs';
 import { validateDraft } from '../news-pilot/draft-validate.mjs';
 import { AUTO_PUBLISH_CONFIG, evaluatePublishReadyDraft } from '../news-pilot/publish-gate.mjs';
 import { structuredData } from '../automation/news-preflight.mjs';
-import { loadSiteLinkIndex } from '../news-pilot/draft-evidence.mjs';
+import { loadSiteLinkIndex, buildSourceEvidence } from '../news-pilot/draft-evidence.mjs';
+import { createRequestBudget, fetchWithRetry } from '../news-pilot/fetch.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
-import { roundupPackDigest, validateRoundupPack } from '../news-pilot/roundup-evidence.mjs';
+import { roundupPackDigest, validateRoundupPack, revalidateRoundupItems } from '../news-pilot/roundup-evidence.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { validateRecord } from './validate.mjs';
@@ -170,7 +171,7 @@ export function checkRoundupRecord({ item, record, ctx, live, news }) {
       isoWeekOf(ctx.weekStartUtc).weekStartUtc !== ctx.weekStartUtc) errors.push('roundup weekStartUtc mismatch');
   } catch { errors.push('roundup ISO week is invalid'); }
   if (item.key !== expected || record?.slug !== expected) errors.push('roundup key/slug mismatch');
-  const nowMs = Date.parse(ctx.now ?? '');
+  const nowMs = Date.parse(ctx.temporalValidationNow ?? ctx.now ?? '');
   if (!Number.isFinite(nowMs) || isoWeekOf(nowMs).isoWeek !== ctx.isoWeek) errors.push('roundup now must be in its ISO week');
   if (typeof record?.image !== 'string' || !record.image.startsWith('/images/') ||
     !news || typeof news.imageExists !== 'function' || !news.imageExists(record.image))
@@ -202,12 +203,25 @@ export function checkRoundupRecord({ item, record, ctx, live, news }) {
   for (const url of everyBodyUrl) if (!bodyUrls.includes(url)) errors.push('roundup source URL must be a visible Markdown citation');
   const parts = body.split(/^##\s+\d+\.\s+.+$/m).slice(1);
   accepted.forEach((entry, index) => {
-    const partUrls = [...String(parts[index] || '').matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((match) => match[1]);
+    const part = String(parts[index] || '');
+    const partUrls = [...part.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((match) => match[1]);
     const own = new Set(entry.sources.map((source) => source.canonicalUrl));
     if (!sections[index]?.includes(entry.title)) errors.push('roundup section title does not match item');
     if (!partUrls.length || partUrls.some((url) => !own.has(url))) errors.push('roundup section has cross-item or missing citation');
-    for (const claim of entry.claims) if (!String(parts[index] || '').includes(claim.text) ||
+    for (const claim of entry.claims) if (!part.includes(claim.text) ||
       !partUrls.includes(claim.sourceUrl)) errors.push('roundup claim lacks own-source citation');
+    const upcoming = checked.accepted[index]?.temporalCategory === 'upcoming-event';
+    const actualInstant = upcoming ? entry.eventStartDate ?? entry.eventStart : entry.announcedAt;
+    const parsedDate = Date.parse(actualInstant ?? '');
+    if (!Number.isFinite(parsedDate)) errors.push('roundup item actual date missing');
+    else {
+      const actualDate = upcoming && entry.eventStartDate ? entry.eventStartDate
+        : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric',
+          month: '2-digit', day: '2-digit' }).format(parsedDate);
+      const humanDate = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', year: 'numeric',
+        month: 'long', day: 'numeric' }).format(Date.parse(actualDate + 'T12:00:00.000Z'));
+      if (!part.includes(actualDate) && !part.includes(humanDate)) errors.push('roundup item actual date missing');
+    }
   });
   if (accepted.length === 1 && (!/weekly update/i.test(record?.title || '') ||
     !/weekly update/i.test(record?.description || '') || /roundup/i.test((record?.title || '') + ' ' + (record?.description || ''))))
@@ -373,7 +387,8 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
     const ageMs = submittedAt - Date.parse(result.now);
     if (ageMs < 0 || ageMs > ROUNDUP_REVALIDATE_MAX_AGE_MS)
       throw new ValidationError('roundup pack must be revalidated before submit');
-    return { now: result.now, isoWeek: result.isoWeek, weekStartUtc: week.weekStartUtc, items: pack.items, packDigest };
+    return { now: result.now, temporalValidationNow: new Date(submittedAt).toISOString(), isoWeek: result.isoWeek,
+      weekStartUtc: week.weekStartUtc, items: pack.items, packDigest };
   }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
@@ -382,7 +397,7 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
 
 // opts: {kind, idempotencyKey, actor, dir | recordFile+dataset+baseline, topicKey, generatedAt,
 // newsOut}; returns {result, exitCode}. Never gates.
-export async function submitContent(db, opts, { env = process.env, clock = Date.now, checkout = process.cwd() } = {}) {
+export async function submitContent(db, opts, { env = process.env, clock = Date.now, checkout = process.cwd(), roundupRefetch } = {}) {
   const kind = opts.kind;
   if (!KIND_RULES[kind]) throw new ValidationError(`unsupported submit kind: ${kind}`);
   const idempotencyKey = opts.idempotencyKey;
@@ -414,6 +429,22 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
     ? await prepareImages({ items, root, sourceRef, registry, resolveAssets: (list) => resolveAssets(db, list), assetExists: assetExistsIn(db) })
     : { items, assets: [], report: [] };
   const context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey });
+  if (kind === 'roundup') {
+    const existing = (await db.query('select 1 from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+    if (!existing) {
+      const budget = createRequestBudget(80);
+      const refetch = roundupRefetch ?? (async (url, source) => {
+        const fetched = await fetchWithRetry(url, { budget, guardPublicHttp: true, sourceId: 'roundup-submit',
+          maxRetries: 1, timeoutMs: 12_000 });
+        const evidence = buildSourceEvidence({ canonicalUrl: url, publisher: source.publisher }, fetched);
+        return { ...source, excerpt: evidence.bodyExcerpt, extractionSubstantive: evidence.extractionSubstantive,
+          fetchOk: evidence.fetchOk, urlUsable: evidence.urlUsable };
+      });
+      const checked = await revalidateRoundupItems(context.items, { refetch });
+      if (checked.excluded.length || checked.accepted.length !== context.items.length)
+        throw new ValidationError('roundup source evidence changed or unreachable; rebuild before submit');
+    }
+  }
   const liveCtx = await liveContext(db);
   try {
     const policy = checkKindPolicy({

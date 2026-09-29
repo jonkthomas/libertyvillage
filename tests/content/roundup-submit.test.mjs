@@ -14,7 +14,8 @@ const { gateContent } = await import('../../scripts/content/gate.mjs');
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const now = '2026-09-30T12:00:00.000Z';
 const submitClock = Date.parse(now) + 60_000;
-const submit = (db, opts, at = submitClock) => submitContent(db, opts, { checkout: ROOT, clock: () => at });
+const submit = (db, opts, at = submitClock, refetch = async (_, source) => ({ ...source })) =>
+  submitContent(db, opts, { checkout: ROOT, clock: () => at, roundupRefetch: refetch });
 const source = (id) => ({
   canonicalUrl: 'https://example.org/weekly/' + id, publisher: 'Example', publisherDomain: 'example.org',
   sourceTier: 'official', excerpt: 'September 29, 2026: Liberty Village community group announced a new local event at Hanna Avenue.',
@@ -26,7 +27,8 @@ const item = (id) => ({
   announcedAt: '2026-09-29T10:00:00.000Z', announcedAtVerified: true,
   announcedAtSourceUrl: source(id).canonicalUrl, announcedAtSpan: 'September 29, 2026',
   riskFlags: [], fingerprint: id, sources: [source(id)],
-  claims: [{ text: 'The group announced a local event.', sourceUrl: source(id).canonicalUrl, span: 'announced a new local event' }],
+  claims: [{ text: 'The group announced a local event on September 29, 2026.', sourceUrl: source(id).canonicalUrl,
+    span: 'announced a new local event' }],
 });
 const write = (file, value) => fs.writeFileSync(file, JSON.stringify(value));
 
@@ -93,7 +95,9 @@ test('DB submit accepts cross-Monday verified news and rejects a swapped date pa
   try {
     const older = { ...item('cross-monday'), announcedAt: '2026-09-27T23:00:00.000Z',
       announcedAtSpan: 'September 27, 2026', sources: [{ ...source('cross-monday'), excerpt:
-        'September 27, 2026: Liberty Village community group announced a new local event at Hanna Avenue.' }] };
+        'September 27, 2026: Liberty Village community group announced a new local event at Hanna Avenue.' }],
+      claims: [{ text: 'The group announced a local event on September 27, 2026.',
+        sourceUrl: source('cross-monday').canonicalUrl, span: 'announced a new local event' }] };
     const f = filesFor([older]);
     const accepted = await submit(ctx.db, { ...f.opts, kind: 'roundup', actor: 'uat:roundup', idempotencyKey: 'cross-monday' });
     assert.ok(accepted.result.submissionId);
@@ -142,6 +146,28 @@ test('roundup submit requires same-week evidence revalidated within six hours, b
     const stored = (await ctx.db.query('select context from content.submissions where id=$1', [first.result.submissionId])).rows[0].context;
     assert.deepEqual(stored, originalContext);
     assert.equal(stored.now, now);
+    assert.equal(stored.temporalValidationNow, new Date(Date.parse(now) + ROUNDUP_REVALIDATE_MAX_AGE_MS).toISOString());
+  } finally { await ctx.closeAll(); }
+});
+
+test('submit checks the actual instant and re-fetches every source before a new submission', async () => {
+  const ctx = await setup();
+  try {
+    const event = { ...item('upcoming'), announcedAt: '2026-09-08T10:00:00.000Z', announcedAtSpan: 'September 8, 2026',
+      eventStart: '2026-09-30T13:00:00.000Z', eventStartVerified: true,
+      eventStartSourceUrl: source('upcoming').canonicalUrl,
+      eventStartSpan: 'September 30, 2026 at 9:00 a.m.',
+      sources: [{ ...source('upcoming'), excerpt:
+        'September 8, 2026: Liberty Village community group announced a new local event at Hanna Avenue. September 30, 2026 at 9:00 a.m. is its verified start.' }] };
+    const f = filesFor([event]);
+    await assert.rejects(submit(ctx.db, { ...f.opts, kind: 'roundup', actor: 'uat:roundup',
+      idempotencyKey: 'event-already-started' }, Date.parse(now) + 5 * 3600000), /roundup pack has no accepted items/);
+    const changed = async (_, s) => ({ ...s, excerpt: s.excerpt + ' Changed venue.' });
+    await assert.rejects(submit(ctx.db, { ...f.opts, kind: 'roundup', actor: 'uat:roundup',
+      idempotencyKey: 'source-changed' }, submitClock, changed), /source evidence changed or unreachable/);
+    const failed = async () => { throw new Error('offline'); };
+    await assert.rejects(submit(ctx.db, { ...f.opts, kind: 'roundup', actor: 'uat:roundup',
+      idempotencyKey: 'source-unreachable' }, submitClock, failed), /source evidence changed or unreachable/);
   } finally { await ctx.closeAll(); }
 });
 
