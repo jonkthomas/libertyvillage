@@ -1,5 +1,5 @@
 /** Read-only independent check of committed LV geography against City WGS84 CSVs. */
-import { createReadStream, readFileSync } from 'node:fs';
+import { createReadStream, readFileSync, realpathSync } from 'node:fs';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -122,6 +122,6 @@ async function main() {
   console.log(`verified ring=${ring.length} addressPairs=${foundAddresses.size} centrelineIds=${foundIds.size} segments=${segments.length}`);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   main().catch((error) => { console.error(error); process.exitCode = 1; });
 }
