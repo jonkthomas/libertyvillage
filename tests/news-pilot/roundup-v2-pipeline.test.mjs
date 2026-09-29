@@ -24,6 +24,18 @@ test('reasoner validates exact signal and record, and treats JSON parse wrapper 
   assert.deepEqual(result.forms, [form]);
 });
 
+test('six-call model budget preserves IG even after a large road feed', async () => {
+  const large = Array.from({ length: 70 }, (_, index) => ({ ...signal, signalId: `road-${index}`, sourceId: 'rv2-road-restrictions' }));
+  large.push({ ...signal, signalId: 'ig-last', sourceId: 'ig:libertyvillagebia' });
+  const offered = [];
+  const result = await reasonRoundupSignals(large, { resolved: { ok: true, provider: { id: 'mock' } },
+    callModel: async ({ userText }) => { offered.push(...JSON.parse(userText).map((s) => s.signalId));
+      return { ok: true, text: '{"forms":[]}' }; } });
+  assert.ok(offered.includes('ig-last'));
+  assert.equal(offered.length, 60);
+  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 11);
+});
+
 test('writer post-check refuses unsupported impact and in/near mismatch', () => {
   const unit = { identityKey: 'occ:test', verdict: 'adjacent' };
   assert.deepEqual(checkRoundupDraft({ intro: 'Near Liberty Village.', units: [

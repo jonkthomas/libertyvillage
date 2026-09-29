@@ -21,7 +21,8 @@ export function parseRoundupV2Args(argv) {
   const args = { root: ROOT, dryRun: false, collect: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--dry-run' || arg === '--collect') args[arg.slice(2).replace('-', '')] = true;
+    if (arg === '--dry-run') args.dryRun = true;
+    else if (arg === '--collect') args.collect = true;
     else if (arg === '--help' || arg === '-h') args.help = true;
     else {
       const match = /^--(run|out|root|now|image)=(.*)$/.exec(arg);

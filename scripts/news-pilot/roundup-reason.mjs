@@ -1,4 +1,5 @@
 import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './draft-model.mjs';
+import { ROUNDUP_SOURCES } from './sources.mjs';
 
 const KINDS = new Set(['news-update', 'event', 'restriction', 'alert']);
 const TYPES = new Set(['event', 'class', 'concert', 'sports', 'expo', 'community', 'opening', 'closure', 'road', 'transit', 'project', 'news']);
@@ -41,11 +42,25 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
   if (!signals.length) return { forms: [], excluded: [] };
   const model = resolved || await resolveModelProvider(env);
   if (!model.ok) throw new Error(`roundup_reason_model_unavailable:${model.error}`);
-  const forms = [], excluded = [];
-  // Six calls maximum. A larger source census is refused, not silently truncated.
-  if (signals.length > 60) throw new Error('roundup_reason_signal_budget_exceeded');
-  for (let at = 0; at < signals.length; at += 10) {
-    const batch = signals.slice(at, at + 10);
+  // Preserve each source family when a large road feed would otherwise consume
+  // all six calls before any venue, Instagram, or news lead reaches reasoning.
+  const familyOf = (signal) => {
+    const source = ROUNDUP_SOURCES.find((entry) => entry.id === signal.sourceId);
+    return source?.identityKind === 'road-feed' ? 'road' : source?.identityKind === 'transit-feed' ? 'transit'
+      : source?.parse === 'ig-post' ? 'ig' : source?.identityKind === 'news-discovery' ? 'news' : 'other';
+  };
+  const quotas = { road: 12, transit: 6, ig: 16, news: 12, other: 14 };
+  const selected = new Set();
+  for (const [family, cap] of Object.entries(quotas)) {
+    let count = 0;
+    for (const signal of signals) if (familyOf(signal) === family && count++ < cap) selected.add(signal);
+  }
+  for (const signal of signals) if (selected.size < 60) selected.add(signal);
+  const queue = [...selected];
+  const forms = [], excluded = signals.filter((s) => !selected.has(s))
+    .map((s) => ({ signalId: s.signalId, reason: 'reason-budget' }));
+  for (let at = 0; at < queue.length; at += 10) {
+    const batch = queue.slice(at, at + 10);
     const input = batch.map((s) => ({ signalId: s.signalId, sourceId: s.sourceId, url: s.url,
       records: (s.records || []).map((r) => ({ recordId: r.recordId, text: r.text, typed: r.typed })) }));
     const remaining = deadline - Date.now();
