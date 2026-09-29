@@ -712,6 +712,11 @@ async function callOpenAiCompletions({
         model,
         max_tokens: maxTokens,
         temperature: 0.2,
+        // DeepSeek's current flash-backed chat alias intermittently emits
+        // non-JSON tool markers in a plain-text probe. Its JSON-object mode
+        // keeps the independent critic's probe and findings parseable without
+        // changing other OpenAI-compatible providers.
+        ...(providerId === 'deepseek' ? { response_format: { type: 'json_object' } } : {}),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userText },
