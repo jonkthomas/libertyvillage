@@ -3,7 +3,8 @@ import test from 'node:test';
 
 import { isGeneratorKind } from '../../scripts/automation/candidate-state.mjs';
 import {
-  appendDiscoveredTopics, buildSerpApiPaaEntries,
+  appendDiscoveredTopics, buildSerpApiPaaEntries, checkTopicGroundability,
+  reserveGuideEligibility, intentFingerprint,
 } from '../../scripts/automation/topic-queue.mjs';
 import { classifyFindings, preflightDecision } from '../../scripts/automation/preflight.mjs';
 import { GATE_MODEL, KIND_POLICIES } from '../../scripts/automation/constants.mjs';
@@ -139,4 +140,36 @@ test('topic-discovery no-fixer policy reaches the runtime finding classifier', (
     changedFiles: ['data/topic-queue.json'],
     verdict: rejected,
   }), 'unrepairable');
+});
+
+test('groundability rejects malformed geography, outside places, navigation and duplicate intent', () => {
+  const businesses = [{ id: 'cafe', name: 'Good Cafe', live: true, description: 'Local cafe.' }];
+  const check = (title, more = {}) => checkTopicGroundability({ title, kind: 'blog', businesses, ...more });
+  for (const title of [
+    'Best cafes near the stadium Liberty Village Toronto',
+    'Liberty Village Liberty Village brunch',
+  ]) assert.match(check(title).reason, /malformed/);
+  assert.match(check('Best brunch in Parkdale').reason, /outside/);
+  assert.match(check('Good Cafe hours').reason, /navigation/);
+  assert.match(check('Liberty Village cafes', { livePosts: [{ title: 'Cafes in Liberty Village' }] }).reason, /duplicate/);
+  assert.match(check('Liberty Village cafes', { consumedFingerprints: [intentFingerprint('Liberty Village cafes')] }).reason, /duplicate/);
+});
+
+test('operational claims require two supporting live records and reserve guide needs six facts', () => {
+  const records = [
+    { id: 'one', live: true, name: 'One', address: '1 Liberty St', hours: 'Happy hour 4-6', description: 'Patio and brunch.' },
+    { id: 'two', live: true, name: 'Two', address: '2 Liberty St', description: 'Happy hour 5-7. Patio dining.' },
+    { id: 'three', live: true, name: 'Three', website: 'https://example.com', phone: '416-555-0100' },
+  ];
+  const check = (title, businesses = records) => checkTopicGroundability({ title, kind: 'blog', businesses });
+  assert.equal(check('Pet-friendly Liberty Village cafes').ok, false);
+  assert.deepEqual(check('Happy hour in Liberty Village').supportingRecordIds, ['one', 'two']);
+  assert.equal(check('Happy hour in Liberty Village', records.slice(0, 1)).ok, false);
+  const reserve = reserveGuideEligibility({ businesses: records });
+  assert.equal(reserve.ok, true);
+  assert.equal(reserve.recordIds.length, 3);
+  assert.ok(reserve.facts.length >= 6);
+  assert.equal(reserveGuideEligibility({ businesses: records.slice(0, 2) }).ok, false);
+  assert.equal(reserveGuideEligibility({ businesses: [{ ...records[0], live: false }, ...records.slice(1)] }).ok, false);
+  assert.equal(reserve.facts.some((fact) => fact.field === 'price'), false);
 });

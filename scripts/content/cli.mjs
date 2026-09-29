@@ -8,9 +8,11 @@ import { verifyParity } from './parity.mjs';
 import { exportContent } from './export.mjs';
 import { restoreSnapshot } from './restore-snapshot.mjs';
 import { registry } from './canonical.mjs';
+import * as cadence from './cadence.mjs';
 const migrationsDir = path.dirname(fileURLToPath(new URL('./migrations/0001_content.sql',import.meta.url)));
 function parse(argv) {
   const [command,...rest] = argv;
+  if (command === 'cadence' && rest[0] && !rest[0].startsWith('--')) rest.shift();
   const opts = {};
   for (let i=0;i<rest.length;i++) {
     if (!rest[i].startsWith('--')) throw new store.ValidationError(`unexpected argument: ${rest[i]}`);
@@ -57,6 +59,8 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
     return { result:await restoreSnapshot({from:required(opts.from,'--from'),root:required(opts.root,'--root')}),exitCode:0 };
   }
   const mutators = new Set(['migrate','seed','submit','gate','deploy','unpublish','rollback','gc-assets','reset']);
+  const cadenceMutators = new Set(['reserve','renew','release','attempt','attach','outcome','deadline','deliver-alerts']);
+  if (command === 'cadence' && cadenceMutators.has(argv[1])) mutators.add('cadence');
   const expectDb = opts.expectDb ?? process.env.CONTENT_DB_NAME;
   const url = process.env[command === 'migrate' || command === 'reset' ? 'CONTENT_DATABASE_URL_UNPOOLED' : 'CONTENT_DATABASE_URL'];
   const host = url ? new URL(url).hostname : null;
@@ -69,6 +73,43 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
     if ((target === 'production') !== (process.env.CONTENT_SITE_URL === 'https://libertyvillage.co')) throw new TargetError('site URL target mismatch');
     let result,exitCode=0;
     switch(command) {
+      case 'cadence': {
+        const sub = required(argv[1], 'cadence subcommand');
+        if (opts.observations) throw new store.ValidationError('cadence observations must come from hosted alias');
+        const weekStart = opts.weekStart ?? cadence.weekStartUtc(new Date());
+        const slotRef = { target, weekStart, lane: opts.lane, slotNumber: Number(opts.slotNumber) };
+        const aliasObserver = () => cadence.createAliasObserver({ siteUrl: process.env.CONTENT_SITE_URL,
+          bypass: process.env.CONTENT_SITE_BYPASS, fetchImpl: delegates.fetchImpl });
+        switch (sub) {
+          case 'reserve': result = await cadence.reserveSlot(db, { ...slotRef, owner: required(opts.owner, '--owner'), leaseSeconds: opts.leaseSeconds ? Number(opts.leaseSeconds) : undefined }); break;
+          case 'renew': result = await cadence.renewSlot(db, slotRef, required(opts.token, '--token'), { leaseSeconds: opts.leaseSeconds ? Number(opts.leaseSeconds) : undefined }); break;
+          case 'release': result = await cadence.releaseSlot(db, slotRef, required(opts.token, '--token')); break;
+          case 'attempt': result = await cadence.recordAttempt(db, { slotRef, token: required(opts.token, '--token'), intentFingerprint: required(opts.intentFingerprint, '--intent-fingerprint'), topicKey: required(opts.topicKey, '--topic-key'), sourcePackDigest: required(opts.sourcePackDigest, '--source-pack-digest') }); break;
+          case 'attach': result = await cadence.attachSubmission(db, { idempotencyKey: required(opts.idempotencyKey, '--idempotency-key'), token: required(opts.token, '--token'), submissionId: Number(required(opts.submissionId, '--submission-id')) }); break;
+          case 'outcome': result = await cadence.recordAttemptOutcome(db, { idempotencyKey: required(opts.idempotencyKey, '--idempotency-key'), token: required(opts.token, '--token'), outcome: required(opts.outcome, '--outcome'), observe: opts.outcome === 'consumed' ? await aliasObserver() : undefined }); break;
+          case 'count': result = await cadence.countCurrentWeek(db, { target, weekStart, observe: await aliasObserver() }); break;
+          case 'deadline': result = await cadence.evaluateDeadline(db, { target, weekStart, now: opts.now ?? new Date(), observe: await aliasObserver() }); break;
+          case 'deliver-alerts': {
+            const webhook = required(process.env.SLACK_WEBHOOK_URL, 'SLACK_WEBHOOK_URL');
+            result = await cadence.deliverPendingAlerts(db, { target, maxAttempts: opts.maxAttempts ? Number(opts.maxAttempts) : undefined, send: async (payload) => {
+              const response = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: JSON.stringify(payload) }), signal: AbortSignal.timeout(10000) });
+              if (!response.ok) throw new Error('delivery-failed');
+            } });
+            break;
+          }
+          case 'status': {
+            const [slots, attempts, alerts] = await Promise.all([
+              db.query('select * from content.cadence_slots where target=$1 and week_start_utc=$2 order by lane,slot_number', [target, weekStart]),
+              db.query('select * from content.cadence_attempts where target=$1 and week_start_utc=$2 order by lane,slot_number,ordinal', [target, weekStart]),
+              db.query('select * from content.cadence_alerts where target=$1 and week_start_utc=$2 order by alert_kind', [target, weekStart]),
+            ]);
+            result = { slots: slots.rows.map((value) => { const slot = { ...value }; delete slot.claim_token; return slot; }), attempts: attempts.rows, alerts: alerts.rows };
+            break;
+          }
+          default: throw new store.ValidationError(`unknown cadence subcommand: ${sub}`);
+        }
+        break;
+      }
       case 'migrate': result=await migrate(db); break;
       case 'reset': result=await reset(db,required(opts.confirmReset,'--confirm-reset')); break;
       case 'seed': result=await seed(db,{fromRef:opts.fromRef,from:opts.from},{apply:!!opts.apply,prune:!!opts.prune,actor:required(actorFor(opts),'--actor')}); if (result.refused.length) exitCode=2; break;

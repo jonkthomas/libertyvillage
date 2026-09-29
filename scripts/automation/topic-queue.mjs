@@ -378,14 +378,73 @@ function normalizeDiscovery(discovery) {
   return discovery;
 }
 
-function intentFingerprint(title) {
+export function intentFingerprint(title) {
   const tokens = String(title ?? '').toLowerCase().match(/[a-z0-9]+/g) ?? [];
   const normalized = tokens.join(' ');
   // Deliberately narrow: these were the overlapping evaluative results in PR #115.
   if (/^is liberty village(?: toronto)? (?:a good area|worth it)$/.test(normalized)) {
     return 'is liberty village good area toronto';
   }
-  return tokens.sort().join(' ');
+  return tokens.filter((token) => !['a', 'an', 'the', 'in', 'of', 'for'].includes(token)).sort().join(' ');
+}
+
+function liveBusiness(record) {
+  return record && record.live !== false && record.unpublished !== true
+    && (record.live === true || Number(record.liveRev ?? record.live_rev ?? record.rev) > 0
+      || (record.slug && record.name && record.live == null && record.liveRev == null && record.live_rev == null))
+    && typeof (record.id ?? record.slug ?? record.key) === 'string';
+}
+function businessId(record) { return record.id ?? record.slug ?? record.key; }
+function verbatimFacts(record) {
+  return ['address', 'hours', 'phone', 'website', 'description'].flatMap((field) => {
+    const value = record[field];
+    return typeof value === 'string' && value.trim() ? [{ field, value: value.trim() }] : [];
+  });
+}
+const PREMISES = [
+  { pattern: /\b(?:pet|dog)[ -]?friendly\b/i, evidence: /\b(?:pet|dog)[ -]?friendly\b/i },
+  { pattern: /\bhappy hours?\b/i, evidence: /\bhappy hours?\b/i },
+  { pattern: /\bpatios?\b/i, evidence: /\bpatios?\b/i },
+  { pattern: /\b(?:late[ -]?night|open late)\b/i, evidence: /\b(?:late[ -]?night|open late)\b/i },
+  { pattern: /\bbrunch\b/i, evidence: /\bbrunch\b/i },
+];
+const OUTSIDE_PLACES = /\b(?:Parkdale|Queen West|King West|Kensington Market|The Annex|Yorkville|Leslieville|Roncesvalles|Scarborough|Mississauga|Etobicoke|Vaughan|Hamilton|Ottawa)\b/i;
+
+export function checkTopicGroundability({ title, kind, businesses = [], livePosts = [], consumedFingerprints = [] } = {}) {
+  const cleaned = String(title ?? '').replace(/\s+/g, ' ').trim();
+  const fingerprint = intentFingerprint(cleaned);
+  const reject = (reason) => ({ ok: false, reason, fingerprint, supportingRecordIds: [] });
+  if (!cleaned || kind !== 'blog') return reject('invalid topic');
+  const placeCount = [...cleaned.matchAll(/\bliberty village\b/ig)].length;
+  if (placeCount > 1 || /\bliberty village\s+toronto\b/i.test(cleaned)
+    || /\b(?:in|near|around|at)\s+liberty village\s*,?\s*toronto\s+liberty village\b/i.test(cleaned)) return reject('malformed geo suffix');
+  if (OUTSIDE_PLACES.test(cleaned)) return reject('outside Liberty Village');
+  if (/\b(?:login|log in|hours|menu|phone|telephone|contact)\b/i.test(cleaned)
+    && (businesses ?? []).some((record) => liveBusiness(record) && cleaned.toLowerCase().includes(String(record.name ?? '').toLowerCase()))) return reject('branded navigation');
+  const postFingerprints = (livePosts ?? []).flatMap((post) => [post?.title, post?.slug?.replace(/-/g, ' ')]
+    .filter(Boolean).map(intentFingerprint));
+  if ([...postFingerprints, ...consumedFingerprints].includes(fingerprint)) return reject('duplicate intent');
+  const premise = PREMISES.find((entry) => entry.pattern.test(cleaned));
+  if (!premise) return { ok: true, reason: 'groundable', fingerprint, supportingRecordIds: [] };
+  const supportingRecordIds = [...new Set((businesses ?? []).filter(liveBusiness)
+    .filter((record) => {
+      const fields = [record.description, record.hours, record.policy, record.proTip, ...(Array.isArray(record.tags) ? record.tags : [])];
+      return fields.some((value) => typeof value === 'string' && premise.evidence.test(value));
+    }).map(businessId))].sort();
+  if (supportingRecordIds.length < 2) return reject('unsupported operational premise');
+  return { ok: true, reason: 'groundable', fingerprint, supportingRecordIds };
+}
+
+export function reserveGuideEligibility({ businesses = [] } = {}) {
+  const distinct = new Map();
+  for (const record of businesses ?? []) {
+    if (!liveBusiness(record)) continue;
+    const id = businessId(record);
+    if (!distinct.has(id)) distinct.set(id, record);
+  }
+  const facts = [...distinct].flatMap(([recordId, record]) => verbatimFacts(record)
+    .map(({ field, value }) => ({ recordId, field, value })));
+  return { ok: distinct.size >= 3 && facts.length >= 6, recordIds: [...distinct.keys()], facts };
 }
 
 function neverEcho(name) {
