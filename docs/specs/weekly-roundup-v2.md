@@ -1048,7 +1048,7 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - **Event records (R3), raw captions with line breaks intact:**
     - IG084, IG193, IG215, IG065 and IG069 each have one distinct date, so each is **one** whole-caption record with a resolved date. This tests segmentation/date resolution only; none of these five archived rows currently verifies **place** under production rules (A4 and §14).
     - The same captions split at blank lines would fail. This is a regression test against paragraph splitting, not a claim that every captured form is admitted.
-    - IG214 (three dates) splits into blocks. The bracketed Oct 3 heading stays with its ⏰ and 📍 lines and verifies with its own pinned-location quote; the Oct 2 block is excluded as `unverifiable` when it cannot prove its own place.
+    - IG214 (three dates) splits into blocks. The bracketed Oct 3 heading stays with its ⏰ and 📍 lines and verifies with its own pinned-location quote; the Oct 2 block is `not-LV` because its own 📍 line states an offsite place (§6.3).
     - IG221 (two dates in one block) is `unverifiable`.
     - A multi-date caption whose Oct 3 block lacks a place → that event holds.
   - **Time proof (R3):**
