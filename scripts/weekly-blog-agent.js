@@ -47,6 +47,15 @@ function classifyStopReason({ written, lastAssistantText, errors }) {
   return "no-post-unspecified";
 }
 
+const PREFLIGHT_STOP_REASONS = Object.freeze({
+  "unsupported-operational-premise": "unsupported-grounding",
+  "pre-submit-refused": "unsupported-grounding",
+  "duplicate-topic": "duplicate",
+  "insufficient-directory-evidence": "insufficient-sources",
+  "source-pack-size-limit": "insufficient-sources",
+  "missing-topic-or-businesses": "insufficient-sources",
+});
+
 async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now = new Date() }) {
   // The source-pack module is ESM; this entrypoint remains CommonJS for the runner.
   const { buildSourcePack, canonicalJson, checkDraftAgainstPack } = await import("./automation/blog-source-pack.mjs");
@@ -142,6 +151,7 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
     seoDataSummary: null,
     postWritten: false,
     stopReason: "pending",
+    detailReason: null,
     errors: [],
   };
 
@@ -149,14 +159,15 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
     if (env.TOPIC_OVERRIDE) {
       const result = buildSourcePack({ topic: env.TOPIC_OVERRIDE, businesses, posts: exportedPosts, services, topics, images: listBlogImages(root), now });
       if (!result.ok) {
-        runLog.stopReason = result.reason;
+        runLog.stopReason = PREFLIGHT_STOP_REASONS[result.reason] || "insufficient-sources";
+        runLog.detailReason = result.reason;
         runLog.errors.push(`${result.reason}: ${result.premise?.join(', ') || 'directory evidence unavailable'} (${result.supportingRecords ?? 0} supporting records)`);
       } else {
         const pack = result.pack;
         sourcePack = pack;
         runLog.sourcePack = pack.fingerprint;
         fs.mkdirSync(runLogDir, { recursive: true });
-        const sidecar = path.join(runLogDir, `${new Date(now).toISOString().slice(0, 10)}-${pack.fingerprint.slice(6)}-source-pack.json`);
+        const sidecar = path.join(runLogDir, `${new Date(now).toISOString().slice(0, 10)}-${pack.intentKey}-source-pack.json`);
         fs.writeFileSync(sidecar, `${canonicalJson(pack)}\n`);
         sourcePackPath = sidecar;
         prompt += `\n\nSOURCE PACK (first-party directory export; use only these records for local facts):\n${canonicalJson(pack)}\n\nA two-business article is allowed when exactly two records support the topic. Keep the article narrow. Attribute each business fact in the same sentence with its exact name or /directory/<slug> link. Verbatim spans are evidence of what the record says, not proof that an offer, hours, or policy remains current. Do not claim current availability, pricing, or policies. Do not add any local fact outside this pack. Use only listed internal slugs. Write the selected topic only; never switch topics. Run the existing blog linter before handoff. If this pack is insufficient, refuse the draft.`;
@@ -286,7 +297,8 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
         fs.writeFileSync(postsPath, originalPostsText);
         runLog.postWritten = false;
         runLog.success = false;
-        runLog.stopReason = "pre-submit-refused";
+        runLog.stopReason = PREFLIGHT_STOP_REASONS["pre-submit-refused"];
+        runLog.detailReason = "pre-submit-refused";
         runLog.errors.push(...checked.errors.slice(0, 20));
       }
     }

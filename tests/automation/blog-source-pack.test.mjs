@@ -62,6 +62,21 @@ function stubWriting(root, address = '') {
   });
 }
 
+async function captureOutcome(run) {
+  const lines = [];
+  const original = console.log;
+  console.log = (...parts) => {
+    const line = parts.join(' ');
+    if (line.startsWith('[outcome] ')) lines.push(JSON.parse(line.slice('[outcome] '.length)));
+    original(...parts);
+  };
+  try {
+    return { result: await run(), outcomes: lines };
+  } finally {
+    console.log = original;
+  }
+}
+
 test('live operational facts: pet refuses and happy hour has exactly two supported sources', () => {
   const pet = buildSourcePack({ topic: 'Pet-Friendly Restaurants in Liberty Village', businesses, posts, services, topics, now });
   assert.equal(pet.ok, false);
@@ -69,6 +84,8 @@ test('live operational facts: pet refuses and happy hour has exactly two support
   assert.equal(pet.supportingRecords, 0);
   const happy = buildSourcePack({ topic: 'Liberty Village Happy Hour', businesses, posts, services, topics, now });
   assert.equal(happy.ok, true);
+  assert.equal(happy.pack.intentKey, 'liberty-village-happy-hour');
+  assert.match(happy.pack.fingerprint, /^[a-f0-9]{64}$/);
   assert.deepEqual(happy.pack.sources.map((source) => source.id), ['cibo-liberty-village', 'local-public-eatery']);
   assert.equal(verifySourcePack(happy.pack, { businesses, posts, services, topics }).ok, true);
   assert.ok(canonicalJson(happy.pack).length <= SOURCE_PACK_SCHEMA.maxSerializedCharacters);
@@ -84,13 +101,54 @@ test('live operational facts: pet refuses and happy hour has exactly two support
   assert.equal(verifySourcePack(reserve.pack, { businesses, posts, services, topics }).ok, true);
 });
 
+test('fingerprint binds canonical evidence while intentKey stays the topic identity', () => {
+  const args = { topic: 'Liberty Village Happy Hour', businesses, posts, services, topics };
+  const first = buildSourcePack({ ...args, now });
+  const later = buildSourcePack({ ...args, now: new Date('2026-09-29T12:00:00.000Z') });
+  assert.equal(first.pack.fingerprint, later.pack.fingerprint);
+  assert.equal(first.pack.intentKey, later.pack.intentKey);
+  const editedBusinesses = structuredClone(businesses);
+  editedBusinesses.find((record) => record.slug === 'local-public-eatery').address += ' Suite 1';
+  const changed = buildSourcePack({ ...args, businesses: editedBusinesses, now });
+  assert.equal(changed.ok, true);
+  assert.equal(changed.pack.intentKey, first.pack.intentKey);
+  assert.notEqual(changed.pack.fingerprint, first.pack.fingerprint);
+  assert.equal(buildSourcePack({ ...args, topic: posts[0].title, now }).reason, 'duplicate-topic');
+});
+
+test('verification rejects forged IDs, altered digests, future and stale packs', () => {
+  const pack = buildSourcePack({ topic: 'Liberty Village Happy Hour', businesses, posts, services, topics, now }).pack;
+  const inputs = { businesses, posts, services, topics, now };
+  const forged = structuredClone(pack);
+  forged.sources[0].id = 'imaginary-business';
+  assert.ok(verifySourcePack(forged, inputs).errors.some((error) => error.startsWith('invalid-source:')));
+  const altered = structuredClone(pack);
+  altered.fingerprint = '0'.repeat(64);
+  assert.ok(verifySourcePack(altered, inputs).errors.includes('invalid-fingerprint'));
+  assert.ok(verifySourcePack(pack, { ...inputs, now: new Date('2026-09-28T11:59:59.999Z') }).errors.includes('future-generated-at'));
+  assert.ok(verifySourcePack(pack, { ...inputs, now: new Date('2026-09-29T12:00:00.000Z'), maxAgeMs: 60_000 }).errors.includes('stale-generated-at'));
+});
+
+test('imaginary directory and blog links are refused', (t) => {
+  const root = tempRoot(t);
+  const pack = buildSourcePack({ topic: 'Liberty Village Happy Hour', businesses, posts, services, topics, now }).pack;
+  const post = draft(root);
+  post.content += ' [Ghost](/directory/imaginary-business) [Story](/blog/imaginary-post)';
+  const result = checkDraftAgainstPack(post, pack, { businesses, posts, services, topics, imagePaths: [post.image], now });
+  assert.ok(result.errors.includes('invalid-internal-link:/directory/imaginary-business'));
+  assert.ok(result.errors.includes('invalid-internal-link:/blog/imaginary-post'));
+});
+
 test('pet premise spends zero SDK queries in a temporary live-data copy', async (t) => {
   const root = tempRoot(t);
   const original = fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8');
   let calls = 0;
-  const result = await runPipeline({ query: () => { calls++; throw new Error('should not run'); }, root, now, env: { TOPIC_OVERRIDE: 'Pet-Friendly Restaurants in Liberty Village', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } });
+  const { result, outcomes } = await captureOutcome(() => runPipeline({ query: () => { calls++; throw new Error('should not run'); }, root, now, env: { TOPIC_OVERRIDE: 'Pet-Friendly Restaurants in Liberty Village', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
   assert.equal(calls, 0);
-  assert.equal(result.stopReason, 'unsupported-operational-premise');
+  assert.equal(result.stopReason, 'unsupported-grounding');
+  assert.equal(result.detailReason, 'unsupported-operational-premise');
+  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding' }]);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'tasks', 'auto-blog-runs', '2026-09-28.json'))).detailReason, 'unsupported-operational-premise');
   assert.equal(result.postWritten, false);
   assert.equal(fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8'), original);
 });
@@ -121,10 +179,13 @@ test('unsupported address is refused before handoff and temp posts are restored'
   const original = fs.readFileSync(file, 'utf8');
   let calls = 0;
   const stub = stubWriting(root, 'LOCAL Public Eatery is at 999 Imaginary St.');
-  const result = await runPipeline({ query: () => { calls++; return stub(); }, root, now, env: { TOPIC_OVERRIDE: 'Liberty Village Happy Hour', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } });
+  const { result, outcomes } = await captureOutcome(() => runPipeline({ query: () => { calls++; return stub(); }, root, now, env: { TOPIC_OVERRIDE: 'Liberty Village Happy Hour', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
   assert.equal(calls, 1);
   assert.equal(result.postWritten, false);
-  assert.equal(result.stopReason, 'pre-submit-refused');
+  assert.equal(result.stopReason, 'unsupported-grounding');
+  assert.equal(result.detailReason, 'pre-submit-refused');
+  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding' }]);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'tasks', 'auto-blog-runs', '2026-09-28.json'))).detailReason, 'pre-submit-refused');
   assert.ok(result.errors.some((error) => error.includes('blog-lint:unsupported-address')));
   assert.equal(fs.readFileSync(file, 'utf8'), original);
 });

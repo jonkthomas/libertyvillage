@@ -1,11 +1,12 @@
 // Bounded first-party evidence for one directory-backed blog intent. No I/O.
+import { createHash } from 'node:crypto';
 import { extractReferencedBusinesses, operationalPremisesIn, recordSupportsPremise } from '../lib/referenced-businesses.mjs';
 import { lintPost } from '../blog-lint.mjs';
 
 export const SOURCE_PACK_SCHEMA = Object.freeze({
-  schemaVersion: 'cq-blog-source-pack/v1',
+  schemaVersion: 'cq-blog-source-pack/v2',
   fields: Object.freeze({
-    schemaVersion: 'string', topic: 'string', fingerprint: 'string', generatedAt: 'ISO-8601 string', reserve: 'boolean',
+    schemaVersion: 'string', topic: 'string', intentKey: 'lowercase topic slug', fingerprint: 'sha256 hex of canonicalJson({topic,sources:[{id,claims,premiseClaims}] sorted by id})', generatedAt: 'ISO-8601 string', reserve: 'boolean',
     sources: '[{kind:"business",id:string,name:string,provenance:{dataset:"businesses",recordSlug:string,capturedAt:string},claims:[{claim:string,field:string,verbatim:string}],premiseClaims:[{claim:string,field:string,verbatim:string}]}]',
     internal: '{directorySlugs:string[],postSlugs:string[],serviceSlugs:string[],topicSlugs:string[],images:string[]}',
     external: '[]',
@@ -20,7 +21,7 @@ const NOISE = new Set(['liberty', 'village', 'toronto', 'best', 'guide', 'near',
 const array = (value) => Array.isArray(value) ? value : [];
 const slugs = (items) => [...new Set(array(items).map((item) => typeof item === 'string' ? item : item?.slug).filter((item) => typeof item === 'string' && item))].sort();
 const tokens = (value) => [...new Set(String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((word) => word.length > 2 && !NOISE.has(word)).map((word) => word.replace(/s$/, '')))];
-const fingerprint = (topic) => `topic:${String(topic).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+const intentKey = (topic) => String(topic).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const isIso = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 const fieldSpan = (record, field) => {
   const value = record?.[field];
@@ -39,9 +40,18 @@ export function canonicalJson(value) {
   return JSON.stringify(ordered(value));
 }
 
+function evidenceFingerprint(topic, sources) {
+  const evidence = {
+    topic,
+    sources: array(sources).map((source) => ({ id: source?.id, claims: source?.claims, premiseClaims: source?.premiseClaims }))
+      .sort((left, right) => String(left.id).localeCompare(String(right.id))),
+  };
+  return createHash('sha256').update(canonicalJson(evidence)).digest('hex');
+}
+
 export function buildSourcePack({ topic, businesses, posts = [], services = [], topics = [], images = [], now = new Date(), reserve = false }) {
-  if (typeof topic !== 'string' || !topic.trim() || fingerprint(topic) === 'topic:' || !Array.isArray(businesses)) return { ok: false, reason: 'missing-topic-or-businesses' };
-  if (array(posts).some((post) => fingerprint(post?.title ?? '') === fingerprint(topic) || fingerprint(post?.slug ?? '') === fingerprint(topic))) return { ok: false, reason: 'duplicate-topic' };
+  if (typeof topic !== 'string' || !intentKey(topic) || !Array.isArray(businesses)) return { ok: false, reason: 'missing-topic-or-businesses' };
+  if (array(posts).some((post) => intentKey(post?.title ?? '') === intentKey(topic) || intentKey(post?.slug ?? '') === intentKey(topic))) return { ok: false, reason: 'duplicate-topic' };
   const premises = operationalPremisesIn(topic);
   const words = tokens(topic);
   const selectedSlugs = new Set();
@@ -70,7 +80,7 @@ export function buildSourcePack({ topic, businesses, posts = [], services = [], 
     return { ok: false, reason: premises.length ? 'unsupported-operational-premise' : 'insufficient-directory-evidence', premise: premises.map((item) => item.label), supportingRecords: sources.length, factCount };
   }
   const pack = {
-    schemaVersion: SOURCE_PACK_SCHEMA.schemaVersion, topic: topic.trim(), fingerprint: fingerprint(topic), generatedAt: capturedAt, reserve: Boolean(reserve),
+    schemaVersion: SOURCE_PACK_SCHEMA.schemaVersion, topic: topic.trim(), intentKey: intentKey(topic), fingerprint: evidenceFingerprint(topic.trim(), sources), generatedAt: capturedAt, reserve: Boolean(reserve),
     sources,
     internal: { directorySlugs: slugs(sources.map((source) => source.id)), postSlugs: slugs(posts), serviceSlugs: slugs(services), topicSlugs: slugs(topics), images: [...new Set(array(images).filter((item) => typeof item === 'string'))].sort() },
     external: [],
@@ -81,9 +91,18 @@ export function buildSourcePack({ topic, businesses, posts = [], services = [], 
 
 // Recheck copied source spans against the current exported records; a pack is evidence,
 // never authority to amend the records. Returns explicit failures for trusted wiring.
-export function verifySourcePack(pack, { businesses, posts = [], services = [], topics = [] } = {}) {
+export function verifySourcePack(pack, { businesses, posts = [], services = [], topics = [], now = new Date(), maxAgeMs } = {}) {
   const errors = [];
-  if (!pack || pack.schemaVersion !== SOURCE_PACK_SCHEMA.schemaVersion || typeof pack.topic !== 'string' || pack.fingerprint !== fingerprint(pack.topic) || !isIso(pack.generatedAt) || typeof pack.reserve !== 'boolean') errors.push('invalid-pack-header');
+  if (!pack || pack.schemaVersion !== SOURCE_PACK_SCHEMA.schemaVersion || typeof pack.topic !== 'string' || !intentKey(pack.topic) || pack.intentKey !== intentKey(pack.topic) || !isIso(pack.generatedAt) || typeof pack.reserve !== 'boolean') errors.push('invalid-pack-header');
+  if (pack && pack.fingerprint !== evidenceFingerprint(pack.topic, pack.sources)) errors.push('invalid-fingerprint');
+  const checkedAt = now instanceof Date ? now.getTime() : new Date(now).getTime();
+  if (!Number.isFinite(checkedAt)) errors.push('invalid-check-time');
+  if (isIso(pack?.generatedAt) && Number.isFinite(checkedAt)) {
+    const ageMs = checkedAt - Date.parse(pack.generatedAt);
+    if (ageMs < 0) errors.push('future-generated-at');
+    if (maxAgeMs !== undefined && (!Number.isFinite(maxAgeMs) || maxAgeMs < 0)) errors.push('invalid-max-age');
+    else if (maxAgeMs !== undefined && ageMs > maxAgeMs) errors.push('stale-generated-at');
+  }
   if (!Array.isArray(businesses)) errors.push('missing-businesses');
   if (!Array.isArray(pack?.sources) || pack.sources.length < (pack?.reserve ? 3 : 2) || pack.sources.length > SOURCE_PACK_SCHEMA.maxSources) errors.push('invalid-source-count');
   if (!pack?.internal || !Array.isArray(pack.internal.directorySlugs) || !Array.isArray(pack.internal.postSlugs) || !Array.isArray(pack.internal.serviceSlugs) || !Array.isArray(pack.internal.topicSlugs) || !Array.isArray(pack.internal.images) || !Array.isArray(pack.external) || pack.external.length) errors.push('invalid-source-inventory');
@@ -106,7 +125,7 @@ export function verifySourcePack(pack, { businesses, posts = [], services = [], 
 }
 
 export function checkDraftAgainstPack(post, pack, { businesses, posts = [], services = [], topics = [], imagePaths = [], now } = {}) {
-  const errors = [...verifySourcePack(pack, { businesses, posts, services, topics }).errors];
+  const errors = [...verifySourcePack(pack, { businesses, posts, services, topics, now }).errors];
   if (!post || typeof post !== 'object') return { ok: false, errors: [...errors, 'missing-draft'] };
   const packed = new Set(array(pack?.sources).map((source) => source.id));
   const referenced = extractReferencedBusinesses(post, businesses);
