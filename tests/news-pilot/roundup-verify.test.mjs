@@ -4,6 +4,8 @@ import { verifyRoundupForms, revalidateRoundupForms, recordProvesTime } from '..
 import { roundupSourceQuality } from '../../scripts/news-pilot/roundup-evidence.mjs';
 import { planRoundupV2 } from '../../scripts/news-pilot/roundup.mjs';
 import * as realGeography from '../../scripts/news-pilot/roundup-geo.mjs';
+import { extractRoundupRecords } from '../../scripts/news-pilot/roundup-records.mjs';
+import { ROUNDUP_SOURCES } from '../../scripts/news-pilot/sources.mjs';
 
 const now = '2026-09-29T15:00:00Z';
 const url = 'https://official.example/events';
@@ -235,6 +237,38 @@ test('Instagram relative date is based on provider Toronto timestamp and own rec
   const offsiteCaption = caption + ' This session is at High Park.';
   const offsite = { ...opts, signals: [{ ...igSignal, post: { ...post, caption: offsiteCaption } }] };
   assert.equal((await verifyRoundupForms(offsite)).excluded[0].reason, 'not-LV');
+});
+
+test('real IG extractor and verifier admit only an item-bound pinned own venue, never an offsite pin', async () => {
+  const cases = [
+    { handle: 'burgerdrops', shortcode: 'BURGER', timestamp: '2026-09-27T22:51:24Z',
+      caption: '[ OCT. 3: $6 Fried Onion Burgers by George Motz]\n⏰ 11:30AM until sold out\n📍 116 Atlantic Ave. Patio',
+      subject: '$6 Fried Onion Burgers by George Motz', dateQuote: 'OCT. 3', place: '116 Atlantic Ave. Patio', time: '11:30' },
+    { handle: 'questxochocolate', shortcode: 'QUEST', timestamp: '2026-09-28T20:22:28Z',
+      caption: 'Chocolate Illusions: Pizza Edition is back this Saturday at 1:30 PM!\n📅 This Saturday | 1:30 PM\n📍 QUEST XO Chocolate Creative Lab | Liberty Village',
+      subject: 'Chocolate Illusions: Pizza Edition', dateQuote: 'This Saturday',
+      place: 'QUEST XO Chocolate Creative Lab | Liberty Village', time: '13:30' },
+  ];
+  for (const row of cases) {
+    const source = ROUNDUP_SOURCES.find((s) => s.id === `ig:${row.handle}`);
+    const url = `https://www.instagram.com/p/${row.shortcode}/`;
+    const post = { shortcode: row.shortcode, ownerUsername: row.handle, timestamp: row.timestamp, caption: row.caption };
+    const records = extractRoundupRecords({ source, url, body: row.caption, post });
+    const item = { signalId: row.shortcode, sourceId: source.id, url, post, records };
+    const claim = { url, recordId: records[0].recordId, subject_quote: row.subject,
+      place_quote: row.place, date_quote: row.dateQuote };
+    const proposed = { ...form(row.shortcode, url), recordId: records[0].recordId, subject: row.subject,
+      when: { kind: 'event', date: '2026-10-03', startTime: row.time },
+      evidence: [claim], item_type: 'event' };
+    const run = (signalItem) => verifyRoundupForms({ signals: [signalItem], forms: [proposed], now, posts: [],
+      geography: realGeography, sources: [source], publisherTiers: {},
+      fetcher: async () => { throw new Error('IG may not use HTML fetcher'); } });
+    const accepted = await run(item);
+    assert.equal(accepted.items[0]?.locality, 'core', `${row.handle}: ${JSON.stringify(accepted.excluded)}`);
+    const changed = { ...item, post: { ...post, caption: row.caption.replace(`📍 ${row.place}`, '📍 The Barn @ Downsview Park') } };
+    const refused = await run(changed);
+    assert.equal(refused.items.length, 0, row.handle);
+  }
 });
 
 test('feed records compare trusted snapshot fields before admission', async () => {

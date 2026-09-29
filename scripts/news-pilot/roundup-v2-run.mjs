@@ -65,7 +65,9 @@ export async function runRoundupV2(args, deps = {}) {
   let reasoned = deps.reasoned;
   if (!reasoned) {
     try { reasoned = await (deps.reason || reasonRoundupSignals)(signals, { now, deadline: modelDeadline }); }
-    catch { reasoned = { forms: [], excluded: signals.map((s) => ({ signalId: s.signalId, reason: 'reason-failed' })) }; }
+    catch { reasoned = { forms: [], technicalFailure: true,
+      excluded: signals.map((s) => ({ signalId: s.signalId, sourceId: s.sourceId,
+        reason: 'reason-failed', modelFailure: 'model-error' })) }; }
   }
   const forms = reasoned.forms || [];
   writeLines(path.join(out, 'forms.jsonl'), forms);
@@ -74,10 +76,12 @@ export async function runRoundupV2(args, deps = {}) {
   const census = { ...(readIf(path.join(run, 'census.json')) || {}), signalCount: signals.length,
     formCount: forms.length, admitted: verified.items.length, excluded: [...(reasoned.excluded || []), ...(verified.excluded || [])],
     units: plan.units, coreUnits: plan.coreUnits, coreAnchorUnits: plan.coreAnchorUnits, reasons: plan.reasons || [] };
+  const technicalFailure = Boolean(reasoned.technicalFailure || (reasoned.excluded || []).some((e) => e.reason === 'reason-failed'));
+  if (technicalFailure) census.reasons = [...new Set([...census.reasons, 'reason-model-failed'])];
   json(path.join(out, 'verify-report.json'), { admitted: verified.items.map((i) => i.identityKey), excluded: census.excluded });
   json(path.join(out, 'plan.json'), plan);
   let pack = { isoWeek: week.isoWeek, now, signals, forms, units: plan.countedItems || [], stillInEffect: plan.stillInEffect || [], verifyDigest: verified.verifyDigest };
-  let decision = plan.decision;
+  let decision = technicalFailure ? 'technical-failure' : plan.decision;
   let draft = null, reviewFindings = [];
   if (decision === 'publish') {
     try {
@@ -117,7 +121,7 @@ export async function runRoundupV2(args, deps = {}) {
   const result = { pipeline: 'structured-v2', isoWeek: week.isoWeek, slug, now,
     packDigest: roundupPackDigest(pack), verifyDigest: verified.verifyDigest, decision,
     units: census.units, coreUnits: census.coreUnits, coreAnchorUnits: census.coreAnchorUnits,
-    published: false, census };
+    published: false, technicalFailure: decision === 'technical-failure', reasons: census.reasons, census };
   json(path.join(out, 'pack.json'), pack);
   if (decision === 'publish' && post) {
     if (posts.some((p) => p.slug === slug)) throw new Error('roundup slug already exists');

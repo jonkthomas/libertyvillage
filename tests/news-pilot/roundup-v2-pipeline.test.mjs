@@ -56,13 +56,14 @@ test('six-call model budget preserves IG even after a large road feed', async ()
   large.push({ ...signal, signalId: 'bia-last', sourceId: 'rv2-lv-bia-events' });
   large.push({ ...signal, signalId: 'ig-last', sourceId: 'ig:libertyvillagebia' });
   const offered = [];
-  const result = await reasonRoundupSignals(large, { resolved: { ok: true, provider: { id: 'mock' } },
+  const result = await reasonRoundupSignals(large, { now: '2026-09-29T19:10:00Z',
+    resolved: { ok: true, provider: { id: 'mock' } },
     callModel: async ({ userText }) => { offered.push(...JSON.parse(userText).signals.map((s) => s.signalId));
       return { ok: true, text: '{"forms":[]}' }; } });
   assert.ok(offered.includes('ig-last'));
   assert.ok(offered.includes('bia-last'), 'one listing source must not starve other official sources');
-  assert.equal(offered.length, 60);
-  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 32);
+  assert.equal(offered.length, 30);
+  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 62);
 });
 
 test('first-party core leads outrank adjacent/search leads under the hard model budget', async () => {
@@ -73,18 +74,18 @@ test('first-party core leads outrank adjacent/search leads under the hard model 
   const city = { ...signal, signalId: 'city-oct3-core', sourceId: 'rv2-city-project-34-hanna-park' };
   const offered = [];
   const result = await reasonRoundupSignals([...adjacent, ...search, coreIg, city], {
-    resolved: { ok: true, provider: { id: 'mock' } },
+    now: '2026-09-29T19:10:00Z', resolved: { ok: true, provider: { id: 'mock' } },
     callModel: async ({ userText }) => {
       offered.push(...JSON.parse(userText).signals.map((s) => s.signalId));
       return { ok: true, text: '{"forms":[]}' };
     },
   });
-  assert.equal(offered.length, 60);
+  assert.equal(offered.length, 30);
   assert.ok(offered.includes(coreIg.signalId));
   assert.ok(offered.includes(city.signalId));
   assert.ok(offered.some((id) => id.startsWith('adj-')));
   assert.ok(offered.some((id) => id.startsWith('search-')));
-  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 37);
+  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 67);
   assert.ok(result.excluded.filter((e) => e.reason === 'reason-budget').every((e) => e.priority.startsWith('other-')));
 });
 
@@ -104,9 +105,45 @@ test('future-dated first-party core event outranks stale first-party posts when 
     },
   });
   assert.equal(offered[0], upcoming.signalId);
-  assert.equal(offered.length, 60);
+  assert.equal(offered.length, 30);
   assert.ok(offered.includes(signal.signalId), 'a current adjacent event outranks stale IG posts, not the current core event');
   assert.ok(result.excluded.some((e) => e.priority === 'first-party-core-lead-other' && e.signalId.startsWith('stale-ig-')));
+});
+
+test('reasoner retries one timed-out core batch within six calls; exhaustion is a technical failure, not a HOLD', async (t) => {
+  const core = { ...signal, sourceId: 'ig:burgerdrops', post: { timestamp: '2026-09-27T22:51:24Z' } };
+  const opts = { now: '2026-09-29T19:10:00Z', resolved: { ok: true, provider: { id: 'mock' } } };
+  let calls = 0;
+  const recovered = await reasonRoundupSignals([core], { ...opts, callModel: async ({ timeoutMs }) => {
+    calls++;
+    assert.equal(timeoutMs, 180_000);
+    return calls === 1 ? { ok: false, error: 'timeout_after_180000ms' }
+      : { ok: true, text: JSON.stringify({ forms: [form] }) };
+  } });
+  assert.equal(calls, 2);
+  assert.equal(recovered.technicalFailure, false);
+  assert.equal(recovered.modelCalls, 2);
+  assert.equal(recovered.forms.length, 1);
+  const failed = await reasonRoundupSignals([core], { ...opts,
+    callModel: async () => { calls++; return { ok: false, error: 'timeout_after_180000ms' }; } });
+  assert.equal(failed.technicalFailure, true);
+  assert.equal(failed.modelCalls, 2);
+  assert.equal(failed.excluded[0].reason, 'reason-failed');
+  assert.equal(failed.excluded[0].modelFailure, 'timeout_after_180000ms');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rv2-technical-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'data'));
+  fs.writeFileSync(path.join(root, 'data/posts.json'), '[]\n');
+  const { result } = await runRoundupV2({ run: root, out: path.join(root, 'out'), root,
+    now: opts.now, dryRun: true }, { signals: [core], reasoned: failed,
+    verify: async () => ({ items: [], excluded: [], verifyDigest: 'a'.repeat(64) }),
+    plan: () => ({ decision: 'hold', units: 0, coreUnits: 0, coreAnchorUnits: 0,
+      reasons: ['below-minimum'], countedItems: [] }) });
+  assert.equal(result.decision, 'technical-failure');
+  assert.equal(result.technicalFailure, true);
+  assert.ok(result.reasons.includes('reason-model-failed'));
+  assert.ok(result.census.excluded.some((e) => e.reason === 'reason-failed'));
+  assert.equal(result.published, false);
 });
 
 test('reasoner can prefer an explicitly configured available provider without changing the default', async () => {

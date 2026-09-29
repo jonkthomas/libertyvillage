@@ -897,6 +897,7 @@ export function validateRoundupOutput({ out, exportedPosts, generatedPosts, week
     result = readBoundedJson(path.join(out, 'result.json'), CADENCE.artifactMaxBytes);
     pack = readBoundedJson(path.join(out, 'pack.json'), CADENCE.artifactMaxBytes);
   } catch { throw new Error('roundup artifact invalid'); }
+  if (result?.decision === 'technical-failure') throw new Error('roundup model technical failure');
   if (!result || typeof result !== 'object' || Array.isArray(result) || result.pipeline !== 'structured-v2'
     || typeof result.published !== 'boolean' || !['publish', 'hold'].includes(result.decision)
     || !pack || typeof pack !== 'object' || Array.isArray(pack) || !Array.isArray(pack.units)
@@ -1042,6 +1043,7 @@ function censusOnlyRoundup({ slot, deps, now, week, mode }) {
     result = readBoundedJson(path.join(out, 'result.json'), CADENCE.artifactMaxBytes);
     pack = readBoundedJson(path.join(out, 'pack.json'), CADENCE.artifactMaxBytes);
   } catch { throw new Error('roundup census invalid'); }
+  if (result?.decision === 'technical-failure') throw new Error('roundup model technical failure');
   if (result?.pipeline !== 'structured-v2' || result.published !== false || !result.census || typeof result.census !== 'object' || Array.isArray(result.census)
     || !pack || !Array.isArray(pack.units) || fs.readFileSync(postsFile, 'utf8') !== before)
     throw new Error('roundup census invalid');
@@ -1323,7 +1325,7 @@ export const SAFE_FAILURES = Object.freeze(new Set([
   'weekly-roundup is staging-only', 'weekly-roundup options unsupported', 'roundup artifact invalid', 'roundup artifact inconsistent',
   'roundup submit refused', 'roundup intent already attempted', 'idempotency kind mismatch', 'submission lacks smoke success',
   'smoked but not counted for week', 'late smoke; old week missed', 'roundup consumed but no longer live',
-  'invalid cadence start week', 'roundup publication disabled', 'roundup census invalid',
+  'invalid cadence start week', 'roundup publication disabled', 'roundup census invalid', 'roundup model technical failure',
   'prior content slot held', 'prior content publication pending', 'prior content backlog exceeds recovery budget',
   'prior content smoke not current-live',
   'prior roundup slot held', 'prior roundup publication pending', 'prior roundup backlog exceeds recovery budget',

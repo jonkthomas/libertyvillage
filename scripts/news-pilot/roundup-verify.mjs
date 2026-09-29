@@ -268,6 +268,18 @@ function identity(record, source, form, claim, geo) {
       statedAddress.canonicalVenueId !== source.canonicalVenueId && !quote) fail('unverifiable');
     if (quote) result = invoke('classifySectionPlace', { placeQuote: quote, sectionText: text,
       subject: form.subject, dateQuote: claim.date_quote, domain: new URL(claim.url).hostname, agentVerdict: form.verdict });
+    // An item-bound IG 📍 line explicitly naming the watch account's verified
+    // building is a place statement even when the model quotes only the place
+    // token. Never promote an offsite, unpinned or conflicting venue this way.
+    if (quote && result?.verdict === 'unverifiable' && source.canonicalVenueId) {
+      const pinned = record.text.split(/\r?\n/).some((line) =>
+        /^\s*(?:📍|Location:|Venue:|Address:|Where:)\s*/i.test(line) && norm(line).includes(norm(quote)));
+      if (pinned && !invoke('statedOtherPlace', record.text, source.canonicalVenueId)) {
+        const own = [invoke('classifyAddress', quote, context), invoke('classifyVenueName', quote, context)]
+          .find((place) => place?.verdict === 'core' && place.canonicalVenueId === source.canonicalVenueId);
+        if (own) result = own;
+      }
+    }
     if (!result && quote) result = invoke('classifyAddress', quote, context) || invoke('classifyVenueName', quote, context);
     if (!result && source.canonicalVenueId && !source.multiLocation && !source.requiresVenueInPost) {
       const other = invoke('statedOtherPlace', record.text, source.canonicalVenueId);

@@ -70,6 +70,21 @@ test('census-only runs the v2 pipeline dry: no reservation, attempt, submit or r
   assert.ok(runCall.args.includes('--dry-run'));
 });
 
+test('model technical failure alerts instead of a normal cadence HOLD, including census-only', (t) => {
+  const world = withWorld(t);
+  const technical = writer({ hold: { units: 0, reasons: ['below-minimum'] }, mutate: ({ result }) => {
+    result.decision = 'technical-failure';
+    result.technicalFailure = true;
+    result.reasons = ['reason-model-failed'];
+  } });
+  world.roundupPlan = [technical];
+  assert.throws(() => run(world), /roundup model technical failure/);
+  assert.equal(submitCalls(world).length, 0);
+  const census = withWorld(t);
+  census.roundupPlan = [technical];
+  assert.throws(() => censusRun(census), /roundup model technical failure/);
+});
+
 test('census-only fails closed if a writer reports publication despite --dry-run', (t) => {
   const world = withWorld(t);
   world.roundupPlan = [writer({ mutate: (bag) => { bag.result.published = true; } })];
