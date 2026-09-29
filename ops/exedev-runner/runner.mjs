@@ -146,6 +146,22 @@ export function recordTopic(statePath, target, topic, consumed = false) {
   writeTopicState(statePath, state);
 }
 
+// A generator that produced no post must not burn the next two calendar slots
+// on the same unsupported topic. This is local eligibility state, not a Neon
+// queue update or a claim that the topic was published.
+export function shouldExhaustTopicOnNoPost(job, request, topic, error) {
+  return job === 'weekly-blog' && !request.dryRun && error?.message === 'blog generated no post' && !!topic?.key;
+}
+
+export function exhaustTopicOnNoPost(statePath, target, topic) {
+  if (!topic?.key) return;
+  const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {};
+  state[target] ??= {};
+  const prior = state[target][topic.key] ?? { attempts: 0, consumed: false };
+  state[target][topic.key] = { ...prior, attempts: Math.max(3, prior.attempts), consumed: prior.consumed };
+  writeTopicState(statePath, state);
+}
+
 // Reserve a real submitted topic while publication/smoke is pending. A new
 // calendar slot must not draft it again, but it is not consumed until smoke.
 export function reserveTopicSubmission(statePath, target, topic, slot, id) {
@@ -413,9 +429,18 @@ function runJob(job, target, slot, request, log, notifications = {}) {
         }
       }
     } else if (request.topic) topic = { title: request.topic, key: null };
-    const changed = generator(job, slot, topic, !!request.dryRun, log, notifications);
+    let changed;
+    try {
+      changed = generator(job, slot, topic, !!request.dryRun, log, notifications);
+      if (job === 'weekly-blog' && !request.dryRun && !changed.includes('data/posts.json')) throw new Error('blog generated no post');
+    } catch (error) {
+      if (shouldExhaustTopicOnNoPost(job, request, topic, error)) {
+        exhaustTopicOnNoPost(path.join(stateRoot, 'topic-state.json'), target, topic);
+        logLine(log, 'topic-exhausted-no-post');
+      }
+      throw error;
+    }
     if (request.dryRun) return { dryRun: true, paths: changed.length };
-    if (job === 'weekly-blog' && !changed.includes('data/posts.json')) throw new Error('blog generated no post');
     if (job === 'seo-improvements') {
       if (!changed.some((rel) => /^data\/[^/]+\.json$/.test(rel))) return { noChanges: true };
       const guard = command(node, ['scripts/content/seo-guard.mjs', 'check', baselinePath], { cwd: repo, env: sourceEnv(process.env, job), allowExit: [2] });

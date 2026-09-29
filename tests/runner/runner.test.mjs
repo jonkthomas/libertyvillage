@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, selectTopic, recordTopic, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, selectTopic, recordTopic, exhaustTopicOnNoPost, shouldExhaustTopicOnNoPost, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -217,6 +217,27 @@ test('topic attempts stay local and consumption waits for success', (t) => {
   state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   assert.deepEqual(state.staging.def, { attempts: 1, consumed: false });
   assert.equal(selectTopic({ topics: [queue.topics[1]] }, state, 'staging').key, 'def', 'terminal rejection releases reservation');
+});
+
+test('no-post exhausts a queued topic immediately without marking it published', (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-topic-no-post-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const statePath = path.join(temp, 'topic-state.json');
+  const queue = { topics: [{ kind: 'blog', title: 'Unverifiable premise', key: 'first' }, { kind: 'blog', title: 'Supported premise', key: 'second' }] };
+  recordTopic(statePath, 'staging', queue.topics[0]);
+  exhaustTopicOnNoPost(statePath, 'staging', queue.topics[0]);
+  exhaustTopicOnNoPost(statePath, 'staging', queue.topics[0]);
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.deepEqual(state.staging.first, { attempts: 3, consumed: false });
+  assert.equal(selectTopic(queue, state, 'staging').key, 'second');
+  exhaustTopicOnNoPost(statePath, 'staging', { key: null });
+  assert.equal(fs.readFileSync(statePath, 'utf8'), `${JSON.stringify(state)}\n`);
+  const noPost = new Error('blog generated no post');
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', { dryRun: false }, queue.topics[0], noPost), true);
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', { dryRun: true }, queue.topics[0], noPost), false);
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', {}, { title: 'manual', key: null }, noPost), false);
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', {}, queue.topics[0], new Error('generator failed')), false);
+  assert.equal(shouldExhaustTopicOnNoPost('news', {}, queue.topics[0], noPost), false);
 });
 
 test('weekly blog requires one new post relative to exported DB, not Git HEAD drift', () => {
