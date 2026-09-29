@@ -23,8 +23,18 @@ function torontoMidnight(date) {
   const parts = torontoParts(instant);
   return parts.year === year && parts.month === month && parts.day === day && parts.hour === 0 && parts.minute === 0 ? instant : NaN;
 }
-const sourceProves = (sources, url, span) => {
-  if (typeof span !== 'string' || !span.trim()) return false;
+const localDate = (ms) => {
+  const { year, month, day } = torontoParts(ms);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+const fullDatesInSpan = (span) => [...String(span || '').matchAll(/\b\d{4}-\d{2}-\d{2}\b|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b/gi)]
+  .map(([raw]) => {
+    const parsed = Date.parse(raw.replace(/(\d)(?:st|nd|rd|th)\b/i, '$1'));
+    const date = Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : null;
+    return /^\d{4}-/.test(raw) && date !== raw ? null : date;
+  }).filter(Boolean);
+const sourceProves = (sources, url, span, dates) => {
+  if (typeof span !== 'string' || !span.trim() || !fullDatesInSpan(span).some((date) => dates.includes(date))) return false;
   const cited = sources.find((s) => s.canonicalUrl === url && s.fetchOk === true && s.extractionSubstantive === true &&
     String(s.excerpt || '').includes(span));
   if (!cited) return false;
@@ -81,8 +91,10 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
   const start = Date.parse(weekStartUtc ?? '');
   if (!Number.isFinite(start) || new Date(start).toISOString() !== weekStartUtc || new Date(start).getUTCDay() !== 1 ||
     new Date(start).getUTCHours() !== 0 || new Date(start).getUTCMinutes() !== 0) reasons.push('invalid-week');
-  const publicationProof = item?.announcedAtVerified === true && isoTime(item?.announcedAt) &&
-    sourceProves(sources, item?.announcedAtSourceUrl, item?.announcedAtSpan);
+  const publicationDate = isoTime(item?.announcedAt) ? Date.parse(item.announcedAt) : NaN;
+  const publicationProof = item?.announcedAtVerified === true && Number.isFinite(publicationDate) &&
+    sourceProves(sources, item?.announcedAtSourceUrl, item?.announcedAtSpan,
+      [new Date(publicationDate).toISOString().slice(0, 10), localDate(publicationDate)]);
   const publicationMs = publicationProof ? Date.parse(item.announcedAt) : NaN;
   const newsWindow = publicationMs >= nowMs - WEEK_MS && publicationMs <= nowMs &&
     (!item?.updatedOldPage || item?.substantiveDevelopment === true);
@@ -91,8 +103,9 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
     ? torontoMidnight(new Date(Date.parse(item.eventStartDate + 'T00:00:00.000Z') + DAY_MS).toISOString().slice(0, 10)) : NaN;
   const timedStart = isoTime(item?.eventStart) ? Date.parse(item.eventStart) : NaN;
   const hasEvent = !!(item?.eventStart || item?.eventStartDate);
-  const eventProof = hasEvent && item?.eventStartVerified === true &&
-    sourceProves(sources, item?.eventStartSourceUrl, item?.eventStartSpan);
+  const eventDate = item?.eventStartDate || (Number.isFinite(timedStart) ? localDate(timedStart) : null);
+  const eventProof = hasEvent && item?.eventStartVerified === true && eventDate &&
+    sourceProves(sources, item?.eventStartSourceUrl, item?.eventStartSpan, [eventDate]);
   const eventWindow = eventProof && !item?.eventConcluded &&
     (item?.eventStartDate ? Number.isFinite(datedStart) && datedStart > nowMs && datedEnd <= nowMs + 14 * DAY_MS
       : Number.isFinite(timedStart) && timedStart > nowMs && timedStart < nowMs + 14 * DAY_MS);

@@ -53,7 +53,9 @@ test('two, one and zero accepted items produce roundup, honest update and retrya
 
 test('per-item date, event, source, risk and duplicate decisions', () => {
   assert.equal(validateRoundupItem({ ...item('a'), announcedAtVerified: false }, opts).decision, 'held');
-  assert.equal(validateRoundupItem({ ...item('a'), announcedAt: '2026-09-27T23:59:59.000Z' }, opts).decision, 'accepted');
+  assert.equal(validateRoundupItem({ ...item('a'), announcedAt: '2026-09-27T23:59:59.000Z',
+    announcedAtSpan: 'September 27, 2026', sources: [{ ...source('a'), excerpt:
+      'September 27, 2026: Liberty Village community group announced a new local event at Hanna Avenue.' }] }, opts).decision, 'accepted');
   assert.equal(validateRoundupItem({ ...item('a'), eventEnd: '2026-09-29T00:00:00.000Z' }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...item('a'), eventStart: '2026-09-29T00:00:00.000Z' }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...item('a'), eventStart: '2026-10-08T12:00:00.000Z', eventStartVerified: true,
@@ -110,6 +112,7 @@ test('rolling news dates cross Monday but require captured publication evidence'
   assert.equal(validateRoundupItem(stale, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...older, announcedAtSourceUrl: source('other').canonicalUrl }, opts).decision, 'held');
   assert.equal(validateRoundupItem({ ...older, announcedAtSpan: 'unseen date' }, opts).decision, 'held');
+  assert.equal(validateRoundupItem({ ...older, announcedAt: '2026-09-23T13:00:00.000Z' }, opts).decision, 'held');
   assert.equal(validateRoundupItem(older, { ...opts, livePosts: [{ slug: 'liberty-village-news-week-2026-w39',
     content: '[source](' + source('older').canonicalUrl + ')' }] }).decision, 'excluded');
 });
@@ -120,10 +123,15 @@ test('upcoming event time and whole Toronto local dates are bounded, independent
     sources: [{ ...source('event'), excerpt: 'September 8, 2026: Liberty Village community group announced a new local event for October 8, 2026 at Hanna Avenue.' }],
     eventStartVerified: true, eventStartSourceUrl: source('event').canonicalUrl, eventStartSpan: 'October 8, 2026' };
   const opts = { nowMs: now, weekStartUtc };
-  assert.equal(validateRoundupItem({ ...old, eventStart: new Date(now + 13 * 86400000 + 23 * 3600000).toISOString() }, opts).decision, 'accepted');
+  assert.equal(validateRoundupItem({ ...old, eventStart: new Date(now + 13 * 86400000 + 23 * 3600000).toISOString(),
+    eventStartSpan: 'October 13, 2026', sources: [{ ...source('event'), excerpt:
+      'September 8, 2026: Liberty Village community group announced a new local event for October 13, 2026 at Hanna Avenue.' }] }, opts).decision, 'accepted');
   assert.equal(validateRoundupItem({ ...old, eventStart: new Date(now + 14 * 86400000).toISOString() }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...old, eventStart: new Date(now).toISOString() }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...old, eventStartDate: '2026-10-08' }, opts).decision, 'accepted');
+  assert.equal(validateRoundupItem({ ...old, eventStartDate: '2026-10-08',
+    eventStartSpan: 'September 8, 2026 article confirms October 8, 2026 event',
+    sources: [{ ...source('event'), excerpt: 'September 8, 2026 article confirms October 8, 2026 event. Liberty Village community group announced a new local event at Hanna Avenue.' }] }, opts).decision, 'accepted');
   assert.equal(validateRoundupItem({ ...old, eventStartDate: '2026-09-29' }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...old, eventStartDate: '2026-10-13' }, opts).decision, 'excluded');
   assert.equal(validateRoundupItem({ ...old, eventStartDate: 'not-a-date' }, opts).decision, 'excluded');
