@@ -475,7 +475,9 @@ export async function planRecordRepair({
     const check = validate(plan);
     if (check.ok) return { plan, check, attempts: attempt, bytes };
     errors = check.errors;
-    console.log(`Repair plan attempt ${attempt} rejected: ${errors.join('; ')}`);
+    // stdout is the content CLI's single JSON envelope, and validator text can quote
+    // candidate bytes: report only a bounded count, on stderr.
+    process.stderr.write(`Repair plan attempt ${attempt} rejected: ${Math.min(errors.length, 999)} validation error(s)\n`);
   }
   throw new Error(`invalid repair plan: ${errors.join('; ')}`);
 }
