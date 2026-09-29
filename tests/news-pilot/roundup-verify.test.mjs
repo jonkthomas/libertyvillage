@@ -269,16 +269,18 @@ test('real IG extractor and verifier admit only an item-bound pinned own venue, 
     const refused = await run(changed);
     assert.equal(refused.items.length, 0, row.handle);
     if (row.handle === 'burgerdrops') {
-      const mixedCaption = `Burger Drops pop-up Saturday October 3 at @stacktmarket\n${row.caption}`;
-      const mixedPost = { ...post, caption: mixedCaption };
-      const mixedRecord = extractRoundupRecords({ source, url, body: mixedCaption, post: mixedPost })[0];
-      const mixed = await verifyRoundupForms({ signals: [{ ...item, post: mixedPost, records: [mixedRecord] }],
-        forms: [{ ...proposed, recordId: mixedRecord.recordId,
-          evidence: [{ ...claim, recordId: mixedRecord.recordId }] }], now, posts: [],
-        geography: realGeography, sources: [source], publisherTiers: {},
-        fetcher: async () => { throw new Error('IG may not HTML fetch'); } });
-      assert.equal(mixed.items.length, 0, 'pinned own venue must not override a contradictory @offsite');
-      assert.equal(mixed.excluded[0]?.reason, 'unverifiable');
+      for (const location of ['at @stacktmarket', '@stacktmarket', '@ Stackt']) {
+        const mixedCaption = `Burger Drops pop-up Saturday October 3 ${location}\n${row.caption}`;
+        const mixedPost = { ...post, caption: mixedCaption };
+        const mixedRecord = extractRoundupRecords({ source, url, body: mixedCaption, post: mixedPost })[0];
+        const mixed = await verifyRoundupForms({ signals: [{ ...item, post: mixedPost, records: [mixedRecord] }],
+          forms: [{ ...proposed, recordId: mixedRecord.recordId,
+            evidence: [{ ...claim, recordId: mixedRecord.recordId }] }], now, posts: [],
+          geography: realGeography, sources: [source], publisherTiers: {},
+          fetcher: async () => { throw new Error('IG may not HTML fetch'); } });
+        assert.equal(mixed.items.length, 0, `pinned own venue must not override contradictory ${location}`);
+        assert.equal(mixed.excluded[0]?.reason, 'unverifiable');
+      }
     }
   }
 });

@@ -261,7 +261,11 @@ test('U3: an Instagram caption stating another place never inherits the own venu
   assert.equal(statedOtherPlace('Meet Sarah Chen Saturday October 3. Smash burgers all day in Liberty Village.', own), null);
   assert.equal(statedOtherPlace('Meet Sarah Chen at the counter Saturday October 3', own), null);
   assert.equal(statedOtherPlace('Latte art night in Liberty Village with Sarah Chen', own), null);
-  assert.equal(statedOtherPlace('Join us on the patio Saturday October 3', own), null);
+  assert.equal(statedOtherPlace('Join us on the patio Saturday October 3.', own), null);
+  assert.equal(statedOtherPlace('In Liberty Village. See you there.', own), null);
+  assert.equal(statedOtherPlace('Burger Drops at 7pm on the menu to celebrate.', own), null);
+  assert.equal(statedOtherPlace('F45 community class @f45_training_libertyvillage Saturday October 3', 'addr:171-east-liberty-st#124'), null);
+  assert.equal(statedOtherPlace('F45 community class @ Trinity Bellwoods Saturday October 3', 'addr:171-east-liberty-st#124')?.verdict, 'unverifiable');
   for (const caption of [
     'Burger Drops pop-up at Stackt Saturday October 3!',
     'Burger Drops pop-up Saturday October 3 at @stacktmarket 🍔',
@@ -277,5 +281,12 @@ test('U3: an Instagram caption stating another place never inherits the own venu
     "Mildred's brunch pop-up at Stackt Saturday October 3",
     'F45 community class Saturday October 3 at Trinity Bellwoods',
     'Burger Drops pop-up Saturday October 3 at @stacktmarket\n📍 116 Atlantic Ave. Patio',
+    'Burger Drops pop-up @ Stackt Saturday October 3',
+    'Burger Drops pop-up @stacktmarket Saturday October 3',
+    'Catch Burger Drops @stacktmarket Saturday October 3',
+    'Burger Drops pop-up Saturday October 3 @stacktmarket\n📍 116 Atlantic Ave. Patio',
+    'Burger Drops pop-up inside Stackt Saturday October 3',
+    'Burger Drops pop-up near Stackt Saturday October 3',
+    'Burger Drops pop-up at: Stackt Saturday October 3',
   ]) assert.equal(statedOtherPlace(caption, own)?.verdict, 'unverifiable', caption);
 });

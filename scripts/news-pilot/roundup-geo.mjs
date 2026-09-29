@@ -269,13 +269,16 @@ export function classifySectionPlace({ placeQuote, sectionText, subject, dateQuo
 const sameBuilding = (a, b) => Boolean(a && b) && a.replace(/#.*$/, '') === b.replace(/#.*$/, '');
 const neighbourhoodOnly = /^[\s.,:;|-]*(?:liberty village|lv|the village|village|toronto)(?:[\s,]+toronto)?[\s.!,]*$/i;
 const SCHEDULE_WORD = String.raw`Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:rs(?:day)?)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?`;
-const OWN_PREMISES = /^(?:(?:the|our)\s+)?(?:patio|counter|shop|store|kitchen|studio|gym|office|venue|location|building|front entrance)$/i;
-const LOCATIVE_OBJECT = /\b(?:at|in|on|to)[ \t]+((?:the[ \t]+)?@?[\p{L}\d][\p{L}\d'’&.-]*(?:[ \t]+[\p{L}\d][\p{L}\d'’&.-]*){0,7})/giu;
+const OWN_PREMISES = /^(?:(?:the|our)\s+)?(?:patio|counter|menu|shop|store|kitchen|studio|gym|office|venue|location|building|front entrance)$/i;
+const LOCATIVE_OBJECT = /\b(?:at|in|on|to|inside|near)(?:[ \t]+|[ \t]*:[ \t]*)((?:the[ \t]+)?@?[\p{L}\d][\p{L}\d_'’&.-]*(?:[ \t]+[\p{L}\d][\p{L}\d_'’&.-]*){0,7})/giu;
+const HANDLE_OBJECT = /(?<![\p{L}\d_.])@[ \t]*([\p{L}\d][\p{L}\d_'’&.-]*(?:[ \t]+[\p{L}\d][\p{L}\d_'’&.-]*){0,5})/giu;
 const STREET_SUFFIX = /\b(?:Ave(?:nue)?|St(?:reet)?(?:\s+W(?:est)?)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Way)\b/i;
 const ANY_STREET_ADDRESS = new RegExp(String.raw`\b\d{1,5}[A-Za-z]?\s+(?:[A-Z][\w'’.-]*\s+){0,4}${STREET_SUFFIX.source}`, 'gi');
 
 function trimSchedule(phrase) {
-  let current = phrase.replace(/\s+(?:with|for|featuring)\b.*$/i, '').trim();
+  let current = phrase.replace(/\.\s+(?=[A-Z])/u, '\n').split('\n')[0]
+    .replace(/\s+(?:with|for|featuring|to\s+(?:celebrate|join|meet|enjoy|eat|watch|learn|try))\b.*$/i, '')
+    .split(/\s+(?=(?:at|in|on|to|inside|near)\s)/i)[0].replace(/[.!?]+$/, '').trim();
   const trailing = new RegExp(String.raw`\s*,?\s+(?:${SCHEDULE_WORD}|\d{1,2}(?:st|nd|rd|th)?)$`, 'i');
   let next = current.replace(trailing, '').trim();
   while (next !== current) {
@@ -341,9 +344,16 @@ export function statedOtherPlace(text, ownVenueId) {
   LOCATIVE_OBJECT.lastIndex = 0;
   for (const match of raw.matchAll(LOCATIVE_OBJECT)) {
     const phrase = trimSchedule(match[1]);
-    if (!phrase || /^\d{1,2}$/.test(phrase) || neighbourhoodOnly.test(phrase) || OWN_PREMISES.test(phrase) ||
-      resolvesToOwn(phrase, ownVenueId, labels)) continue;
+    if (!phrase || /^\d{1,2}(?:am|pm)?$/i.test(phrase) || /^(?:celebrate|join|meet|enjoy|eat|watch|learn|try)$/.test(phrase) ||
+      neighbourhoodOnly.test(phrase) || OWN_PREMISES.test(phrase) || resolvesToOwn(phrase, ownVenueId, labels)) continue;
     return verdict('unverifiable', 'other-place-stated');
+  }
+  // Instagram bare @ mentions commonly denote a pop-up's actual venue. A
+  // different handle/place may never be silently overridden by an own pin.
+  HANDLE_OBJECT.lastIndex = 0;
+  for (const match of raw.matchAll(HANDLE_OBJECT)) {
+    const phrase = trimSchedule(match[1]);
+    if (!resolvesToOwn(phrase, ownVenueId, labels)) return verdict('unverifiable', 'other-place-stated');
   }
   return null;
 }
