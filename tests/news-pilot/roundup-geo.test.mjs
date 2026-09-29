@@ -238,6 +238,26 @@ test('identity: one canonical Lamport, Exhibition Place distinct from Enercare, 
   assert.equal(classifyVenueName('QUEST XO Creative Lab, Toronto').canonicalVenueId, 'addr:25-liberty-st');
 });
 
+test('reviewed RBC JSON-LD one-word Lakeshore normalizes to the adjacent Lake Shore venue', () => {
+  // Exact committed capture form (replay RBC captures + roundup-records.test.mjs):
+  // "streetAddress":"909 Lakeshore Blvd. W." with addressLocality Toronto.
+  const reviewed = classifyAddress('909 Lake Shore Blvd W', { addressLocality: 'Toronto' });
+  assert.equal(reviewed.verdict, 'adjacent');
+  for (const address of ['909 Lakeshore Blvd. W.', { streetAddress: '909 Lakeshore Blvd. W.', addressLocality: 'Toronto' }]) {
+    const classified = classifyAddress(address, { addressLocality: 'Toronto' });
+    assert.deepEqual(classified, { ...reviewed }, JSON.stringify(address));
+  }
+  assert.equal(canonicalVenueId('909 Lakeshore Blvd. W.'), reviewed.canonicalVenueId);
+  // Only actual street-address context: bare one-word venue/location claims still fail closed.
+  assert.equal(classifyAddress('Lakeshore').verdict, 'unverifiable');
+  assert.equal(classifyAddress('Lakeshore, Toronto').verdict, 'unverifiable');
+  assert.equal(classifyVenueName('Lakeshore').verdict, 'unverifiable');
+  // Unknown streets, the Douro guard and missing Toronto context are preserved.
+  assert.equal(classifyAddress('999 Hanna Ave, Toronto').verdict, 'unverifiable');
+  assert.equal(classifyAddress('68 Douro St, Toronto').verdict, 'not-LV');
+  assert.equal(classifyAddress('909 Lakeshore Blvd. W.').verdict, 'unverifiable');
+});
+
 test('U3: an Instagram caption stating another place never inherits the own venue', () => {
   assert.deepEqual(statedOtherPlace('Burger Drops weekend!\nOct 2 📍The Barn @ Downsview Park\nSee you there', 'addr:116-atlantic-ave'), { verdict: 'not-LV', reason: 'offsite-place-stated' });
   assert.equal(statedOtherPlace('Pop-up Oct 3\n📍 Stackt Market, 28 Bathurst St', 'addr:116-atlantic-ave').verdict, 'unverifiable');

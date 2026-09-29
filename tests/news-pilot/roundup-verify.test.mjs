@@ -285,6 +285,40 @@ test('real IG extractor and verifier admit only an item-bound pinned own venue, 
   }
 });
 
+test('day-first English IG date quote resolves against the post timestamp; malformed and numeric stay undated', async () => {
+  // IG193 archived date layer (replay ig-posts.jsonl, owner nrghaus, post 2026-09-24):
+  // "Saturday 3 October | 7-10PM" resolves to 2026-10-03 with the literal range as
+  // time proof. The stacked "Where: @nrghaus" place gap belongs to the registry lane.
+  const igUrl = 'https://www.instagram.com/p/BD123/';
+  const caption = 'Burger Drops pop-up Saturday 3 October | 7-10PM. Smash burgers all day.';
+  const post = { shortcode: 'BD123', ownerUsername: 'burgerdrops', timestamp: '2026-09-27T23:07:57Z', caption };
+  const src = { id: 'ig:burgerdrops', identityId: 'ig:burgerdrops', handle: 'burgerdrops', parse: 'ig-post', tier: 'primary',
+    canonicalVenueId: 'addr:116-atlantic-ave', multiLocation: false, requiresVenueInPost: false };
+  const rec = (body) => ({ recordId: 'r1', text: body, typed: {} });
+  const run = (dateQuote, body, when) => verifyRoundupForms({
+    signals: [{ signalId: 'ig1', sourceId: 'ig:burgerdrops', url: igUrl, post: { ...post, caption: body }, records: [rec(body)] }],
+    forms: [{ ...form('ig1', igUrl), subject: 'Burger Drops',
+      when, evidence: [{ url: igUrl, recordId: 'r1', subject_quote: 'Burger Drops', place_quote: null, date_quote: dateQuote }] }],
+    now, posts: [], recordExtractor: ({ body: fresh }) => [rec(fresh)],
+    fetcher: async () => { throw new Error('Instagram must not use network fetcher'); },
+    geography: realGeography, publisherTiers: {}, sources: [src] });
+  const admitted = await run('Saturday 3 October | 7-10PM', caption,
+    { kind: 'event', date: '2026-10-03', startTime: '19:00', endTime: '22:00' });
+  assert.equal(admitted.items.length, 1, JSON.stringify(admitted.excluded));
+  assert.equal(admitted.items[0].when.date, '2026-10-03');
+  assert.equal((await run('Saturday 3 October | 7-10PM', caption,
+    { kind: 'event', date: '2026-10-04', startTime: null })).excluded[0].reason, 'undated');
+  for (const [dateQuote, body] of [
+    ['Saturday 32 October | 7-10PM', caption.replace('Saturday 3 October', 'Saturday 32 October')],
+    ['10/03/26 | 7-10PM', caption.replace('Saturday 3 October', '10/03/26')],
+    ['sometime soon | 7-10PM', caption.replace('Saturday 3 October', 'sometime soon')],
+  ]) {
+    const refused = await run(dateQuote, body, { kind: 'event', date: '2026-10-03', startTime: null });
+    assert.equal(refused.items.length, 0, dateQuote);
+    assert.equal(refused.excluded[0].reason, 'undated', dateQuote);
+  }
+});
+
 test('feed records compare trusted snapshot fields before admission', async () => {
   const feedUrl = 'https://city.example/roads';
   const typed = { id: 'r42', road: 'Strachan Ave', fromRoad: 'King St W', toRoad: 'Fleet St',

@@ -11,7 +11,7 @@ export const WATCH_LIST = data('ig-watch.json').entries;
 const verdict = (value, reason, extra = {}) => ({ verdict: value, reason, ...extra });
 const normalize = (value) => String(value ?? '').normalize('NFC').replace(/[’']/g, "'").replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
 const key = (value) => normalize(value).toLowerCase().replace(/\bavenue\b/g, 'ave').replace(/\bstreet\b/g, 'st').replace(/\bboulevard\b/g, 'blvd').replace(/\broad\b/g, 'rd').replace(/\bdrive\b/g, 'dr').replace(/\beast liberty\b/g, 'east liberty').replace(/\be liberty\b/g, 'east liberty').replace(/\bking street west\b/g, 'king st w').replace(/\bking st west\b/g, 'king st w').replace(/\blake shore boulevard west\b/g, 'lake shore blvd w').replace(/\blake shore blvd west\b/g, 'lake shore blvd w').replace(/\bprinces' boulevard\b/g, 'princes blvd').replace(/\bprinces boulevard\b/g, 'princes blvd').replace(/\s+/g, ' ').trim();
-const normalizeStreet = (street) => key(street).replace(/\.$/, '');
+const normalizeStreet = (street) => key(street).replace(/\.$/, '').replace(/\blakeshore\b/g, 'lake shore');
 const streetPattern = '(?:East Liberty|E Liberty|King|Lake Shore|Hanna|Jefferson|Liberty|Fraser|Atlantic|Mowat|Western Battery|Pardee|Princes[’\']?|Manitoba|Strachan|Dufferin|Queen|Fleet|Newfoundland|Snooker|Joe Shuster|Douro|Temple|Elm Grove|Tyndall|Canniff|Crawford|Shaw|Lynn Williams|Pirandello|Solidarity)\\s+(?:Ave(?:nue)?|St(?:reet)?(?:\\s+W(?:est)?)?|Blvd|Boulevard|Rd|Road|Dr|Drive|Way)';
 const addressPattern = new RegExp(`\\b(\\d{1,5}[A-Za-z]?)\\s+(${streetPattern})(?:[,\\s]*(?:#|unit\\s+|suite\\s+|ste\\s+)([A-Za-z0-9]+))?\\b`, 'ig');
 const knownPoints = new Set(ADDRESS_POINTS.map(({ number, street }) => `${key(number)}|${normalizeStreet(street)}`));
@@ -35,7 +35,11 @@ function parsedAddress(address) {
     if (number && street) return { number: String(number), street: normalizeStreet(street), unit: unit ? String(unit).toLowerCase() : null, text: `${number} ${street}` };
     address = street ?? '';
   }
-  const text = normalize(address);
+  // Reviewed JSON-LD form "909 Lakeshore Blvd. W.": one-word Lakeshore is the same
+  // reviewed street as "Lake Shore", but only inside an actual parsed street address
+  // (a number plus a known street plus a suffix are still required below). Bare
+  // "Lakeshore" venue/location claims still fail closed as address-missing.
+  const text = normalize(address).replace(/\bLakeshore\b/gi, 'Lake Shore');
   const match = [...text.matchAll(addressPattern)][0];
   if (!match) return null;
   const before = text.slice(0, match.index);

@@ -7,7 +7,10 @@ export { roundupCoverageFromPack } from './roundup.mjs';
 
 const DAY = 86400000;
 const MONTH = new Map(['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].map((m, i) => [m, i + 1]));
-const datePattern = /\b(?:20\d\d-\d\d-\d\d|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+20\d\d)?)\b/gi;
+const MONTH_NAME = 'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
+// Unambiguous English calendar dates only: ISO, month-first ("October 3, 2026") and
+// day-first ("3 October", "Saturday 3 October"). Numeric MM/DD/YY stays unsupported (fail-closed).
+const datePattern = new RegExp(`\\b(?:20\\d\\d-\\d\\d-\\d\\d|(?:${MONTH_NAME})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+20\\d\\d)?|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTH_NAME})\\.?(?:,?\\s+20\\d\\d)?)\\b`, 'gi');
 const timePattern = /\b(?:noon|(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?))\b/gi;
 const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const local = (instant) => Object.fromEntries(fmt.formatToParts(new Date(instant)).filter((p) => p.type !== 'literal').map((p) => [p.type, Number(p.value)]));
@@ -78,11 +81,11 @@ async function originalFor(body, url, fetcher, recordTools = {}) {
 }
 
 function parseCalendar(raw, { base, allowYearless = false, horizon = 60 } = {}) {
-  const m = String(raw).match(/^(?:(\d{4})-(\d\d)-(\d\d)|([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(20\d\d))?)$/i);
+  const m = String(raw).match(/^(?:(\d{4})-(\d\d)-(\d\d)|([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(20\d\d))?|(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?(?:,?\s+(20\d\d))?)$/i);
   if (!m) return null;
-  const month = m[2] ? Number(m[2]) : MONTH.get(m[4].slice(0, 3).toLowerCase());
-  const day = Number(m[3] || m[5]);
-  const year = Number(m[1] || m[6]);
+  const month = m[2] ? Number(m[2]) : MONTH.get((m[4] || m[8]).slice(0, 3).toLowerCase());
+  const day = Number(m[3] || m[5] || m[7]);
+  const year = Number(m[1] || m[6] || m[9]);
   if (year) {
     const out = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return validDay(out) ? out : null;
