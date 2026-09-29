@@ -169,29 +169,42 @@ function statedTimes(record, source) {
 // org/project pages publish events, so their dateline must be explicitly marked.
 const WEEKDAY = '(?:(?:mon|tues|wednes|thurs|fri|satur|sun)day,?\\s*)?';
 const publicationMark = new RegExp(`\\b(?:published|posted|released|issued)(?:\\s+on)?\\s*:?\\s*${WEEKDAY}$`, 'i');
+const updatedMark = new RegExp(`\\bupdated(?:\\s+on)?\\s*:?\\s*${WEEKDAY}$`, 'i');
 const eventMark = new RegExp(`(?:\\b(?:date|dates|when|time)\\s*:|\\b(?:starts?|begins?|takes? place|will be held|happening)(?:\\s+on)?)\\s*${WEEKDAY}$`, 'i');
 const onMark = new RegExp(`\\bon\\s+${WEEKDAY}$`, 'i');
 const clockMark = /\b(?:noon|(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?))(?![\w.])/i;
+function dateMentions(text) {
+  const found = [...text.matchAll(datePattern)].map((m) => ({ start: m.index, end: m.index + m[0].length, date: parseCalendar(m[0]) }));
+  return found.map((mention, index) => {
+    const before = text.slice(Math.max(0, mention.start - 40), mention.start);
+    const clause = text.slice(mention.end, Math.min(mention.end + 60, found[index + 1]?.start ?? text.length));
+    const sentence = text.slice(mention.end, mention.end + 200).split(/[.!?](?:\s|$)/)[0];
+    const published = publicationMark.test(before);
+    return { ...mention, clause, published, updated: !published && updatedMark.test(before),
+      event: !published && (eventMark.test(before) || clockMark.test(clause) || onMark.test(before) && /\bwill\b/i.test(sentence)) };
+  });
+}
+// The one dateline of a news text: its first publication-marked date in the
+// first 400 characters, else its first year-bearing date there if that is not
+// an event or modification date. A later visible date is never the dateline.
+function datelineOf(text) {
+  const top = dateMentions(text).filter((mention) => mention.start < 400 && mention.date);
+  const marked = top.find((mention) => mention.published);
+  if (marked) return marked.date;
+  return top[0] && !top[0].event && !top[0].updated ? top[0].date : null;
+}
 function newsDatelineReason(record, recordSource, source, when, claim, at, datedByOriginal) {
   if (record.kind && record.kind !== 'section' || source.parse === 'json-feed' ||
     ['jsonld-event', 'html-listing', 'ig-post'].includes(recordSource.parse)) return 'undated';
   const text = norm(record.text);
-  const mentions = [...text.matchAll(datePattern)].map((m) => ({ start: m.index, end: m.index + m[0].length,
-    date: parseCalendar(m[0]) }));
   const quoted = norm(claim?.date_quote);
   const quoteAt = quoted ? text.indexOf(quoted) : -1;
   let marked = false, occurrence = null;
-  mentions.forEach((mention, index) => {
-    if (mention.date !== when.date) return;
-    const before = text.slice(Math.max(0, mention.start - 40), mention.start);
-    const published = publicationMark.test(before);
-    if (published && quoteAt >= 0 && mention.start >= quoteAt && mention.end <= quoteAt + quoted.length) marked = true;
-    if (published) return;
-    const clause = text.slice(mention.end, Math.min(mention.end + 60, mentions[index + 1]?.start ?? text.length));
-    const sentence = text.slice(mention.end, mention.end + 200).split(/[.!?](?:\s|$)/)[0];
-    if (!occurrence && (eventMark.test(before) || clockMark.test(clause) || onMark.test(before) && /\bwill\b/i.test(sentence)))
-      occurrence = statedTimes({ text: clause, typed: {} }, { parse: 'html-page' });
-  });
+  for (const mention of dateMentions(text)) {
+    if (mention.date !== when.date) continue;
+    if (mention.published && quoteAt >= 0 && mention.start >= quoteAt && mention.end <= quoteAt + quoted.length) marked = true;
+    if (mention.event && !occurrence) occurrence = statedTimes({ text: mention.clause, typed: {} }, { parse: 'html-page' });
+  }
   if (!datedByOriginal && source.identityKind !== 'news-discovery' && !marked) return 'undated';
   if (!occurrence) return null;
   if (!marked) return 'undated';
@@ -271,7 +284,8 @@ function dateFromRecord(record, source, when, post, now, claim) {
   if (when.kind === 'news-update') {
     const quoted = norm(claim?.date_quote);
     const visible = resolvedDates(quoted, { source: { parse: 'html-page' }, now });
-    return quoted && text.includes(quoted) && visible.includes(when.date) && text.indexOf(quoted) < 400 ? when.date : null;
+    return quoted && text.includes(quoted) && visible.includes(when.date) && text.indexOf(quoted) < 400 &&
+      datelineOf(text) === when.date ? when.date : null;
   }
   if (source.identityKind === 'news-discovery' && source.parse !== 'jsonld-event' ||
     source.parse === 'html-page' && !['org', 'project'].includes(source.identityKind)) return null;
@@ -472,7 +486,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
           }
           if (source.parse === 'ig-post' && post.ownerUsername && post.ownerUsername.toLowerCase() !== String(source.handle || source.identityId?.replace(/^ig:/, '') || '').replace(/^@/, '').toLowerCase()) fail('unverifiable');
           if (original) {
-            if (!resolvedDates(original.text.slice(0, 400), { source: { parse: 'html-page' }, now: at }).includes(form.when.date)) fail('stale');
+            if (datelineOf(original.text) !== form.when.date) fail('stale');
           } else if (dateFromRecord(record, recordSource, form.when, post, at, claim) !== form.when?.date) fail('undated');
           if (source.parse !== 'json-feed' && form.when?.endDate && !(String(record.typed?.endDate || '').startsWith(form.when.endDate) ||
             resolvedDates(norm(record.text), { source: recordSource, post, now: at }).includes(form.when.endDate))) fail('undated');

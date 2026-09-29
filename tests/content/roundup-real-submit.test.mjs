@@ -284,3 +284,36 @@ test('B2-R1: a posted news-update for a same-day event section is refused at T_s
   assert.ok(accepted.result.submissionId, JSON.stringify(accepted.result));
   assert.equal(await roundupRows(ctx.db), 1);
 });
+
+test('B2-R1: news-updates claiming a later non-dateline date hold with 0 rows; the true dateline publishes', { skip }, async (t) => {
+  const ctx = await setup(t);
+  const discovery = ROUNDUP_SOURCES.find((source) => source.id === 'rv2-serper-news');
+  const news = (claimed, quote) => {
+    const bodies = Object.fromEntries([1, 2, 3].map((n) => [`https://www.libertyvillagebia.com/news/winter-market-${n}`,
+      `<main><h1>Winter Market ${n} announced</h1><p>Published October 2, 2026 The BIA announced Winter Market ${n} for December 12, 2026 at 4pm. ` +
+      'Registration closes September 25, 2026.</p><p>Location: 171 East Liberty St, Toronto.</p></main>']));
+    const signals = Object.keys(bodies).map((address, i) => ({ signalId: `news-${i + 1}`, sourceId: discovery.id, url: address,
+      records: extractRoundupRecords({ source: discovery, url: address, body: bodies[address] }),
+      snapshotSha256: sha(bodies[address]), fetchedAt: b2Now, fetchStatus: 200 }));
+    const forms = signals.map((signal, i) => ({ signalId: signal.signalId, recordId: signal.records[0].recordId, subject: `Winter Market ${i + 1}`,
+      what: 'Winter market announced', where_it_happens: '171 East Liberty St', item_type: 'news', people: [], risk: {}, verdict: 'core',
+      exclude_reason: null, when: { kind: 'news-update', date: claimed, endDate: null, startTime: null, endTime: null },
+      evidence: [{ url: signal.url, recordId: signal.records[0].recordId, subject_quote: `Winter Market ${i + 1}`,
+        place_quote: 'Location: 171 East Liberty St, Toronto.', date_quote: quote }] }));
+    return { bodies, signals, forms, fetcher: fetcherFor(bodies) };
+  };
+  const misdated = news('2026-09-25', 'September 25, 2026');
+  const held = await pipeline(misdated, { at: b2Now });
+  if (held.post) await submit(ctx.db, held.out, 'b2r-misdated', misdated.fetcher, Date.parse(b2Now) + 60_000);
+  assert.equal(await roundupRows(ctx.db), 0, 'a non-dateline date persisted a news edition');
+  assert.equal(held.result.decision, 'hold');
+  assert.equal(held.result.units, 0);
+  const dated = news('2026-10-02', 'Published October 2, 2026');
+  const built = await pipeline(dated, { at: b2Now });
+  assert.equal(built.result.decision, 'publish', JSON.stringify(built.result.reasons));
+  const accepted = await submit(ctx.db, built.out, 'b2r-dated', dated.fetcher, Date.parse(b2Now) + 60_000);
+  assert.ok(accepted.result.submissionId, JSON.stringify(accepted.result));
+  const stored = (await ctx.db.query('select context from content.submissions where id=$1', [accepted.result.submissionId])).rows[0].context;
+  assert.deepEqual(stored.units.map((unit) => unit.date), ['2026-10-02', '2026-10-02', '2026-10-02']);
+  assert.equal(await roundupRows(ctx.db), 1);
+});

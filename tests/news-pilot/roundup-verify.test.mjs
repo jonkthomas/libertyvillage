@@ -590,3 +590,37 @@ test('B2-R1 controls: genuine datelines and too-far announcements stay news-upda
     assert.equal(result.items[0].identityKey, `news:${address}`);
   }
 });
+
+test('B2-R1: a news-update is bound to the page dateline, not a later non-dateline date in the first 400 chars', async () => {
+  const discovery = ROUNDUP_SOURCES.find((s) => s.id === 'rv2-serper-news');
+  const story = 'The BIA announced the Winter Market for December 12, 2026 at 4pm. Registration closes September 25, 2026.' +
+    '</p><p>Location: 171 East Liberty St, Toronto.';
+  const newsForm = (signalId, address, recordId, date, quote) => ({ signalId, recordId, subject: 'Winter Market',
+    what: 'Winter Market announced', where_it_happens: '171 East Liberty St', item_type: 'news', people: [], risk: {}, verdict: 'core',
+    exclude_reason: null, when: { kind: 'news-update', date, endDate: null, startTime: null, endTime: null },
+    evidence: [{ url: address, recordId, subject_quote: 'Winter Market', place_quote: 'Location: 171 East Liberty St, Toronto.', date_quote: quote }] });
+  const run = (address, bodies, date, quote) => {
+    const records = extractRoundupRecords({ source: discovery, url: address, body: bodies[address] });
+    return verifyRoundupForms({ ...b2Edition('news-update', 'starts'), fetcher: async (requested) => ({ body: bodies[requested] ?? '', status: 200 }),
+      publisherTiers: { 'libertyvillagebia.com': 'official', 'copy.example': 'official' },
+      signals: [{ signalId: 'dl', sourceId: discovery.id, url: address, records }],
+      forms: [newsForm('dl', address, records[0].recordId, date, quote)] });
+  };
+  // Own page: marked and bare datelines.
+  for (const dateline of ['Published October 2, 2026', 'October 2, 2026 -']) {
+    const address = 'https://www.libertyvillagebia.com/news/winter-market';
+    const bodies = { [address]: `<main><h1>Winter Market announced</h1><p>${dateline} ${story}</p></main>` };
+    assert.equal((await run(address, bodies, '2026-09-25', 'September 25, 2026')).excluded[0]?.reason, 'undated', dateline);
+    const genuine = await run(address, bodies, '2026-10-02', 'October 2, 2026');
+    assert.equal(genuine.items.length, 1, `${dateline}: ${JSON.stringify(genuine.excluded)}`);
+  }
+  // Syndicated copy: the original's own dateline, never another date near its top.
+  const copy = 'https://copy.example/winter-market';
+  const original = 'https://www.libertyvillagebia.com/news/winter-market-original';
+  const bodies = { [copy]: `<link rel="canonical" href="${original}"><main><h1>Winter Market announced</h1><p>October 3, 2026 ${story}</p></main>`,
+    [original]: `<main><h1>Winter Market announced</h1><p>Published October 2, 2026 ${story}</p></main>` };
+  const tiered = (date, quote) => run(copy, bodies, date, quote);
+  assert.equal((await tiered('2026-09-25', 'September 25, 2026')).excluded[0]?.reason, 'stale');
+  const kept = await tiered('2026-10-02', 'October 3, 2026');
+  assert.equal(kept.items[0]?.identityKey, `news:${original}`, JSON.stringify(kept.excluded));
+});
