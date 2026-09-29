@@ -28,6 +28,28 @@ test('reasoner validates exact signal and record, and treats JSON parse wrapper 
   assert.deepEqual(result.forms, [form]);
 });
 
+test('reasoner narrows a paraphrased title only to a same-record verbatim quote', async () => {
+  const modelForm = { ...form, subject: 'Open House – New Park at 34 Hanna Avenue',
+    evidence: [{ ...form.evidence[0], subject_quote: 'Toronto FC' }] };
+  const opts = { resolved: { ok: true, provider: { id: 'mock' } },
+    callModel: async () => ({ ok: true, text: JSON.stringify({ forms: [modelForm] }) }) };
+  const result = await reasonRoundupSignals([signal], opts);
+  assert.equal(result.forms[0].subject, 'Toronto FC');
+  const unanchored = { ...modelForm, evidence: [{ ...modelForm.evidence[0], subject_quote: 'No such title' }] };
+  const bad = await reasonRoundupSignals([signal], { ...opts,
+    callModel: async () => ({ ok: true, text: JSON.stringify({ forms: [unanchored] }) }) });
+  assert.equal(bad.forms[0].subject, modelForm.subject, 'never replace a title with an uncaptured quote');
+  const city = { ...signal, records: [{ recordId: 'r1', text:
+    'Open House\nDate: October 3, 2026\nLocation: Liberty Market Building, 171 East Liberty St., Suite 232' }] };
+  const cityForm = { ...modelForm, evidence: [{ ...modelForm.evidence[0], subject_quote: 'Open House',
+    place_quote: 'Liberty Market Building, 171 East Liberty St., Suite 232' }] };
+  const normalized = await reasonRoundupSignals([city], { ...opts,
+    callModel: async () => ({ ok: true, text: JSON.stringify({ forms: [cityForm] }) }) });
+  assert.equal(normalized.forms[0].subject, 'Open House');
+  assert.equal(normalized.forms[0].evidence[0].place_quote,
+    'Location: Liberty Market Building, 171 East Liberty St., Suite 232');
+});
+
 test('six-call model budget preserves IG even after a large road feed', async () => {
   const large = Array.from({ length: 70 }, (_, index) => ({ ...signal, signalId: `road-${index}`, sourceId: 'rv2-road-restrictions' }));
   large.push(...Array.from({ length: 20 }, (_, index) => ({ ...signal, signalId: `bmo-${index}`, sourceId: 'rv2-bmo-field' })));
@@ -41,6 +63,29 @@ test('six-call model budget preserves IG even after a large road feed', async ()
   assert.ok(offered.includes('bia-last'), 'one listing source must not starve other official sources');
   assert.equal(offered.length, 60);
   assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 32);
+});
+
+test('first-party core leads outrank adjacent/search leads under the hard model budget', async () => {
+  const adjacent = Array.from({ length: 65 }, (_, i) => ({ ...signal, signalId: `adj-${i}`, sourceId: 'rv2-coliseum' }));
+  const search = Array.from({ length: 30 }, (_, i) => ({ ...signal, signalId: `search-${i}`, sourceId: 'rv2-serper-news' }));
+  const coreIg = { ...signal, signalId: 'ig-oct3-core', sourceId: 'ig:burgerdrops',
+    post: { shortcode: 'DdzsAfDS8GO', timestamp: '2026-09-27T22:51:24Z' } };
+  const city = { ...signal, signalId: 'city-oct3-core', sourceId: 'rv2-city-project-34-hanna-park' };
+  const offered = [];
+  const result = await reasonRoundupSignals([...adjacent, ...search, coreIg, city], {
+    resolved: { ok: true, provider: { id: 'mock' } },
+    callModel: async ({ userText }) => {
+      offered.push(...JSON.parse(userText).signals.map((s) => s.signalId));
+      return { ok: true, text: '{"forms":[]}' };
+    },
+  });
+  assert.equal(offered.length, 60);
+  assert.ok(offered.includes(coreIg.signalId));
+  assert.ok(offered.includes(city.signalId));
+  assert.ok(offered.some((id) => id.startsWith('adj-')));
+  assert.ok(offered.some((id) => id.startsWith('search-')));
+  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 37);
+  assert.ok(result.excluded.filter((e) => e.reason === 'reason-budget').every((e) => e.priority === 'other'));
 });
 
 test('source-only credentials never enter reasoner or writer model requests', async () => {

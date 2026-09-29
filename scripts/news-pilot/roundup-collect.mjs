@@ -355,8 +355,12 @@ export async function collectRoundup({
             census.leads.push({ sourceId: source.id, shortcode: row.shortcode, reason: 'no-caption-date' });
             continue;
           }
-          addSignal({ sourceId: source.id, url: row.url, records, fetchedAt, snap, extra: { post, title: source.label } });
-          census.instagram.signals += 1;
+          // A single post may describe several independent dated events (including
+          // an off-site event and a core one). Give each item-bound caption block
+          // its own signal so one-form-per-signal cannot bury the core event.
+          for (const record of records) addSignal({ sourceId: source.id, url: row.url,
+            records: [record], recordId: record.recordId, fetchedAt, snap, extra: { post, title: source.label } });
+          census.instagram.signals += records.length;
         }
       } catch (error) {
         census.instagram = { status: 'unavailable', reason: String(error?.code || 'provider-error').slice(0, 40), handles: handles.length };

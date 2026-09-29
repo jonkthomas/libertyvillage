@@ -319,6 +319,22 @@ test('Instagram: owned dated posts become signals with the post; tagged rows dro
   assert.deepEqual(census.leads, [{ sourceId: 'ig:burgerdrops', shortcode: 'Dd12rA_ScQQ', reason: 'no-caption-date' }]);
 });
 
+test('one Instagram post with an off-site block and a core block yields separate item-bound signals', async () => {
+  const post = { ...IG215, handle: 'burgerdrops', ownerUsername: 'burgerdrops', shortcode: 'DdzsAfDS8GO',
+    url: 'https://www.instagram.com/p/DdzsAfDS8GO/', timestamp: '2026-09-27T22:51:24Z',
+    caption: '[ OCT. 2: Meet & Eat ]\n📍 The Barn @ Downsview Park\n\n[ OCT. 3: George Motz Burgers ]\n📍 116 Atlantic Ave. Patio' };
+  const c = fakeClock();
+  const { signals, census } = await collectRoundup({ out: tmp(), now: NOW, env: {}, fetcher: fakeNet({}).fetcher,
+    igProvider: { name: 'apify', listRecentPosts: async () => ({ rows: [post], unavailable: [] }) },
+    watchList: WATCH, sources: [], clock: c.clock, sleep: c.sleep });
+  assert.equal(signals.length, 2);
+  assert.equal(census.instagram.signals, 2);
+  assert.equal(new Set(signals.map((s) => s.signalId)).size, 2);
+  assert.ok(signals.every((s) => s.records.length === 1 && s.post.shortcode === post.shortcode &&
+    s.signalId === roundupSignalId('ig:burgerdrops', post.url, s.records[0].recordId)));
+  assert.ok(signals.some((s) => s.records[0].text.includes('116 Atlantic Ave.')));
+});
+
 test('Instagram provider failure or missing token → unavailable; every other source is unchanged', async () => {
   const run = async (opts) => {
     const c = fakeClock();

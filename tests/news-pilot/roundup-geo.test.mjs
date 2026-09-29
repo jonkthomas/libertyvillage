@@ -131,6 +131,12 @@ test('TTC requires both route and affected local stop', () => {
 
 test('project and BIA sections use their own event place, not project or actor identity', () => {
   assert.equal(place('Open house October 3, 2026. Location: 171 East Liberty St, Toronto').verdict, 'core');
+  const cityEvent = { placeQuote: 'Location: Liberty Market Building, 171 East Liberty St., Suite 232',
+    sectionText: 'Open House\nDate: October 3, 2026\nLocation: Liberty Market Building, 171 East Liberty St., Suite 232',
+    subject: 'Open House', dateQuote: 'October 3, 2026', agentVerdict: 'core' };
+  assert.equal(classifySectionPlace({ ...cityEvent, trustedToronto: true }).verdict, 'core',
+    'a City source establishes Toronto for its own address-bearing event record');
+  rejected(classifySectionPlace(cityEvent), 'the same text on an untrusted page cannot borrow City context');
   rejected(place('Open house October 3, 2026. Location: virtual meeting'));
   rejected(place('Open house October 3, 2026. Location: City Hall'));
   rejected(place('Organizer based at 40 Hanna Ave, Toronto presents an event at High Park'));

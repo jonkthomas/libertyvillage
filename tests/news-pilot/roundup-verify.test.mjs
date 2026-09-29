@@ -35,6 +35,19 @@ test('item-bound record, trusted tier and digest', async () => {
   assert.equal((await verifyRoundupForms(forged)).excluded[0].reason, 'weak-source');
 });
 
+test('City/BIA verified source supplies Toronto context for its own dated address event', async () => {
+  const body = 'Open House\nDate: October 3, 2026\nLocation: Liberty Market Building, 171 East Liberty St., Suite 232';
+  const verified = options([signal(body)], [{ ...form(), subject: 'Open House',
+    when: { kind: 'event', date: '2026-10-03', endDate: null, startTime: null, endTime: null },
+    evidence: [{ url, recordId: 'r1', subject_quote: 'Open House',
+      place_quote: 'Location: Liberty Market Building, 171 East Liberty St., Suite 232', date_quote: 'October 3, 2026' }] }], body);
+  verified.geography = realGeography;
+  const result = await verifyRoundupForms(verified);
+  assert.equal(result.items.length, 1, JSON.stringify(result.excluded));
+  assert.equal(result.items[0].verdict, 'core');
+  assert.equal(result.items[0].canonicalVenueId, 'addr:171-east-liberty-st');
+});
+
 test('prose geo receives item-bound fields and news identity uses evidence URL', async () => {
   let geographyInput;
   const news = options();

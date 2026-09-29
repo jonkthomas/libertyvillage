@@ -9,6 +9,29 @@ const RISKS = ['crime', 'election', 'private_individual', 'development_applicati
 const bounded = (x, n) => typeof x === 'string' && x.length <= n;
 const date = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && !Number.isNaN(Date.parse(`${x}T12:00:00Z`));
 const time = (x) => x === null || (typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x));
+const norm = (value) => String(value ?? '').normalize('NFC').replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+  .replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
+
+/** Repair model paraphrases only with verbatim, same-record spans (never synthesize evidence). */
+function anchoredForm(form, signal) {
+  const evidence = form?.evidence?.[0];
+  const record = signal.records?.find((row) => row.recordId === form?.recordId);
+  if (!record || !evidence) return form;
+  let anchored = form;
+  const quote = evidence.subject_quote;
+  if (bounded(quote, 120) && quote?.trim() && norm(record.text).includes(norm(quote)) &&
+      !norm(quote).includes(norm(form.subject))) anchored = { ...anchored, subject: quote };
+  // A model may omit the literal "Location:" prefix from a valid quote. The
+  // relation is proven only if that entire line is present in the same record.
+  const place = evidence.place_quote;
+  if (typeof place === 'string' && place.trim() && norm(record.text).includes(norm(place))) {
+    const line = record.text.split(/\r?\n/).find((row) =>
+      /^\s*(?:location|venue|address|where)\s*:/i.test(row) && norm(row).includes(norm(place)));
+    if (line && bounded(line.trim(), 300) && line.trim() !== place)
+      anchored = { ...anchored, evidence: [{ ...evidence, place_quote: line.trim() }, ...form.evidence.slice(1)] };
+  }
+  return anchored;
+}
 
 /** Model output is data, never evidence. Every citation must point at a supplied signal record. */
 export function validateRoundupForm(form, signal) {
@@ -45,28 +68,28 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
   const torontoParts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto',
     year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now)).map((part) => [part.type, part.value]));
   const referenceDateToronto = `${torontoParts.year}-${torontoParts.month}-${torontoParts.day}`;
-  // Preserve each source family when a large road feed would otherwise consume
-  // all six calls before any venue, Instagram, or news lead reaches reasoning.
-  const familyOf = (signal) => {
-    const source = ROUNDUP_SOURCES.find((entry) => entry.id === signal.sourceId);
-    return source?.identityKind === 'road-feed' ? 'road' : source?.identityKind === 'transit-feed' ? 'transit'
-      : source?.parse === 'ig-post' ? 'ig' : source?.identityKind === 'news-discovery' ? 'news' : 'other';
+  // The bounded six-call budget must never spend a slot on an adjacent venue or
+  // search lead while a verified first-party IG, BIA, or City project lead waits.
+  // Priority only orders reasoning; the verifier still proves locality and time.
+  const sources = new Map(ROUNDUP_SOURCES.map((source) => [source.id, source]));
+  const priority = (signal) => {
+    const source = sources.get(signal.sourceId);
+    return source?.parse === 'ig-post' || ['org', 'project'].includes(source?.identityKind) ? 'first-party-core-lead' : 'other';
   };
-  const quotas = { road: 12, transit: 6, ig: 16, news: 12, other: 14 };
   const selected = new Set();
-  for (const [family, cap] of Object.entries(quotas)) {
-    const bySource = new Map();
-    for (const signal of signals) if (familyOf(signal) === family)
-      bySource.set(signal.sourceId, [...(bySource.get(signal.sourceId) || []), signal]);
-    let remaining = cap;
-    while (remaining > 0 && [...bySource.values()].some((rows) => rows.length)) {
-      for (const rows of bySource.values()) if (rows.length && remaining > 0) { selected.add(rows.shift()); remaining--; }
-    }
+  const critical = signals.filter((signal) => priority(signal) === 'first-party-core-lead');
+  critical.sort((a, b) => Date.parse(b.post?.timestamp || '') - Date.parse(a.post?.timestamp || '') ||
+    a.signalId.localeCompare(b.signalId));
+  for (const signal of critical.slice(0, 60)) selected.add(signal);
+  const bySource = new Map();
+  for (const signal of signals) if (!selected.has(signal) && priority(signal) === 'other')
+    bySource.set(signal.sourceId, [...(bySource.get(signal.sourceId) || []), signal]);
+  while (selected.size < 60 && [...bySource.values()].some((rows) => rows.length)) {
+    for (const rows of bySource.values()) if (rows.length && selected.size < 60) selected.add(rows.shift());
   }
-  for (const signal of signals) if (selected.size < 60) selected.add(signal);
   const queue = [...selected];
   const forms = [], excluded = signals.filter((s) => !selected.has(s))
-    .map((s) => ({ signalId: s.signalId, reason: 'reason-budget' }));
+    .map((s) => ({ signalId: s.signalId, sourceId: s.sourceId, reason: 'reason-budget', priority: priority(s) }));
   for (let at = 0; at < queue.length; at += 10) {
     const batch = queue.slice(at, at + 10);
     const input = batch.map((s) => ({ signalId: s.signalId, sourceId: s.sourceId, url: s.url,
@@ -82,7 +105,8 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
     const proposed = Array.isArray(parsed?.forms) ? parsed.forms : [];
     for (const signal of batch) {
       const matches = proposed.filter((f) => f?.signalId === signal.signalId);
-      if (matches.length === 1 && validateRoundupForm(matches[0], signal)) forms.push(matches[0]);
+      const anchored = matches.length === 1 ? anchoredForm(matches[0], signal) : null;
+      if (anchored && validateRoundupForm(anchored, signal)) forms.push(anchored);
       else excluded.push({ signalId: signal.signalId, reason: 'form-invalid' });
     }
   }

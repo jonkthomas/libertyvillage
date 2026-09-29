@@ -277,7 +277,8 @@ function identity(record, source, form, claim, geo) {
     }
   } else result = invoke('classifySectionPlace', { placeQuote: claim?.place_quote,
     sectionText: text, subject: form.subject, dateQuote: claim?.date_quote,
-    domain: new URL(claim.url).hostname, agentVerdict: form.verdict });
+    domain: new URL(claim.url).hostname, agentVerdict: form.verdict,
+    trustedToronto: ['project', 'org'].includes(source.identityKind) });
   const verdict = typeof result === 'string' ? result : result?.verdict || result?.locality || result?.classification;
   if (!['core', 'adjacent', 'not-LV'].includes(verdict)) fail('unverifiable');
   return { locality: verdict, canonicalVenueId: result?.canonicalVenueId || typed.canonicalVenueId || source.canonicalVenueId,

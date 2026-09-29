@@ -196,13 +196,14 @@ function cap(result, agentVerdict) {
   if (!(agentVerdict in verdictOrder) || result.verdict === 'unverifiable') return result;
   return verdictOrder[agentVerdict] < verdictOrder[result.verdict] ? { ...result, verdict: agentVerdict, reason: 'agent-verdict-cap' } : result;
 }
-export function classifySectionPlace({ placeQuote, sectionText, subject, dateQuote, domain, agentVerdict } = {}) {
+export function classifySectionPlace({ placeQuote, sectionText, subject, dateQuote, domain, agentVerdict, trustedToronto = false } = {}) {
   const quote = normalize(placeQuote);
   const section = normalize(sectionText);
   if (!quote || !section || !section.includes(quote)) return verdict('unverifiable', 'place-quote-not-in-section');
   if (actorPhrase.test(quote) && !/\b(?:takes place at|will be held at|location\s*:|venue\s*:|where\s*:)\b|📍/i.test(quote)) return verdict('unverifiable', 'actor-address-not-event-location');
   if (!eventRelation.test(quote)) return verdict('unverifiable', 'event-location-relation-missing');
-  const addressMatches = [...quote.matchAll(addressPattern)].map((m) => classifyAddress(m[0], { recordText: section, trustedToronto: /\bToronto\b/i.test(section) }));
+  const addressMatches = [...quote.matchAll(addressPattern)].map((m) => classifyAddress(m[0],
+    { recordText: section, trustedToronto: trustedToronto || /\bToronto\b/i.test(section) }));
   // §6.2: every prose venue, core ones included, needs Toronto context in the same record.
   if (foreignPlace.test(quote)) return verdict('not-LV', 'outside-toronto');
   const venueMatches = namedVenues(quote).filter((v) => v.registryVenueId || /Liberty Village Park|Lamport Stadium/i.test(v.name)).map((v) => classifyVenueName(v.name, { domain, trustedToronto: /\bToronto\b|\bExhibition Place\b/i.test(section) }));
