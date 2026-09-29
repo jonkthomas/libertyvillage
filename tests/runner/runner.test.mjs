@@ -253,6 +253,12 @@ test('failure alert contains only a non-secret run reference and reports deliver
   assert.equal(suggested, true);
   assert.match(body.text, /code outside the data lane.*human PR required/);
   assert.doesNotMatch(body.text, /job failed|slack.example|invalid JSON/);
+  const held = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-roundup', target: 'staging',
+    slot: '202609281100-abcd1234', holdCensus: { candidatesSeen: 3, accepted: 1, byReason: { undated: 2 },
+      title: 'private High Park candidate', url: 'https://private.example/' } }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.equal(held, true);
+  assert.match(body.text, /publication held.*candidatesSeen":3.*undated":2/);
+  assert.doesNotMatch(body.text, /private|High Park|private.example|DB content job failed/);
   assert.equal(await alertFailure({ webhook: 'https://slack.example/secret', job: 'news', target: 'staging', slot: '202609281217-abcd1234' }, async () => { throw new Error('offline'); }), false);
 });
 

@@ -106,6 +106,26 @@ test('two verified items append one news roundup with submit-compatible evidence
   assert.ok(policy(concealedDate).includes('roundup item actual date missing'));
 });
 
+test('census-only dry run cannot append the local control or the High Park/Parkdale false-locality probes', async () => {
+  const passages = [
+    'Liberty Village Community Association reported the alpha event at Hanna Avenue in Liberty Village. Residents can find details in Liberty Village. Organizers shared the schedule with local visitors. This update is dated 2026-09-29. The alpha event is open to neighbours.',
+    'Liberty Village Community Association reported the alpha event at High Park in Toronto. Residents in Liberty Village can find details for this out-of-area event online. Organizers shared the schedule with visitors. This update is dated 2026-09-29. The alpha event is open to neighbours.',
+    'Liberty Village Community Association reported the alpha event in Liberty Village-adjacent Parkdale. Residents can find details for the Parkdale event online. Organizers shared the schedule with visitors. This update is dated 2026-09-29. The alpha event is open to neighbours.',
+  ];
+  for (const passage of passages) {
+    const f = fixture([candidate('alpha')]);
+    const before = fs.readFileSync(f.postsFile, 'utf8');
+    const page = `<html><head><meta property="article:published_time" content="2026-09-29T10:00:00Z"><meta property="og:site_name" content="Local Publisher"></head><body><article><h1>Liberty Village alpha event</h1><p>${passage}</p></article></body></html>`;
+    const { diskResult, diskPack } = await execute(f, { 'https://example.org/alpha': page }, { args: { dryRun: true } });
+    // The old text-locality heuristic accepts all three. Keeping the runner in
+    // census-only mode is mandatory until a reviewed structured-source fix lands.
+    assert.equal(diskPack.items.length, 1);
+    assert.equal(diskResult.published, 0);
+    assert.equal(diskResult.hold?.reason, 'dry-run');
+    assert.equal(fs.readFileSync(f.postsFile, 'utf8'), before);
+  }
+});
+
 test('one eligible item appends an honestly labelled weekly update', async () => {
   const f = fixture([candidate('alpha')]);
   const { diskResult } = await execute(f);

@@ -6,9 +6,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seededDb, localSite, FAST_SMOKE, publishDirect } from './fixtures/content-db.mjs';
 import { submitContent, checkRecordPolicy, ROUNDUP_REVALIDATE_MAX_AGE_MS } from '../../scripts/content/submit.mjs';
+import { runCli } from '../../scripts/content/cli.mjs';
 import { validateRecord } from '../../scripts/content/validate.mjs';
 import { planRoundup, buildRoundupPost } from '../../scripts/news-pilot/roundup.mjs';
 import { roundupPackDigest } from '../../scripts/news-pilot/roundup-evidence.mjs';
+
+test('trusted CLI refuses all roundup publication before opening a DB, independently of runner mode', async () => {
+  await assert.rejects(runCli(['submit', '--kind', 'roundup', '--dir', '/tmp/unused']),
+    /roundup publication disabled pending structured-source review/);
+});
 
 const { gateContent } = await import('../../scripts/content/gate.mjs');
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));

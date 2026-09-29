@@ -123,7 +123,9 @@ async function stack(t) {
 }
 
 const blog = (ctx, slot) => runWeeklyBlog({ target: 'test', slot, request: {}, deps: ctx.deps });
-const roundup = (ctx, slot) => runWeeklyRoundup({ target: 'test', slot, request: {}, deps: ctx.deps });
+// Legacy lifecycle contract exercised in the isolated DB harness; the installed
+// runner defaults to census-only and the trusted CLI refuses roundup submit.
+const roundup = (ctx, slot) => runWeeklyRoundup({ target: 'test', slot, request: {}, deps: { ...ctx.deps, roundupPublicationMode: 'legacy-fixture' } });
 const blogSubmissions = async (db) => (await db.query("select id,idempotency_key,state,context from content.submissions where kind='blog' order by id")).rows;
 
 test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count increments via the hosted alias', { skip, timeout: 300_000 }, async (t) => {

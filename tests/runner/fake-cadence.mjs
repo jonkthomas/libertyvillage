@@ -282,7 +282,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       if (script === 'scripts/news-pilot/roundup-run.mjs') {
         const writer = world.roundupPlan.shift();
         fs.mkdirSync(arg('out'), { recursive: true });
-        writer({ out: arg('out'), root: arg('root'), now: arg('now'), world });
+        writer({ out: arg('out'), root: arg('root'), now: arg('now'), world, dryRun: args.includes('--dry-run') });
         return { code: 0 };
       }
       throw new Error(`unexpected source ${script}`);

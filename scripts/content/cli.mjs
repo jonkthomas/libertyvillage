@@ -54,6 +54,10 @@ async function gcAssets(db,{apply}) {
 }
 export async function runCli(argv = process.argv.slice(2), { delegates = {} } = {}) {
   const {command,opts} = parse(argv);
+  // Independent trusted boundary: an operator cannot submit a free-text weekly
+  // roundup even if a writer or runner was invoked outside its census-only mode.
+  if (command === 'submit' && opts.kind === 'roundup')
+    throw new store.ValidationError('roundup publication disabled pending structured-source review');
   if (command === 'restore-snapshot') {
     console.error(JSON.stringify({target:{db:null,host:null}}));
     return { result:await restoreSnapshot({from:required(opts.from,'--from'),root:required(opts.root,'--root')}),exitCode:0 };

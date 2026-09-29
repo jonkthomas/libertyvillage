@@ -14,6 +14,9 @@ export const JOBS = Object.freeze({
   // On-demand only (no timer): staging until John authorizes production.
   'weekly-roundup': { calendar: null, kind: 'roundup', stagingOnly: true },
 });
+// Runner configuration: no free-text roundup may be published until a reviewed
+// structured-source contract replaces this census-only mode. Not an env toggle.
+export const ROUNDUP_PUBLICATION = Object.freeze({ mode: 'census-only' });
 export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
 const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
 const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DB_NAME', 'CONTENT_TARGET', 'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'CONTENT_DEPLOY_HOOK_URL', 'SLACK_WEBHOOK_URL'];
@@ -170,10 +173,13 @@ export function parseJson(text) { return JSON.parse(text.trim()); }
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
 
-export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false }, fetchImpl = fetch) {
+export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null }, fetchImpl = fetch) {
   if (!webhook) return false;
   try {
-    const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` : `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}` }), signal: AbortSignal.timeout(10_000) });
+    const text = holdCensus ? `⚠ ${job} publication held (${target}); lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
+      codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` :
+        `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}`;
+    const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }), signal: AbortSignal.timeout(10_000) });
     return response.ok;
   } catch { return false; }
 }
@@ -747,7 +753,10 @@ const isIsoInstant = (value) => typeof value === 'string' && Number.isFinite(Dat
 
 function censusCounts(census) {
   if (!census || typeof census !== 'object' || Array.isArray(census)) return {};
-  return Object.fromEntries(Object.entries(census).filter(([key, value]) => /^[a-zA-Z0-9_]{1,40}$/.test(key) && Number.isInteger(value)).slice(0, 20));
+  const counts = Object.fromEntries(Object.entries(census).filter(([key, value]) => /^[a-zA-Z0-9_]{1,40}$/.test(key) && Number.isInteger(value) && value >= 0).slice(0, 20));
+  const reasons = census.byReason && typeof census.byReason === 'object' && !Array.isArray(census.byReason)
+    ? Object.fromEntries(Object.entries(census.byReason).filter(([key, value]) => /^[a-z0-9-]{1,40}$/.test(key) && Number.isInteger(value) && value >= 0).slice(0, 20)) : {};
+  return Object.keys(reasons).length ? { ...counts, byReason: reasons } : counts;
 }
 
 // Returns {zero:true, census} for a consistent zero-eligible hold, {post, result,
@@ -831,10 +840,42 @@ function retryRoundupAttempt(run, token, attempt, slotSlug) {
   return { state: 'closed' };
 }
 
+function censusOnlyRoundup({ slot, deps, now, week }) {
+  // Even if the writer mistakenly accepts an off-area item, its dry run cannot
+  // append a post; independently verify the exported posts stayed byte-identical.
+  deps.exportSnapshot();
+  const postsFile = path.join(deps.repo, 'data', 'posts.json');
+  const before = fs.readFileSync(postsFile, 'utf8');
+  const runDir = path.join(deps.stateRoot, 'roundup', slot);
+  const discovery = path.join(runDir, 'discovery');
+  const out = path.join(runDir, 'out');
+  fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
+  fs.rmSync(out, { recursive: true, force: true });
+  if (!fs.existsSync(path.join(discovery, 'candidates.json')))
+    deps.source('scripts/news-pilot/run.mjs', [`--out=${discovery}`, '--dry-run', '--vault=/dev/null']);
+  const discovered = readJson(path.join(discovery, 'candidates.json'));
+  if ((discovered.meta?.sourcesOk ?? 0) < 1) throw new Error('no healthy news source');
+  deps.source('scripts/news-pilot/roundup-run.mjs', [`--run=${discovery}`, `--out=${out}`, `--root=${deps.repo}`, `--now=${now.toISOString()}`, '--dry-run']);
+  let result;
+  let pack;
+  try {
+    result = readBoundedJson(path.join(out, 'result.json'), CADENCE.artifactMaxBytes);
+    pack = readBoundedJson(path.join(out, 'pack.json'), CADENCE.artifactMaxBytes);
+  } catch { throw new Error('roundup census invalid'); }
+  if (result?.published !== 0 || !result.census || typeof result.census !== 'object' || Array.isArray(result.census)
+    || !pack || !Array.isArray(pack.items) || fs.readFileSync(postsFile, 'utf8') !== before)
+    throw new Error('roundup census invalid');
+  const census = censusCounts(result.census);
+  deps.log('roundup-publication-held', { week, mode: ROUNDUP_PUBLICATION.mode, census });
+  return { noChanges: true, reason: 'roundup-publication-disabled', census };
+}
+
 export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
   // Refused for production here as well as in main() and the launcher.
   if (target === 'production') throw new Error('weekly-roundup is staging-only');
   if (request.dryRun || request.topic) throw new Error('weekly-roundup options unsupported');
+  const mode = deps.roundupPublicationMode ?? ROUNDUP_PUBLICATION.mode;
+  if (!['census-only', 'legacy-fixture'].includes(mode)) throw new Error('roundup publication disabled');
   const now = deps.now();
   const week = deps.modules.weekStartUtc(now);
   evaluatePriorWeek(deps, target, week, now);
@@ -842,6 +883,9 @@ export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
   const count = call('count');
   deps.log('cadence-count', { week, roundupCount: count.roundupCount });
   if (count.roundupCount >= 1) return { cadenceMet: true, noChanges: true };
+  if (mode === 'census-only') return censusOnlyRoundup({ slot, deps, now, week });
+  // Retained for isolated legacy contract tests only. The installed runner sets
+  // census-only and the trusted submit CLI rejects roundup submissions too.
   const run = { deps, call, target, week, kind: 'roundup', lane: 'roundup', actor: `runner:weekly-roundup#${slot}` };
   const reservation = call('reserve', ['--lane', 'roundup', '--slot-number', 1, '--owner', `runner:weekly-roundup:${target}:${slot}`, '--lease-seconds', CADENCE.leaseSeconds]);
   // Losers of the one-per-week roundup slot never draft a second candidate.
@@ -934,7 +978,7 @@ function exportSnapshot(target, log) {
 async function cadenceDeps(job, target, slot, log) {
   return {
     repo, stateRoot, modules: await trustedModules(repo), now: () => new Date(), alertsEnabled: Boolean(process.env.SLACK_WEBHOOK_URL),
-    cadenceStartWeek: process.env.CADENCE_START_ISO_WEEK,
+    cadenceStartWeek: process.env.CADENCE_START_ISO_WEEK, roundupPublicationMode: ROUNDUP_PUBLICATION.mode,
     cli: (args, allowExit = []) => cli(args, repo, allowExit),
     log: (event, details) => logLine(log, event, details),
     exportSnapshot: () => exportSnapshot(target, log),
@@ -1046,7 +1090,7 @@ export const SAFE_FAILURES = Object.freeze(new Set([
   'weekly-roundup is staging-only', 'weekly-roundup options unsupported', 'roundup artifact invalid', 'roundup artifact inconsistent',
   'roundup submit refused', 'roundup intent already attempted', 'idempotency kind mismatch', 'submission lacks smoke success',
   'smoked but not counted for week', 'late smoke; old week missed', 'roundup consumed but no longer live',
-  'invalid cadence start week',
+  'invalid cadence start week', 'roundup publication disabled', 'roundup census invalid',
 ]));
 export function failureReason(error) {
   return error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : SAFE_FAILURES.has(error?.message) ? error.message : 'operational-error');
@@ -1067,6 +1111,10 @@ export async function main(argv = process.argv.slice(2)) {
     const request = fs.existsSync(requestPath) ? readJson(requestPath) : {};
     const sha = checkout(target, log);
     const result = await runJob(job, target, slot, request, log, notifications);
+    if (job === 'weekly-roundup' && result?.reason === 'roundup-publication-disabled') {
+      const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, holdCensus: result.census });
+      logLine(log, alerted ? 'roundup-hold-alerted' : 'roundup-hold-alert-skipped', { census: result.census });
+    }
     logLine(log, 'success', { sha, result: result && { id: result.id ?? null, dryRun: !!result.dryRun, noChanges: !!result.noChanges, ...(result.cadenceMet !== undefined ? { cadenceMet: result.cadenceMet } : {}), ...(typeof result.reason === 'string' ? { reason: result.reason } : {}) } });
   } catch (error) {
     const reason = failureReason(error);
