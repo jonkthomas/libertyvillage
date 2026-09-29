@@ -5,6 +5,8 @@ mode=$(basename "$0")
 if [[ "$mode" == lv-runner-generator ]]; then
   exec python3 - "$@" <<'PY'
 import json, os, pathlib, pwd, re, subprocess, sys, time
+sys.path.insert(0, '/usr/local/libexec')
+from generator_diag import GeneratorDiagnostic, capture_generator
 if os.geteuid() != 0 or len(sys.argv) != 3:
     sys.exit(2)
 job, slot = sys.argv[1:]
@@ -65,19 +67,29 @@ stop_ok = True
 try:
     unit = f'lv-generator-{slot}-{os.urandom(4).hex()}'
     cmd = ['systemd-run', '--wait', '--pipe', '--collect', '--quiet', f'--unit={unit}', '-p', 'User=lv-generator', '-p', 'NoNewPrivileges=yes', '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes', '-p', 'PrivateTmp=yes', '-p', 'CapabilityBoundingSet=', '-p', 'RestrictSUIDSGID=yes', '-p', 'RuntimeMaxSec=40min', '-p', f'WorkingDirectory={scratch}', '-p', f'ReadWritePaths={scratch} /var/cache/lv-generator', '-p', f'EnvironmentFile={envfile}', 'node', script]
+    diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl')
     try:
-        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=CLIENT_TIMEOUT)
+        result = capture_generator(cmd, diag, CLIENT_TIMEOUT)
+        diag.event('unit-exit', code=result)
     except subprocess.TimeoutExpired:
         stop_ok = _stop_unit(unit)
+        diag.event('unit-timeout')
         sys.exit(124 if stop_ok else 1)
     except Exception:
         stop_ok = _stop_unit(unit) if unit else True
+        diag.event('unit-error')
         sys.exit(1)
-    if result.returncode != 0 and not _unit_inactive(unit):
+    finally:
+        try:
+            diag.close()
+        except Exception:
+            # Diagnostics must not skip the inactive check or stop a live unit.
+            pass
+    if result != 0 and not _unit_inactive(unit):
         stop_ok = _stop_unit(unit)
         if not stop_ok:
             sys.exit(1)
-    sys.exit(result.returncode)
+    sys.exit(result)
 finally:
     if stop_ok:
         ownership(worker.pw_uid, worker.pw_gid)
