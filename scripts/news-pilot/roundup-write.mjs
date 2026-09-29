@@ -43,7 +43,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   if (!units.length) throw new Error('roundup_no_units');
   const author = resolved || await resolveModelProvider(env);
   if (!author.ok) throw new Error(`roundup_writer_unavailable:${author.error}`);
-  const critic = reviewer || await resolveModelProvider(env, { prefer: author.provider?.id === 'anthropic' ? 'google' : 'anthropic' });
+  const critic = reviewer || await resolveModelProvider(env, { prefer: author.provider?.id === 'anthropic' ? 'google-gemini' : 'anthropic' });
   const material = units.map(compact);
   const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
   let draft = await jsonCall(callModel, author, instructions, { units: material }, 9000);
