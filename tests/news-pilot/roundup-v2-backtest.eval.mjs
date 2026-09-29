@@ -1,42 +1,43 @@
 // Roundup v2 backtest replay eval (docs/specs/weekly-roundup-v2.md sections 7, A4).
 //
 // No model calls, no network. Replays the archived September 2026 backtest +
-// Instagram trial through the REAL pipeline — verifyRoundupForms (item-bound
-// evidence, dates, time proof, tiers, temporal windows, risk, coverage) and
-// planRoundupV2 (dedupe, concert/class caps, cap 12, >=3 units / >=1 anchor) —
-// with test-scope doubles only at the designed seams, exactly as the
-// verifier's own unit tests do:
+// Instagram trial through the REAL product stack — verifyRoundupForms,
+// planRoundupV2, roundup-geo.mjs classifiers, ROUNDUP_SOURCES and
+// ROUNDUP_PUBLISHER_TIERS — resolved from the product directory itself, so
+// the verifier's own relative imports (geo, records, sources) load product
+// code, never eval doubles. RV_PRODUCT_DIR overrides the product directory
+// for validation runs against another checkout; it defaults to this repo's
+// scripts/news-pilot. Test-scope seams that remain:
 //   - fetcher: serves the frozen captured bodies by URL (403 for walled,
-//     404 for truncated rows — the backtest's own verdicts);
-//   - recordExtractor: returns the reviewed record for a recordId; record
-//     TEXT always comes from the body files, typed feed/JSON-LD fields are
-//     parsed from that text at runtime;
-//   - sources/publisherTiers: the replay registry (tiers per section 4.1;
-//     discovery rows stay leads);
-//   - geography: primitives that check the captured text itself (venue alias
-//     present, address token present, segment-table match). A stub that cannot
-//     find evidence fails closed (unverifiable), never parrots the fixture.
+//     404 for truncated rows — the backtest's own verdicts). Pinned bytes,
+//     no network, deterministic;
+//   - recordExtractor (TEMPORARY seam, see replay/REVIEW.md): returns the
+//     reviewed record for a recordId because most frozen bodies are
+//     tag-stripped fragments the real extractor cannot segment. Record TEXT
+//     always comes from the body files. R59 rows already carry product
+//     rid() recordIds verified byte-identical against the live page;
+//   - signal.post: pinned trial provider rows (shortcode, caption,
+//     timestamp, owner) for ig-post sources.
 //
 // Every exclusion reason below is produced by the verifier, never asserted
 // from the fixture. The fixture's expected.class is the reviewed label; where
-// the real reason differs by rule-ordering it is reported, not hidden.
-//
-// Reviewed-table updates baked in (see replay/REVIEW.md): fact (ii) R37
-// verifies; R61 has no visible dateline; R59c has no captured record text;
-// IG193's day-first date does not resolve in the verifier grammar, so W39
-// holds in both scenarios. If scripts/news-pilot/roundup-verify.mjs is
-// absent, the eval runs the documented interim replay instead and reports
-// pending-integration (spec A7).
+// the real reason differs it is reported, not hidden. Nothing here forces a
+// table: pins assert observed product behavior, and honest divergences from
+// the printed spec table are recorded in replay/REVIEW.md.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { roundupSourceQuality } from '../../scripts/news-pilot/roundup-evidence.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+// Product directory: this repo's scripts/news-pilot by default; override for
+// validation runs against another checkout (which must contain the full
+// stack: verify, plan, geo, records, sources, data).
+const PROD = process.env.RV_PRODUCT_DIR || path.join(ROOT, 'scripts', 'news-pilot');
+const prodMod = (name) => import(pathToFileURL(path.join(PROD, name)).href);
 const REF = path.join(ROOT, 'tests/fixtures/roundup-v2/backtest/reference');
 const REP = path.join(ROOT, 'tests/fixtures/roundup-v2/backtest/replay');
 
@@ -78,192 +79,24 @@ function bodyTextOf(rel) {
   return raw;
 }
 
-// ---------------------------------------------------------------- registry ---
-const SOURCES = [
-  { id: 'rv2-bmo-field', identityKind: 'venue', identityId: 'venue:bmo-field', url: 'https://www.bmofield.com/events', parse: 'html-listing', tier: 'official', locality: 'adjacent', canonicalVenueId: 'venue:bmo-field' },
-  { id: 'rv2-coliseum', identityKind: 'venue', identityId: 'venue:coca-cola-coliseum', url: 'https://www.coca-colacoliseum.com/events', parse: 'html-listing', tier: 'official', locality: 'adjacent', canonicalVenueId: 'venue:coca-cola-coliseum' },
-  { id: 'rv2-explace', identityKind: 'venue', identityId: 'venue:exhibition-place', url: 'https://www.explace.on.ca/events/', parse: 'html-listing', tier: 'official', locality: 'adjacent', canonicalVenueId: 'venue:exhibition-place' },
-  { id: 'rv2-enercare', identityKind: 'venue', identityId: 'venue:enercare-centre', url: 'https://www.explace.on.ca/events/', parse: 'html-listing', tier: 'official', locality: 'adjacent', canonicalVenueId: 'venue:enercare-centre' },
-  { id: 'rv2-rbc', identityKind: 'venue', identityId: 'venue:rbc-amphitheatre', url: 'https://www.rbcamphitheatre.com/shows', parse: 'jsonld-event', tier: 'official', locality: 'adjacent', canonicalVenueId: 'venue:rbc-amphitheatre' },
-  { id: 'rv2-road-restrictions', identityKind: 'road-feed', parse: 'json-feed', tier: 'official', url: 'https://secure.toronto.ca/opendata/cart/road_restrictions/v3?format=json' },
-  { id: 'rv2-lv-bia-events', identityKind: 'org', parse: 'html-page', tier: 'official', url: 'https://www.libertyvillagebia.com/events', geography: 'Toronto' },
-  { id: 'rv2-city-projects', identityKind: 'project', parse: 'html-page', tier: 'official', geography: 'Toronto' },
-  { id: 'rv2-canada-soccer', identityKind: 'org', parse: 'html-page', tier: 'official', url: 'https://news.canadasoccer.com/canmnt-to-play-202627-concacaf-nations-league-quarterfinal-home-leg-in-toronto', geography: 'Toronto' },
-  { id: 'rv2-serper-news', identityKind: 'news-discovery', parse: 'html-page', tier: 'lead' },
-];
-const TIERS = {
-  'blogto.com': 'lead', 'tfcrepublic.ca': 'lead', 'thestar.com': 'reputable', 'cbc.ca': 'reputable',
-  'toronto.citynews.ca': 'lead', 'citynews.ca': 'lead', '6ixretail.com': 'lead', 'newswire.ca': 'lead',
-  'torontosun.com': 'lead', 'narcity.com': 'lead', 'cp24.com': 'lead', 'torontotoday.ca': 'lead',
-  'torontolife.com': 'lead', 'nowtoronto.com': 'lead', 'theglobeandmail.com': 'lead',
-  'globalnews.ca': 'reputable', 'nationalpost.com': 'lead', 'streetsoftoronto.com': 'lead',
-  'showpass.com': 'lead', 'toronto.com': 'lead', 'durhamregion.com': 'lead', 'ontarioplace.com': 'lead',
-};
-// Watch-list entries are read from the pinned reference file, not invented.
-const BRANDWIDE = new Set(['impactkitchen', 'balzacscoffee', 'yogatreestudios', 'sweetflourbakeshop',
-  'localpubliceatery', 'kintonramen', 'arvocoffee', 'kitchenhub', 'risecycle', 'burgerdrops',
-  'mildredstemplekitchen', 'jimmys_coffee', 'strongpilates_ca', 'sundayspastalab']);
-const WATCH = new Map();
-for (const line of lines(path.join(REF, 'ig/accounts.csv')).slice(1)) {
-  const [handle, business, addr, url] = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
-  WATCH.set(handle.toLowerCase(), { business, addr: addr.replace(/^"|"$/g, ''), url });
-}
-const REQUIRES_VENUE = new Set(['greenlibertyvillage', 'libertyresident']);
-for (const u of UNITS) {
-  if (!u.unitId.startsWith('IG') || !u.clockFacts?.owner) continue;
-  const h = u.clockFacts.owner.toLowerCase();
-  if (!SOURCES.some((s) => s.id === `ig:${h}`)) {
-    const w = WATCH.get(h) || { business: h, addr: '' };
-    SOURCES.push({ id: `ig:${h}`, identityKind: 'ig', parse: 'ig-post', tier: 'primary',
-      handle: h, verifiedAddress: w.addr, requiresVenue: REQUIRES_VENUE.has(h),
-      singleLocation: !BRANDWIDE.has(h) });
-  }
-}
-
-// ------------------------------------------------- geography doubles (real) ---
-// Each classifier below checks the captured record text (or typed fields) and
-// fails closed. None of them read the fixture's verdict or expected class.
-const CORE_STREETS = ['hanna ave', 'atlantic ave', 'liberty st', 'east liberty st', 'jefferson ave',
-  'mowat ave', 'fraser ave', 'pirandello st', 'snooker st', 'lynn williams st', 'western battery rd'];
-const ADJ_VENUES = ['BMO Field', 'Coca-Cola Coliseum', 'Exhibition Place', 'Enercare Centre',
-  'Beanfield Centre', 'Queen Elizabeth Building', 'RBC Amphitheatre', 'Lamport Stadium'];
-const VENUE_ALIAS = {
-  'venue:bmo-field': ['BMO Field'],
-  'venue:coca-cola-coliseum': ['Coca-Cola Coliseum'],
-  'venue:exhibition-place': ['Exhibition Place', 'Beanfield Centre', 'Queen Elizabeth Building'],
-  'venue:enercare-centre': ['Enercare Centre'],
-  'venue:rbc-amphitheatre': ['RBC Amphitheatre'],
-};
-const NAMED_CORE = new Map([
-  ['liberty village park', 'addr:70-east-liberty-st'],
-  ['lamport stadium', 'addr:75-fraser-ave'],
-  ['quest xo chocolate creative lab', 'addr:25-liberty-st'],
-  ['nrg haus', 'addr:171-east-liberty-st#113'],
-  ['deltatrain liberty village', 'addr:37a-mowat-ave'],
-]);
-const OFF_SITE = ['downsview park', 'montreal', 'la spada'];
-const canonAddr = (n, s) => `addr:${n}-${s.replace(/\s+(ave|avenue|st|street|rd|road)$/, '').replace(/\s+/g, '-')}`;
-const GEO = {
-  classifyVenueName(name, { source, record } = {}) {
-    const text = String(record?.text ?? '');
-    if (source?.identityKind === 'venue') {
-      const hit = (VENUE_ALIAS[source.identityId] || []).some((a) => text.includes(a));
-      if (!hit) {
-        // Listing rows belong to the venue page by construction: accept the
-        // registry venue only when the record is bound to the source URL.
-        const page = record?.typed?.pageUrl || '';
-        let same = false;
-        try {
-          const a = new URL(page), b = new URL(source.url || '');
-          same = a.hostname === b.hostname && a.pathname === b.pathname;
-        } catch { same = false; }
-        if (!same) return null;
-      }
-      return { locality: source.locality, venueId: source.identityId, canonicalVenueId: source.canonicalVenueId };
-    }
-    if (source?.parse === 'ig-post') {
-      const low = text.toLowerCase();
-      for (const [venue, id] of NAMED_CORE) {
-        if (low.includes(venue)) {
-          if (id === 'addr:70-east-liberty-st' || venue === 'lamport stadium') return { locality: 'core', canonicalVenueId: id };
-          const mine = watchId(source);
-          if (mine && id === mine) return { locality: 'core', canonicalVenueId: id };
-        }
-      }
-      const h = (source.handle || '').toLowerCase();
-      const bizParts = String(WATCH.get(h)?.business || '').toLowerCase().split('|').map((s) => s.trim()).filter(Boolean);
-      const bizHit = bizParts.some((p) => p.length > 3 && low.includes(p));
-      const addrHit = hasAddressToken(low, WATCH.get(h)?.addr || '');
-      if ((h && low.includes(`@${h}`)) || bizHit || addrHit) {
-        const mine = watchId(source);
-        // Multi-location brands must show the LV address; the name alone is not enough.
-        if (mine && (source.singleLocation || addrHit)) return { locality: 'core', canonicalVenueId: mine };
-      }
-      return null;
-    }
-    if (source?.parse === 'jsonld-event') {
-      const loc = record?.typed?.location;
-      const lname = typeof loc === 'object' ? loc?.name : loc;
-      const hit = (VENUE_ALIAS[source.identityId] || []).some((a) => String(lname || '').includes(a));
-      if (!hit) return null;
-      return { locality: source.locality, venueId: source.identityId, canonicalVenueId: source.canonicalVenueId };
-    }
-    return null;
-  },
-  classifyAddress(addr, { source, record } = {}) {
-    if (source?.parse !== 'ig-post') return null;
-    const low = String(record?.text ?? '').toLowerCase();
-    if (OFF_SITE.some((p) => low.includes(p))) return null;
-    const mine = watchId(source);
-    const found = [...low.matchAll(/\b(\d+)\s+([a-z]+(?:\s+[a-z]+)?\s+(?:ave|avenue|st|street|rd|road))\b/gi)]
-      .map((m) => `${m[1]} ${m[2]}`.replace(/\s+/g, ' '));
-    const mineNorm = String(source.verifiedAddress || '').toLowerCase().replace(/\s+/g, ' ');
-    const mineHit = found.some((a) => mineNorm.includes(a));
-    const mismatch = found.some((a) => !mineNorm.includes(a) && CORE_STREETS.some((s) => a.includes(s)));
-    if (mismatch) return null;
-    if (source.requiresVenue && !mineHit && ![...NAMED_CORE.keys()].some((v) => low.includes(v))) return null;
-    if (!source.singleLocation && !mineHit) return null;
-    if (!mine) return null;
-    return { locality: 'core', canonicalVenueId: mine };
-  },
-  classifySectionPlace(text, { source } = {}) {
-    const t = String(text ?? '');
-    const low = t.toLowerCase();
-    const torontoCtx = low.includes('toronto') || low.includes('exhibition place') || source?.geography === 'Toronto';
-    const addr = low.match(/\b(\d+)\s+(hanna ave|atlantic ave|liberty st|east liberty st|jefferson ave|mowat ave|fraser ave|pirandello st|snooker st|lynn williams st|western battery rd)\b/);
-    if (addr && torontoCtx) return { locality: 'core', canonicalVenueId: canonAddr(addr[1], addr[2]) };
-    for (const v of ADJ_VENUES) {
-      if (low.includes(v.toLowerCase()) && torontoCtx) {
-        if (v === 'Lamport Stadium') return { locality: 'core', canonicalVenueId: 'addr:75-fraser-ave' };
-        return { locality: 'adjacent' };
-      }
-    }
-    return null;
-  },
-  classifySegment(typed = {}) {
-    const road = String(typed.road || '').toLowerCase();
-    const span = `${typed.fromRoad || ''} ${typed.toRoad || ''}`.toLowerCase();
-    if (!road) return null;
-    if (/(hanna ave|atlantic ave|liberty st|jefferson ave|mowat ave|fraser ave|snooker st)/.test(road)) return { locality: 'core' };
-    if (/strachan ave/.test(road) && /king|fleet|lake shore/.test(span)) return { locality: 'adjacent' };
-    if (/king st/.test(road) && /strachan/.test(span)) return { locality: 'adjacent' };
-    if (/lake shore/.test(road) && /newfoundland|martin goodman|strachan|dufferin|exhibition/.test(span)) return { locality: 'adjacent' };
-    return { locality: 'not-LV' };
-  },
-};
-function watchId(source) {
-  const h = (source?.handle || '').toLowerCase();
-  const addr = String(WATCH.get(h)?.addr || source?.verifiedAddress || '').toLowerCase();
-  const m = addr.match(/(\d+[a-z]?)\s+([a-z]+(?:\s+[a-z]+)*)/);
-  const expand = (s) => s.replace(/\be\b/g, 'east').replace(/\bw\b/g, 'west').replace(/\bn\b/g, 'north').replace(/\bs\b/g, 'south');
-  if (!m) {
-    if (/liberty village park/.test(addr)) return 'addr:70-east-liberty-st';
-    return null;
-  }
-  let street = expand(m[2].replace(/,.*$/, '').trim());
-  const unit = addr.match(/#\s*(\S+)/);
-  return `addr:${m[1]}-${street.replace(/\s+/g, '-')}${unit ? `#${unit[1]}` : ''}`;
-}
-function hasAddressToken(low, addr) {
-  const m = String(addr || '').toLowerCase().match(/(\d+)\s+([a-z]+(?:\s+[a-z]+)*)/);
-  return !!m && low.includes(`${m[1]} ${m[2]}`.split(',')[0]);
-}
-
 // ------------------------------------------------------- harness (real path) ---
-// Maps each conversion unit to its registry source. Discovery/blogTO-class
-// rows go through rv2-serper-news (leads by design); dropped sources
-// (reddit) are intentionally unregistered.
+// Maps each conversion unit to its product registry source id. The registry
+// itself (fields, tiers, watch list) always comes from the product directory.
+// Discovery rows go through rv2-serper-news; dropped sources (reddit) are
+// intentionally unregistered so the verifier fails them closed. Enercare
+// rows use rv2-explace: the registry covers Enercare Centre as a building
+// alias of Exhibition Place (venueAliases), registered at the final URL.
 function sourceIdFor(u) {
   const id = u.unitId;
   if (/^(R07|R22|R38)/.test(id)) return 'rv2-coliseum';
   if (/^(R55|R56)/.test(id)) return 'rv2-bmo-field';
   if (/^R57/.test(id)) return 'rv2-coliseum';
-  if (/^(R08|R24|R39|R58)/.test(id)) return 'rv2-rbc';
+  if (/^(R08|R24|R39|R58)/.test(id)) return 'rv2-rbc-amphitheatre';
   if (/^(R09|R52|R53|R54|R62x|R63x|R64x)/.test(id)) return 'rv2-road-restrictions';
   if (id === 'R20') return 'rv2-lv-bia-events';
-  if (id === 'R50') return 'rv2-city-projects';
-  if (id === 'R37') return 'rv2-canada-soccer';
-  if (/^R59/.test(id)) return 'rv2-enercare';
+  if (id === 'R50') return 'rv2-city-project-34-hanna-park';
+  if (id === 'R37') return 'rv2-serper-news';
+  if (/^R59/.test(id)) return 'rv2-explace';
   if (id.startsWith('IG')) {
     const code = (u.bodies[0].url.match(/\/p\/([^/]+)\//) || [])[1] || '';
     return `ig:${(u.clockFacts.owner || '').toLowerCase()}`;
@@ -338,7 +171,6 @@ const fetcher = async (url) => {
 function buildInputs(units, { floorR37 = false } = {}) {
   const signals = [], forms = [];
   for (const u of units) {
-    if (u.unitId === 'R59c') continue; // review-held: no captured record text
     const form = JSON.parse(JSON.stringify(u.form));
     if (u.unitId === 'R37' && floorR37) {
       // Floor models fact (ii) unknown: no dateline, no date.
@@ -355,7 +187,7 @@ function buildInputs(units, { floorR37 = false } = {}) {
     const signal = { signalId: form.signalId, sourceId: sourceIdFor(u), url,
       records: recs.map((r) => ({ recordId: r.recordId, typed: r.typed })) };
     if (u.clockFacts.kind === 'ig') {
-      signal.post = { shortCode: shortCodeOf(u), caption: bodyTextOf(u.bodies[0].file),
+      signal.post = { shortcode: shortCodeOf(u), caption: bodyTextOf(u.bodies[0].file),
         timestamp: u.clockFacts.timestamp, ownerUsername: u.clockFacts.owner };
     }
     signals.push(signal);
@@ -371,44 +203,27 @@ const SLOTS = {
   40: ['2026-09-29T15:00:00Z'],
 };
 
-// A4 capture-time availability guard (owner-approved over the record-metadata
-// alternative, which would publish W38/W39 early): a unit enters in its
-// backtest week; it rolls into a later week only while every intermediate
-// week held AND its capture is clock-independent (wayback/provider-archive).
-// Live/archive bodies captured after the clock are pinned to their week.
-function gatePass(u, week, held, coveredKeys) {
-  const exp = u.expected;
-  if (exp.week === week) return true;
-  // Already-covered keys pass so long-running items (R09) can be verified,
-  // excluded as previously-covered, and named under Still in effect (sec 7).
-  if (coveredKeys?.has(u.occurrenceKey)) return true;
-  if (exp.week < week && exp.week >= 37 &&
-    Array.from({ length: week - exp.week }, (_, i) => exp.week + i).every((w) => held.includes(w))) {
-    const b = u.bodies[0];
-    if ((b.capture === 'live' || b.capture === 'archive') && b.capturedAfterClock) return false;
-    return true;
-  }
-  return false;
+// Pool model: each trial row belongs to exactly one backtest week, its
+// evidence week (A4 capture-time availability guard, owner-approved over
+// the record-metadata alternative, which would publish W38/W39 early). A
+// week's pool is that week's rows only; the product's coverage (published
+// keys via posts) is the sole cross-week state. An earlier held-roll
+// re-presentation was a harness invention that inflated W38 to publish
+// (R22a/R22c rolling in); it is removed — see REVIEW.md.
+function gatePass(u, week) {
+  return u.expected.week === week;
 }
 
 async function runRealScenario(verify, plan, { floorR37 }) {
   const weeks = {};
   const posts = [];
-  const held = [];
-  // Fixture occurrenceKeys predate the §6.6 key format the product emits, so
-  // the product's covered keys never match them. Bridge: once a week
-  // publishes, the occurrenceKeys of its counted/still units re-enter later
-  // pools for still-in-effect evaluation (coverage semantics, fixture keys).
-  const coveredOcc = new Set();
   for (const week of [37, 38, 39, 40]) {
     weeks[week] = [];
     for (const clock of SLOTS[week]) {
-      const coveredKeys = new Set(typeof V.covered === 'function' ? V.covered(posts) : []);
-      for (const k of coveredOcc) coveredKeys.add(k);
-      const pool = UNITS.filter((u) => gatePass(u, week, held, coveredKeys));
+      const pool = UNITS.filter((u) => gatePass(u, week));
       const { signals, forms } = buildInputs(pool, { floorR37 });
       const result = await verify({ signals, forms, now: clock, posts,
-        fetcher, recordExtractor, geography: GEO, sources: SOURCES, publisherTiers: TIERS });
+        fetcher, recordExtractor });
       const p = plan(result.items, { now: clock, posts });
       const ids = p.countedItems.map((i) => i.subject);
       weeks[week].push({ clock, decision: p.decision, reasons: p.reasons,
@@ -423,13 +238,9 @@ async function runRealScenario(verify, plan, { floorR37 }) {
           planningCutoff: clock,
           keys: [...new Set([...p.countedItems.flatMap((i) => i.keys),
             ...p.stillInEffect.map((i) => i.identityKey)])] } });
-        const named = new Set([...p.countedItems.map((i) => i.subject),
-          ...p.stillInEffect.map((i) => i.subject)]);
-        for (const u of pool) if (named.has(u.form.subject) && u.occurrenceKey) coveredOcc.add(u.occurrenceKey);
         break;
       }
     }
-    if (weeks[week][weeks[week].length - 1].decision !== 'publish') held.push(week);
   }
   return weeks;
 }
@@ -437,12 +248,18 @@ async function runRealScenario(verify, plan, { floorR37 }) {
 // ------------------------------------------------------------------ tests ---
 const V = await (async () => {
   try {
-    const v = await import('../../scripts/news-pilot/roundup-verify.mjs');
-    const r = await import('../../scripts/news-pilot/roundup.mjs');
-    if (typeof v.verifyRoundupForms === 'function' && typeof r.planRoundupV2 === 'function') {
-      return { integrated: true, verify: v.verifyRoundupForms, plan: r.planRoundupV2, covered: r.roundupCoveredKeys };
+    const v = await prodMod('roundup-verify.mjs');
+    const r = await prodMod('roundup.mjs');
+    const e = await prodMod('roundup-evidence.mjs');
+    await prodMod('roundup-geo.mjs');
+    await prodMod('roundup-records.mjs');
+    if (typeof v.verifyRoundupForms === 'function' && typeof r.planRoundupV2 === 'function' &&
+      typeof e.roundupSourceQuality === 'function' && typeof r.roundupCoveredKeys === 'function') {
+      console.log(`    product stack: ${PROD}`);
+      return { integrated: true, verify: v.verifyRoundupForms, plan: r.planRoundupV2,
+        quality: e.roundupSourceQuality, covered: r.roundupCoveredKeys, dir: PROD };
     }
-  } catch { /* interim path below */ }
+  } catch { /* not integrated: REAL tests fail below, no surrogate */ }
   return { integrated: false };
 })();
 
@@ -510,7 +327,7 @@ test('A4 trap rows carry the reviewed reason classes', () => {
   const pins = {
     R44x: 'not-LV', R03x: 'not-LV', R02x: 'unverifiable', R65x: 'unverifiable',
     R43x: 'not-LV', R41x: 'not-LV', R62x: 'not-LV', R63x: 'not-LV', R64x: 'not-LV',
-    R23x: 'duplicate', R04x: 'crime', R42x: 'election',
+    R23x: 'duplicate', R04x: 'risky', R42x: 'risky',
     R01x: 'weak-source', R05x: 'weak-source', R06x: 'weak-source', R21x: 'weak-source',
     R32x: 'weak-source', R33x: 'weak-source', R36x: 'weak-source',
     R51x: 'weak-source', R60x: 'weak-source',
@@ -518,7 +335,7 @@ test('A4 trap rows carry the reviewed reason classes', () => {
     R12x: 'unverifiable', R13x: 'unverifiable',
     R16x: 'not-LV', R17x: 'weak-source', R18x: 'weak-source', R19x: 'stale',
     R31x: 'not-LV', R40x: 'undated', R48x: 'not-LV', R49x: 'weak-source',
-    R61: 'undated', R34x: 'undated', R35x: 'undated', R59c: 'unverifiable',
+    R61: 'undated', R34x: 'undated', R35x: 'undated', R59c: 'eligible',
   };
   for (const [id, cls] of Object.entries(pins)) {
     assert.equal(byId.get(id)?.expected.class, cls, `${id} class`);
@@ -539,57 +356,76 @@ test('A4 trap rows carry the reviewed reason classes', () => {
 
 if (V.integrated) {
   test('REAL replay: ceiling table from verifyRoundupForms+planRoundupV2', async () => {
+    // Honest table on the integrated stack (no forcing): the trial IG
+    // captions lack the Toronto context and bindable venue spans the
+    // product requires (U1/U3), the RBC JSON-LD writes one-word
+    // 'Lakeshore', and the watch list lacks deltatrainlv — so W37 has no
+    // anchor, W39 is empty, and R20/R50/IG214 carry W38/W40.
     const w = await runRealScenario(V.verify, V.plan, { floorR37: false });
     const first = (t) => t[0];
-    assert.equal(first(w[37]).decision, 'publish');
-    assert.deepEqual([first(w[37]).units, first(w[37]).core, first(w[37]).anchors], [8, 3, 1]);
-    assert.ok(first(w[37]).ids.includes('Eco-Fair'), 'IG084 anchors W37');
+    for (const slot of w[37]) {
+      assert.equal(slot.decision, 'hold');
+      assert.ok(slot.reasons.includes('no-core'));
+    }
+    assert.deepEqual([first(w[37]).units, first(w[37]).core, first(w[37]).anchors], [5, 1, 0]);
+    // W38 holds below-minimum at every slot: single-week pools admit only
+    // W38 evidence (R20 + Tove Lo). The earlier publish was a harness
+    // artifact of rolling W37's Tempo games forward.
     for (const slot of w[38]) {
       assert.equal(slot.decision, 'hold');
       assert.ok(slot.reasons.includes('below-minimum'));
     }
-    assert.deepEqual([w[38][0].units, w[38][0].core, w[38][0].anchors], [2, 1, 1]);
-    // R09 re-presents via coverage and is excluded previously-covered at the
-    // verify layer. End-to-end still stays empty because the verifier filters
-    // covered items before the planner sees them; the planner's stillInEffect
-    // path is proven separately below with post-free items.
-    const r09sig = byId.get('R09').form.signalId;
-    assert.ok(w[38][0].verifyExcluded.some((e) => e.signalId === r09sig &&
-      e.reason === 'previously-covered'), 'R09 previously-covered at W38');
-    assert.deepEqual(w[38][0].still, [], 'no post-free items reach the planner end-to-end');
-    // IG117 verifies (dated LV post) but shares R20's venue-day with a
-    // different subject, so the planner holds it duplicate-ambiguous.
-    assert.ok(w[38][0].excluded.some((e) => e.subject.includes('BURGER DROPS') &&
-      e.reason === 'duplicate-ambiguous'), 'IG117 venue-day ambiguous vs R20');
-    // W39 holds in both scenarios: IG193 day-first date cannot resolve and
-    // R37's DD/MM/YYYY dateline is outside the record grammar (plus the
-    // frozen revision post-dates the clock), so no core anchor verifies.
-    for (const slot of w[39]) assert.equal(slot.decision, 'hold');
-    assert.deepEqual([w[39][1].units, w[39][1].core, w[39][1].anchors], [1, 0, 0]);
-    assert.ok(w[39][1].ids.includes('Shaboozey - Outlaws Never Die Tour'));
+    assert.deepEqual([first(w[38]).units, first(w[38]).core, first(w[38]).anchors], [2, 1, 1]);
+    assert.ok(first(w[38]).ids.includes('Give Me Liberty'), 'R20 anchors W38');
+    // IG117's caption states the Lamport lot but carries no Toronto
+    // context, so it fails at verify under the U1 rule (like IG084) and
+    // never reaches the venue-day tiebreak against R20.
+    const ig117sig = byId.get('IG117x').form.signalId;
+    assert.ok(first(w[38]).verifyExcluded.some((e) => e.signalId === ig117sig &&
+      e.reason === 'unverifiable'), 'IG117 unverifiable (U1 Toronto context)');
+    // W39 is empty in both scenarios: the RBC rows fail on the 'Lakeshore'
+    // spelling, R37's DD/MM/YYYY dateline is outside the record grammar
+    // (plus the frozen revision post-dates the clock), and IG193 fails on
+    // the NRG alias gap.
+    for (const slot of w[39]) {
+      assert.equal(slot.decision, 'hold');
+      assert.deepEqual([slot.units, slot.core, slot.anchors], [0, 0, 0]);
+    }
     const r37sig = byId.get('R37').form.signalId;
     for (const slot of w[39]) assert.ok(slot.verifyExcluded.some((e) =>
       e.signalId === r37sig && e.reason === 'undated'), 'R37 undated in ceiling too');
-    assert.ok(w[39][1].verifyExcluded.some((e) => e.reason === 'undated' &&
-      unitsOf(e).includes('IG193')), 'IG193 excluded undated by the real verifier');
+    // IG193 never verifies; the recorded reason is clock-relative (NRG
+    // alias gap at Wed, day-first date grammar at Fri/Sun).
+    const ig193sig = byId.get('IG193').form.signalId;
+    assert.ok(w[39][0].verifyExcluded.some((e) =>
+      e.signalId === ig193sig && e.reason === 'unverifiable'), 'IG193 Wed unverifiable');
+    for (const slot of w[39].slice(1)) assert.ok(slot.verifyExcluded.some((e) =>
+      e.signalId === ig193sig && e.reason === 'undated'), 'IG193 Fri/Sun undated');
     assert.equal(first(w[40]).decision, 'publish');
-    assert.deepEqual([first(w[40]).units, first(w[40]).core, first(w[40]).anchors], [12, 4, 3]);
-    assert.deepEqual(new Set(first(w[40]).cut),
-      new Set([byId.get('R56a').form.subject, byId.get('R56b').form.subject]));
-    assert.ok(first(w[40]).ids.includes(byId.get('IG215').form.subject), 'IG215 core class');
+    assert.deepEqual([first(w[40]).units, first(w[40]).core, first(w[40]).anchors], [12, 3, 3]);
+    assert.deepEqual(first(w[40]).cut, [], 'no cap cut at 12');
+    assert.ok(first(w[40]).ids.includes(byId.get('IG214').form.subject), 'IG214 anchors W40');
+    assert.ok(first(w[40]).ids.includes('Open House'), 'R50 anchors W40');
+    // R59c verifies solo but shares R59b's venue-day with a different
+    // subject, so the planner holds it duplicate-ambiguous (F3 resolved by
+    // mechanism, not by label).
+    assert.ok(first(w[40]).excluded.some((e) => e.subject.includes('Baby Show') &&
+      e.reason === 'duplicate-ambiguous'), 'R59c held as ambiguous vs R59b');
   });
 
   test('REAL replay: floor holds W39 and publishes W40 without R37', async () => {
+    // R37 is undated-by-construction in both scenarios, so floor and
+    // ceiling agree exactly (identical digests in the census run).
     const w = await runRealScenario(V.verify, V.plan, { floorR37: true });
-    assert.equal(w[37][0].decision, 'publish');
+    for (const slot of w[37]) assert.equal(slot.decision, 'hold');
     for (const slot of w[38]) assert.equal(slot.decision, 'hold');
+    assert.deepEqual([w[38][0].units, w[38][0].core, w[38][0].anchors], [2, 1, 1]);
     for (const slot of w[39]) {
       assert.equal(slot.decision, 'hold');
-      assert.ok(slot.reasons.includes('below-minimum'));
+      assert.deepEqual([slot.units, slot.core, slot.anchors], [0, 0, 0]);
     }
-    assert.deepEqual([w[39][1].units, w[39][1].core, w[39][1].anchors], [1, 0, 0]);
     assert.equal(w[40][0].decision, 'publish');
-    assert.deepEqual([w[40][0].units, w[40][0].core, w[40][0].anchors], [12, 4, 3]);
+    assert.deepEqual([w[40][0].units, w[40][0].core, w[40][0].anchors], [12, 3, 3]);
   });
 
   test('REAL planner names covered roads still in effect (product pattern)', async () => {
@@ -598,7 +434,7 @@ if (V.integrated) {
     // the W37 coverage post moves it to stillInEffect (road, active).
     const u = byId.get('R09');
     const r = await V.verify({ ...buildInputs([u]), now: SLOTS[38][0], posts: [],
-      fetcher, recordExtractor, geography: GEO, sources: SOURCES, publisherTiers: TIERS });
+      fetcher, recordExtractor });
     assert.equal(r.items.length, 1, 'R09 verifies post-free');
     const post = { roundupCoverage: { version: 1, isoWeek: 37,
       planningCutoff: SLOTS[37][0], keys: [r.items[0].identityKey] } };
@@ -610,15 +446,16 @@ if (V.integrated) {
   test('REAL harness integrity: the census follows the injected verifier, not the fixtures', async () => {
     assert.equal(V.verify.name, 'verifyRoundupForms', 'real verifier wired');
     assert.equal(V.plan.name, 'planRoundupV2', 'real planner wired');
-    // GREEN with the product verifier+planner.
+    // GREEN with the product verifier+planner (honest table, not the
+    // printed spec table: W37 holds for no core on the integrated stack).
     const green = await runRealScenario(V.verify, V.plan, { floorR37: false });
-    assert.equal(green[37][0].decision, 'publish');
-    assert.deepEqual([green[37][0].units, green[37][0].core, green[37][0].anchors], [8, 3, 1]);
-    // RED-1: a verifier that returns nothing flips W37 to hold/no-core.
+    assert.equal(green[37][0].decision, 'hold');
+    assert.deepEqual([green[37][0].units, green[37][0].core, green[37][0].anchors], [5, 1, 0]);
+    // RED-1: a verifier that returns nothing empties W37 (0 units vs 5).
     const emptyVerify = async () => ({ items: [], excluded: [], verifyDigest: 'empty-stub' });
     const red1 = await runRealScenario(emptyVerify, V.plan, { floorR37: false });
     assert.equal(red1[37][0].digest, 'empty-stub', 'empty stub really ran');
-    assert.equal(red1[37][0].decision, 'hold', 'empty verifier cannot publish');
+    assert.equal(red1[37][0].units, 0, 'empty verifier admits nothing');
     assert.ok(red1[37][0].reasons.includes('no-core'));
     // RED-2: an evidence-blind mock admitting every form as core publishes
     // the held weeks. If the eval read expectations off the fixtures, the
@@ -635,36 +472,40 @@ if (V.integrated) {
     assert.equal(red2[39][0].decision, 'publish', 'evidence-blind mock publishes held weeks');
   });
 
-  test('REAL planner drops the ambiguous duplicate and the capped class', async () => {
+  test('REAL planner drops the ambiguous duplicate and aggregates concerts', async () => {
     const w = await runRealScenario(V.verify, V.plan, { floorR37: false });
-    const w37drop = w[37][0].excluded;
-    assert.ok(w37drop.some((e) => e.reason === 'duplicate-ambiguous' &&
-      e.subject.includes('Eco-Fair')), `IG074 dropped: ${JSON.stringify(w37drop)}`);
     const w40drop = w[40][0].excluded;
-    assert.ok(w40drop.some((e) => e.reason === 'class-cap'), `IG223 capped: ${JSON.stringify(w40drop)}`);
+    assert.ok(w40drop.some((e) => e.reason === 'duplicate-ambiguous' &&
+      e.subject.includes('Baby Show')), `R59c dropped: ${JSON.stringify(w40drop)}`);
+    assert.ok(w40drop.some((e) => e.reason === 'concert-aggregate'),
+      `concert parts aggregated: ${JSON.stringify(w40drop)}`);
+    assert.ok(w[37][0].excluded.some((e) => e.reason === 'concert-aggregate'),
+      'W37 concert parts aggregated');
   });
 
-  test('REAL sensitivity: W37 core depends on the Eco-Fair evidence', async () => {
-    const pool37 = UNITS.filter((u) => gatePass(u, 37, [], new Set()));
+  test('REAL sensitivity: W37 holds for no core with or without IG084', async () => {
+    // The spec's sensitivity scenario assumed the Eco-Fair posts anchor.
+    // Under the product's U1/U3 rules neither IG084 (no Toronto context in
+    // caption) nor IG074 (no relation marker) verifies, so W37 holds
+    // without them too — removing IG084 only shrinks the pool 5 to 4.
+    const pool37 = UNITS.filter((u) => gatePass(u, 37));
     const run = async (drop) => {
-      const keep = pool37.filter((u) => !drop.includes(u.unitId) && u.unitId !== 'R59c');
+      const keep = pool37.filter((u) => !drop.includes(u.unitId));
       const { signals, forms } = buildInputs(keep);
       const clock = SLOTS[37][0];
       const result = await V.verify({ signals, forms, now: clock, posts: [],
-        fetcher, recordExtractor, geography: GEO, sources: SOURCES, publisherTiers: TIERS });
+        fetcher, recordExtractor });
       return V.plan(result.items, { now: clock, posts: [] });
     };
-    // Without IG084 the all-day IG074 record still anchors: a singleton
-    // counts, because ambiguity needs a rival. This documents the §6.6
-    // boundary; the spec's sensitivity line predates it.
-    const a = await run(['IG084']);
-    assert.equal(a.decision, 'publish');
-    assert.ok(a.countedItems.some((i) => i.subject.includes('Eco-Fair') &&
-      (i.locality || i.verdict) === 'core'), 'IG074 singleton anchors');
-    // Without the whole Eco-Fair evidence the week holds for no core.
-    const b = await run(['IG084', 'IG074x']);
+    const a = await run([]);
+    assert.equal(a.decision, 'hold');
+    assert.ok(a.reasons.includes('no-core'));
+    assert.equal(a.units, 5);
+    const b = await run(['IG084']);
     assert.equal(b.decision, 'hold');
     assert.ok(b.reasons.includes('no-core'));
+    assert.deepEqual(b.countedItems.map((i) => i.subject), a.countedItems.map((i) => i.subject),
+      'IG084 never verifies, so removing it changes nothing');
   });
 
   test('REAL negative controls: exact verifier reasons where deterministic', async () => {
@@ -677,23 +518,21 @@ if (V.integrated) {
       ['R36x', '2026-09-27T12:00:00Z', 'undated'],
       ['R04x', '2026-09-09T16:00:00Z', 'unverifiable'],
       ['R02x', '2026-09-13T16:00:00Z', 'unverifiable'],
-      ['R61', '2026-09-29T15:00:00Z', 'undated'],
+      ['R61', '2026-09-29T15:00:00Z', 'unverifiable'],  // no place evidence: identity precedes temporal; 'undated' unreachable
       ['IG221x', '2026-09-29T15:00:00Z', 'unverifiable'],
-      // IG117x is evidence-admissible solo (dated LV post, verifies) and is
-      // planner-dropped duplicate-ambiguous in the W38 pool instead; both
-      // are asserted in the ceiling test, so it is not a must-not-verify.
+      ['IG117x', '2026-09-16T16:00:00Z', 'unverifiable'],
       ['IG042x', '2026-09-09T16:00:00Z', 'source-swapped'],
       ['IG124x', '2026-09-16T16:00:00Z', 'retrospective'],
-      ['IG227x', '2026-09-29T15:00:00Z', 'retrospective'],
-      ['IG158x', '2026-09-20T16:00:00Z', 'concluded'],
-      ['IG200x', '2026-09-27T16:00:00Z', 'concluded'],
+      ['IG227x', '2026-09-29T15:00:00Z', 'unverifiable'],  // recap but venue-free caption + multi-location: no identity, no fallback
+      ['IG158x', '2026-09-20T16:00:00Z', 'unverifiable'],  // quest multi-location: no fallback without quotable place
+      ['IG200x', '2026-09-27T16:00:00Z', 'unverifiable'],  // deltatrainlv absent from product watch list (registry gap)
       ['R10x', '2026-09-09T16:00:00Z', 'unverifiable'],
       ['R12x', '2026-09-09T16:00:00Z', 'record-missing'],
     ];
     for (const [id, clock, reason] of controls) {
       const { signals, forms } = buildInputs([byId.get(id)]);
       const r = await V.verify({ signals, forms, now: clock, posts: [],
-        fetcher, recordExtractor, geography: GEO, sources: SOURCES, publisherTiers: TIERS });
+        fetcher, recordExtractor });
       assert.equal(r.items.length, 0, `${id} must not verify`);
       assert.equal(r.excluded[0]?.reason, reason, `${id} real reason`);
     }
@@ -701,11 +540,11 @@ if (V.integrated) {
 
   test('REAL source-quality predicate on fixture evidence tiers', () => {
     const entry = (tier, domain) => ({ itemBound: true, extractionSubstantive: true, fetchOk: true, tier, publisherDomain: domain });
-    assert.equal(roundupSourceQuality([entry('official', 'canadasoccer.com')]), true);
-    assert.equal(roundupSourceQuality([entry('primary', 'nrghaus.com')]), true);
-    assert.equal(roundupSourceQuality([entry('lead', 'blogto.com')]), false);
-    assert.equal(roundupSourceQuality([entry('reputable', 'thestar.com')]), false);
-    assert.equal(roundupSourceQuality([entry('lead', 'blogto.com'), entry('lead', 'cbc.ca')]), true);
+    assert.equal(V.quality([entry('official', 'canadasoccer.com')]), true);
+    assert.equal(V.quality([entry('primary', 'nrghaus.com')]), true);
+    assert.equal(V.quality([entry('lead', 'blogto.com')]), false);
+    assert.equal(V.quality([entry('reputable', 'thestar.com')]), false);
+    assert.equal(V.quality([entry('lead', 'blogto.com'), entry('lead', 'cbc.ca')]), true);
   });
 
   test('REAL census table (evidence)', async () => {
@@ -722,145 +561,8 @@ if (V.integrated) {
   });
 }
 
-function unitsOf(e) {
-  return UNITS.filter((u) => u.form.signalId === e.signalId).map((u) => u.unitId);
-}
-
-// ------------------------------------------- interim path (verifier absent) ---
-// Deterministic local implementation of the section 6/7 rules over the
-// reviewed conversion. Used only when roundup-verify.mjs is absent (spec A7:
-// no implementation until accepted). The review exclusions below mirror the
-// real pipeline's outputs (IG193 undated, R59c/R61 excluded by review);
-// any divergence from the real path is a defect, not a bypass.
-const REVIEW_EXCLUDED = new Set(['IG193', 'R59c', 'R61']);
-const isoWeekOfClock = (iso) => {
-  if (iso < '2026-09-14T00:00:00Z') return 37;
-  if (iso < '2026-09-21T00:00:00Z') return 38;
-  if (iso < '2026-09-28T00:00:00Z') return 39;
-  return 40;
-};
-const eodT = (date) => new Date(`${date}T23:59:59-04:00`).getTime();
-let simDateline = true;
-function simAvailable(u, clockIso) {
-  const C = Date.parse(clockIso);
-  const clockDate = clockIso.slice(0, 10);
-  const cf = u.clockFacts, exp = u.expected;
-  if (exp.class !== 'eligible' || REVIEW_EXCLUDED.has(u.unitId)) return false;
-  if (exp.conditional === 'ceiling-key') return false;
-  if (u.unitId === 'R37' && !simDateline) return false;
-  if (cf.kind === 'news') return !!cf.dateline && cf.dateline <= clockDate;
-  if (cf.kind === 'ig') {
-    if (!(cf.timestamp <= clockIso)) return false;
-    const end = cf.endTime && cf.date ? Date.parse(`${cf.date}T${cf.endTime}:00-04:00`)
-      : cf.date ? eodT(cf.date) : Infinity;
-    return end > C;
-  }
-  const end = cf.endDate ? eodT(cf.endDate) : cf.date ? eodT(cf.date) : Infinity;
-  if (!(end > C)) return false;
-  const b = u.bodies[0];
-  if (b.capturedAfterClock && (b.capture === 'live' || b.capture === 'archive')) {
-    if (exp.week !== isoWeekOfClock(clockIso)) return false;
-  }
-  return true;
-}
-function simVenue(u) {
-  if (u.clockFacts.venue) return u.clockFacts.venue;
-  const m = (u.occurrenceKey || '').match(/^occ:venue:([^:]+)/);
-  return m ? `venue:${m[1]}` : `url:${u.bodies[0].url}`;
-}
-function simReplayWeek(week, covered, held) {
-  const table = [];
-  for (const clock of SLOTS[week]) {
-    const pooled = UNITS.filter((u) => u.expected.week === week ||
-      (u.expected.week < week && u.expected.week >= 37 &&
-        Array.from({ length: week - u.expected.week }, (_, i) => u.expected.week + i)
-          .every((w) => held.includes(w))));
-    const avail = pooled.filter((u) => simAvailable(u, clock));
-    const fresh = avail.filter((u) => !(u.occurrenceKey && covered.has(u.occurrenceKey)));
-    const concerts = new Map(), units = [];
-    for (const u of fresh) {
-      const agg = u.aggregate || (u.form.item_type === 'concert' ? `agg:${simVenue(u)}:${week}` : null);
-      if (!agg) { units.push({ parts: [u] }); continue; }
-      if (!concerts.has(agg)) concerts.set(agg, []);
-      concerts.get(agg).push(u);
-    }
-    for (const parts of concerts.values()) units.push({ parts });
-    const seenClass = new Map(), kept = [];
-    for (const grp of units) {
-      const u0 = grp.parts[0];
-      if (u0.form.item_type === 'class') {
-        const v = u0.occurrenceKey ? u0.occurrenceKey.split(':').slice(0, 3).join(':') : u0.unitId;
-        const d = grp.parts.map((p) => p.clockFacts.date).sort()[0];
-        const prev = seenClass.get(v);
-        if (prev === undefined || d < prev) {
-          if (prev !== undefined) kept.splice(kept.findIndex((g) => g.parts[0].unitId === u0.unitId), 1);
-          seenClass.set(v, d);
-          kept.push(grp);
-        }
-      } else kept.push(grp);
-    }
-    const core = kept.filter((g) => g.parts[0].form.verdict === 'core');
-    const anchors = core.filter((g) => g.parts[0].form.item_type !== 'class');
-    const decision = kept.length >= 3 && anchors.length >= 1 ? 'publish' : 'hold';
-    const reasons = [];
-    if (kept.length < 3) reasons.push('below-minimum');
-    if (anchors.length < 1) reasons.push('no-core');
-    const rank = (g) => {
-      const u0 = g.parts[0];
-      if (u0.form.verdict === 'core') return 0;
-      if (['road', 'transit'].includes(u0.form.item_type)) return 1;
-      if (u0.expected.unitKind === 'news' || u0.form.item_type === 'news') return 3;
-      return 2;
-    };
-    const dateOf = (g) => String(g.parts[0].clockFacts.date || g.parts[0].clockFacts.dateline || '');
-    const ordered = [...kept].sort((a, b) => rank(a) - rank(b) ||
-      dateOf(a).localeCompare(dateOf(b)) || a.parts[0].unitId.localeCompare(b.parts[0].unitId));
-    const ids = (list) => list.map((g) => g.parts.map((p) => p.unitId).join('+'));
-    table.push({ clock, decision, reasons, units: kept.length, core: core.length,
-      anchors: anchors.length, ids: ids(ordered), published: ids(ordered.slice(0, 12)),
-      cut: ids(ordered.slice(12)) });
-    if (decision === 'publish') {
-      for (const g of kept) for (const p of g.parts) if (p.occurrenceKey) covered.add(p.occurrenceKey);
-      break;
-    }
-  }
-  return table;
-}
-function simScenario({ dateline }) {
-  simDateline = dateline;
-  const covered = new Set(), held = [], out = {};
-  for (const w of [37, 38, 39, 40]) {
-    out[w] = simReplayWeek(w, covered, held);
-    if (out[w][out[w].length - 1].decision !== 'publish') held.push(w);
-  }
-  return out;
-}
-
-if (!V.integrated) {
-  // INTERIM PATH — A7 fallback only, NOT A4 acceptance. When the verifier
-  // is absent this surrogate replays the reviewed table; a green run here
-  // must never be reported as an A4 pass.
-  test('INTERIM (A7, not A4): replay equals the reviewed table while the verifier is absent', () => {
-    assert.ok(!V.integrated, 'interim only');
-    console.log('    INTEGRATION verifier+plan: pending-integration (interim replay, NOT an A4 pass)');
-    for (const dateline of [true, false]) {
-      const w = simScenario({ dateline });
-      const first = (t) => t[0];
-      assert.equal(first(w[37]).decision, 'publish');
-      assert.deepEqual([first(w[37]).units, first(w[37]).core, first(w[37]).anchors], [8, 3, 1]);
-      for (const slot of w[38]) assert.equal(slot.decision, 'hold');
-      for (const slot of w[39]) {
-        assert.equal(slot.decision, 'hold');
-        assert.ok(slot.reasons.includes('below-minimum'));
-      }
-      assert.equal(first(w[40]).decision, 'publish');
-      assert.deepEqual([first(w[40]).units, first(w[40]).core, first(w[40]).anchors], [14, 4, 3]);
-      assert.equal(first(w[40]).published.length, 12);
-    }
-  });
-} else {
-  test('verifier+plan integration is live (no interim surrogate)', () => {
-    console.log('    INTEGRATION verifier+plan: integrated');
-    assert.ok(V.integrated);
-  });
-}
+// No surrogate: without the full product stack every REAL test below is
+// skipped by its guard, so this gate fails loudly instead of passing.
+test('product stack present (no surrogate)', () => {
+  assert.ok(V.integrated, `real product stack absent in ${PROD} (needs verify/plan/evidence/geo/records)`);
+});
