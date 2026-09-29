@@ -59,7 +59,7 @@ export async function createSubmission(db, input) {
   const { kind, target, actor, idempotencyKey, baseSnapshotId = null, context = null, items, assets = [], discoverySeen = [] } = input;
   if (target !== db.target) throw new ValidationError('target mismatch');
   if (!idempotencyKey || !actor) throw new ValidationError('actor and idempotency key required');
-  if (!['seed', 'business', 'blog', 'blog-live', 'news', 'seo', 'topic-discovery', 'manual'].includes(kind)) throw new ValidationError('invalid kind');
+  if (!['seed', 'business', 'blog', 'blog-live', 'news', 'roundup', 'seo', 'topic-discovery', 'manual'].includes(kind)) throw new ValidationError('invalid kind');
   checkItems(items);
   const requestSha = hash('sha256', JSON.stringify({ kind, target, actor, baseSnapshotId, context, items, assets: assets.map((a) => ({ sha256: a.sha256, path: a.path })), discoverySeen }));
   return db.tx(async (c) => {
@@ -310,7 +310,7 @@ export const PENDING_NEWS_PAGE = 200;
 export const PENDING_NEWS_BACKLOG_CAP = 1000;
 export const PENDING_BY_KIND_SQL = "select id from content.submissions where state='published' and target=$1 and kind=$2 and (smoke_passed_at is null or notified_at is null) and ($3::bigint is null or id > $3) order by id limit $4";
 export async function listPendingByKind(db, { target, kind, limit = PENDING_NEWS_PAGE, afterId = null } = {}) {
-  if (!['news', 'blog'].includes(kind)) throw new ValidationError('pending kind required');
+  if (!['news', 'blog', 'roundup'].includes(kind)) throw new ValidationError('pending kind required');
   if (!Number.isInteger(limit) || limit < 1 || limit > 10000) throw new ValidationError('pending page limit must be an integer between 1 and 10000');
   if (afterId != null && (!Number.isInteger(afterId) || afterId < 1)) throw new ValidationError('pending page cursor must be a positive integer');
   return rows(await db.query(PENDING_BY_KIND_SQL, [target ?? db.target, kind, afterId, limit])).map((r) => n(r.id));

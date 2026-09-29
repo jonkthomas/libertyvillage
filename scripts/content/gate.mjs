@@ -28,7 +28,7 @@ import { fileOf } from './repair-rules.mjs';
 
 // Automated kinds map to themselves; operator `manual` edits use the seo policy.
 export const POLICY_KIND = Object.freeze({
-  business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news',
+  business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news', roundup: 'roundup',
   'topic-discovery': 'topic-discovery', seo: 'seo', manual: 'seo',
 });
 
@@ -139,7 +139,7 @@ export function fixerPayload(items) {
 // ---------------------------------------------------------------------------
 // gateContent: g0-g8 driven only by DB state; every mutation carries the claim.
 // ---------------------------------------------------------------------------
-const GROUNDED = Object.freeze(['blog', 'blog-live', 'news']);
+const GROUNDED = Object.freeze(['blog', 'blog-live', 'news', 'roundup']);
 const DECISION_STATE = { validation: 'rejected', lint: 'rejected', unrepairable: 'blocked', exhausted: 'blocked', 'not-converging': 'blocked', block: 'blocked' };
 
 export async function roundVector(db, id, round) {
@@ -361,7 +361,17 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         const lenses = lensesFor(kind, candidates[0].dataset);
         const references = grounded ? agent.selectReferenceRecords(doc.document, live.live.businesses ?? []) : [];
         const inventory = grounded ? await inventoryFor(live, candidates) : null;
-        const evidence = kind === 'news' ? trimEvidence(context.evidence) : null;
+        const evidence = kind === 'news' ? trimEvidence(context.evidence)
+          : kind === 'roundup' ? { items: (context.items || []).map((item) => ({
+            title: String(item.title || '').slice(0, 300), announcedAt: item.announcedAt, riskFlags: item.riskFlags,
+            sources: item.sources?.map((source) => ({
+              canonicalUrl: source.canonicalUrl, publisher: String(source.publisher || '').slice(0, 200),
+              excerpt: String(source.excerpt || '').slice(0, 1200),
+            })), claims: item.claims?.map((claim) => ({
+              text: String(claim.text || '').slice(0, 600), sourceUrl: claim.sourceUrl,
+              span: String(claim.span || '').slice(0, 400),
+            })),
+          })) } : null;
         rt.onPhase(`review:${n}`);
         const verdict = script
           ? scriptedVerdict(script, n, doc.contentSha)

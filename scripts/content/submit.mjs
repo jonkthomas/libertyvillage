@@ -11,6 +11,8 @@ import { AUTO_PUBLISH_CONFIG, evaluatePublishReadyDraft } from '../news-pilot/pu
 import { structuredData } from '../automation/news-preflight.mjs';
 import { loadSiteLinkIndex } from '../news-pilot/draft-evidence.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
+import { roundupPackDigest, validateRoundupPack } from '../news-pilot/roundup-evidence.mjs';
+import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
@@ -30,6 +32,7 @@ export const KIND_RULES = Object.freeze({
   blog: { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, images: true },
   'blog-live': { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, submitted: true, images: true },
   news: { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, news: true },
+  roundup: { datasets: { posts: INSERT }, min: 1, max: 1, lint: true, roundup: true },
   'topic-discovery': { datasets: { 'topic-queue': INSERT }, min: 1, max: 25, queue: true },
   seo: {
     datasets: Object.fromEntries(['services', 'topics', 'neighborhoods', 'buildings', 'guide-hub', 'businesses', 'posts'].map((d) => [d, EDIT])),
@@ -82,6 +85,12 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
   const storage = deps.validateRecord(item.dataset, item.key, record);
   if (!storage?.ok) errors.push(...(storage?.errors?.length ? storage.errors : ['record failed storage validation']));
   const now = ctx.now ? new Date(ctx.now) : null;
+  if (item.dataset === 'posts') {
+    const weeklySlug = /^liberty-village-news-week-\d{4}-w\d{2}$/;
+    if (['blog', 'blog-live'].includes(kind) && (record?.category === 'news' || weeklySlug.test(record?.slug ?? '')))
+      errors.push('blog kind may not submit news or a weekly roundup slug');
+    if (kind === 'news' && weeklySlug.test(record?.slug ?? '')) errors.push('news kind may not submit a weekly roundup slug');
+  }
 
   if (rules.lint) {
     const mode = deps.lintMode || resolveLintMode(process.env);
@@ -98,6 +107,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     if (deps.submittedAt !== undefined) errors.push(...checkGeneratedAt(ctx.now, deps.submittedAt));
   }
   if (rules.news) errors.push(...checkNewsRecord({ record, ctx, live, news: deps.news }));
+  if (rules.roundup) errors.push(...checkRoundupRecord({ item, record, ctx, live, news: deps.news }));
   if (rules.queue) {
     const queue = Array.isArray(live['topic-queue']) ? live['topic-queue'] : [];
     if (queue.some((entry) => entry?.key === item.key)) errors.push('duplicate topic key already in the live queue');
@@ -147,6 +157,59 @@ function checkNewsRecord({ record, ctx, live, news }) {
     errors.push(`news draft is not publish-ready${reasons.length ? `: ${[...new Set(reasons)].slice(0, 5).join(', ')}` : ''}`);
   }
   return errors;
+}
+
+export function checkRoundupRecord({ item, record, ctx, live, news }) {
+  const errors = [];
+  if (record?.category !== 'news') errors.push('roundup category must be news');
+  let expected;
+  try {
+    expected = roundupSlug(ctx.isoWeek);
+    if (isoWeekOf(ctx.weekStartUtc).isoWeek !== ctx.isoWeek ||
+      isoWeekOf(ctx.weekStartUtc).weekStartUtc !== ctx.weekStartUtc) errors.push('roundup weekStartUtc mismatch');
+  } catch { errors.push('roundup ISO week is invalid'); }
+  if (item.key !== expected || record?.slug !== expected) errors.push('roundup key/slug mismatch');
+  const nowMs = Date.parse(ctx.now ?? '');
+  if (!Number.isFinite(nowMs) || isoWeekOf(nowMs).isoWeek !== ctx.isoWeek) errors.push('roundup now must be in its ISO week');
+  if (typeof record?.image !== 'string' || !record.image.startsWith('/images/') ||
+    !news || typeof news.imageExists !== 'function' || !news.imageExists(record.image))
+    errors.push('roundup image must be an existing /images/ path');
+  const checked = validateRoundupPack(ctx.items, {
+    weekStartUtc: ctx.weekStartUtc, nowMs,
+    livePosts: Array.isArray(live.posts) ? live.posts : [], dailyNews: ctx.dailyNews || [],
+  });
+  const accepted = checked.accepted.map((entry) => entry.item);
+  if (!accepted.length) errors.push('roundup pack has no accepted items');
+  const sections = String(record?.content || '').match(/^##\s+\d+\.\s+.+$/gm) || [];
+  if (sections.length !== accepted.length) errors.push('roundup item section count mismatch');
+  const body = String(record?.content || '');
+  const bodyUrls = [...body.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((match) => match[1]);
+  const everyBodyUrl = [...body.matchAll(/https?:\/\/[^\s)\]>'"]+/g)].map((match) => match[0].replace(/[.,;:!?]+$/, ''));
+  const sourceUrls = new Set();
+  for (const entry of checked.accepted) {
+    for (const source of entry.item.sources) {
+      if (sourceUrls.has(source.canonicalUrl)) errors.push('roundup URL shared across items');
+      sourceUrls.add(source.canonicalUrl);
+      if (!bodyUrls.includes(source.canonicalUrl)) errors.push('roundup source URL missing citation');
+    }
+  }
+  for (const url of everyBodyUrl) if (!sourceUrls.has(url)) errors.push('roundup body cites URL outside accepted pack');
+  for (const url of everyBodyUrl) if (!bodyUrls.includes(url)) errors.push('roundup source URL must be a visible Markdown citation');
+  const parts = body.split(/^##\s+\d+\.\s+.+$/m).slice(1);
+  accepted.forEach((entry, index) => {
+    const partUrls = [...String(parts[index] || '').matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((match) => match[1]);
+    const own = new Set(entry.sources.map((source) => source.canonicalUrl));
+    if (!sections[index]?.includes(entry.title)) errors.push('roundup section title does not match item');
+    if (!partUrls.length || partUrls.some((url) => !own.has(url))) errors.push('roundup section has cross-item or missing citation');
+    for (const claim of entry.claims) if (!String(parts[index] || '').includes(claim.text) ||
+      !partUrls.includes(claim.sourceUrl)) errors.push('roundup claim lacks own-source citation');
+  });
+  if (accepted.length === 1 && (!/weekly update/i.test(record?.title || '') ||
+    !/weekly update/i.test(record?.description || '') || /roundup/i.test((record?.title || '') + ' ' + (record?.description || ''))))
+    errors.push('one-item roundup must be labelled weekly update');
+  if (accepted.length >= 2 && (!/news roundup/i.test(record?.title || '') ||
+    !/news roundup/i.test(record?.description || ''))) errors.push('multi-item roundup must be labelled news roundup');
+  return [...new Set(errors)];
 }
 
 // Whole-vector policy: shape, then every record. decision is `lint` only when the
@@ -199,7 +262,7 @@ export const assetExistsIn = (db) => async (assetPath) => (await db.query('selec
 // Policy bindings for one submission: storage validation and the news inputs.
 export function policyDeps({ kind, context, checkout }) {
   const deps = { validateRecord };
-  if (kind === 'news') deps.news = { root: context.root, loadSiteIndex: loadSiteLinkIndex, imageExists: createLocalImageExists(checkout) };
+  if (kind === 'news' || kind === 'roundup') deps.news = { root: context.root, loadSiteIndex: loadSiteLinkIndex, imageExists: createLocalImageExists(checkout) };
   return deps;
 }
 
@@ -283,6 +346,20 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
     if (!result.clusterId || !Date.parse(result.now ?? '')) throw new ValidationError('news result.json requires clusterId and now');
     const evidence = readJson(path.join(opts.newsOut, `evidence-${result.clusterId}.json`), 'news evidence');
     return { now: result.now, clusterId: result.clusterId, evidence };
+  }
+  if (kind === 'roundup') {
+    if (!opts.roundupOut || opts.roundupOut === true) throw new ValidationError('roundup requires --roundup-out');
+    const result = readJson(path.join(opts.roundupOut, 'result.json'), 'roundup result.json');
+    const pack = readJson(path.join(opts.roundupOut, 'pack.json'), 'roundup pack.json');
+    if (!Array.isArray(pack?.items)) throw new ValidationError('roundup pack.json requires items array');
+    const packDigest = roundupPackDigest(pack);
+    if (result.packDigest !== packDigest) throw new ValidationError('roundup packDigest mismatch');
+    if (!result.isoWeek || !result.now || !Number.isFinite(Date.parse(result.now))) throw new ValidationError('roundup result requires isoWeek and now');
+    const week = isoWeekOf(result.now);
+    if (week.isoWeek !== result.isoWeek || result.slug !== roundupSlug(result.isoWeek) ||
+      items.length !== 1 || items[0].key !== result.slug || items[0].payload?.slug !== result.slug)
+      throw new ValidationError('roundup result slug/week does not match candidate');
+    return { now: result.now, isoWeek: result.isoWeek, weekStartUtc: week.weekStartUtc, items: pack.items, packDigest };
   }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];

@@ -108,6 +108,12 @@ const GENERATOR_POLICIES = {
 
 export const KIND_POLICIES = Object.freeze({
   ...GENERATOR_POLICIES,
+  roundup: {
+    ...GENERATOR_POLICIES.news,
+    repairablePaths: [],
+    maxRepairBytes: 0,
+    noFixer: true,
+  },
   promotion: {
     base: 'main',
     exactHead: 'staging',

@@ -89,6 +89,12 @@ export const LENSES = {
     'CONTENT lens: original useful local reporting with no fabricated quotes, events, closures, allegations, images, or implied firsthand knowledge; risk-sensitive stories must remain human-only.',
     'CODE lens: content-only posts.json append must match the site schema, use an existing image, contain safe Markdown/internal links, and preserve autonomous publish invariants.',
   ],
+  roundup: [
+    'DATA lens: every local claim, date, number, actor, and source link must be grounded, current, Liberty Village-relevant, and mutually consistent.',
+    'CONTENT lens: original useful local reporting with no fabricated quotes, events, closures, allegations, images, or implied firsthand knowledge; risk-sensitive stories remain human-only.',
+    'CODE lens: posts.json entry must match the site schema, use an existing image, and preserve autonomous publish invariants.',
+    'EVIDENCE lens: assess each item independently for a verified in-week announcement and substantive source; cite its own source inline, never transfer a citation across items. Crime, safety, civic controversy, development applications and weak-source items are human-only even as link-only mentions. Exactly one eligible item must be clearly labelled weekly update.',
+  ],
   business: [
     'DATA lens: records must be consistent, deduplicated, geographically relevant, and avoid unsupported facts.',
     'CONTENT lens: descriptions must be neutral and never imply firsthand review or endorsement.',
@@ -115,7 +121,7 @@ const GATE_BAR = `A blocking finding is any finding with severity ${BLOCKING_SEV
 // records for the businesses this diff names, and no tools and no network. A
 // claim it cannot verify from diff + records is flagged `unsupported` — it is
 // never "corrected" from parametric memory (the Balzac's false positive, #97).
-const GROUNDED_KINDS = Object.freeze(['blog', 'blog-live', 'news']);
+const GROUNDED_KINDS = Object.freeze(['blog', 'blog-live', 'news', 'roundup']);
 const BUSINESSES_FILE = 'data/businesses.json';
 const GROUNDING_LENS = 'GROUNDING lens: verify named-business facts against the supplied records;'
   + ' if a claim is unverifiable from diff + records, flag it as unsupported —'

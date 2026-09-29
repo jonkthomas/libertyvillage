@@ -51,6 +51,21 @@ test('news preflight lists only genuinely pending news for this target, not hist
   } finally { await close(); }
 });
 
+test('roundup preflight lists pending roundup submissions', async () => {
+  const { db, close } = await testDb();
+  try {
+    // Remove this compatibility shim when migration 0003 adds roundup.
+    const constraint = (await db.query("select pg_get_constraintdef(oid) as definition from pg_constraint where conrelid='content.submissions'::regclass and conname='submissions_kind_check'")).rows[0]?.definition || '';
+    if (!constraint.includes("'roundup'")) {
+      await db.query('alter table content.submissions drop constraint submissions_kind_check');
+      await db.query("alter table content.submissions add constraint submissions_kind_check check (kind in ('seed','business','blog','blog-live','news','roundup','seo','topic-discovery','manual','admin'))");
+    }
+    const id = await insert(db, 'roundup', 'published');
+    await insert(db, 'roundup', 'published', new Date(), new Date());
+    assert.deepEqual(await listPendingByKind(db, { target: db.target, kind: 'roundup' }), [id]);
+  } finally { await close(); }
+});
+
 test('pending preflight pages a backlog larger than one page without dropping work', async () => {
   const { db, close } = await testDb();
   try {
