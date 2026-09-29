@@ -127,6 +127,7 @@ test('collector: identity sources become record-bound signals; feeds filtered to
 
   const bmo = signals.filter((s) => s.sourceId === 'rv2-bmo-field');
   assert.equal(bmo.length, 2);
+  assert.ok(signals.every((s) => s.fetchStatus === 200), 'each successful identity/feed signal retains its captured HTTP status');
   for (const s of bmo) {
     assert.equal(s.records.length, 1);
     assert.equal(s.signalId, roundupSignalId('rv2-bmo-field', 'https://www.bmofield.com/events', s.records[0].recordId));
@@ -275,7 +276,8 @@ test('Serper: missing key → unavailable; results group same-story pages from d
     { title: 'Photo', link: 'https://www.instagram.com/p/DdzsAfDS8GO/' },
   ];
   const net = fakeNet((url) => (url === 'https://google.serper.dev/news' ? { status: 200, body: JSON.stringify({ news }) }
-    : url.endsWith('/robots.txt') ? { status: 404, body: '' } : '<body><article><h1>Story</h1><p>September 29, 2026 text.</p></article></body>'));
+    : url.endsWith('/robots.txt') ? { status: 404, body: '' }
+      : { status: 203, body: '<body><article><h1>Story</h1><p>September 29, 2026 text.</p></article></body>' }));
   const c = fakeClock();
   const { signals } = await collectRoundup({ out: tmp(), now: NOW, env: { SERPER_API_KEY: 'k' }, fetcher: net.fetcher, watchList: [],
     sources: ids('rv2-serper-news'), clock: c.clock, sleep: c.sleep });
@@ -285,6 +287,7 @@ test('Serper: missing key → unavailable; results group same-story pages from d
   assert.equal(byUrl[news[2].link].groupId, undefined);
   assert.ok(!net.calls.some((x) => x.url.includes('instagram.com')));
   assert.equal(signals.length, 3, 'one signal per page (deduplicated across queries)');
+  assert.ok(signals.every((s) => s.fetchStatus === 203), 'news-page status comes from its fetch, not the 200 Serper search');
   assert.ok(signals.every((s) => s.records.length === 1 &&
     s.signalId === roundupSignalId('rv2-serper-news', s.url, s.records[0].recordId)));
 });
@@ -312,6 +315,7 @@ test('Instagram: owned dated posts become signals with the post; tagged rows dro
   assert.equal(signals.length, 1);
   const [s] = signals;
   assert.equal(s.sourceId, 'ig:questxochocolate');
+  assert.equal(s.fetchStatus, null, 'the provider does not expose a per-post HTTP code');
   assert.equal(s.url, IG215.url);
   assert.deepEqual([s.post.shortcode, s.post.ownerUsername, s.post.timestamp, s.post.caption], [IG215.shortcode, IG215.ownerUsername, IG215.timestamp, IG215.caption]);
   assert.equal(s.records[0].typed.date, '2026-09-30');

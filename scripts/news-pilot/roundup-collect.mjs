@@ -11,7 +11,7 @@
  * cookies, no browser and no archive substitution. Instagram is read only
  * through ig-provider.mjs; instagram.com pages are never fetched.
  *
- * Signal: { signalId, sourceId, url, groupId?, records, post?, fetchedAt, title?, publisherDomain, snapshotSha256? }
+ * Signal: { signalId, sourceId, url, groupId?, records, post?, fetchedAt, fetchStatus, title?, publisherDomain, snapshotSha256? }
  * signalId = sha256(sourceId + url + recordId) for single-record signals
  * (listing rows, JSON-LD events, feed records); sha256(sourceId + url + '') for
  * whole-document signals (page sections, Instagram posts).
@@ -260,10 +260,13 @@ export async function collectRoundup({
     return entry;
   };
 
-  const addSignal = ({ sourceId, url, records, recordId = '', extra = {}, fetchedAt, snap }) => {
+  const addSignal = ({ sourceId, url, records, recordId = '', extra = {}, fetchedAt, fetchStatus = null, snap }) => {
     const bounded = boundRecords(records);
     const signal = {
       signalId: roundupSignalId(sourceId, url, recordId), sourceId, url, records: bounded.records, fetchedAt,
+      // The capture's actual HTTP code is distinct from the verifier's later refetch.
+      // A provider that exposes no per-post HTTP code (Instagram) stays null.
+      fetchStatus: Number.isInteger(fetchStatus) && fetchStatus >= 200 && fetchStatus < 300 ? fetchStatus : null,
       publisherDomain: registrableDomain(url), ...(snap ? { snapshotSha256: snap.sha256 } : {}), ...extra,
     };
     if (bounded.omitted) signal.omittedRecords = bounded.omitted;
@@ -298,7 +301,7 @@ export async function collectRoundup({
       // A BIA/project page may contain many independent events. One signal per
       // section preserves the one-form-per-signal contract and record identity.
       for (const record of records) addSignal({ sourceId: source.id, url: source.url, records: [record],
-        recordId: record.recordId, fetchedAt, snap, extra: { title: source.label } });
+        recordId: record.recordId, fetchedAt, fetchStatus: res.status, snap, extra: { title: source.label } });
     } else {
       for (const record of records) {
         if (source.identityKind === 'road-feed') {
@@ -311,8 +314,8 @@ export async function collectRoundup({
           entry.venueMismatch = (entry.venueMismatch || 0) + 1;
           continue;
         }
-        addSignal({ sourceId: source.id, url: source.url, records: [record], recordId: record.recordId, fetchedAt, snap,
-          extra: { title: record.typed.subject || record.typed.name || record.typed.road || record.typed.title || null } });
+        addSignal({ sourceId: source.id, url: source.url, records: [record], recordId: record.recordId, fetchedAt,
+          fetchStatus: res.status, snap, extra: { title: record.typed.subject || record.typed.name || record.typed.road || record.typed.title || null } });
       }
     }
     entry.signals = signals.length - before;
@@ -425,7 +428,7 @@ export async function collectRoundup({
         }
         const snap = snapshot(serperSource.id, res.body, 'html');
         for (const record of records) addSignal({ sourceId: serperSource.id, url: result.link,
-          records: [record], recordId: record.recordId, fetchedAt: stamp(), snap,
+          records: [record], recordId: record.recordId, fetchedAt: stamp(), fetchStatus: res.status, snap,
           extra: { title: result.title, query: result.query, ...(groupOf.has(result.link) ? { groupId: groupOf.get(result.link) } : {}) } });
         census.serper.pages += 1;
       }
