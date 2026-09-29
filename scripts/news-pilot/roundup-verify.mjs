@@ -308,7 +308,7 @@ async function loadBody(url, fetcher, context) {
 
 /** Re-fetch and re-extract every cited record. All model fields are untrusted. */
 export async function verifyRoundupForms({ signals = [], forms = [], now, posts = [], fetcher, igRefetch,
-  recordExtractor, recordTools, geography, sources, publisherTiers, packUnits } = {}) {
+  recordExtractor, recordTools, geography, sources, publisherTiers } = {}) {
   const at = Date.parse(now);
   if (!Number.isFinite(at)) throw new Error('roundup verifier requires now');
   const accessFetcher = fetcher || await createRoundupVerifierFetcher();
@@ -323,11 +323,10 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
   const covered = roundupCoveredKeys(posts);
   const signalMap = new Map(signals.map((s) => [s.signalId, s]));
   const igRows = Array.isArray(igRefetch?.rows) ? igRefetch.rows : [];
-  const expectedIg = Array.isArray(packUnits) ? [...new Set(packUnits.flatMap((unit) => unit.constituents || [unit])
-    .map((member) => signalMap.get(member.signalId)).filter((member) => member?.sourceId?.startsWith('ig:'))
-    .map((member) => member.post?.shortcode).filter(Boolean))].sort() : null;
+  const expectedIg = [...new Set(signals.filter((signal) => signal.sourceId === 'rv2-instagram' ||
+    signal.sourceId?.startsWith('ig:')).map((signal) => signal.post?.shortcode).filter(Boolean))].sort();
   const actualIg = [...new Set(igRows.map((row) => row.shortcode).filter(Boolean))].sort();
-  const igSetValid = !igRefetch || expectedIg === null || JSON.stringify(expectedIg) === JSON.stringify(actualIg);
+  const igSetValid = !igRefetch || JSON.stringify(expectedIg) === JSON.stringify(actualIg);
   const igFetchedAt = Date.parse(igRefetch?.fetchedAt || '');
   const items = [], excluded = [];
   for (const form of forms) {
@@ -360,7 +359,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             if (sourceSignal.post && (post.caption !== sourceSignal.post.caption || post.timestamp !== sourceSignal.post.timestamp ||
               post.ownerUsername !== sourceSignal.post.ownerUsername)) fail('unverifiable');
           }
-          const body = source.parse === 'ig-post' ? post.caption || post.text || sourceSignal.body : await loadBody(claim.url, accessFetcher, { source, signal: sourceSignal });
+          const body = source.parse === 'ig-post' ? post.caption : await loadBody(claim.url, accessFetcher, { source, signal: sourceSignal });
           const original = (source.parse === 'html-page' || source.identityKind === 'news-discovery') &&
             form.when?.kind === 'news-update' ? await originalFor(body, claim.url, accessFetcher, recordModule) : null;
           const fresh = extractRoundupRecords({ source, url: claim.url, body, post });
@@ -445,7 +444,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
 export async function revalidateRoundupForms(pack, options = {}) {
   if ((pack.signals || []).some((signal) => signal.sourceId?.startsWith('ig:') || signal.sourceId === 'rv2-instagram') && !options.igRefetch)
     throw new Error('roundup source evidence changed or unreachable; rebuild before submit');
-  const result = await verifyRoundupForms({ ...options, signals: pack.signals, forms: pack.forms, packUnits: pack.units });
+  const result = await verifyRoundupForms({ ...options, signals: pack.signals, forms: pack.forms });
   const plan = planRoundupV2(result.items, { now: options.now, posts: options.posts || [] });
   const oldKeys = (pack.units || pack.items || []).flatMap((item) => item.keys || [item.identityKey]).sort();
   const newKeys = plan.countedItems.flatMap((item) => item.keys).sort();

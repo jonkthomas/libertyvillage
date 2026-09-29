@@ -199,20 +199,18 @@ test('Instagram relative date is based on provider Toronto timestamp and own rec
   assert.equal((await verifyRoundupForms(ambiguous)).excluded[0].reason, 'undated');
   const late = { ...opts, now: '2026-10-01T12:00:00Z', signals: [{ ...igSignal, post: { ...post, timestamp: '2026-09-30T23:00:00Z' } }] };
   assert.equal((await verifyRoundupForms(late)).excluded[0].reason, 'retrospective');
-  const verified = await verifyRoundupForms(opts);
   const excludedLead = { ...igSignal, signalId: 'ig-lead', post: { ...post, shortcode: 'LEAD' } };
   const refetch = { fetchedAt: '2026-09-29T14:55:00Z', provider: 'fixture', rows: [{ ...post, status: 'ok' }] };
-  assert.equal((await verifyRoundupForms({ ...opts, signals: [igSignal, excludedLead], igRefetch: refetch,
-    packUnits: verified.items })).items.length, 1);
-  assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows: [{ ...post, caption: caption + ' changed', status: 'ok' }] },
-    packUnits: verified.items })).excluded[0].reason, 'unverifiable');
+  assert.equal((await verifyRoundupForms({ ...opts, signals: [igSignal, excludedLead],
+    igRefetch: { ...refetch, rows: [...refetch.rows, { ...excludedLead.post, status: 'ok' }] } })).items.length, 1);
+  assert.equal((await verifyRoundupForms({ ...opts, signals: [igSignal, excludedLead],
+    igRefetch: refetch })).excluded[0].reason, 'unverifiable');
+  assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows: [{ ...post, caption: caption + ' changed', status: 'ok' }] } })).excluded[0].reason, 'unverifiable');
   for (const rows of [[], [{ ...post, status: 'missing' }], [{ ...post, status: 'private' }]]) {
-    assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows },
-      packUnits: verified.items })).excluded[0].reason, 'record-missing');
+    assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows } })).excluded[0].reason, 'record-missing');
   }
   for (const changed of [{ ownerUsername: 'other' }, { timestamp: '2026-09-28T23:07:57Z' }]) {
-    assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows: [{ ...post, ...changed, status: 'ok' }] },
-      packUnits: verified.items })).excluded[0].reason, 'unverifiable');
+    assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows: [{ ...post, ...changed, status: 'ok' }] } })).excluded[0].reason, 'unverifiable');
   }
   const offsiteCaption = caption + ' This session is at High Park.';
   const offsite = { ...opts, signals: [{ ...igSignal, post: { ...post, caption: offsiteCaption } }] };
