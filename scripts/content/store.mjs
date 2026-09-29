@@ -303,6 +303,11 @@ export async function listPending(db, { target } = {}) {
 // the 0002 partial index submissions_pending_idx); callers that need every
 // pending id enumerate pages with afterId instead of one unbounded query.
 export const PENDING_NEWS_PAGE = 200;
+// Finite ceiling for the CLI's default whole-backlog enumeration. A pending
+// backlog this size means propagation is stuck, which must surface as an
+// error — never as an unbounded id list (runner maxBuffer) or a silent
+// truncation. 1000 ids is ~8KB of JSON, far under the runner's 2MB maxBuffer.
+export const PENDING_NEWS_BACKLOG_CAP = 1000;
 export const PENDING_BY_KIND_SQL = "select id from content.submissions where state='published' and target=$1 and kind=$2 and (smoke_passed_at is null or notified_at is null) and ($3::bigint is null or id > $3) order by id limit $4";
 export async function listPendingByKind(db, { target, kind, limit = PENDING_NEWS_PAGE, afterId = null } = {}) {
   if (!['news', 'blog'].includes(kind)) throw new ValidationError('pending kind required');

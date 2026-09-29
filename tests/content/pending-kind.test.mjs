@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { testDb } from './helpers/db.mjs';
-import { listPendingByKind, PENDING_BY_KIND_SQL, PENDING_NEWS_PAGE } from '../../scripts/content/store.mjs';
+import { listPendingByKind, PENDING_BY_KIND_SQL, PENDING_NEWS_BACKLOG_CAP, PENDING_NEWS_PAGE } from '../../scripts/content/store.mjs';
 import { runCli } from '../../scripts/content/cli.mjs';
 
 const insert = async (db, kind, state, smoke = null, notified = null, target = db.target) => {
@@ -93,6 +93,26 @@ test('pending preflight pages a backlog larger than one page without dropping wo
     await assert.rejects(listPendingByKind(db, { target: db.target, kind: 'news', limit: 1.5 }), /pending page limit/);
     await assert.rejects(listPendingByKind(db, { target: db.target, kind: 'news', afterId: 0 }), /pending page cursor/);
     await assert.rejects(runCli(['pending', '--kind', 'news', '--limit', '0']), /positive integer/);
+  } finally { await close(); }
+});
+
+test('CLI default pending enumeration is finite: exactly-cap succeeds, one row over fails closed', async () => {
+  const { db, close } = await testDb();
+  try {
+    const atCap = await bulk(db, { prefix: 'cap-ok', count: PENDING_NEWS_BACKLOG_CAP, state: 'published', smoke: null, notified: null });
+    const ok = await runCli(['pending', '--kind', 'news', '--target', db.target]);
+    assert.equal(ok.exitCode, 0);
+    assert.deepEqual(ok.result, atCap, 'a backlog exactly at the cap enumerates completely');
+
+    await bulk(db, { prefix: 'cap-over', count: 1, state: 'published', smoke: null, notified: null });
+    await assert.rejects(
+      runCli(['pending', '--kind', 'news', '--target', db.target]),
+      /pending backlog exceeds 1000 ids for kind news; propagation is stuck/,
+      'overflow must fail closed with a stable error, never a silent truncation');
+
+    // Explicit single pages are unaffected by the enumeration cap.
+    const page = await runCli(['pending', '--kind', 'news', '--target', db.target, '--limit', '5']);
+    assert.deepEqual(page.result, atCap.slice(0, 5));
   } finally { await close(); }
 });
 
