@@ -29,6 +29,42 @@ test('reasoner validates exact signal and record, and treats JSON parse wrapper 
   assert.deepEqual(result.forms, [form]);
 });
 
+test('guest chef at a public business event is a performer; a named resident remains private', async () => {
+  const fixtures = [
+    { id: 'guest-chef', caption: '$6 Fried Onion Burgers by George Motz\nOCT. 3 at 116 Atlantic Ave. Patio',
+      subject: '$6 Fried Onion Burgers by George Motz', person: 'George Motz', role: 'performer', privateRisk: false,
+      exclude: null },
+    { id: 'private-resident', caption: 'Resident Alex Example shares rent and home details\nOCT. 3 at 116 Atlantic Ave. Patio',
+      subject: 'Resident Alex Example shares rent and home details', person: 'Alex Example', role: 'private-person',
+      privateRisk: true, exclude: 'Private resident and finances' },
+  ];
+  const signals = fixtures.map((fixture) => ({ signalId: fixture.id, sourceId: 'ig:burgerdrops',
+    url: `https://www.instagram.com/p/${fixture.id}/`,
+    records: [{ recordId: `ig:${fixture.id}`, text: fixture.caption }] }));
+  const forms = fixtures.map((fixture, index) => ({ ...form, signalId: fixture.id,
+    recordId: `ig:${fixture.id}`, subject: fixture.subject, what: fixture.subject,
+    evidence: [{ url: signals[index].url, recordId: `ig:${fixture.id}`,
+      subject_quote: fixture.subject, place_quote: '116 Atlantic Ave. Patio', date_quote: 'OCT. 3' }],
+    people: [{ name: fixture.person, role: fixture.role }],
+    risk: { ...form.risk, private_individual: fixture.privateRisk }, exclude_reason: fixture.exclude }));
+  let sawPrompt = false;
+  const result = await reasonRoundupSignals(signals, { now: '2026-09-29T19:10:00Z',
+    resolved: { ok: true, provider: { id: 'mock' } },
+    callModel: async ({ system, userText }) => {
+      sawPrompt = system.includes('named guest chef, host, performer or speaker') &&
+        system.includes('named resident whose home, finances, health');
+      const offered = JSON.parse(userText).signals.map((s) => s.signalId);
+      return { ok: true, text: JSON.stringify({ forms: forms.filter((entry) => offered.includes(entry.signalId)) }) };
+    },
+  });
+  assert.equal(sawPrompt, true);
+  assert.equal(result.forms.find((entry) => entry.signalId === 'guest-chef')?.people[0].role, 'performer');
+  const resident = result.forms.find((entry) => entry.signalId === 'private-resident');
+  assert.equal(resident?.people[0].role, 'private-person');
+  assert.equal(resident?.risk.private_individual, true);
+  assert.ok(resident?.exclude_reason);
+});
+
 test('reasoner narrows a paraphrased title only to a same-record verbatim quote', async () => {
   const modelForm = { ...form, subject: 'Open House – New Park at 34 Hanna Avenue',
     evidence: [{ ...form.evidence[0], subject_quote: 'Toronto FC' }] };
