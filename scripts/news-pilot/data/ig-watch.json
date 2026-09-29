@@ -1,0 +1,356 @@
+{
+  "provenance": {
+    "source": "2026-09-29 Instagram trial accounts.csv and website-audit.json; business URLs rechecked where archive differed",
+    "selection": "29 trial accounts admitted under the exact core-address and first-party identity rules; five excluded with explicit reasons below. Effective provider limit is the entry count; hard ceiling remains 34.",
+    "exclusions": [
+      {
+        "handle": "kitchenhub",
+        "reason": "1108 King St W City point lies outside the generated core polygon; official venue address is therefore ineligible for a core-only watch list.",
+        "verificationUrl": "https://kitchenhub.com/menu/catering-menu-liberty-village"
+      },
+      {
+        "handle": "louiecoffeeshop",
+        "reason": "1187 King St W City point lies geometrically inside the ring, but King St W is adjacent boundary frontage under section 6.2; core-only watch list excludes it.",
+        "verificationUrl": "https://louiecoffee.com/our-story/"
+      },
+      {
+        "handle": "tonton.matcha.coffee",
+        "reason": "100 Western Battery Rd #1 is core and the official site gives the address, but the site did not provide a verifiable link to the archived Instagram handle.",
+        "verificationUrl": "https://tontonmatcha.com/"
+      },
+      {
+        "handle": "brodflour",
+        "reason": "Official site gives 8 Pardee Ave, but the City Address Points extract has no 8 Pardee Ave point; no approved named-venue exception exists.",
+        "verificationUrl": "https://brodflour.com/"
+      },
+      {
+        "handle": "DeltaTrainLV",
+        "reason": "Official site gives 37A Mowat Ave, but the City address-point extract contains 37 Mowat Ave only. Treating 37A as 37 would silently merge distinct house numbers; no approved equivalence exists.",
+        "verificationUrl": "https://deltatrain.ca/"
+      }
+    ]
+  },
+  "entries": [
+    {
+      "handle": "mildredstemplekitchen",
+      "business": "Mildred's Temple Kitchen",
+      "canonicalVenueId": "addr:85-hanna-ave",
+      "verificationUrl": "https://www.mildreds.ca",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "mildreds.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "burgerdrops",
+      "business": "Burger Drops",
+      "canonicalVenueId": "addr:116-atlantic-ave",
+      "verificationUrl": "https://www.burgerdrops.com/",
+      "verificationMethod": "Official site links @burgerdrops and gives shop address",
+      "ownDomain": "burgerdrops.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "impactkitchen",
+      "business": "Impact Kitchen",
+      "canonicalVenueId": "addr:99-atlantic-ave",
+      "verificationUrl": "https://www.impactkitchen.com/blog-liberty-village-opening",
+      "verificationMethod": "Official LV opening article gives address; homepage links @impactkitchen",
+      "ownDomain": "impactkitchen.com",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "balzacscoffee",
+      "business": "Balzac's Coffee Roasters",
+      "canonicalVenueId": "addr:43-hanna-ave#123",
+      "verificationUrl": "https://balzacs.com/pages/liberty-village",
+      "verificationMethod": "Official LV location page provides address; homepage links Instagram",
+      "ownDomain": "balzacs.com",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "f45_training_libertyvillage",
+      "business": "F45 Training Liberty Village",
+      "canonicalVenueId": "addr:171-east-liberty-st#124",
+      "verificationUrl": "https://f45training.com/ca/studio/libertyvillage/",
+      "verificationMethod": "Official studio page identifies local Instagram account and street address",
+      "ownDomain": "f45training.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "localpubliceatery",
+      "business": "LOCAL Public Eatery Liberty Village",
+      "canonicalVenueId": "addr:171-east-liberty-st#100",
+      "verificationUrl": "https://localpubliceatery.com/neighbourhoods/liberty-village/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "localpubliceatery.com",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "kintonramen",
+      "business": "Kinton Ramen Liberty Village",
+      "canonicalVenueId": "addr:153-liberty-st",
+      "verificationUrl": "https://www.kintonramen.com/location/kinton-ramen-liberty-village/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "kintonramen.com",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "libertysoho",
+      "business": "Liberty Soho",
+      "canonicalVenueId": "addr:139-east-liberty-st",
+      "verificationUrl": "http://liberty-soho.com/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "liberty-soho.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "liberty_eatsto",
+      "business": "Liberty Eats",
+      "canonicalVenueId": "addr:129-jefferson-ave",
+      "verificationUrl": "http://libertyeats.ca/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "libertyeats.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "thevillagebarbershopto",
+      "business": "The Village Barbershop",
+      "canonicalVenueId": "addr:107-jefferson-ave",
+      "verificationUrl": "https://www.thevillagebarbershop.ca/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "thevillagebarbershop.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "arvocoffee",
+      "business": "Arvo Coffee & Wine",
+      "canonicalVenueId": "addr:80-atlantic-ave",
+      "verificationUrl": "https://www.arvocoffee.com/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "arvocoffee.com",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "risecycle",
+      "business": "RISE CYCLE - Liberty Village",
+      "canonicalVenueId": "addr:171-east-liberty-st#149",
+      "verificationUrl": "http://www.risecycle.ca/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "risecycle.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "thaibarnna",
+      "business": "Thai Barn Na Liberty",
+      "canonicalVenueId": "addr:127-jefferson-ave",
+      "verificationUrl": "https://www.thaibarnna.ca/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "thaibarnna.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "blacksheepto",
+      "business": "Black Sheep",
+      "canonicalVenueId": "addr:165-east-liberty-st#3",
+      "verificationUrl": "https://fabrestaurants.ca/restaurant/black-sheep/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "fabrestaurants.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "nrghaus",
+      "business": "NRG Haus | Social Wellness Club",
+      "canonicalVenueId": "addr:171-east-liberty-st#113",
+      "verificationUrl": "https://nrghaus.com/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "nrghaus.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "morestudio.ca",
+      "business": "More Studio",
+      "canonicalVenueId": "addr:17-atlantic-ave",
+      "verificationUrl": "http://www.morestudio.ca/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "morestudio.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "oyflibertyvillage",
+      "business": "Oxygen Yoga and Fitness Liberty Village",
+      "canonicalVenueId": "addr:171-east-liberty-st#126",
+      "verificationUrl": "http://www.oxygenlv.com/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "oxygenlv.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "strongpilates_ca",
+      "business": "STRONG Pilates Liberty Village",
+      "canonicalVenueId": "addr:171-east-liberty-st#101",
+      "verificationUrl": "https://strongpilates.ca/liberty-village/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "strongpilates.ca",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "sundayspastalab",
+      "business": "Sundays Pasta Lab",
+      "canonicalVenueId": "addr:171-east-liberty-st#125",
+      "verificationUrl": "http://www.sundayspastalab.ca/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "sundayspastalab.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "frameworktoronto",
+      "business": "Framework Toronto",
+      "canonicalVenueId": "addr:47-fraser-ave",
+      "verificationUrl": "https://frameworktoronto.com/",
+      "verificationMethod": "Instagram link on business website; LV address from directory",
+      "ownDomain": "frameworktoronto.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "libertyvillagebia",
+      "business": "Liberty Village BIA",
+      "canonicalVenueId": "addr:67-mowat-ave#104",
+      "verificationUrl": "https://www.libertyvillagebia.com/",
+      "verificationMethod": "Instagram link and office address on official BIA website",
+      "ownDomain": "libertyvillagebia.com",
+      "multiLocation": false,
+      "requiresVenueInPost": true,
+      "provider": "apify"
+    },
+    {
+      "handle": "libertyresident",
+      "business": "Liberty Village Residents Association",
+      "canonicalVenueId": "addr:70-east-liberty-st",
+      "verificationUrl": "https://www.lvra.to/",
+      "verificationMethod": "Instagram link on official association website",
+      "ownDomain": "lvra.to",
+      "multiLocation": false,
+      "requiresVenueInPost": true,
+      "provider": "apify"
+    },
+    {
+      "handle": "greenlibertyvillage",
+      "business": "Green Liberty Village",
+      "canonicalVenueId": "addr:70-east-liberty-st",
+      "verificationUrl": "https://www.greenlibertyvillage.ca/",
+      "verificationMethod": "Instagram link on official organisation website; park address corroborated by LVRA event listing",
+      "ownDomain": "greenlibertyvillage.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": true,
+      "provider": "apify"
+    },
+    {
+      "handle": "leftfieldbrewery",
+      "business": "Left Field Brewery, Liberty Village",
+      "canonicalVenueId": "addr:40-hanna-ave",
+      "verificationUrl": "https://www.leftfieldbrewery.ca/contact-us",
+      "verificationMethod": "Official contact page names LV taproom address and links Instagram",
+      "ownDomain": "leftfieldbrewery.ca",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "libertymarketbuilding",
+      "business": "Liberty Market Building",
+      "canonicalVenueId": "addr:171-east-liberty-st",
+      "verificationUrl": "https://libertymarket.ca/event/show-us-why-you-libertyto/",
+      "verificationMethod": "Building operator identifies own Instagram account and address",
+      "ownDomain": "libertymarket.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "questxochocolate",
+      "business": "QUEST XO Creative Lab",
+      "canonicalVenueId": "addr:25-liberty-st",
+      "verificationUrl": "https://questxo.com/pages/creativelab",
+      "verificationMethod": "Instagram link and venue address on official website",
+      "ownDomain": "questxo.com",
+      "multiLocation": true,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "pinkfloor.studios",
+      "business": "Pink Floor Studios",
+      "canonicalVenueId": "addr:65-jefferson-ave#207",
+      "verificationUrl": "https://studio207to.com",
+      "verificationMethod": "Instagram link on studio website; LV address from directory",
+      "ownDomain": "studio207to.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "brazenheadto",
+      "business": "Brazen Head Irish Pub",
+      "canonicalVenueId": "addr:165-east-liberty-st",
+      "verificationUrl": "https://fabrestaurants.ca/restaurant/brazen-head/",
+      "verificationMethod": "Restaurant operator page links its Instagram and gives LV address",
+      "ownDomain": "fabrestaurants.ca",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    },
+    {
+      "handle": "ohawellness",
+      "business": "OHA Wellness",
+      "canonicalVenueId": "addr:107-atlantic-ave#2",
+      "verificationUrl": "https://ohawellness.com/contact-us/",
+      "verificationMethod": "Official studio site gives address; linked @ohawellness Linktree and independent venue listing confirm handle",
+      "ownDomain": "ohawellness.com",
+      "multiLocation": false,
+      "requiresVenueInPost": false,
+      "provider": "apify"
+    }
+  ],
+  "effectiveProviderLimit": 29,
+  "hardProviderLimit": 34
+}

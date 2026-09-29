@@ -1,0 +1,2056 @@
+{
+  "provenance": {
+    "status": "generated-core-plus-reviewed-adjacent-corridors",
+    "source": "City of Toronto Centreline version 2",
+    "sourceUrl": "https://open.toronto.ca/dataset/toronto-centreline-tcl/",
+    "note": "55 polygon-interior City core segments (four Douro St rows excluded by A1 policy) plus five reviewed adjacent frontage corridors joined by City intersection IDs. Adjacent Lake Shore coverage ends at Newfoundland Rd because named Dufferin St does not meet Lake Shore in Centreline; Exhibition Place internal roads remain unresolved. Unlisted segments fail closed. Independent review and spec addendum needed before PR.",
+    "geometrySource": "City Toronto Centreline version 2 datastore resource ad296ebf-fca6-4e67-b3ce-48040a20e6cd. Exact corridor centreline IDs and geometries selected by graph path between matching intersection IDs; where absent, coordinates fail closed.",
+    "resourceId": "4dec5884-a5cf-49e7-b562-f835150dc0b1"
+  },
+  "segments": [
+    {
+      "centrelineId": "7553353",
+      "linearName": "Liberty St",
+      "fromIntersection": [
+        "Mowat Ave"
+      ],
+      "toIntersection": [
+        "Dufferin St"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4253369723099,
+          43.6373460073311
+        ],
+        [
+          -79.426638388341,
+          43.6370728028344
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553355",
+      "linearName": "Liberty St",
+      "fromIntersection": [
+        "Fraser Ave"
+      ],
+      "toIntersection": [
+        "Mowat Ave"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4240949544605,
+          43.6375948427103
+        ],
+        [
+          -79.4242616990992,
+          43.6375875001608
+        ],
+        [
+          -79.4251998537025,
+          43.6374001780218
+        ],
+        [
+          -79.4253369723099,
+          43.6373460073311
+        ]
+      ]
+    },
+    {
+      "centrelineId": "60069680",
+      "linearName": "East Liberty St",
+      "fromIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "toIntersection": [
+        "Lynn Williams St"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4148880256064,
+          43.6384857333162
+        ],
+        [
+          -79.4151785255381,
+          43.6384279443403
+        ],
+        [
+          -79.4152736030117,
+          43.6384085988704
+        ],
+        [
+          -79.4153381045628,
+          43.6383978360005
+        ],
+        [
+          -79.4154023699142,
+          43.6383963983487
+        ],
+        [
+          -79.4154697800507,
+          43.6383973213478
+        ],
+        [
+          -79.4155370068628,
+          43.6384052472451
+        ],
+        [
+          -79.4156362033058,
+          43.6384182734784
+        ],
+        [
+          -79.4171923572079,
+          43.6386608192926
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553361",
+      "linearName": "Mowat Ave",
+      "fromIntersection": [
+        "Liberty St"
+      ],
+      "toIntersection": [
+        "King St W"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4253369723099,
+          43.6373460073311
+        ],
+        [
+          -79.4260271495921,
+          43.6392151515195
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553375",
+      "linearName": "Fraser Ave",
+      "fromIntersection": [
+        "Liberty St"
+      ],
+      "toIntersection": [
+        "King St W"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4240949544605,
+          43.6375948427103
+        ],
+        [
+          -79.4248138534591,
+          43.6394619068844
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14040756",
+      "linearName": "Ln S Liberty E Jefferson",
+      "fromIntersection": [],
+      "toIntersection": [
+        "Jefferson Ave"
+      ],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4208457046645,
+          43.6376401933814
+        ],
+        [
+          -79.4213744530629,
+          43.637536745339
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14041280",
+      "linearName": "Ln S Liberty E Jefferson",
+      "fromIntersection": [],
+      "toIntersection": [],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4207707580778,
+          43.6374424801338
+        ],
+        [
+          -79.4208457046645,
+          43.6376401933814
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14673888",
+      "linearName": "Jefferson Ave",
+      "fromIntersection": [
+        "Ln S King E Jefferson"
+      ],
+      "toIntersection": [
+        "King St W"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4217754280499,
+          43.638706272713
+        ],
+        [
+          -79.4222632688042,
+          43.6399697959188
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14673897",
+      "linearName": "Ln S King E Jefferson",
+      "fromIntersection": [],
+      "toIntersection": [
+        "Jefferson Ave"
+      ],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4212801135979,
+          43.6388066221372
+        ],
+        [
+          -79.4217754280499,
+          43.638706272713
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14673901",
+      "linearName": "Ln S King E Jefferson",
+      "fromIntersection": [],
+      "toIntersection": [],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4212801135979,
+          43.6388066221372
+        ],
+        [
+          -79.4214314240115,
+          43.6391852612172
+        ]
+      ]
+    },
+    {
+      "centrelineId": "60078947",
+      "linearName": "Pirandello St",
+      "fromIntersection": [
+        "Liberty Village Park Trl",
+        "Lynn Williams St"
+      ],
+      "toIntersection": [
+        "Western Battery Rd"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4141429907571,
+          43.6391650143496
+        ],
+        [
+          -79.4144652579052,
+          43.6400093871461
+        ]
+      ]
+    },
+    {
+      "centrelineId": "60078962",
+      "linearName": "Lynn Williams St",
+      "fromIntersection": [
+        "Western Battery Rd"
+      ],
+      "toIntersection": [
+        "East Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4159172771789,
+          43.6390221580598
+        ],
+        [
+          -79.4170672396311,
+          43.6389302388868
+        ],
+        [
+          -79.4170801189417,
+          43.6389199596533
+        ],
+        [
+          -79.4170860330372,
+          43.6389004309506
+        ],
+        [
+          -79.4171140505913,
+          43.6388504846131
+        ],
+        [
+          -79.4171923572079,
+          43.6386608192926
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104587",
+      "linearName": "Pirandello St",
+      "fromIntersection": [
+        "East Liberty St"
+      ],
+      "toIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4139555632054,
+          43.6386712108054
+        ],
+        [
+          -79.4140448251843,
+          43.6389064029807
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30095284",
+      "linearName": "Canniff St",
+      "fromIntersection": [
+        "Massey Harris Park Trl"
+      ],
+      "toIntersection": [
+        "Crawford St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4128044820423,
+          43.6412509704689
+        ],
+        [
+          -79.4133899748392,
+          43.6411348567462
+        ],
+        [
+          -79.4135551998474,
+          43.641079956398
+        ]
+      ]
+    },
+    {
+      "centrelineId": "60078934",
+      "linearName": "Western Battery Rd",
+      "fromIntersection": [
+        "King-Liberty Pedestrian Cycle Bridge"
+      ],
+      "toIntersection": [
+        "Lynn Williams St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4161734493505,
+          43.6400412391712
+        ],
+        [
+          -79.4162167712584,
+          43.6400209548217
+        ],
+        [
+          -79.41624207006,
+          43.6399928980648
+        ],
+        [
+          -79.4162538679866,
+          43.6399583234168
+        ],
+        [
+          -79.4162538703567,
+          43.6399209226956
+        ],
+        [
+          -79.4162482399847,
+          43.6399054632059
+        ],
+        [
+          -79.4159172771789,
+          43.6390221580598
+        ]
+      ]
+    },
+    {
+      "centrelineId": "1146969",
+      "linearName": "Atlantic Ave",
+      "fromIntersection": [
+        "Snooker St"
+      ],
+      "toIntersection": [
+        "King St W"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.420989769365,
+          43.639476970537
+        ],
+        [
+          -79.42127183047,
+          43.6401669677036
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30133733",
+      "linearName": "Western Battery Rd",
+      "fromIntersection": [
+        "Pirandello St"
+      ],
+      "toIntersection": [
+        "King-Liberty Pedestrian Cycle Bridge"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4144652579052,
+          43.6400093871461
+        ],
+        [
+          -79.4160729310723,
+          43.6400586911002
+        ],
+        [
+          -79.4161359420598,
+          43.6400514192234
+        ],
+        [
+          -79.4161734493505,
+          43.6400412391712
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104584",
+      "linearName": "Lynn Williams St",
+      "fromIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "toIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.414623632337,
+          43.639126317339
+        ],
+        [
+          -79.4150489144001,
+          43.6390920778714
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104583",
+      "linearName": "Lynn Williams St",
+      "fromIntersection": [
+        "Liberty Village Park Trl",
+        "Pirandello St"
+      ],
+      "toIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4141429783757,
+          43.6391650053389
+        ],
+        [
+          -79.414623632337,
+          43.639126317339
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104588",
+      "linearName": "Pirandello St",
+      "fromIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "toIntersection": [
+        "Liberty Village Park Trl",
+        "Lynn Williams St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4140448375785,
+          43.63890640299
+        ],
+        [
+          -79.4141429783757,
+          43.6391650053389
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104613",
+      "linearName": "Lynn Williams St",
+      "fromIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "toIntersection": [
+        "Western Battery Rd"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4153170194802,
+          43.6390704934538
+        ],
+        [
+          -79.4159172771789,
+          43.6390221580598
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104612",
+      "linearName": "Lynn Williams St",
+      "fromIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "toIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4150489144001,
+          43.6390920778714
+        ],
+        [
+          -79.4153170194802,
+          43.6390704934538
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30145343",
+      "linearName": "Hanna Ave",
+      "fromIntersection": [
+        "East Liberty St",
+        "Liberty St"
+      ],
+      "toIntersection": [
+        "Snooker St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4195513127415,
+          43.638500127815
+        ],
+        [
+          -79.4199790503563,
+          43.6396733976895
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30111786",
+      "linearName": "East Liberty St",
+      "fromIntersection": [
+        "Gateway Park Trl"
+      ],
+      "toIntersection": [
+        "Pirandello St"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4120922205521,
+          43.6390418201135
+        ],
+        [
+          -79.4139555632054,
+          43.6386712108054
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30111782",
+      "linearName": "Western Battery Rd",
+      "fromIntersection": [
+        "East Liberty St",
+        "Gateway Park Trl",
+        "Solidarity Way"
+      ],
+      "toIntersection": [
+        "Gateway Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4114242001549,
+          43.6391746598914
+        ],
+        [
+          -79.4115559502531,
+          43.6395215940029
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30111785",
+      "linearName": "East Liberty St",
+      "fromIntersection": [
+        "Gateway Park Trl",
+        "Solidarity Way",
+        "Western Battery Rd"
+      ],
+      "toIntersection": [
+        "Gateway Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4114242001549,
+          43.6391746598914
+        ],
+        [
+          -79.4120922205521,
+          43.6390418201135
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104577",
+      "linearName": "East Liberty St",
+      "fromIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "toIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4145782592386,
+          43.6385473507475
+        ],
+        [
+          -79.4148880256064,
+          43.6384857333162
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553397",
+      "linearName": "Liberty St",
+      "fromIntersection": [
+        "Jefferson Ave"
+      ],
+      "toIntersection": [
+        "Pardee Ave"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4215648282493,
+          43.6380952587697
+        ],
+        [
+          -79.4228218824199,
+          43.6378413662735
+        ]
+      ]
+    },
+    {
+      "centrelineId": "1147118",
+      "linearName": "Hanna Ave",
+      "fromIntersection": [],
+      "toIntersection": [
+        "East Liberty St",
+        "Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.419197956187,
+          43.637566399449
+        ],
+        [
+          -79.4195513127415,
+          43.638500127815
+        ]
+      ]
+    },
+    {
+      "centrelineId": "1146871",
+      "linearName": "Shaw St",
+      "fromIntersection": [
+        "Douro St"
+      ],
+      "toIntersection": [
+        "King St W"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.414711006638,
+          43.6406545103965
+        ],
+        [
+          -79.4150017229239,
+          43.6414266938946
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14024794",
+      "linearName": "Jefferson Ave",
+      "fromIntersection": [],
+      "toIntersection": [
+        "Ln S Liberty E Jefferson"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4207697735402,
+          43.6360033924291
+        ],
+        [
+          -79.4213744530629,
+          43.637536745339
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30120862",
+      "linearName": "Fraser Ave",
+      "fromIntersection": [],
+      "toIntersection": [
+        "Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4232061293896,
+          43.6352455182279
+        ],
+        [
+          -79.4240949544605,
+          43.6375948427103
+        ]
+      ]
+    },
+    {
+      "centrelineId": "1146875",
+      "linearName": "Crawford St",
+      "fromIntersection": [
+        "Douro St"
+      ],
+      "toIntersection": [
+        "Canniff St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4133768092372,
+          43.6406103366007
+        ],
+        [
+          -79.4135551998474,
+          43.641079956398
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14672430",
+      "linearName": "Ln E Atlantic S Snooker",
+      "fromIntersection": [
+        "Snooker St"
+      ],
+      "toIntersection": [
+        "Ln S Snooker E Atlantic"
+      ],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4205025277983,
+          43.6395683567847
+        ],
+        [
+          -79.4203604923367,
+          43.6391997234944
+        ]
+      ]
+    },
+    {
+      "centrelineId": "20121829",
+      "linearName": "Snooker St",
+      "fromIntersection": [
+        "Hanna Ave"
+      ],
+      "toIntersection": [
+        "Ln E Atlantic S Snooker"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4199790503563,
+          43.6396733976895
+        ],
+        [
+          -79.4205025277983,
+          43.6395683567847
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553393",
+      "linearName": "Liberty St",
+      "fromIntersection": [
+        "East Liberty St",
+        "Hanna Ave"
+      ],
+      "toIntersection": [
+        "Atlantic Ave"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4195513127415,
+          43.638500127815
+        ],
+        [
+          -79.420539255788,
+          43.6382959473866
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14673896",
+      "linearName": "Ln S King E Jefferson",
+      "fromIntersection": [
+        "Atlantic Ave"
+      ],
+      "toIntersection": [],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4207717792714,
+          43.6389102638968
+        ],
+        [
+          -79.4212801135979,
+          43.6388066221372
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14673881",
+      "linearName": "Atlantic Ave",
+      "fromIntersection": [
+        "Ln S King E Jefferson"
+      ],
+      "toIntersection": [
+        "Ln S Snooker E Atlantic"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4207717792714,
+          43.6389102638968
+        ],
+        [
+          -79.4208462518196,
+          43.6391022518877
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14024835",
+      "linearName": "Snooker St",
+      "fromIntersection": [
+        "Ln E Atlantic S Snooker"
+      ],
+      "toIntersection": [
+        "Atlantic Ave"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4205025277983,
+          43.6395683567847
+        ],
+        [
+          -79.420989769365,
+          43.639476970537
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14672445",
+      "linearName": "Atlantic Ave",
+      "fromIntersection": [
+        "Ln S Snooker E Atlantic"
+      ],
+      "toIntersection": [
+        "Snooker St"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4208462518196,
+          43.6391022518877
+        ],
+        [
+          -79.420989769365,
+          43.639476970537
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14673887",
+      "linearName": "Jefferson Ave",
+      "fromIntersection": [
+        "Liberty St"
+      ],
+      "toIntersection": [
+        "Ln S King E Jefferson"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4215648282493,
+          43.6380952587697
+        ],
+        [
+          -79.4217754280499,
+          43.638706272713
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14672452",
+      "linearName": "Ln S Snooker E Atlantic",
+      "fromIntersection": [
+        "Atlantic Ave"
+      ],
+      "toIntersection": [
+        "Ln E Atlantic S Snooker"
+      ],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4208462518196,
+          43.6391022518877
+        ],
+        [
+          -79.4203604923367,
+          43.6391997234944
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553412",
+      "linearName": "Liberty St",
+      "fromIntersection": [
+        "Pardee Ave"
+      ],
+      "toIntersection": [
+        "Fraser Ave"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4228218824199,
+          43.6378413662735
+        ],
+        [
+          -79.4240949544605,
+          43.6375948427103
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14673880",
+      "linearName": "Atlantic Ave",
+      "fromIntersection": [
+        "Liberty St"
+      ],
+      "toIntersection": [
+        "Ln S King E Jefferson"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.420539255788,
+          43.6382959473866
+        ],
+        [
+          -79.4207717792714,
+          43.6389102638968
+        ]
+      ]
+    },
+    {
+      "centrelineId": "9234402",
+      "linearName": "Pardee Ave",
+      "fromIntersection": [],
+      "toIntersection": [
+        "Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.422261277768,
+          43.6363612762575
+        ],
+        [
+          -79.4222711048027,
+          43.636429468416
+        ],
+        [
+          -79.4222810988557,
+          43.6364834835084
+        ],
+        [
+          -79.4228218824199,
+          43.6378413662735
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30075899",
+      "linearName": "East Liberty St",
+      "fromIntersection": [
+        "Ordnance St",
+        "Strachan Ave"
+      ],
+      "toIntersection": [
+        "Gateway Park Trl",
+        "Solidarity Way",
+        "Western Battery Rd"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4108499932659,
+          43.639287891948
+        ],
+        [
+          -79.4110292407968,
+          43.6392531962589
+        ],
+        [
+          -79.4114242001549,
+          43.6391746598914
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553347",
+      "linearName": "Mowat Ave",
+      "fromIntersection": [],
+      "toIntersection": [
+        "Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4243904795366,
+          43.6349422499003
+        ],
+        [
+          -79.4253369723099,
+          43.6373460073311
+        ]
+      ]
+    },
+    {
+      "centrelineId": "60079005",
+      "linearName": "Western Battery Rd",
+      "fromIntersection": [
+        "Gateway Park Trl"
+      ],
+      "toIntersection": [
+        "Pirandello St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4115559502531,
+          43.6395215940029
+        ],
+        [
+          -79.4116779726106,
+          43.6398429115076
+        ],
+        [
+          -79.4116978516966,
+          43.6398693279045
+        ],
+        [
+          -79.4117228220301,
+          43.6398977015284
+        ],
+        [
+          -79.4117737470342,
+          43.6399170758005
+        ],
+        [
+          -79.4118716841144,
+          43.639919437693
+        ],
+        [
+          -79.4144652579052,
+          43.6400093871461
+        ]
+      ]
+    },
+    {
+      "centrelineId": "7553511",
+      "linearName": "Liberty St",
+      "fromIntersection": [
+        "Atlantic Ave"
+      ],
+      "toIntersection": [
+        "Jefferson Ave"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.420539255788,
+          43.6382959473866
+        ],
+        [
+          -79.4215648282493,
+          43.6380952587697
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14024795",
+      "linearName": "Jefferson Ave",
+      "fromIntersection": [
+        "Ln S Liberty E Jefferson"
+      ],
+      "toIntersection": [
+        "Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4213744530629,
+          43.637536745339
+        ],
+        [
+          -79.4215648282493,
+          43.6380952587697
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14040755",
+      "linearName": "Ln S Liberty E Jefferson",
+      "fromIntersection": [
+        "Atlantic Ave"
+      ],
+      "toIntersection": [],
+      "locality": "core",
+      "feature": "Laneway",
+      "coordinates": [
+        [
+          -79.4203314751697,
+          43.6377474206739
+        ],
+        [
+          -79.4208457046764,
+          43.63764018438
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14024813",
+      "linearName": "Atlantic Ave",
+      "fromIntersection": [
+        "Ln S Liberty E Jefferson"
+      ],
+      "toIntersection": [
+        "Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4203314751697,
+          43.6377474206739
+        ],
+        [
+          -79.420539255788,
+          43.6382959473866
+        ]
+      ]
+    },
+    {
+      "centrelineId": "14024812",
+      "linearName": "Atlantic Ave",
+      "fromIntersection": [],
+      "toIntersection": [
+        "Ln S Liberty E Jefferson"
+      ],
+      "locality": "core",
+      "feature": "Local",
+      "coordinates": [
+        [
+          -79.4197524106202,
+          43.6361878592599
+        ],
+        [
+          -79.4203314751697,
+          43.6377474206739
+        ]
+      ]
+    },
+    {
+      "centrelineId": "30104574",
+      "linearName": "East Liberty St",
+      "fromIntersection": [
+        "Pirandello St"
+      ],
+      "toIntersection": [
+        "Liberty Village Park Trl"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4139555632054,
+          43.6386712108054
+        ],
+        [
+          -79.4145782592386,
+          43.6385473507475
+        ]
+      ]
+    },
+    {
+      "centrelineId": "60078975",
+      "linearName": "East Liberty St",
+      "fromIntersection": [
+        "Lynn Williams St"
+      ],
+      "toIntersection": [
+        "Hanna Ave",
+        "Liberty St"
+      ],
+      "locality": "core",
+      "feature": "Collector",
+      "coordinates": [
+        [
+          -79.4171923572079,
+          43.6386608192926
+        ],
+        [
+          -79.4173668699112,
+          43.6387036931209
+        ],
+        [
+          -79.4175706365501,
+          43.638734957998
+        ],
+        [
+          -79.4176724208142,
+          43.6387505767269
+        ],
+        [
+          -79.4177702672289,
+          43.6387636721465
+        ],
+        [
+          -79.4178535319996,
+          43.6387721843045
+        ],
+        [
+          -79.4179202317917,
+          43.6387762918363
+        ],
+        [
+          -79.4180039261424,
+          43.638778818276
+        ],
+        [
+          -79.4180701828939,
+          43.6387806210495
+        ],
+        [
+          -79.4181212613103,
+          43.6387791004067
+        ],
+        [
+          -79.4181828186575,
+          43.638773257578
+        ],
+        [
+          -79.4183431968463,
+          43.6387474842817
+        ],
+        [
+          -79.4193622415188,
+          43.6385458116257
+        ],
+        [
+          -79.4195513127415,
+          43.638500127815
+        ]
+      ]
+    },
+    {
+      "road": "Strachan Ave",
+      "fromRoad": "Fleet St",
+      "toRoad": "King St W",
+      "locality": "adjacent",
+      "centrelineIds": [
+        30144371,
+        30144372,
+        1147128,
+        30120066,
+        30120067,
+        60006730,
+        60006713,
+        1146906,
+        1146860,
+        1146779
+      ],
+      "geometry": [
+        [
+          [
+            -79.4096316452985,
+            43.63625531532
+          ],
+          [
+            -79.4100531440706,
+            43.637349882766
+          ],
+          [
+            -79.4100613897362,
+            43.6373723026931
+          ]
+        ],
+        [
+          [
+            -79.4100613897362,
+            43.6373723026931
+          ],
+          [
+            -79.4100790414382,
+            43.6374202759386
+          ]
+        ],
+        [
+          [
+            -79.4100790414382,
+            43.6374202759386
+          ],
+          [
+            -79.4101237756884,
+            43.6375418387643
+          ]
+        ],
+        [
+          [
+            -79.4101237756884,
+            43.6375418387643
+          ],
+          [
+            -79.4102889739913,
+            43.6379334565752
+          ]
+        ],
+        [
+          [
+            -79.4102889739913,
+            43.6379334565752
+          ],
+          [
+            -79.4104340570274,
+            43.6382678996002
+          ]
+        ],
+        [
+          [
+            -79.4104340570274,
+            43.6382678996002
+          ],
+          [
+            -79.4108499932792,
+            43.6392878829466
+          ]
+        ],
+        [
+          [
+            -79.4108499932659,
+            43.639287891948
+          ],
+          [
+            -79.4112421955626,
+            43.6402238003183
+          ]
+        ],
+        [
+          [
+            -79.4112421955626,
+            43.6402238003183
+          ],
+          [
+            -79.411469505987,
+            43.6407583162869
+          ]
+        ],
+        [
+          [
+            -79.411469505987,
+            43.6407583162869
+          ],
+          [
+            -79.4117109476736,
+            43.6413623872923
+          ],
+          [
+            -79.4117452856514,
+            43.641452337543
+          ]
+        ],
+        [
+          [
+            -79.4117452856514,
+            43.641452337543
+          ],
+          [
+            -79.4119706397866,
+            43.6420425693954
+          ]
+        ]
+      ]
+    },
+    {
+      "road": "King St W",
+      "fromRoad": "Strachan Ave",
+      "toRoad": "Dufferin St",
+      "locality": "adjacent",
+      "centrelineIds": [
+        1146739,
+        30095295,
+        30095345,
+        30095346,
+        60084322,
+        3155022,
+        1146840,
+        3120558,
+        7553457,
+        7553490,
+        30100479,
+        30100482,
+        30100483,
+        30100476,
+        30100477,
+        7553372,
+        60052295
+      ],
+      "geometry": [
+        [
+          [
+            -79.4119706397866,
+            43.6420425693954
+          ],
+          [
+            -79.4126991053045,
+            43.6418910588131
+          ]
+        ],
+        [
+          [
+            -79.4126991053045,
+            43.6418910588131
+          ],
+          [
+            -79.4130455573284,
+            43.6418189338127
+          ]
+        ],
+        [
+          [
+            -79.4130455573284,
+            43.6418189338127
+          ],
+          [
+            -79.4135989061208,
+            43.6417094015862
+          ]
+        ],
+        [
+          [
+            -79.4135989061208,
+            43.6417094015862
+          ],
+          [
+            -79.4137996363985,
+            43.6416681287969
+          ]
+        ],
+        [
+          [
+            -79.4137996363985,
+            43.6416681287969
+          ],
+          [
+            -79.4150017229239,
+            43.6414266938946
+          ]
+        ],
+        [
+          [
+            -79.4150017229239,
+            43.6414266938946
+          ],
+          [
+            -79.4166193515885,
+            43.6411164196214
+          ]
+        ],
+        [
+          [
+            -79.4166193515885,
+            43.6411164196214
+          ],
+          [
+            -79.4173378909811,
+            43.640973918595
+          ]
+        ],
+        [
+          [
+            -79.4173378909811,
+            43.640973918595
+          ],
+          [
+            -79.4195532465846,
+            43.6405342875916
+          ]
+        ],
+        [
+          [
+            -79.4195532465846,
+            43.6405342875916
+          ],
+          [
+            -79.42127183047,
+            43.6401669677036
+          ]
+        ],
+        [
+          [
+            -79.42127183047,
+            43.6401669677036
+          ],
+          [
+            -79.4222632688042,
+            43.6399697959188
+          ]
+        ],
+        [
+          [
+            -79.4222632688042,
+            43.6399697959188
+          ],
+          [
+            -79.4226221060062,
+            43.6398969931903
+          ]
+        ],
+        [
+          [
+            -79.4226221060062,
+            43.6398969931903
+          ],
+          [
+            -79.4227610817735,
+            43.6398699750253
+          ]
+        ],
+        [
+          [
+            -79.4227610817735,
+            43.6398699750253
+          ],
+          [
+            -79.4235486865517,
+            43.639710919036
+          ]
+        ],
+        [
+          [
+            -79.4235486865517,
+            43.639710919036
+          ],
+          [
+            -79.4242712838119,
+            43.6395677290066
+          ]
+        ],
+        [
+          [
+            -79.4242712838119,
+            43.6395677290066
+          ],
+          [
+            -79.4248138534591,
+            43.6394619068844
+          ]
+        ],
+        [
+          [
+            -79.4248138534591,
+            43.6394619068844
+          ],
+          [
+            -79.4260271495921,
+            43.6392151515195
+          ]
+        ],
+        [
+          [
+            -79.4260271495921,
+            43.6392151515195
+          ],
+          [
+            -79.4273462806492,
+            43.6389388990503
+          ]
+        ]
+      ]
+    },
+    {
+      "road": "Lake Shore Blvd W",
+      "fromRoad": "Strachan Ave",
+      "toRoad": "Newfoundland Rd",
+      "locality": "adjacent",
+      "centrelineIds": [
+        30125351
+      ],
+      "geometry": [
+        [
+          [
+            -79.4087123466921,
+            43.6344787017728
+          ],
+          [
+            -79.4087916290899,
+            43.6343786606422
+          ],
+          [
+            -79.4088468094742,
+            43.6343011667144
+          ],
+          [
+            -79.4089089195887,
+            43.6342059005429
+          ],
+          [
+            -79.4090406967676,
+            43.6340168953413
+          ],
+          [
+            -79.4091982824698,
+            43.6337739741731
+          ],
+          [
+            -79.4093097173022,
+            43.6335625210302
+          ],
+          [
+            -79.409408961325,
+            43.6334056695297
+          ],
+          [
+            -79.409463984766,
+            43.6333242775654
+          ],
+          [
+            -79.4095213007384,
+            43.6332429053907
+          ],
+          [
+            -79.4096587998103,
+            43.6330702054867
+          ],
+          [
+            -79.4097733461381,
+            43.6329556272661
+          ],
+          [
+            -79.4098745637792,
+            43.632869833863
+          ],
+          [
+            -79.4100050501675,
+            43.6327860977277
+          ],
+          [
+            -79.4102037529855,
+            43.6326815588283
+          ],
+          [
+            -79.4104589180688,
+            43.6325763797145
+          ],
+          [
+            -79.4109600839737,
+            43.6324353953429
+          ]
+        ]
+      ]
+    },
+    {
+      "road": "Dufferin St",
+      "fromRoad": "King St W",
+      "toRoad": "Saskatchewan Rd",
+      "locality": "adjacent",
+      "centrelineIds": [
+        30111929,
+        30111928,
+        30111925,
+        9234179,
+        9234187,
+        9234204,
+        9234205,
+        1147346,
+        1147359,
+        20231260
+      ],
+      "geometry": [
+        [
+          [
+            -79.4270920576597,
+            43.6382567656767
+          ],
+          [
+            -79.4273462806492,
+            43.6389388990503
+          ]
+        ],
+        [
+          [
+            -79.4269524109163,
+            43.6378908514282
+          ],
+          [
+            -79.4270920576597,
+            43.6382567656767
+          ]
+        ],
+        [
+          [
+            -79.426638388341,
+            43.6370728028344
+          ],
+          [
+            -79.4269524109163,
+            43.6378908514282
+          ]
+        ],
+        [
+          [
+            -79.4263508620262,
+            43.6363237119284
+          ],
+          [
+            -79.426638388341,
+            43.6370728028344
+          ]
+        ],
+        [
+          [
+            -79.4260650909884,
+            43.6355740812534
+          ],
+          [
+            -79.4263508620262,
+            43.6363237119284
+          ]
+        ],
+        [
+          [
+            -79.4257935581732,
+            43.634861841763
+          ],
+          [
+            -79.4260650909884,
+            43.6355740812534
+          ]
+        ],
+        [
+          [
+            -79.4255208068888,
+            43.6341579720347
+          ],
+          [
+            -79.4257935581732,
+            43.634861841763
+          ]
+        ],
+        [
+          [
+            -79.4254243849667,
+            43.6338795502891
+          ],
+          [
+            -79.4255208068888,
+            43.6341579720347
+          ]
+        ],
+        [
+          [
+            -79.4253712431742,
+            43.6337292734569
+          ],
+          [
+            -79.4254243849667,
+            43.6338795502891
+          ]
+        ],
+        [
+          [
+            -79.4248671213432,
+            43.6326303868364
+          ],
+          [
+            -79.4253712431742,
+            43.6337292734569
+          ]
+        ]
+      ]
+    },
+    {
+      "road": "Strachan Ave",
+      "fromRoad": "King St W",
+      "toRoad": "Lake Shore Blvd W",
+      "locality": "adjacent",
+      "centrelineIds": [
+        1146779,
+        1146860,
+        1146906,
+        60006713,
+        60006730,
+        30120067,
+        30120066,
+        1147128,
+        30144372,
+        30144371,
+        30103011,
+        1147284
+      ],
+      "geometry": [
+        [
+          [
+            -79.4117452856514,
+            43.641452337543
+          ],
+          [
+            -79.4119706397866,
+            43.6420425693954
+          ]
+        ],
+        [
+          [
+            -79.411469505987,
+            43.6407583162869
+          ],
+          [
+            -79.4117109476736,
+            43.6413623872923
+          ],
+          [
+            -79.4117452856514,
+            43.641452337543
+          ]
+        ],
+        [
+          [
+            -79.4112421955626,
+            43.6402238003183
+          ],
+          [
+            -79.411469505987,
+            43.6407583162869
+          ]
+        ],
+        [
+          [
+            -79.4108499932659,
+            43.639287891948
+          ],
+          [
+            -79.4112421955626,
+            43.6402238003183
+          ]
+        ],
+        [
+          [
+            -79.4104340570274,
+            43.6382678996002
+          ],
+          [
+            -79.4108499932792,
+            43.6392878829466
+          ]
+        ],
+        [
+          [
+            -79.4102889739913,
+            43.6379334565752
+          ],
+          [
+            -79.4104340570274,
+            43.6382678996002
+          ]
+        ],
+        [
+          [
+            -79.4101237756884,
+            43.6375418387643
+          ],
+          [
+            -79.4102889739913,
+            43.6379334565752
+          ]
+        ],
+        [
+          [
+            -79.4100790414382,
+            43.6374202759386
+          ],
+          [
+            -79.4101237756884,
+            43.6375418387643
+          ]
+        ],
+        [
+          [
+            -79.4100613897362,
+            43.6373723026931
+          ],
+          [
+            -79.4100790414382,
+            43.6374202759386
+          ]
+        ],
+        [
+          [
+            -79.4096316452985,
+            43.63625531532
+          ],
+          [
+            -79.4100531440706,
+            43.637349882766
+          ],
+          [
+            -79.4100613897362,
+            43.6373723026931
+          ]
+        ],
+        [
+          [
+            -79.4090597404087,
+            43.6348747245697
+          ],
+          [
+            -79.4092887313856,
+            43.6354275195206
+          ],
+          [
+            -79.4096316452985,
+            43.63625531532
+          ]
+        ],
+        [
+          [
+            -79.4087123466921,
+            43.6344787017728
+          ],
+          [
+            -79.4089083592759,
+            43.6346671041087
+          ],
+          [
+            -79.4090597404087,
+            43.6348747245697
+          ]
+        ]
+      ]
+    }
+  ]
+}
