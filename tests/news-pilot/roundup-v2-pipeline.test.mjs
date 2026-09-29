@@ -61,6 +61,37 @@ test('direct pipeline hold is read-only and has no DB URL requirement', async (t
   assert.equal(fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8'), posts);
 });
 
+test('publish candidate passes real pre-attempt content policy without mutating posts in dry-run', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rv2-policy-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'data'));
+  fs.mkdirSync(path.join(root, 'public/images/og'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'public/images/og/og-home.jpg'), 'fixture image');
+  const before = '[]\n';
+  fs.writeFileSync(path.join(root, 'data/posts.json'), before);
+  const units = [
+    { identityKey: 'occ:addr:75-fraser-ave:2026-10-03:15:00', verdict: 'core', itemType: 'sports', date: '2026-10-03', subject: 'Lamport match' },
+    { identityKey: 'occ:addr:170-princes-blvd:2026-10-04:15:00', verdict: 'adjacent', itemType: 'event', date: '2026-10-04', subject: 'BMO event' },
+    { identityKey: 'occ:addr:171-east-liberty-st#113:2026-10-02:17:00', verdict: 'core', itemType: 'class', date: '2026-10-02', subject: 'NRG class' },
+  ].map((unit, i) => ({ ...unit, keys: [unit.identityKey], citations: [
+    { url: `https://source.example/${i}`, publisher: 'Official source', recordId: `r${i}`, sourceId: `s${i}` }],
+    evidence: [{ url: `https://source.example/${i}`, recordId: `r${i}`, subject_quote: unit.subject,
+      place_quote: unit.subject, date_quote: unit.date }] }));
+  const draft = { intro: 'Three local plans for the week.', units: units.map((unit, i) => ({ unitId: unit.identityKey,
+    heading: unit.subject, body: `${i === 1 ? 'Near' : 'In'} Liberty Village: ${unit.subject} on ${unit.date}.` })) };
+  const { result, post } = await runRoundupV2({ run: root, out: path.join(root, 'out'), root,
+    now: '2026-09-29T15:00:00Z', dryRun: true }, {
+    signals: [], reasoned: { forms: [] },
+    verify: async () => ({ items: units, excluded: [], verifyDigest: 'a'.repeat(64) }),
+    plan: () => ({ decision: 'publish', countedItems: units, stillInEffect: [], units: 3, coreUnits: 2, coreAnchorUnits: 1, reasons: [] }),
+    write: async () => ({ draft, findings: [], refused: [], units }),
+  });
+  assert.equal(result.decision, 'publish', result.census.writerError);
+  assert.equal(result.published, false);
+  assert.equal(post.roundupCoverage.keys.length, 3);
+  assert.equal(fs.readFileSync(path.join(root, 'data/posts.json'), 'utf8'), before);
+});
+
 test('CLI requires one phase and rejects runner-style dry-run during collection', () => {
   assert.throws(() => parseRoundupV2Args(['--out', '/tmp/out']), /requires/);
   assert.throws(() => parseRoundupV2Args(['--collect', '--out', '/tmp/out', '--dry-run']), /collect does not publish/);

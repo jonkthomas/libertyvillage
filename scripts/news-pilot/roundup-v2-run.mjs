@@ -98,8 +98,19 @@ export async function runRoundupV2(args, deps = {}) {
   }
   let post = null;
   if (decision === 'publish') {
-    try { post = (deps.assemble || assembleRoundupPost)({ pack, draft, root, image: args.image || '/images/og/og-home.jpg' }); }
-    catch (error) { decision = 'hold'; census.reasons.push('writer-failed'); census.writerError = error.message; }
+    try {
+      post = (deps.assemble || assembleRoundupPost)({ pack, draft, root, image: args.image || '/images/og/og-home.jpg' });
+      // Apply the same post-content policy before a runner reserves a submit
+      // attempt; invalid copy is a writer-failed HOLD, not a failed submission.
+      if (!deps.skipPolicy) {
+        const { checkRoundupRecordV2 } = await import('../content/submit.mjs');
+        const errors = checkRoundupRecordV2({ item: { key: slug }, record: post,
+          ctx: { pipeline: 'structured-v2', isoWeek: week.isoWeek, weekStartUtc: week.weekStartUtc,
+            now, units: pack.units, stillInEffect: pack.stillInEffect },
+          news: { imageExists: (image) => fs.existsSync(path.join(root, 'public', image.slice(1))) } });
+        if (errors.length) throw new Error(`roundup_post_policy:${errors.join('; ')}`);
+      }
+    } catch (error) { decision = 'hold'; census.reasons.push('writer-failed'); census.writerError = error.message; post = null; }
   }
   if (draft) json(path.join(out, 'draft.json'), draft);
   json(path.join(out, 'review-findings.json'), reviewFindings);

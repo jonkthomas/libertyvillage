@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { publisherDomain } from './normalize.mjs';
+import { registrableDomain } from './sources.mjs';
 import { detectNonEventLabels, detectRiskFlags, isDevelopmentApplication } from './score.mjs';
 import { roundupSourceQuality, sourceSpanProvesTime } from './roundup-evidence.mjs';
 import { isoWeekOf, roundupCoveredKeys, planRoundupV2 } from './roundup.mjs';
@@ -49,12 +49,6 @@ export async function createRoundupVerifierFetcher() {
     return result;
   };
 }
-const registrableDomain = (url) => {
-  const host = publisherDomain(url);
-  const labels = host.split('.');
-  const twoPartSuffix = /^(?:co|com|org|gov|ac)\.(?:uk|au|nz|jp)$/i.test(labels.slice(-2).join('.'));
-  return labels.slice(-(twoPartSuffix ? 3 : 2)).join('.');
-};
 const syndicated = /originally published|first published|appeared originally|republished with permission|this article is from|©\s*Toronto Star/i;
 
 async function originalFor(body, url, fetcher, recordTools = {}) {
@@ -422,7 +416,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
       if (primary.source.parse === 'ig-post' && primary.post?.timestamp && form.when.kind === 'event') {
         const timestamp = Date.parse(primary.post.timestamp);
         if (form.when.startTime && timestamp >= torontoInstant(form.when.date, form.when.startTime) ||
-          !form.when.startTime && dayOf(timestamp) > form.when.date ||
+          !form.when.startTime && dayOf(timestamp) >= form.when.date ||
           /\b(?:look back|recap|last (?:night|week|saturday|sunday)|yesterday|what a night)\b/i.test(primary.record.text)) fail('retrospective');
       }
       const reason = temporalReason(primary.when, at, isoWeekStart(at), posts);

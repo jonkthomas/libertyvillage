@@ -199,6 +199,12 @@ test('Instagram relative date is based on provider Toronto timestamp and own rec
   assert.equal((await verifyRoundupForms(ambiguous)).excluded[0].reason, 'undated');
   const late = { ...opts, now: '2026-10-01T12:00:00Z', signals: [{ ...igSignal, post: { ...post, timestamp: '2026-09-30T23:00:00Z' } }] };
   assert.equal((await verifyRoundupForms(late)).excluded[0].reason, 'retrospective');
+  const sameDayCaption = 'Studio Open House at 171 East Liberty St, Toronto. Today. Meet the team.';
+  const sameDay = { ...opts, now: '2026-09-30T23:30:00Z',
+    signals: [{ ...igSignal, post: { ...post, timestamp: '2026-09-30T23:00:00Z', caption: sameDayCaption } }],
+    forms: [{ ...igForm, when: { kind: 'event', date: '2026-09-30', startTime: null },
+      evidence: [{ ...igForm.evidence[0], date_quote: 'Today' }] }] };
+  assert.equal((await verifyRoundupForms(sameDay)).excluded[0].reason, 'retrospective');
   const excludedLead = { ...igSignal, signalId: 'ig-lead', post: { ...post, shortcode: 'LEAD' } };
   const refetch = { fetchedAt: '2026-09-29T14:55:00Z', provider: 'fixture', rows: [{ ...post, status: 'ok' }] };
   assert.equal((await verifyRoundupForms({ ...opts, signals: [igSignal, excludedLead],
