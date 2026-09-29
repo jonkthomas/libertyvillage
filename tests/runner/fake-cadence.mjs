@@ -9,11 +9,11 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { weekStartUtc, roundupSlug as cadenceRoundupSlug } from '../../scripts/content/cadence.mjs';
 import { checkTopicGroundability, reserveGuideEligibility } from '../../scripts/automation/topic-queue.mjs';
-import { buildSourcePack, verifySourcePack, canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
+import { buildSourcePack, verifySourcePack, canonicalJson, checkDraftAgainstPack } from '../../scripts/automation/blog-source-pack.mjs';
 import { roundupPackDigest } from '../../scripts/news-pilot/roundup-evidence.mjs';
 import { isoWeekOf, roundupSlug } from '../../scripts/news-pilot/roundup.mjs';
 
-export const modules = Object.freeze({ weekStartUtc, checkTopicGroundability, reserveGuideEligibility, buildSourcePack, verifySourcePack, canonicalJson, roundupPackDigest, isoWeekOf, roundupSlug });
+export const modules = Object.freeze({ weekStartUtc, checkTopicGroundability, reserveGuideEligibility, buildSourcePack, verifySourcePack, canonicalJson, checkDraftAgainstPack, roundupPackDigest, isoWeekOf, roundupSlug });
 
 const FAILED = new Set(['failed-before-submit', 'rejected', 'blocked', 'error']);
 const cliError = (reason, exit = 2) => Object.assign(new Error(`node scripts/content/cli.mjs exit ${exit}`), { cliFailure: { reason, action: 'x', exit } });
@@ -28,28 +28,47 @@ export const BUSINESSES = Object.freeze([
   business('cafe-two', 'Cafe Two', 'Cafe', 'Single origin coffee roaster.', 4),
   business('gym-one', 'Gym One', 'Gym', 'Fitness classes and personal training.', 5),
   business('gym-two', 'Gym Two', 'Gym', 'Group fitness classes every morning.', 6),
+  // Two directory categories with >=3 records each: the only sources of Sunday reserves.
+  business('bakery-one', 'Bakery One', 'bakery', 'Sourdough bread baked daily.', 7),
+  business('bakery-two', 'Bakery Two', 'bakery', 'French pastries and croissants.', 8),
+  business('bakery-three', 'Bakery Three', 'bakery', 'Custom cakes and cookies.', 9),
+  business('salon-one', 'Salon One', 'salon', 'Hair cuts and colour.', 10),
+  business('salon-two', 'Salon Two', 'salon', 'Nail and hair styling.', 11),
+  business('salon-three', 'Salon Three', 'salon', 'Barber and beard trims.', 12),
 ]);
+
+// A post the trusted pack grounds: names every pack record with a directory link.
+export function groundedPost(pack, title, day) {
+  const slug = `liberty-village-${pack.intentKey}-notes`;
+  return {
+    slug, title: `${title} notes`, description: 'A short neighbourhood guide.',
+    content: `## Where to go\n\n${pack.sources.map((source) => `[${source.name}](/directory/${source.id}) is listed in the Liberty Village directory.`).join('\n\n')}\n`,
+    publishedAt: day, updatedAt: day, category: 'lifestyle', tags: ['food', 'liberty village', 'guide', 'local'],
+    answerBlock: 'Several places are listed in the Liberty Village directory.', faqs: [1, 2, 3, 4].map((n) => ({ question: `Question ${n}?`, answer: `Answer ${n}.` })),
+    image: `/images/blog/${slug}.jpg`, relatedServices: [], relatedTopics: [], relatedPosts: [], relatedBusinesses: pack.sources.map((source) => source.id),
+    keyTakeaways: ['One', 'Two', 'Three', 'Four'], author: 'LibertyVillage.co',
+  };
+}
 export const topic = (key, title, extra = {}) => ({ key, kind: 'blog', title, source: 'gsc', rationale: 'test', addedAt: '2026-09-01T00:00:00.000Z', attempts: 0, branchPrefix: 'blog/auto-', ...extra });
 export const TOPICS = Object.freeze({
   pet: topic('k-pet', 'Pet-Friendly Restaurants in Liberty Village'),
   happy: topic('k-happy', 'Liberty Village Happy Hour'),
   coffee: topic('k-coffee', 'Coffee Shops'),
   fitness: topic('k-fitness', 'Fitness Classes'),
-  reserve: topic('k-reserve', 'Bars Cafes and Gyms', { reserve: true }),
 });
 export const WED = new Date('2026-09-30T11:00:00.000Z');
 export const FRI = new Date('2026-10-02T11:00:00.000Z');
 export const SUN = new Date('2026-10-04T16:00:00.000Z');
 
-export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, TOPICS.fitness], posts = [{ slug: 'existing-post', title: 'Existing Post', category: 'lifestyle' }] } = {}) {
+export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, TOPICS.fitness], posts = [{ slug: 'existing-post', title: 'Existing Post', category: 'lifestyle' }], businesses = BUSINESSES } = {}) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cadence-repo-'));
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cadence-state-'));
   fs.mkdirSync(path.join(repo, 'data'), { recursive: true });
   const world = {
-    repo, stateRoot, now, queue, posts, snapshotId: 'a'.repeat(40),
+    repo, stateRoot, now, queue, posts, businesses, snapshotId: 'a'.repeat(40),
     slots: new Map(), attempts: [], submissions: new Map(), nextId: 100, live: new Set(),
     calls: [], logs: [], generated: [], sources: [],
-    heldByOther: new Set(), gatePlan: [], deployCode: 0, submitPlan: [], generatorPlan: [], deadlineCalls: 0, alertsCalled: 0,
+    heldByOther: new Set(), gatePlan: [], deployCode: 0, submitPlan: [], generatorPlan: [], deadlineCalls: [], alerts: new Map(), deliverCalls: 0, deliverFails: false, alertsEnabled: true, smokeAt: null,
     cleanup() { fs.rmSync(repo, { recursive: true, force: true }); fs.rmSync(stateRoot, { recursive: true, force: true }); },
   };
   const slotKey = (week, lane, n) => lane === 'roundup' ? `${week}|roundup` : `${week}|${lane}|${n}`;
@@ -131,13 +150,34 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         if (attempt.outcome === outcome) return attempt;
         if (attempt.outcome && !['published', 'smoked'].includes(attempt.outcome)) throw cliError('cli-state', 1);
         if (attempt.outcome === 'smoked' && outcome !== 'consumed') throw cliError('cli-state', 1);
-        if (outcome === 'consumed' && (attempt.outcome !== 'smoked' || !world.live.has(attempt.submission_id))) throw cliError('cli-state', 1);
+        // Like cadence.mjs: consumed only if current-live AND counted in the ATTEMPT's week.
+        if (outcome === 'consumed' && (attempt.outcome !== 'smoked' || !count(attempt.week_start_utc)[attempt.lane === 'roundup' ? 'roundup' : 'content'].some((item) => item.submissionId === attempt.submission_id))) throw cliError('cli-state', 1);
         attempt.outcome = outcome;
         slot.state = FAILED.has(outcome) ? 'ready' : outcome;
         return attempt;
       }
-      case 'deadline': world.deadlineCalls += 1; return { due: false, alerts: [] };
-      case 'deliver-alerts': world.alertsCalled += 1; return { delivered: 0 };
+      case 'consumed': return [...new Set(world.attempts.filter((a) => a.target === target && ['smoked', 'consumed'].includes(a.outcome)).map((a) => a.intent_fingerprint))].sort();
+      case 'deadline': {
+        world.deadlineCalls.push({ week, now: f.now });
+        if (new Date(f.now) < new Date(Date.parse(`${week}T00:00:00Z`) + 7 * 86400000)) return { due: false, alerts: [] };
+        const counts = count(week);
+        const alerts = [];
+        for (const [missing, kind] of [[counts.contentCount < 2, 'WEEKLY_CONTENT_MISSED'], [counts.roundupCount < 1, 'WEEKLY_NEWS_MISSED']]) {
+          if (!missing) continue;
+          const key = `${week}|${kind}`;
+          const created = !world.alerts.has(key);
+          if (created) world.alerts.set(key, { week, kind, counts: { content: counts.contentCount, roundup: counts.roundupCount }, delivered: false });
+          alerts.push({ alert: world.alerts.get(key), created });
+        }
+        return { due: true, counts, alerts };
+      }
+      case 'deliver-alerts': {
+        world.deliverCalls += 1;
+        if (world.deliverFails) throw cliError('cli-network', 1);
+        const pending = [...world.alerts.values()].filter((alert) => !alert.delivered);
+        for (const alert of pending) alert.delivered = true;
+        return { delivered: pending.length, failed: 0, pending: pending.length };
+      }
       default: throw new Error(`unexpected cadence ${sub}`);
     }
   };
@@ -174,8 +214,9 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       if (plan === 'reject' || plan === 'block') { sub.state = plan === 'reject' ? 'rejected' : 'blocked'; if (!allowExit.includes(2)) throw cliError('cli-operation'); return ok({}, 2); }
       sub.state = 'published';
       if (plan === 'pending') return ok({}, 3);
-      sub.smokedAt = world.now.toISOString();
-      world.live.add(sub.id);
+      sub.smokedAt = (world.smokeAt ?? world.now).toISOString();
+      // 'not-live': smoke passed but the item is not current-live at the alias.
+      if (plan !== 'not-live') world.live.add(sub.id);
       return ok({});
     }
     if (command === 'deploy') {
@@ -190,11 +231,12 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
   };
   world.deps = {
     repo, stateRoot, modules, now: () => world.now,
+    get alertsEnabled() { return world.alertsEnabled; },
     cli: world.cli,
     log: (event, details = {}) => world.logs.push({ event, ...details }),
     exportSnapshot: () => {
       fs.writeFileSync(path.join(repo, 'data', 'posts.json'), JSON.stringify(world.posts));
-      return { businesses: BUSINESSES.map((b) => ({ ...b })), posts: world.posts.map((p) => ({ ...p })), services: [], topics: [], queue: { version: 1, topics: world.queue }, snapshotId: world.snapshotId };
+      return { businesses: world.businesses.map((b) => ({ ...b })), posts: world.posts.map((p) => ({ ...p })), services: [], topics: [], queue: { version: 1, topics: world.queue }, snapshotId: world.snapshotId };
     },
     // Fake untrusted generator: behaves like scripts/weekly-blog-agent.js given
     // TOPIC_OVERRIDE, unless the plan asks it to misbehave.
@@ -202,7 +244,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       const plan = world.generatorPlan.shift() ?? 'ok';
       world.generated.push({ title, plan });
       if (plan === 'no-post') throw new Error('blog generated no post');
-      const built = buildSourcePack({ topic: title, businesses: BUSINESSES, posts: world.posts, services: [], topics: [], now: world.now });
+      const built = buildSourcePack({ topic: title, businesses: world.businesses, posts: world.posts, services: [], topics: [], now: world.now });
       const dir = path.join(repo, 'tasks', 'auto-blog-runs');
       fs.mkdirSync(dir, { recursive: true });
       const rel = `tasks/auto-blog-runs/${world.now.toISOString().slice(0, 10)}-${built.pack.intentKey}-source-pack.json`;
@@ -212,12 +254,18 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       if (plan === 'tampered') pack = { ...pack, sources: pack.sources.map((source, index) => index ? source : { ...source, claims: [{ claim: 'hours', field: 'hours', verbatim: 'Open 24 hours with free beer' }] }) };
       if (plan === 'symlink') fs.symlinkSync('/etc/hosts', file);
       else if (plan !== 'no-sidecar') fs.writeFileSync(file, `${canonicalJson(pack)}\n`);
-      const changed = ['data/posts.json', ...(plan === 'no-sidecar' ? [] : [rel])];
+      const post = groundedPost(built.pack, title, world.now.toISOString().slice(0, 10));
+      // 'unrelated': a VALID sidecar next to a post the pack does not ground.
+      if (plan === 'unrelated') Object.assign(post, { title: 'Ten things to do downtown', content: '## Downtown\n\nThere is plenty to do in the city.\n', relatedBusinesses: [] });
+      const image = `public/images/blog/${post.slug}.jpg`;
+      fs.mkdirSync(path.join(repo, 'public', 'images', 'blog'), { recursive: true });
+      fs.writeFileSync(path.join(repo, image), 'jpeg');
+      const changed = ['data/posts.json', image, ...(plan === 'no-sidecar' ? [] : [rel])];
       if (plan === 'fake-smoke') {
         fs.writeFileSync(path.join(dir, 'receipt.json'), JSON.stringify({ smoke: 'passed', submissionId: 1, contentCount: 2 }));
         changed.push('tasks/auto-blog-runs/receipt.json');
       }
-      fs.writeFileSync(path.join(repo, 'data', 'posts.json'), JSON.stringify([...world.posts, { slug: built.pack.intentKey, title, category: 'lifestyle' }]));
+      fs.writeFileSync(path.join(repo, 'data', 'posts.json'), JSON.stringify([...world.posts, post]));
       return changed;
     },
     source: (script, args) => {

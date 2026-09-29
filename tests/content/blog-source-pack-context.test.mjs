@@ -21,11 +21,12 @@ const { gateContent, blogPackEvidence } = await import('../../scripts/content/ga
 const skip = !hasTestDb && 'CONTENT_TEST_DATABASE_URL not set';
 const jpeg = (label) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(`hero:${label}`)]);
 
-function blogPost(slug) {
+// A draft the pack grounds: names every pack record with its directory link.
+function blogPost(slug, pack) {
   const day = new Date().toISOString().slice(0, 10);
   return {
-    slug, title: `Liberty Village brunch notes ${slug.slice(-4)}`, description: 'A short guide to weekend brunch in the neighbourhood.',
-    content: '## Weekend brunch\n\nLiberty Village has several places that serve brunch on weekends.\n',
+    slug, title: `${pack?.topic ?? 'Brunch Spots'} notes ${slug.slice(-4)}`, description: 'A short guide to weekend brunch in the neighbourhood.',
+    content: `## Where to go\n\n${(pack?.sources ?? []).map((source) => `[${source.name}](/directory/${source.id}) is listed in the Liberty Village directory.`).join('\n\n')}\n`,
     publishedAt: day, updatedAt: day, category: 'lifestyle', tags: ['brunch', 'food', 'liberty village', 'weekend'],
     answerBlock: 'Several Liberty Village spots serve weekend brunch.',
     faqs: [1, 2, 3, 4].map((n) => ({ question: `Question ${n}?`, answer: `Answer ${n}.` })),
@@ -48,9 +49,9 @@ function packFile(pack) {
   return file;
 }
 
-async function submitBlog(db, { key, suffix, sourcePack, kind = 'blog' }) {
+async function submitBlog(db, { key, suffix, sourcePack, kind = 'blog', pack, post: override }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-pack-ws-'));
-  const post = blogPost(`liberty-village-brunch-notes-${suffix}`);
+  const post = { ...blogPost(`liberty-village-brunch-notes-${suffix}`, pack), ...override };
   fs.mkdirSync(path.join(root, 'public/images/blog'), { recursive: true });
   fs.writeFileSync(path.join(root, 'public', post.image.slice(1)), jpeg(suffix));
   const recordFile = path.join(root, 'post.json');
@@ -64,21 +65,23 @@ test('blog --source-pack: verified facts stored in context; replay keeps the ORI
   const { db, close } = await seededDb();
   try {
     const pack = await livePack(db, 'Brunch Spots');
-    const first = await submitBlog(db, { key: 'pack-replay', suffix: 'aaaa', sourcePack: packFile(pack) });
+    const first = await submitBlog(db, { key: 'pack-replay', suffix: 'aaaa', sourcePack: packFile(pack), pack });
     assert.equal(first.exitCode, 0);
     const context = await storedContext(db, first.result.submissionId);
     assert.equal(context.sourcePack.fingerprint, pack.fingerprint);
     assert.equal(context.sourcePack.sha256, createHash('sha256').update(canonicalJson(pack)).digest('hex'));
     assert.deepEqual(context.sourcePack.sources.map((source) => source.id), pack.sources.map((source) => source.id));
     assert.ok(context.sourcePack.sources.every((source) => source.claims.every((claim) => claim.verbatim.length <= 600)), 'facts are bounded');
-    assert.ok(JSON.stringify(context.sourcePack).length <= 48000);
+    const { pack: stored, ...facts } = context.sourcePack;
+    assert.ok(JSON.stringify(facts).length <= 48000, 'facts are bounded');
+    assert.deepEqual(stored, pack, 'the full verified pack is stored for per-round re-binding');
     const other = await livePack(db, 'Food and Drink');
     assert.notEqual(other.fingerprint, pack.fingerprint);
-    const replay = await submitBlog(db, { key: 'pack-replay', suffix: 'aaaa', sourcePack: packFile(other) });
+    const replay = await submitBlog(db, { key: 'pack-replay', suffix: 'aaaa', sourcePack: packFile(other), pack });
     assert.equal(replay.result.submissionId, first.result.submissionId);
     assert.equal(replay.result.existing, true);
     assert.deepEqual(await storedContext(db, first.result.submissionId), context, 'context is immutable on idempotent replay');
-    const plain = await submitBlog(db, { key: 'no-pack', suffix: 'bbbb' });
+    const plain = await submitBlog(db, { key: 'no-pack', suffix: 'bbbb', pack });
     assert.equal((await storedContext(db, plain.result.submissionId)).sourcePack, undefined, 'blog without a pack keeps the legacy context');
   } finally { await close(); }
 });
@@ -88,23 +91,23 @@ test('blog --source-pack refusals: tampered, stale, oversized, symlinked, wrong 
   try {
     const pack = await livePack(db, 'Brunch Spots');
     const tampered = { ...pack, sources: pack.sources.map((source, index) => index ? source : { ...source, claims: [{ claim: 'hours', field: 'hours', verbatim: 'Open 24 hours' }] }) };
-    await assert.rejects(submitBlog(db, { key: 'tampered', suffix: 'cccc', sourcePack: packFile(tampered) }), /blog source pack failed verification: .*invalid-(?:fingerprint|claims)/);
+    await assert.rejects(submitBlog(db, { key: 'tampered', suffix: 'cccc', sourcePack: packFile(tampered), pack }), /blog source pack failed verification: .*invalid-(?:fingerprint|claims)/);
     const stale = await livePack(db, 'Brunch Spots', new Date(Date.now() - 7 * 3600_000));
-    await assert.rejects(submitBlog(db, { key: 'stale', suffix: 'dddd', sourcePack: packFile(stale) }), /stale-generated-at/);
-    await assert.rejects(submitBlog(db, { key: 'huge', suffix: 'eeee', sourcePack: packFile(' '.repeat(BLOG_SOURCE_PACK_MAX_BYTES + 1)) }), /bounded regular file/);
+    await assert.rejects(submitBlog(db, { key: 'stale', suffix: 'dddd', sourcePack: packFile(stale), pack }), /stale-generated-at/);
+    await assert.rejects(submitBlog(db, { key: 'huge', suffix: 'eeee', sourcePack: packFile(' '.repeat(BLOG_SOURCE_PACK_MAX_BYTES + 1)), pack }), /bounded regular file/);
     const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lv-pack-link-')), 'pack.json');
     fs.symlinkSync(packFile(pack), link);
-    await assert.rejects(submitBlog(db, { key: 'link', suffix: 'ffff', sourcePack: link }), /blog source pack unreadable/);
-    await assert.rejects(submitBlog(db, { key: 'manual-pack', suffix: 'gggg', kind: 'manual', sourcePack: packFile(pack) }), /only for blog/);
-    await assert.rejects(submitBlog(db, { key: 'cadence:orphan', suffix: 'hhhh', sourcePack: packFile(pack) }), /does not match its cadence attempt/);
+    await assert.rejects(submitBlog(db, { key: 'link', suffix: 'ffff', sourcePack: link, pack }), /blog source pack unreadable/);
+    await assert.rejects(submitBlog(db, { key: 'manual-pack', suffix: 'gggg', kind: 'manual', sourcePack: packFile(pack), pack }), /only for blog/);
+    await assert.rejects(submitBlog(db, { key: 'cadence:orphan', suffix: 'hhhh', sourcePack: packFile(pack), pack }), /does not match its cadence attempt/);
     const weekStart = cadence.weekStartUtc(new Date());
     const slotRef = { target: 'test', weekStart, lane: 'content', slotNumber: 1 };
     const { token } = await cadence.reserveSlot(db, { ...slotRef, owner: 'uat' });
     const wrong = await cadence.recordAttempt(db, { slotRef, token, intentFingerprint: 'brunch spot', topicKey: 't', sourcePackDigest: 'f'.repeat(64) });
-    await assert.rejects(submitBlog(db, { key: wrong.idempotencyKey, suffix: 'iiii', sourcePack: packFile(pack) }), /does not match its cadence attempt/);
+    await assert.rejects(submitBlog(db, { key: wrong.idempotencyKey, suffix: 'iiii', sourcePack: packFile(pack), pack }), /does not match its cadence attempt/);
     await cadence.recordAttemptOutcome(db, { idempotencyKey: wrong.idempotencyKey, token, outcome: 'failed-before-submit' });
     const right = await cadence.recordAttempt(db, { slotRef, token, intentFingerprint: 'brunch spot 2', topicKey: 't2', sourcePackDigest: pack.fingerprint });
-    const ok = await submitBlog(db, { key: right.idempotencyKey, suffix: 'jjjj', sourcePack: packFile(pack) });
+    const ok = await submitBlog(db, { key: right.idempotencyKey, suffix: 'jjjj', sourcePack: packFile(pack), pack });
     assert.ok(ok.result.submissionId, 'cadence attempt with the matching digest is accepted');
     assert.equal((await db.query("select count(*)::int as n from content.submissions where kind='blog'")).rows[0].n, 1, 'no refused submit wrote a row');
   } finally { await close(); }
@@ -114,7 +117,7 @@ test('gate: reviewer AND fixer receive the bounded stored pack facts; fixer refe
   const { db, close } = await seededDb();
   try {
     const pack = await livePack(db, 'Brunch Spots');
-    const submitted = await submitBlog(db, { key: 'pack-gate', suffix: 'kkkk', sourcePack: packFile(pack) });
+    const submitted = await submitBlog(db, { key: 'pack-gate', suffix: 'kkkk', sourcePack: packFile(pack), pack });
     const id = submitted.result.submissionId;
     const { items } = await store.getSubmission(db, id);
     const key = items[0].key;
@@ -158,4 +161,64 @@ test('blogPackEvidence re-bounds stored facts and ignores contexts without a pac
   assert.equal(evidence.sourcePack.sources.length, 12);
   assert.equal(evidence.sourcePack.topic.length, 300);
   assert.ok(evidence.sourcePack.sources.every((source) => source.claims.length === 12 && source.claims.every((claim) => claim.verbatim.length === 600)));
+});
+
+test('F2 submit refuses a valid pack next to an unrelated draft', { skip }, async () => {
+  const { db, close } = await seededDb();
+  try {
+    const pack = await livePack(db, 'Brunch Spots');
+    const unrelated = { title: 'Ten things to do downtown', content: '## Downtown\n\nThere is plenty to do in the city.\n' };
+    await assert.rejects(submitBlog(db, { key: 'unrelated', suffix: 'llll', sourcePack: packFile(pack), pack, post: unrelated }), /blog draft is not bound to its source pack: .*(no-attributed-business|draft-changed-topic)/);
+    const extra = { content: `${blogPost('x', pack).content}\n[Burger Drops](/directory/burger-drops) is also nearby.\n` };
+    await assert.rejects(submitBlog(db, { key: 'outside', suffix: 'mmmm', sourcePack: packFile(pack), pack, post: extra }), /business-outside-pack:burger-drops/);
+    assert.equal((await db.query("select count(*)::int as n from content.submissions where kind='blog'")).rows[0].n, 0);
+  } finally { await close(); }
+});
+
+test('F2 gate re-binds every round to the stored pack: a draft outside its pack is rejected at g1', { skip }, async () => {
+  const { db, close } = await seededDb();
+  try {
+    const pack = await livePack(db, 'Brunch Spots');
+    const submitted = await submitBlog(db, { key: 'rebind', suffix: 'nnnn', sourcePack: packFile(pack), pack });
+    const id = submitted.result.submissionId;
+    // The stored pack now grounds a different, narrower topic than the draft.
+    const other = await livePack(db, 'Food and Drink');
+    await db.query("update content.submissions set context = jsonb_set(context::jsonb, '{sourcePack,pack}', $2::jsonb)::json where id=$1", [id, JSON.stringify(other)]);
+    let reviews = 0;
+    await gateContent(db, { submission: id, actor: 'uat:pack' }, { env: { SLACK_WEBHOOK_URL: 'http://127.0.0.1:9/slack' }, checkout: fs.mkdtempSync(path.join(os.tmpdir(), 'lv-pack-checkout-')),
+      deps: { fetchImpl: async () => new Response('ok', { status: 200 }), review: async () => { reviews += 1; throw new Error('must not review an unbound draft'); } } });
+    const { submission, rounds } = await store.getSubmission(db, id);
+    assert.equal(reviews, 0);
+    assert.equal(submission.state, 'rejected');
+    assert.equal(rounds[0].decision, 'validation');
+    assert.match(JSON.stringify(rounds[0].lint), /not bound to its source pack: .*business-outside-pack:nodo-liberty-village/);
+  } finally { await close(); }
+});
+
+test('F2 a repair that unbinds the draft from its pack is refused by the repair validator', { skip }, async () => {
+  const { db, close } = await seededDb();
+  try {
+    const pack = await livePack(db, 'Brunch Spots');
+    const submitted = await submitBlog(db, { key: 'repair-unbind', suffix: 'oooo', sourcePack: packFile(pack), pack });
+    const id = submitted.result.submissionId;
+    const key = (await store.getSubmission(db, id)).items[0].key;
+    const checks = [];
+    await gateContent(db, { submission: id, actor: 'uat:pack' }, { env: { SLACK_WEBHOOK_URL: 'http://127.0.0.1:9/slack' }, checkout: fs.mkdtempSync(path.join(os.tmpdir(), 'lv-pack-checkout-')),
+      deps: {
+        fetchImpl: async () => new Response('ok', { status: 200 }),
+        review: async ({ contentSha }) => ({ overall: 7, findings: [{ severity: 'high', path: `data/posts.json#${key}`, note: 'overstated' }], model: GATE_MODEL, commit_sha: contentSha }),
+        fix: async (args) => {
+          const record = args.payload[0].records[0];
+          const check = args.validate(buildRecordRepairPlan({ files: [{ file: 'data/posts.json', records: [{ key, record: { ...record, content: '## Downtown\n\nThere is plenty to do in the city.\n' } }] }], reason: 'generic filler' }));
+          checks.push(check);
+          if (!check.ok) throw new Error('invalid repair plan');
+          return { check };
+        },
+      } });
+    assert.ok(checks.length >= 1 && checks.every((check) => !check.ok));
+    assert.match(checks[0].errors.join(' '), /not bound to its source pack: .*no-attributed-business/);
+    const { submission, rounds } = await store.getSubmission(db, id);
+    assert.notEqual(submission.state, 'published');
+    assert.equal(rounds.length, 1, 'no repair round was written');
+  } finally { await close(); }
 });

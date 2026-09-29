@@ -12,7 +12,7 @@ import { buildReviewDocument, blobSha1 } from './review-document.mjs';
 import { lensesFor } from './lenses.mjs';
 import { makeRowRepairValidator } from './repair-adapter.mjs';
 import { describeRowContract } from './repair-rules.mjs';
-import { actorFor, checkKindPolicy, KIND_RULES, liveContext, policyDeps, recheckImages, sourceRefFor } from './submit.mjs';
+import { actorFor, blogDraftBindingErrors, checkKindPolicy, KIND_RULES, liveContext, policyDeps, recheckImages, sourceRefFor } from './submit.mjs';
 import { notifyFailure, propagate } from './deploy.mjs';
 import { postSlack } from './notify.mjs';
 import { lintPost } from '../blog-lint.mjs';
@@ -154,6 +154,14 @@ export function blogPackEvidence(context) {
       sources: pack.sources.slice(0, 12).map((source) => ({ id: clip(source?.id, 200), name: clip(source?.name, 200), claims: rows(source?.claims), premiseClaims: rows(source?.premiseClaims) })),
     },
   };
+}
+
+// Every round and every repair must stay bound to the verified pack stored at submit.
+function packBindingErrors(kind, context, items, live) {
+  const pack = kind === 'blog' ? context?.sourcePack?.pack : null;
+  if (!pack) return [];
+  return items.filter((item) => item.dataset === 'posts')
+    .flatMap((item) => blogDraftBindingErrors(item.payload, pack, { live, now: new Date(), checkImage: false }).map((error) => `data/posts.json: ${item.key}: ${error}`));
 }
 
 function withPackReferences(references, evidence, businesses) {
@@ -357,7 +365,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         // g1 deterministic
         const policy = checkKindPolicy({ kind, items: candidates, ctx: context, live: live.live, deps: policyDeps({ kind, context: { root: live.root }, checkout }) });
         const imageErrors = await recheckImages({ db, kind, items: candidates, checkout, sourceRef: sourceRefFor(submission.target) });
-        const errors = [...policy.errors, ...imageErrors];
+        const errors = [...policy.errors, ...imageErrors, ...packBindingErrors(kind, context, candidates, live.live)];
         // g2 document
         const bases = await basePayloads(db, state.items);
         let doc;
@@ -439,10 +447,17 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
       const roundRow = state.rounds.find((round) => round.round === n);
       const payload = fixerPayload(candidates);
       const files = payload.map((entry) => entry.file);
-      const validate = makeRowRepairValidator({
+      const validateRows = makeRowRepairValidator({
         kind, candidates, ctx: context, live: live.live,
         deps: policyDeps({ kind, context: { root: live.root }, checkout }),
       });
+      // A repaired blog draft must still be the post its source pack grounds.
+      const validate = (plan) => {
+        const check = validateRows(plan);
+        if (!check.ok) return check;
+        const unbound = packBindingErrors(kind, context, check.repaired, live.live);
+        return unbound.length ? { ok: false, errors: unbound, repaired: [] } : check;
+      };
       // The row fixer (review-agent.mjs, outside this module) has no evidence
       // parameter: pass the pack as `evidence` for fixers that accept it AND fold
       // the pack's cited live business records into `references`, the existing

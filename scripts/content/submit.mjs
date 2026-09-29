@@ -15,7 +15,7 @@ import { createRequestBudget, fetchWithRetry } from '../news-pilot/fetch.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
 import { roundupPackDigest, validateRoundupPack, revalidateRoundupItems } from '../news-pilot/roundup-evidence.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
-import { canonicalJson, verifySourcePack } from '../automation/blog-source-pack.mjs';
+import { canonicalJson, checkDraftAgainstPack, verifySourcePack } from '../automation/blog-source-pack.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
@@ -387,7 +387,22 @@ export function sourcePackFacts(pack) {
   return facts;
 }
 
-async function blogSourcePackContext({ db, opts, live, clock, idempotencyKey }) {
+// Binds a blog draft to its trusted pack (businesses, topic, premises, internal
+// links, lint). The pack's own post inventory is used so a post published after
+// submit cannot unbind it. After submit the hero is a verified /media asset owned
+// by the image pipeline, so the gate passes checkImage:false.
+export function blogDraftBindingErrors(post, pack, { live = {}, imagePaths = [], now, checkImage = true } = {}) {
+  const posts = (Array.isArray(pack?.internal?.postSlugs) ? pack.internal.postSlugs : []).map((slug) => ({ slug }));
+  const { errors } = checkDraftAgainstPack(post, pack, { businesses: live.businesses ?? [], posts, services: live.services ?? [], topics: live.topics ?? [], imagePaths, now });
+  return errors.filter((error) => checkImage || error !== 'missing-or-invalid-hero-image').slice(0, 20).map((error) => `blog draft is not bound to its source pack: ${error}`);
+}
+
+function workspaceBlogImages(root) {
+  try { return fs.readdirSync(path.join(root, 'public', 'images', 'blog')).filter((name) => /^[a-z0-9-]+\.jpg$/.test(name)).slice(0, 5000).map((name) => `/images/blog/${name}`); }
+  catch { return []; }
+}
+
+async function blogSourcePackContext({ db, opts, live, clock, idempotencyKey, draftItems, root }) {
   const pack = readSourcePack(opts.sourcePack);
   const checked = verifySourcePack(pack, {
     businesses: live.businesses, posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [],
@@ -399,11 +414,15 @@ async function blogSourcePackContext({ db, opts, live, clock, idempotencyKey }) 
     const attempt = (await db.query('select source_pack_digest from content.cadence_attempts where idempotency_key=$1 and target=$2', [idempotencyKey, db.target])).rows[0];
     if (!attempt || attempt.source_pack_digest !== pack.fingerprint) throw new ValidationError('blog source pack does not match its cadence attempt');
   }
-  return sourcePackFacts(pack);
+  // The workspace draft (before /media conversion) must be the post this pack grounds.
+  const binding = blogDraftBindingErrors(draftItems?.[0]?.payload, pack, { live, imagePaths: workspaceBlogImages(root), now: new Date(clock()) });
+  if (binding.length) throw new ValidationError(binding.join('; '));
+  // Facts feed review/fixer evidence; the full verified pack re-binds every gate round.
+  return { ...sourcePackFacts(pack), pack };
 }
 
 // Gate context: identical inputs for every round and every resume.
-async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live }) {
+async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live, draftItems, root }) {
   if (opts.sourcePack !== undefined && kind !== 'blog') throw new ValidationError('--source-pack is only for blog');
   if (opts.sourcePack === true) throw new ValidationError('--source-pack requires a file');
   if (kind === 'blog-live') {
@@ -451,7 +470,7 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live
   // The stored context (including verified pack facts) is immutable on replay.
   if (prior && opts.sourcePack) return prior.context;
   const now = prior?.context?.now ?? new Date(clock()).toISOString();
-  return opts.sourcePack ? { now, sourcePack: await blogSourcePackContext({ db, opts, live, clock, idempotencyKey }) } : { now };
+  return opts.sourcePack ? { now, sourcePack: await blogSourcePackContext({ db, opts, live, clock, idempotencyKey, draftItems, root }) } : { now };
 }
 
 // opts: {kind, idempotencyKey, actor, dir | recordFile+dataset+baseline, topicKey, generatedAt,
@@ -490,7 +509,8 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
   const liveCtx = await liveContext(db);
   let context;
   try {
-    context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey, live: liveCtx.live });
+    context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey,
+      live: liveCtx.live, draftItems: items, root });
     if (kind === 'roundup') {
       const existing = (await db.query('select 1 from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
       if (!existing) {

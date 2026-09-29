@@ -51,7 +51,8 @@ test('zero eligible items: non-terminal hold (no attempt, no submit, no alert), 
   assert.deepEqual(run(world), { noChanges: true, reason: 'zero-eligible-hold' });
   assert.equal(attemptsOf(world, 'roundup').length, 0, 'no attempt row for a zero run');
   assert.equal(submitCalls(world).length, 0);
-  assert.equal(world.deadlineCalls + world.alertsCalled, 0, 'no missed alert from the runner');
+  assert.equal([...world.alerts.values()].filter((alert) => alert.week === '2026-09-28').length, 0, 'zero hold never raises a missed alert for its own week');
+  assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-21'], 'current week is never deadline-evaluated by the runner');
   const hold = world.logs.find((entry) => entry.event === 'roundup-zero-hold');
   assert.deepEqual(hold.census, { candidates: 5, eligible: 0, refused: 5 }, 'census counts only');
   assert.equal([...world.slots.values()].find((slot) => slot.lane === 'roundup').token, null, 'slot released for a later run');
@@ -135,4 +136,30 @@ test('roundup crash before submit resubmits the SAME key from retained artifacts
   assert.equal(world.sources.filter((entry) => entry.script === 'scripts/news-pilot/roundup-run.mjs').length, 1, 'no second writer run');
   const keys = submitCalls(world).map((args) => args[args.indexOf('--idempotency-key') + 1]);
   assert.deepEqual(keys, [open.idempotency_key, open.idempotency_key]);
+});
+
+test('F1 roundup smoked but not current-live is an honest failure, not success', (t) => {
+  const world = withWorld(t);
+  world.roundupPlan = [writer()];
+  world.gatePlan = ['not-live'];
+  assert.throws(() => run(world), /smoked but not counted for week/);
+  assert.equal(attemptsOf(world, 'roundup')[0].outcome, 'smoked');
+});
+
+test('F1 a consumed roundup slot whose item is no longer live fails for operator review instead of noChanges', (t) => {
+  const world = withWorld(t);
+  world.roundupPlan = [writer()];
+  assert.equal(run(world).success, true);
+  world.live.clear();
+  assert.throws(() => run(world, 'staging', '202610021100-roundupf'), /roundup consumed but no longer live/);
+  assert.equal(submitCalls(world).length, 1, 'no second candidate');
+});
+
+test('F4 weekly-roundup also evaluates the prior week and records both missed alerts once', (t) => {
+  const world = withWorld(t);
+  world.roundupPlan = [writer({ items: [] }), writer({ items: [] })];
+  run(world);
+  run(world, 'staging', '202610021100-roundupg');
+  assert.deepEqual([...world.alerts.values()].map((alert) => alert.kind), ['WEEKLY_CONTENT_MISSED', 'WEEKLY_NEWS_MISSED']);
+  assert.equal(world.deadlineCalls.length, 2);
 });

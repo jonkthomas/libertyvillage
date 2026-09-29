@@ -122,36 +122,94 @@ for (const plan of ['mismatch', 'tampered', 'symlink', 'no-sidecar']) {
 test('reservation held by another runner: slot skipped, no attempt there, no replacement slot', (t) => {
   const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee] });
   world.heldByOther.add('2026-09-28|content|1');
-  const result = run(world);
-  assert.equal(result.cadenceMet, false);
+  assert.throws(() => run(world), /cadence content deficit/, 'one post is still a deficit');
   assert.deepEqual(attemptsOf(world).map((a) => a.slot_number), [2]);
   assert.equal(world.calls.some((args) => args[1] === 'reserve' && args.includes('3')), false, 'held slot counts as in flight');
   assert.deepEqual(events(world, 'cadence-slot-held').map((entry) => entry.holder), ['other']);
 });
 
-test('Sunday reserve intents: never Wednesday, only when normal intents are exhausted on Sunday', (t) => {
-  const wednesday = withWorld(t, { queue: [TOPICS.pet, TOPICS.reserve] });
+test('F5 Sunday reserves are derived from the directory (real queue shape, no reserve flag) and never run on Wednesday', (t) => {
+  const wednesday = withWorld(t, { queue: [TOPICS.pet] });
   assert.throws(() => run(wednesday), /cadence content deficit/);
   assert.equal(wednesday.generated.length, 0, 'no reserve and no ungroundable spend on Wednesday');
   assert.equal(attemptsOf(wednesday).length, 0);
 
-  const sunday = withWorld(t, { now: SUN, queue: [TOPICS.pet, TOPICS.reserve] });
-  assert.throws(() => run(sunday), /weekly content missed/, 'one reserve post is still a miss for the 2-post goal');
+  const sunday = withWorld(t, { now: SUN, queue: [TOPICS.pet] });
+  assert.equal(TOPICS.pet.reserve, undefined);
+  const result = run(sunday);
+  assert.equal(result.cadenceMet, true, 'two directory-backed reserves fill both slots');
   const attempts = attemptsOf(sunday);
-  assert.deepEqual(attempts.map((a) => [a.slot_number, a.topic_key, a.outcome]), [[1, 'reserve:k-reserve', 'consumed']]);
-  assert.equal(sunday.generated.length, 1);
-  assert.ok(events(sunday, 'weekly-content-miss').length === 1);
-  assert.equal(sunday.deadlineCalls, 1, 'deadline evaluated (no-op before Monday)');
+  assert.deepEqual(attempts.map((a) => [a.slot_number, a.topic_key, a.outcome]), [[1, 'reserve:dir:bakery', 'consumed'], [2, 'reserve:dir:salon', 'consumed']]);
+  assert.deepEqual(sunday.generated.map((entry) => entry.title), ['Bakery in Liberty Village', 'Salon in Liberty Village']);
+  const packs = submitCalls(sunday).map((args) => JSON.parse(fs.readFileSync(args[args.indexOf('--source-pack') + 1], 'utf8')));
+  assert.ok(packs.every((pack) => pack.reserve === true && pack.sources.length >= 3 && pack.sources.reduce((n, s) => n + s.claims.length, 0) >= 6));
+  const [a, b] = packs.map((pack) => new Set(pack.sources.map((source) => source.id)));
+  assert.equal([...a].some((id) => b.has(id)), false, 'reserve record sets are disjoint');
 });
 
-test('reserve intents are capped at two per week and need 3 records / 6 facts', (t) => {
-  const world = withWorld(t, { now: SUN, queue: [TOPICS.reserve, { ...TOPICS.reserve, key: 'k-reserve-2', title: 'Cafes and Gyms Bars' }, { ...TOPICS.reserve, key: 'k-reserve-3', title: 'Gyms Bars and Cafes Nearby' }] });
+test('F5 reserves are capped at two per week and need a category with 3 records / 6 facts', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [] });
   world.gatePlan = ['reject', 'reject', 'reject'];
   assert.throws(() => run(world), /weekly content missed/);
   assert.equal(attemptsOf(world).filter((a) => a.topic_key.startsWith('reserve:')).length, CADENCE.reservePerWeek);
-  const thin = withWorld(t, { now: SUN, queue: [{ ...TOPICS.reserve, key: 'k-thin', title: 'Bars Nearby' }] });
+  const thin = withWorld(t, { now: SUN, queue: [], businesses: BUSINESSES.filter((b) => !['bakery-three', 'salon-three'].includes(b.slug)) });
   assert.throws(() => run(thin), /weekly content missed/);
-  assert.equal(thin.generated.length, 0, 'two bar records cannot satisfy the 3-record reserve floor');
+  assert.equal(thin.generated.length, 0, 'two-record categories never become reserve intents');
+});
+
+test('F1 late smoke (next ISO week) is never success for the old week', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [TOPICS.happy, TOPICS.coffee] });
+  world.smokeAt = new Date('2026-10-05T00:10:00.000Z');
+  assert.throws(() => run(world), /late smoke; old week missed/);
+  const [attempt] = attemptsOf(world);
+  assert.equal(attempt.outcome, 'smoked', 'consumed refused for the old week');
+  assert.equal(world.generated.length, 1, 'no further spend for a week that has ended');
+});
+
+test('F1 smoked but not current-live: honest failure, never cadenceMet', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee] });
+  world.gatePlan = ['not-live', 'not-live'];
+  assert.throws(() => run(world), /smoked but not counted for week/);
+  assert.deepEqual(attemptsOf(world).map((a) => a.outcome), ['smoked', 'smoked']);
+  assert.ok(events(world, 'cadence-smoked-uncounted').length === 2);
+});
+
+test('F2 a valid sidecar next to an unrelated post never reaches submit', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
+  world.generatorPlan = ['unrelated'];
+  run(world);
+  const slot1 = attemptsOf(world).filter((a) => a.slot_number === 1);
+  assert.equal(slot1[0].outcome, 'failed-before-submit');
+  assert.equal(submitCalls(world).some((args) => args.includes(slot1[0].idempotency_key)), false);
+  assert.ok(events(world, 'cadence-attempt-failed').some((entry) => entry.reason === 'draft-unbound'));
+  assert.ok(events(world, 'draft-unbound')[0].errors.includes('no-attributed-business'));
+});
+
+test('F3 one post this run but still below two: fails with cadence content deficit (non-Sunday)', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy] });
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(attemptsOf(world)[0].outcome, 'consumed', 'the post itself published and counted');
+  assert.equal(JSON.parse(world.cli(['cadence', 'count', '--week-start', '2026-09-28', '--target', 'staging']).stdout).contentCount, 1);
+});
+
+test('F4 each run evaluates the PRIOR week once: missed alerts inserted idempotently and delivered; delivery failure is non-fatal', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee] });
+  world.submissions.set(1, { id: 1, kind: 'blog', key: 'old', state: 'published', smokedAt: '2026-09-23T12:00:00.000Z', slug: 'last-week' });
+  world.live.add(1);
+  world.deliverFails = true;
+  assert.equal(run(world).cadenceMet, true, 'delivery failure never aborts the run');
+  assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-21']);
+  assert.deepEqual([...world.alerts.values()].map((alert) => [alert.kind, alert.counts.content, alert.counts.roundup]), [['WEEKLY_CONTENT_MISSED', 1, 0], ['WEEKLY_NEWS_MISSED', 1, 0]]);
+  assert.ok(events(world, 'cadence-alert-delivery-failed').length === 1);
+  world.deliverFails = false;
+  assert.equal(run(world).noChanges, true);
+  assert.equal(world.alerts.size, 2, 'idempotent on rerun');
+  assert.ok([...world.alerts.values()].every((alert) => alert.delivered));
+  assert.equal(events(world, 'cadence-prior-week').at(-1).created, 0);
+  world.alertsEnabled = false;
+  const before = world.deliverCalls;
+  run(world);
+  assert.equal(world.deliverCalls, before, 'no webhook: delivery skipped');
 });
 
 test('a fake smoke receipt in scratch never counts: only the trusted gate/DB smoke does', (t) => {
@@ -173,11 +231,13 @@ test('bounded spend: at most three normal intents per slot and four generations 
   assert.ok(attemptsOf(world).filter((a) => a.slot_number === 1).length <= CADENCE.normalPerSlot);
 });
 
-test('consumed DB fingerprints from earlier weeks exclude a repeat intent (no local topic-state)', (t) => {
+test('F6 consumed exclusion is all-time via cadence consumed, not a lookback', (t) => {
   const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
-  world.attempts.push({ target: 'staging', week_start_utc: '2026-09-21', lane: 'content', slot_number: 1, ordinal: 1, intent_fingerprint: 'happy hour', topic_key: 'k-happy', idempotency_key: 'cadence:old', source_pack_digest: 'x', submission_id: 9, outcome: 'consumed' });
+  world.attempts.push({ target: 'staging', week_start_utc: '2026-03-02', lane: 'content', slot_number: 1, ordinal: 1, intent_fingerprint: 'happy hour', topic_key: 'k-happy', idempotency_key: 'cadence:old', source_pack_digest: 'x', submission_id: 9, outcome: 'consumed' });
   run(world);
-  assert.deepEqual(world.generated.map((entry) => entry.title), ['Coffee Shops', 'Fitness Classes']);
+  assert.deepEqual(world.generated.map((entry) => entry.title), ['Coffee Shops', 'Fitness Classes'], '30-week-old consumed intent still excluded');
+  assert.equal(world.calls.filter((args) => args[1] === 'consumed').length, 1);
+  assert.equal(world.calls.some((args) => args[1] === 'status' && args[3] !== '2026-09-28'), false, 'no per-week lookback');
   assert.equal(fs.existsSync(path.join(world.stateRoot, 'topic-state.json')), false);
 });
 
@@ -185,6 +245,6 @@ test('Sunday with the goal already met is a no-op', (t) => {
   const world = withWorld(t, { now: SUN });
   for (const id of [1, 2]) { world.submissions.set(id, { id, kind: 'blog', key: `k${id}`, state: 'published', smokedAt: WED.toISOString(), slug: `p${id}` }); world.live.add(id); }
   assert.equal(run(world).cadenceMet, true);
-  assert.equal(world.deadlineCalls, 0);
-  assert.equal(BUSINESSES.length, 6);
+  assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-21'], 'only the prior week is evaluated');
+  assert.equal(world.generated.length, 0);
 });

@@ -88,6 +88,8 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
           case 'attach': result = await cadence.attachSubmission(db, { idempotencyKey: required(opts.idempotencyKey, '--idempotency-key'), token: required(opts.token, '--token'), submissionId: Number(required(opts.submissionId, '--submission-id')) }); break;
           case 'outcome': result = await cadence.recordAttemptOutcome(db, { idempotencyKey: required(opts.idempotencyKey, '--idempotency-key'), token: required(opts.token, '--token'), outcome: required(opts.outcome, '--outcome'), observe: opts.outcome === 'consumed' ? await aliasObserver() : undefined }); break;
           case 'count': result = await cadence.countCurrentWeek(db, { target, weekStart, observe: await aliasObserver() }); break;
+          // Read-only, target-scoped, all-time smoked/consumed intent fingerprints.
+          case 'consumed': result = await cadence.consumedFingerprints(db, { target }); break;
           case 'deadline': result = await cadence.evaluateDeadline(db, { target, weekStart, now: opts.now ?? new Date(), observe: await aliasObserver() }); break;
           case 'deliver-alerts': {
             const webhook = required(process.env.SLACK_WEBHOOK_URL, 'SLACK_WEBHOOK_URL');

@@ -56,7 +56,7 @@ async function stack(t) {
     CONTENT_DB_NAME: handle.name, CONTENT_SITE_URL: origin, CONTENT_DEPLOY_HOOK_URL: `${origin}/hook`, SLACK_WEBHOOK_URL: `${origin}/slack`,
   };
   const ctx = {
-    db: handle.db, repo, stateRoot, origin, calls: [], gateScripts: [], defaultScript: PASS, crash: null, generated: [],
+    db: handle.db, repo, stateRoot, origin, calls: [], gateScripts: [], defaultScript: PASS, crash: null, generated: [], shiftMs: 0,
     scriptFile(script) { const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lv-e2e-script-')), 'script.json'); fs.writeFileSync(file, JSON.stringify(script)); return file; },
   };
   const cli = (args, allowExit = []) => {
@@ -67,7 +67,7 @@ async function stack(t) {
   };
   ctx.cliJson = (args) => parseJson(cli(args).stdout);
   ctx.deps = {
-    repo, stateRoot, modules, now: () => new Date(), cli, log: () => {},
+    repo, stateRoot, modules, now: () => new Date(Date.now() + ctx.shiftMs), cli, log: () => {}, alertsEnabled: true,
     exportSnapshot: () => {
       cli(['export', '--root', '.', '--target', 'test']);
       const data = (name) => readJson(path.join(repo, 'data', name));
@@ -87,7 +87,8 @@ async function stack(t) {
       fs.writeFileSync(path.join(repo, 'public', 'images', 'blog', `${slug}.jpg`), jpeg(slug));
       const day = now.toISOString().slice(0, 10);
       posts.push({
-        slug, title: `${title} notes`, description: 'A short neighbourhood guide.', content: '## Overview\n\nLiberty Village has several places worth a visit.\n',
+        slug, title: `${title} notes`, description: 'A short neighbourhood guide.',
+        content: `## Where to go\n\n${built.pack.sources.map((source) => `[${source.name}](/directory/${source.id}) is listed in the Liberty Village directory.`).join('\n\n')}\n`,
         publishedAt: day, updatedAt: day, category: 'lifestyle', tags: ['food', 'liberty village', 'guide', 'local'],
         answerBlock: 'Liberty Village has several places worth a visit.', faqs: [1, 2, 3, 4].map((n) => ({ question: `Question ${n}?`, answer: `Answer ${n}.` })),
         image: `/images/blog/${slug}.jpg`, relatedServices: [], relatedTopics: [], relatedPosts: [], keyTakeaways: ['One', 'Two', 'Three', 'Four'], author: 'LibertyVillage.co',
@@ -133,6 +134,7 @@ test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count incr
   assert.deepEqual(submissions.map((s) => s.context.sourcePack.fingerprint), attempts.map((a) => a.source_pack_digest), 'verified trusted pack stored per attempt');
   assert.deepEqual(attempts.map((a) => Number(a.submission_id)), submissions.map((s) => Number(s.id)));
   assert.deepEqual(ctx.generated, ['Brunch Spots', 'Bars'], 'seed pet-friendly queue topic skipped before spend');
+  assert.deepEqual(ctx.cliJson(['cadence', 'consumed', '--target', 'test']), attempts.map((a) => a.intent_fingerprint).sort(), 'F6 real `cadence consumed` returns all-time consumed intents');
   assert.deepEqual(blog(ctx, '202610021100-e2ea0002'), { cadenceMet: true, noChanges: true, contentCount: 2 });
   assert.equal(ctx.generated.length, 2, 'goal met: no further generator spend');
 });
@@ -172,7 +174,7 @@ test('E2E (c): gate score 7 → terminal outcome; the next run uses a new ordina
   assert.equal(ctx.count().contentCount, 0, 'score 7 never counts');
   await addQueue(ctx.db, ['Bars'], 'c2');
   ctx.gateScripts = [];
-  blog(ctx, '202610021100-e2ec0002');
+  assert.throws(() => blog(ctx, '202610021100-e2ec0002'), /cadence content deficit|weekly content missed/, 'one counted post is still below the 2-post goal');
   const attempts = (await ctx.attempts('content')).filter((a) => a.slot_number === 1);
   assert.deepEqual(attempts.map((a) => [a.ordinal, a.outcome]), [[1, rejected.outcome], [2, 'consumed']]);
   assert.notEqual(attempts[1].idempotency_key, attempts[0].idempotency_key);
@@ -214,7 +216,7 @@ test('E2E (d): roundup zero → hold with no attempt row; items → one roundup 
   ctx.roundupWriter = roundupWriter([]);
   assert.deepEqual(roundup(ctx, '202609301100-e2ed0001'), { noChanges: true, reason: 'zero-eligible-hold' });
   assert.equal((await ctx.attempts('roundup')).length, 0, 'zero run records no attempt');
-  assert.equal((await ctx.db.query('select count(*)::int as n from content.cadence_alerts')).rows[0].n, 0, 'no missed alert from the runner');
+  assert.equal((await ctx.db.query('select count(*)::int as n from content.cadence_alerts where week_start_utc=$1', [weekStartUtc(new Date())])).rows[0].n, 0, 'a zero hold never raises a missed alert for its own week');
   const now = new Date();
   ctx.roundupWriter = roundupWriter([newsItem('one', now), newsItem('two', now)]);
   const published = roundup(ctx, '202609301105-e2ed0002');
@@ -227,4 +229,24 @@ test('E2E (d): roundup zero → hold with no attempt row; items → one roundup 
   ctx.roundupWriter = () => assert.fail('writer must not run once the week has its roundup');
   assert.deepEqual(roundup(ctx, '202609301110-e2ed0003'), { cadenceMet: true, noChanges: true });
   assert.equal((await ctx.db.query("select count(*)::int as n from content.submissions where kind='roundup'")).rows[0].n, 1, 'no duplicate roundup');
+});
+
+test('E2E (e): the next week\'s first run records WEEKLY_CONTENT_MISSED + WEEKLY_NEWS_MISSED once for a 1+0 week and delivers them', { skip, timeout: 300_000 }, async (t) => {
+  const ctx = await stack(t);
+  await addQueue(ctx.db, ['Brunch Spots'], 'e');
+  const week = weekStartUtc(new Date());
+  assert.throws(() => blog(ctx, '202609301100-e2ee0001'), /cadence content deficit|weekly content missed/);
+  assert.equal(ctx.count().contentCount, 1);
+  const alertsFor = async () => (await ctx.db.query('select alert_kind,counts,delivered_at,delivery_attempts from content.cadence_alerts where week_start_utc=$1 order by alert_kind', [week])).rows;
+  assert.deepEqual(await alertsFor(), [], 'no alert while the week is still open');
+  ctx.shiftMs = 7 * 86400000;
+  assert.throws(() => blog(ctx, '202610071100-e2ee0002'), /cadence content deficit|weekly content missed/);
+  const first = await alertsFor();
+  assert.deepEqual(first.map((row) => [row.alert_kind, row.counts]), [['WEEKLY_CONTENT_MISSED', { content: 1, roundup: 0 }], ['WEEKLY_NEWS_MISSED', { content: 1, roundup: 0 }]]);
+  assert.ok(first.every((row) => row.delivered_at && row.delivery_attempts === 1), 'delivered to the webhook stand-in');
+  ctx.roundupWriter = roundupWriter([]);
+  assert.deepEqual(roundup(ctx, '202610071105-e2ee0003'), { noChanges: true, reason: 'zero-eligible-hold' }, 'roundup run also evaluates the prior week');
+  const again = await alertsFor();
+  assert.equal(again.length, 2, 'idempotent per target/week/type');
+  assert.ok(again.every((row) => row.delivery_attempts === 1), 'no re-delivery once acknowledged');
 });
