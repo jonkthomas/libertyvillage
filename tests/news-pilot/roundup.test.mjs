@@ -64,9 +64,10 @@ test('per-item date, event, source, risk and duplicate decisions', () => {
   assert.equal(validateRoundupItem(item('a'), { ...opts, livePosts: [{ title: item('a').title, slug: 'earlier-lv-update' }] }).decision, 'excluded');
   const daily = [{ title: item('a').title, slug: 'daily-a' }];
   assert.equal(validateRoundupItem(item('a'), { ...opts, dailyNews: daily }).decision, 'excluded');
-  assert.equal(validateRoundupItem({ ...item('a'), distinctDevelopment: { corroborated: true,
-    description: 'A separately announced event', sourceUrls: [source('a').canonicalUrl] } },
-  { ...opts, dailyNews: daily }).decision, 'accepted');
+  const distinct = { ...item('a'), distinctDevelopment: { corroborated: true,
+    description: 'A separately announced event', sourceUrls: [source('a').canonicalUrl] } };
+  assert.equal(validateRoundupItem(distinct, { ...opts, dailyNews: daily }).decision, 'accepted');
+  assert.equal(validateRoundupItem(distinct, { ...opts, livePosts: daily }).decision, 'excluded');
   const checked = validateRoundupPack(pack([item('a'), item('a')]), opts);
   assert.equal(checked.accepted.length, 1);
   assert.equal(checked.excluded.length, 1);

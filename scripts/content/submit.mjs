@@ -20,6 +20,7 @@ import { prepareImages } from './images.mjs';
 
 const MANUAL_DATASETS = Object.freeze(['businesses', 'posts', 'buildings', 'neighborhoods', 'services', 'topics', 'guide-hub']);
 export const BLOG_LIVE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+export const ROUNDUP_REVALIDATE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 const INSERT = Object.freeze(['insert']);
 const EDIT = Object.freeze(['insert', 'update']);
@@ -174,9 +175,13 @@ export function checkRoundupRecord({ item, record, ctx, live, news }) {
   if (typeof record?.image !== 'string' || !record.image.startsWith('/images/') ||
     !news || typeof news.imageExists !== 'function' || !news.imageExists(record.image))
     errors.push('roundup image must be an existing /images/ path');
+  const posts = (Array.isArray(live.posts) ? live.posts : []).filter((post) => post?.slug !== record?.slug);
+  const roundupSlugPattern = /^liberty-village-news-week-\d{4}-w\d{2}$/;
+  const dailyNews = posts.filter((post) => post?.category === 'news' && !roundupSlugPattern.test(post?.slug ?? ''));
+  const livePosts = posts.filter((post) => post?.category !== 'news' || roundupSlugPattern.test(post?.slug ?? ''));
   const checked = validateRoundupPack(ctx.items, {
     weekStartUtc: ctx.weekStartUtc, nowMs,
-    livePosts: Array.isArray(live.posts) ? live.posts : [], dailyNews: ctx.dailyNews || [],
+    livePosts, dailyNews,
   });
   const accepted = checked.accepted.map((entry) => entry.item);
   if (!accepted.length) errors.push('roundup pack has no accepted items');
@@ -359,6 +364,15 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
     if (week.isoWeek !== result.isoWeek || result.slug !== roundupSlug(result.isoWeek) ||
       items.length !== 1 || items[0].key !== result.slug || items[0].payload?.slug !== result.slug)
       throw new ValidationError('roundup result slug/week does not match candidate');
+    // Keep the original context on idempotent replay, even after its freshness window.
+    const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+    if (prior) return prior.context;
+    const submittedAt = new Date(clock()).getTime();
+    if (!Number.isFinite(submittedAt) || isoWeekOf(submittedAt).isoWeek !== result.isoWeek)
+      throw new ValidationError('roundup submit is outside its ISO week');
+    const ageMs = submittedAt - Date.parse(result.now);
+    if (ageMs < 0 || ageMs > ROUNDUP_REVALIDATE_MAX_AGE_MS)
+      throw new ValidationError('roundup pack must be revalidated before submit');
     return { now: result.now, isoWeek: result.isoWeek, weekStartUtc: week.weekStartUtc, items: pack.items, packDigest };
   }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
