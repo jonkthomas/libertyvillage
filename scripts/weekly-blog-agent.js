@@ -195,7 +195,7 @@ async function main() {
             if (textBlocks.length > 0) {
               const text = textBlocks.join(" ");
               lastAssistantText = text;
-              const preview = text.substring(0, 200);
+              const preview = text.replace(/\s+/g, " ").substring(0, 200);
               console.log(
                 `[agent] ${preview}${text.length > 200 ? "..." : ""}`,
               );

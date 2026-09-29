@@ -149,6 +149,10 @@ export function recordTopic(statePath, target, topic, consumed = false) {
 // A generator that produced no post must not burn the next two calendar slots
 // on the same unsupported topic. This is local eligibility state, not a Neon
 // queue update or a claim that the topic was published.
+export function shouldExhaustTopicOnNoPost(job, request, topic, error) {
+  return job === 'weekly-blog' && !request.dryRun && error?.message === 'blog generated no post' && !!topic?.key;
+}
+
 export function exhaustTopicOnNoPost(statePath, target, topic) {
   if (!topic?.key) return;
   const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {};
@@ -430,7 +434,7 @@ function runJob(job, target, slot, request, log, notifications = {}) {
       changed = generator(job, slot, topic, !!request.dryRun, log, notifications);
       if (job === 'weekly-blog' && !request.dryRun && !changed.includes('data/posts.json')) throw new Error('blog generated no post');
     } catch (error) {
-      if (job === 'weekly-blog' && !request.dryRun && error.message === 'blog generated no post' && topic?.key) {
+      if (shouldExhaustTopicOnNoPost(job, request, topic, error)) {
         exhaustTopicOnNoPost(path.join(stateRoot, 'topic-state.json'), target, topic);
         logLine(log, 'topic-exhausted-no-post');
       }

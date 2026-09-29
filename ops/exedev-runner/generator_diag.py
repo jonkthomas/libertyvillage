@@ -12,26 +12,16 @@ import time
 
 MAX_BYTES = 64 * 1024
 MAX_LINE_BYTES = 4096
-SAFE_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9_.-]{0,63}$')
-MODEL = re.compile(r'^\[init\] Model: ([A-Za-z0-9_.-]+), Tools: (\d{1,4})$')
-TOOL = re.compile(r'^\[tool_use\] ([A-Za-z][A-Za-z0-9_-]{0,63})$')
-MCP = re.compile(r'([A-Za-z][A-Za-z0-9_-]{0,63})\((connected|failed|disconnected|unknown)\)')
+MODEL = re.compile(r'^\[init\] Model: claude-(opus|sonnet|haiku)-\d+(?:-\d+)?-\d{8}, Tools: (\d{1,4})$')
+TOOL = re.compile(r'^\[tool_use\] ([A-Za-z][A-Za-z0-9_-]{0,79})$')
+MCP = re.compile(r'(gsc|ga4|playwright|dataforseo|serper)\((connected|failed|disconnected|unknown)\)')
+BUILTIN_TOOLS = frozenset(('Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep',
+                           'Task', 'ToolSearch', 'WebSearch', 'WebFetch', 'NotebookEdit'))
+MCP_SERVERS = frozenset(('gsc', 'ga4', 'playwright', 'dataforseo', 'serper'))
 SUMMARY = re.compile(r'^(Success: (?:true|false)|Turns: \d{1,4}|Duration: \d+(?:\.\d+)?s)$')
 STOP_REASONS = frozenset(('post-written', 'unsupported-grounding', 'duplicate',
                           'insufficient-sources', 'no-post-unspecified',
                           'sdk-error', 'generator-error'))
-
-
-def stop_reason(text):
-    """Classify an assistant stop without retaining its untrusted prose."""
-    text = str(text).lower()
-    if ('halt' in text or 'stop' in text or 'cannot' in text) and ('grounding' in text or 'unsupported' in text):
-        return 'unsupported-grounding'
-    if ('halt' in text or 'stop' in text) and ('duplicate' in text or 'overlap' in text):
-        return 'duplicate'
-    if ('halt' in text or 'stop' in text) and ('sources' in text or 'evidence' in text):
-        return 'insufficient-sources'
-    return None
 
 
 class GeneratorDiagnostic:
@@ -42,63 +32,81 @@ class GeneratorDiagnostic:
         self.file = os.fdopen(fd, 'wb', buffering=0)
         self.bytes = 0
         self.truncated = False
+        self.failed = False
+        self.seen_agent = False
+        self.seen_init = False
+        self.seen_mcp = False
+        self.seen_summary = False
+        self.seen_outcome = False
         self.pending = b''
         self.dropping_line = False
         self.tool_counts = {}
         self.reason = None
 
     def event(self, event, **fields):
-        if self.truncated:
+        if self.truncated or self.failed:
             return
         row = (json.dumps({'event': event, **fields}, separators=(',', ':')) + '\n').encode()
-        # Reserve room for a terminal truncation marker rather than silently ending.
-        if self.bytes + len(row) > MAX_BYTES - 64:
-            marker = b'{"event":"truncated"}\n'
-            self.file.write(marker)
-            self.bytes += len(marker)
-            self.truncated = True
-            return
-        self.file.write(row)
-        self.bytes += len(row)
+        try:
+            # Reserve room for a terminal truncation marker rather than silently ending.
+            if self.bytes + len(row) > MAX_BYTES - 64:
+                marker = b'{"event":"truncated"}\n'
+                self.file.write(marker)
+                self.bytes += len(marker)
+                self.truncated = True
+                return
+            self.file.write(row)
+            self.bytes += len(row)
+        except OSError:
+            # Logging is best-effort: it must never bypass transient-unit cleanup.
+            self.failed = True
 
     def line(self, raw):
         text = raw.decode('utf-8', 'replace').strip()
-        match = MODEL.fullmatch(text)
-        if match:
-            self.event('init', model=match[1], tools=int(match[2]))
-            return
-        if text.startswith('[init] MCP:'):
-            statuses = {name: status for name, status in MCP.findall(text) if SAFE_NAME.fullmatch(name)}
-            self.event('mcp', statuses=statuses)
+        if text.startswith('[agent]'):
+            self.seen_agent = True
+            return  # Neither candidate text nor assistant reasoning is persisted.
+        if not self.seen_agent and not self.seen_init:
+            match = MODEL.fullmatch(text)
+            if match:
+                self.seen_init = True
+                self.event('init', model='claude-' + match[1], tools=int(match[2]))
+                return
+        if not self.seen_agent and not self.seen_mcp and text.startswith('[init] MCP:'):
+            self.seen_mcp = True
+            self.event('mcp', statuses=dict(MCP.findall(text)))
             return
         match = TOOL.fullmatch(text)
         if match:
             name = match[1]
-            self.tool_counts[name] = self.tool_counts.get(name, 0) + 1
-            return
-        if text.startswith('[agent]'):
-            reason = stop_reason(text[7:])
-            if reason:
-                self.reason = reason
-                self.event('assistant-stop', reason=reason)
+            if name in BUILTIN_TOOLS:
+                label = name
+            elif name.startswith('mcp__') and name.split('__', 2)[1] in MCP_SERVERS:
+                label = 'mcp:' + name.split('__', 2)[1]
+            else:
+                return
+            self.tool_counts[label] = self.tool_counts.get(label, 0) + 1
             return
         if text.startswith('Pipeline error:'):
             # Never log the error message: it may contain a URL, candidate or key.
             self.reason = 'generator-error'
             self.event('generator-error', reason=self.reason)
             return
-        if text.startswith('[outcome] '):
+        if text.startswith('Success: '):
+            self.seen_summary = bool(SUMMARY.fullmatch(text))
+        if SUMMARY.fullmatch(text):
+            name, value = text.split(': ', 1)
+            self.event('summary', field=name.lower(), value=value)
+            return
+        if self.seen_summary and not self.seen_outcome and text.startswith('[outcome] '):
             try:
                 value = json.loads(text[len('[outcome] '):])
                 if type(value.get('postWritten')) is bool and value.get('stopReason') in STOP_REASONS:
+                    self.seen_outcome = True
                     self.reason = value['stopReason']
                     self.event('outcome', postWritten=value['postWritten'], stopReason=self.reason)
             except (ValueError, AttributeError, TypeError):
                 pass
-            return
-        if SUMMARY.fullmatch(text):
-            name, value = text.split(': ', 1)
-            self.event('summary', field=name.lower(), value=value)
 
     def feed_lines(self, chunk):
         parts = (self.pending + chunk).split(b'\n')
@@ -117,7 +125,10 @@ class GeneratorDiagnostic:
         self.event('tools', counts=self.tool_counts)
         if self.reason:
             self.event('stop-reason', reason=self.reason)
-        self.file.close()
+        try:
+            self.file.close()
+        except OSError:
+            self.failed = True
 
 
 def capture_generator(cmd, diagnostic, timeout):

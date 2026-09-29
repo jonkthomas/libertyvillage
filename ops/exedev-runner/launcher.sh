@@ -72,12 +72,12 @@ try:
         result = capture_generator(cmd, diag, CLIENT_TIMEOUT)
         diag.event('unit-exit', code=result)
     except subprocess.TimeoutExpired:
-        diag.event('unit-timeout')
         stop_ok = _stop_unit(unit)
+        diag.event('unit-timeout')
         sys.exit(124 if stop_ok else 1)
     except Exception:
-        diag.event('unit-error')
         stop_ok = _stop_unit(unit) if unit else True
+        diag.event('unit-error')
         sys.exit(1)
     finally:
         diag.close()

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, selectTopic, recordTopic, exhaustTopicOnNoPost, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
+import { JOBS, acceptGeneratedOutput, alertFailure, assertTarget, childEnv, changedPaths, classifyCliFailure, command, consumeResumedBlogTopic, copyGenerated, copyScratchTree, generatedPathsForTransfer, hasOneNewBlogPost, allowedGeneratedPath, seoCodeSuggestionPath, readScratchHead, selectTopic, recordTopic, exhaustTopicOnNoPost, shouldExhaustTopicOnNoPost, reserveTopicSubmission, clearTopicReservation, slotKey } from '../../ops/exedev-runner/runner.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
@@ -232,7 +232,12 @@ test('no-post exhausts a queued topic immediately without marking it published',
   assert.equal(selectTopic(queue, state, 'staging').key, 'second');
   exhaustTopicOnNoPost(statePath, 'staging', { key: null });
   assert.equal(fs.readFileSync(statePath, 'utf8'), `${JSON.stringify(state)}\n`);
-  assert.match(read('runner.mjs'), /error\.message === 'blog generated no post' && topic\?\.key/);
+  const noPost = new Error('blog generated no post');
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', { dryRun: false }, queue.topics[0], noPost), true);
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', { dryRun: true }, queue.topics[0], noPost), false);
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', {}, { title: 'manual', key: null }, noPost), false);
+  assert.equal(shouldExhaustTopicOnNoPost('weekly-blog', {}, queue.topics[0], new Error('generator failed')), false);
+  assert.equal(shouldExhaustTopicOnNoPost('news', {}, queue.topics[0], noPost), false);
 });
 
 test('weekly blog requires one new post relative to exported DB, not Git HEAD drift', () => {
