@@ -349,10 +349,23 @@ function cadenceCaller(deps, target, week) {
 }
 
 function gateState(deps, target, id, actor) {
-  // Gate exits 1 after durably recording a terminal fixer error. Consult the
-  // trusted submission state rather than losing the old attempt on recovery.
+  // Gate exits 1 both after a durably notified terminal fixer error AND on
+  // operational failures (e.g. a failed notification). Never let a later
+  // `show` of the terminal state hide the original transport failure.
   const result = deps.cli(['gate', '--submission', String(id), '--target', target, '--actor', actor], [1, 2, 3]);
   deps.log('gate', { id, exit: result.code });
+  if (result.code === 1) {
+    let receipt;
+    if (typeof result.stdout === 'string' && Buffer.byteLength(result.stdout) <= 8192) {
+      try { receipt = parseJson(result.stdout); } catch { /* not a terminal receipt */ }
+    }
+    if (Number(receipt?.submissionId) !== Number(id) || receipt?.state !== 'error'
+      || receipt?.decision !== 'error' || receipt?.notified !== true || receipt?.error) {
+      const failure = new Error('content gate failed');
+      failure.cliFailure = classifyCliFailure(node, ['scripts/content/cli.mjs', 'gate'], { stdout: result.stdout, status: 1 });
+      throw failure;
+    }
+  }
   if (result.code === 3) {
     const resume = deps.cli(['deploy', '--target', target], [3]);
     deps.log('deploy-resume', { id, exit: resume.code });

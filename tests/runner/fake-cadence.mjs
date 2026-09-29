@@ -215,10 +215,12 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     if (command === 'gate') {
       const sub = world.submissions.get(Number(f.submission));
       if (sub.state === 'published') return ok({}, sub.smokedAt ? 0 : 3);
-      if (sub.state === 'error') { if (!allowExit.includes(1)) throw cliError('cli-operation', 1); return ok({}, 1); }
+      const terminalError = () => { if (!allowExit.includes(1)) throw cliError('cli-operation', 1); return ok({ submissionId: sub.id, state: 'error', decision: 'error', notified: true }, 1); };
+      if (sub.state === 'error') return terminalError();
       const plan = world.gatePlan.shift() ?? 'pass';
       if (plan === 'operational') { if (!allowExit.includes(1)) throw cliError('cli-operation', 1); return ok({}, 1); }
-      if (plan === 'error') { sub.state = 'error'; if (!allowExit.includes(1)) throw cliError('cli-operation', 1); return ok({}, 1); }
+      if (plan === 'notify-fail') { sub.state = 'error'; if (!allowExit.includes(1)) throw cliError('cli-server', 1); return ok({ error: 'Error', message: 'slack-webhook-failed: HTTP 503' }, 1); }
+      if (plan === 'error') { sub.state = 'error'; return terminalError(); }
       if (plan === 'reject' || plan === 'block') { sub.state = plan === 'reject' ? 'rejected' : 'blocked'; if (!allowExit.includes(2)) throw cliError('cli-operation'); return ok({}, 2); }
       sub.state = 'published';
       if (plan === 'pending') return ok({}, 3);

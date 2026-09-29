@@ -140,10 +140,22 @@ test('gate terminal error closes its attempt and allows a distinct next intent',
 test('gate operational exit 1 does not close an open submission', (t) => {
   const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee] });
   world.gatePlan = ['operational'];
-  assert.throws(() => run(world), /submission lacks smoke success/);
+  assert.throws(() => run(world), (error) => error.cliFailure?.reason === 'cli-operation');
   const [first] = attemptsOf(world);
   assert.equal(first.outcome, null);
   assert.equal(world.submissions.get(first.submission_id).state, 'open');
+});
+
+test('gate exit 1 notification failure preserves server retry class and original attempt', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee] });
+  world.gatePlan = ['notify-fail'];
+  assert.throws(() => run(world), (error) => error.cliFailure?.reason === 'cli-server' && error.cliFailure?.action === 'retry-original-slot');
+  const [first] = attemptsOf(world);
+  assert.equal(first.outcome, null, 'terminal submission is not settled while notification failed');
+  assert.equal(world.submissions.get(first.submission_id).state, 'error');
+  assert.throws(() => run(world), /cadence content deficit/); // webhook recovered; terminal receipt settles before new attempts
+  assert.equal(first.outcome, 'error');
+  assert.equal(attemptsOf(world).filter((attempt) => attempt.idempotency_key === first.idempotency_key).length, 1);
 });
 
 test('Monday recovery settles a Sunday gate error under the original key', (t) => {
