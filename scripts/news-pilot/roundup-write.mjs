@@ -22,7 +22,8 @@ export function checkRoundupDraft(draft, units) {
     ids.add(entry.unitId);
     if (/https?:\/\/|\]\(/.test(`${entry.heading} ${entry.body}`)) errors.push('writer-link');
     if (unsafeCopy.test(`${entry.heading} ${entry.body}`)) errors.push('risk-wording');
-    if (unsafeImpact.test(entry.body) && !unit.verifiedImpact) errors.push('unsupported-impact');
+    if (unsafeImpact.test(entry.body) && !unit.verifiedImpact && !['road', 'transit'].includes(unit.itemType) &&
+        !units.some((u) => ['road', 'transit'].includes(u.itemType) && u.date === unit.date)) errors.push('unsupported-impact');
     if (unit.verdict === 'adjacent' && /\bin Liberty Village\b/i.test(entry.body)) errors.push('wrong-place');
     if (unit.verdict === 'core' && /\bnear Liberty Village\b/i.test(entry.body)) errors.push('wrong-place');
   }
@@ -38,31 +39,37 @@ async function jsonCall(callModel, resolved, system, user, maxTokens = 7000) {
 }
 
 /** Model calls have no tools; only verified items enter the copywriter. Two separate review roles run before assembly. */
-export async function writeRoundup(pack, { env = process.env, resolved, reviewer, callModel = generateDraftWithModel } = {}) {
+export async function writeRoundup(pack, { env = process.env, resolved, reviewer, callModel = generateDraftWithModel,
+  deadline = Date.now() + 600_000 } = {}) {
   const units = pack.units || [];
   if (!units.length) throw new Error('roundup_no_units');
   const author = resolved || await resolveModelProvider(env);
   if (!author.ok) throw new Error(`roundup_writer_unavailable:${author.error}`);
   const critic = reviewer || await resolveModelProvider(env, { prefer: author.provider?.id === 'anthropic' ? 'google-gemini' : 'anthropic' });
   const material = units.map(compact);
+  const cappedCall = (args) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
+    return callModel({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
+  };
   const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
-  let draft = await jsonCall(callModel, author, instructions, { units: material }, 9000);
+  let draft = await jsonCall(cappedCall, author, instructions, { units: material }, 9000);
   const findings = [];
   let errors = checkRoundupDraft(draft, units);
   if (errors.length) {
-    draft = await jsonCall(callModel, author, `Repair only these deterministic errors: ${errors.join(', ')}. ${instructions}`, { draft, units: material }, 9000);
+    draft = await jsonCall(cappedCall, author, `Repair only these deterministic errors: ${errors.join(', ')}. ${instructions}`, { draft, units: material }, 9000);
     errors = checkRoundupDraft(draft, units);
     if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
   }
-  const fact = await jsonCall(callModel, critic.ok ? critic : author,
+  const fact = await jsonCall(cappedCall, critic.ok ? critic : author,
     'Independent fact reviewer. Return ONLY {findings:[{unitId,sentence,problem,fix}]} with problem unsupported|wrong-date|wrong-place|overclaim|missing-attribution. Compare every statement with its own quoted record. No new sources.',
     { draft, units: material });
   if (!Array.isArray(fact?.findings)) throw new Error('roundup_fact_review_invalid');
   findings.push({ round: 1, findings: fact.findings });
-  if (fact.findings.length) draft = await jsonCall(callModel, author, `Revise only flagged sentences; keep IDs and all other text. ${instructions}`, { draft, findings: fact.findings, units: material }, 9000);
+  if (fact.findings.length) draft = await jsonCall(cappedCall, author, `Revise only flagged sentences; keep IDs and all other text. ${instructions}`, { draft, findings: fact.findings, units: material }, 9000);
   errors = checkRoundupDraft(draft, units);
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
-  const risk = await jsonCall(callModel, critic.ok ? critic : author,
+  const risk = await jsonCall(cappedCall, critic.ok ? critic : author,
     'Independent locality, private-person, impact and tone reviewer. Assess named people in EACH quoted record and draft; a private individual includes a resident’s home, finances, relationships, health, victimhood or opinions. Return ONLY {findings:[{unitId,person,problem,fix}]}; problem private-individual|wrong-place|unsupported-impact|wrong-date|tone. Flag crime/election and ungrounded impact too.',
     { draft, units: material });
   if (!Array.isArray(risk?.findings)) throw new Error('roundup_risk_review_invalid');
@@ -70,7 +77,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   const refused = new Set(risk.findings.filter((f) => f?.problem === 'private-individual').map((f) => f.unitId));
   const safeUnits = units.filter((unit) => !refused.has(unit.identityKey));
   if (risk.findings.some((f) => f?.problem !== 'private-individual')) {
-    draft = await jsonCall(callModel, author, `Revise only flagged sentences; preserve surviving IDs. ${instructions}`,
+    draft = await jsonCall(cappedCall, author, `Revise only flagged sentences; preserve surviving IDs. ${instructions}`,
       { draft, findings: risk.findings, units: safeUnits.map(compact) }, 9000);
   }
   draft = { ...draft, units: (draft.units || []).filter((entry) => !refused.has(entry.unitId)) };

@@ -60,7 +60,12 @@ export async function runRoundupV2(args, deps = {}) {
   if (!Array.isArray(posts)) throw new Error('posts_json_not_array');
   fs.mkdirSync(out, { recursive: true, mode: 0o700 });
   const signals = deps.signals || readLines(path.join(run, 'signals.jsonl'));
-  const reasoned = deps.reasoned || await (deps.reason || reasonRoundupSignals)(signals);
+  const modelDeadline = Date.now() + 600_000;
+  let reasoned = deps.reasoned;
+  if (!reasoned) {
+    try { reasoned = await (deps.reason || reasonRoundupSignals)(signals, { deadline: modelDeadline }); }
+    catch { reasoned = { forms: [], excluded: signals.map((s) => ({ signalId: s.signalId, reason: 'reason-failed' })) }; }
+  }
   const forms = reasoned.forms || [];
   writeLines(path.join(out, 'forms.jsonl'), forms);
   const verified = await (deps.verify || verifyRoundupForms)({ signals, forms, now, posts, ...deps.verifyOptions });
@@ -75,7 +80,7 @@ export async function runRoundupV2(args, deps = {}) {
   let draft = null, reviewFindings = [];
   if (decision === 'publish') {
     try {
-      const written = await (deps.write || writeRoundup)(pack);
+      const written = await (deps.write || writeRoundup)(pack, { deadline: modelDeadline });
       draft = written.draft;
       reviewFindings = written.findings;
       if (written.refused?.length) {
