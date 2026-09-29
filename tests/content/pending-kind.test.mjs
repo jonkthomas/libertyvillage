@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { testDb } from './helpers/db.mjs';
-import { listPendingByKind, PENDING_BY_KIND_SQL, PENDING_NEWS_BACKLOG_CAP, PENDING_NEWS_PAGE } from '../../scripts/content/store.mjs';
+import { listPendingByKind, PENDING_BY_KIND_SQL, PENDING_NEWS_BACKLOG_CAP, PENDING_NEWS_PAGE, StateError } from '../../scripts/content/store.mjs';
 import { runCli } from '../../scripts/content/cli.mjs';
 
 const insert = async (db, kind, state, smoke = null, notified = null, target = db.target) => {
@@ -107,8 +107,8 @@ test('CLI default pending enumeration is finite: exactly-cap succeeds, one row o
     await bulk(db, { prefix: 'cap-over', count: 1, state: 'published', smoke: null, notified: null });
     await assert.rejects(
       runCli(['pending', '--kind', 'news', '--target', db.target]),
-      /pending backlog exceeds 1000 ids for kind news; propagation is stuck/,
-      'overflow must fail closed with a stable error, never a silent truncation');
+      (error) => error instanceof StateError && /pending backlog exceeds 1000 ids for kind news; propagation is stuck/.test(error.message),
+      'overflow must fail closed as state needing inspection, never a silent truncation or source-edit hint');
 
     // Explicit single pages are unaffected by the enumeration cap.
     const page = await runCli(['pending', '--kind', 'news', '--target', db.target, '--limit', '5']);
