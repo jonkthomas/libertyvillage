@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { publisherDomain } from './normalize.mjs';
 import { detectNonEventLabels, detectRiskFlags, isDevelopmentApplication } from './score.mjs';
+import { assertSafePublicHttpUrl } from './url-guard.mjs';
 import { roundupSourceQuality, sourceSpanProvesTime } from './roundup-evidence.mjs';
 import { isoWeekOf, roundupCoveredKeys, planRoundupV2 } from './roundup.mjs';
 export { roundupCoverageFromPack } from './roundup.mjs';
@@ -23,14 +24,28 @@ const asText = (result) => typeof result === 'string' ? result : result?.body ??
 const responseStatus = (result) => result?.status ?? 200;
 const blocked = (result) => result?.ok === false || responseStatus(result) >= 400;
 const quoteFields = ['subject_quote', 'place_quote', 'date_quote'];
+const feedFields = {
+  'road-feed': ['id', 'road', 'fromRoad', 'toRoad', 'startTime', 'endTime', 'description'],
+  'transit-feed': ['id', 'route', 'stops', 'segment', 'effect', 'activeStart', 'activeEnd', 'startTime', 'endTime'],
+};
 const canonical = (url) => { const parsed = new URL(url); parsed.hash = ''; return parsed.href.replace(/\/$/, ''); };
+const defaultFetch = async (url) => {
+  await assertSafePublicHttpUrl(url);
+  return fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(20000) });
+};
+const registrableDomain = (url) => {
+  const host = publisherDomain(url);
+  const labels = host.split('.');
+  const twoPartSuffix = /^(?:co|com|org|gov|ac)\.(?:uk|au|nz|jp)$/i.test(labels.slice(-2).join('.'));
+  return labels.slice(-(twoPartSuffix ? 3 : 2)).join('.');
+};
 const syndicated = /originally published|first published|appeared originally|republished with permission|this article is from|©\s*Toronto Star/i;
 
 async function originalFor(body, url, fetcher) {
   const html = String(body);
   const canonicalTag = html.match(/<link\b(?=[^>]*\brel=["']canonical["'])[^>]*\bhref=["']([^"']+)["']/i);
   const canonicalUrl = canonicalTag ? canonical(new URL(canonicalTag[1], url).href) : null;
-  const foreign = canonicalUrl && publisherDomain(canonicalUrl) !== publisherDomain(url);
+  const foreign = canonicalUrl && registrableDomain(canonicalUrl) !== registrableDomain(url);
   const attribution = syndicated.test(html);
   if (!foreign && !attribution) return null;
   let originalUrl = foreign ? canonicalUrl : null;
@@ -39,7 +54,7 @@ async function originalFor(body, url, fetcher) {
     const link = sentence.match(/href=["']([^"']+)["']/i);
     if (link) originalUrl = canonical(new URL(link[1], url).href);
   }
-  if (!originalUrl || originalUrl === canonical(url) || publisherDomain(originalUrl) === publisherDomain(url)) fail('unverifiable');
+  if (!originalUrl || originalUrl === canonical(url) || registrableDomain(originalUrl) === registrableDomain(url)) fail('unverifiable');
   let original;
   try { original = await loadBody(originalUrl, fetcher, { originalOf: url }); } catch { fail('unverifiable'); }
   if (syndicated.test(original) || /<link\b(?=[^>]*\brel=["']canonical["'])[^>]*\bhref=["']([^"']+)["']/i.test(original)) {
@@ -112,6 +127,12 @@ function torontoInstant(day, time = '00:00') {
   const p = local(instant);
   return dayOf(instant) === day && `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}` === time ? instant : NaN;
 }
+const typedTimeMatches = (record, field, day, time) => {
+  const value = record.typed?.[field];
+  const instant = typeof value === 'number' ? value : Date.parse(value || '');
+  return Number.isFinite(instant) && dayOf(instant) === day &&
+    `${String(local(instant).hour).padStart(2, '0')}:${String(local(instant).minute).padStart(2, '0')}` === time;
+};
 
 export function recordProvesTime(record, resolvedDate, instant) {
   if (!validDay(resolvedDate) || !Number.isFinite(instant) || dayOf(instant) !== resolvedDate) return false;
@@ -139,14 +160,16 @@ function temporalReason(when, at, weekStart, posts) {
     if (date >= weekStart && date < weekEnd) return null;
     const previousStart = addDays(weekStart, -7);
     const previousWeek = isoWeekOf(previousStart).isoWeek;
-    const previous = (posts || []).find((p) => p.roundupCoverage?.isoWeek === previousWeek);
+    const previousSlug = `liberty-village-news-week-${previousWeek.slice(0, 4)}-w${previousWeek.slice(6)}`;
+    const previous = (posts || []).find((p) => p.roundupCoverage?.isoWeek === previousWeek || p.slug === previousSlug);
     const cutoff = previous?.roundupCoverage?.planningCutoff || previous?.publishedAt;
-    const cutoffDay = cutoff ? dayOf(cutoff) : previousStart;
+    const cutoffDay = cutoff ? /^\d{4}-\d\d-\d\d$/.test(cutoff) ? cutoff : dayOf(cutoff) : previousStart;
     return date >= previousStart && date < weekStart && date >= cutoffDay ? null : 'stale';
   }
   if (when.kind === 'alert') return null;
   const start = torontoInstant(date, when.startTime || '00:00');
-  const end = when.endDate ? torontoInstant(addDays(when.endDate, 1)) : when.endTime ? torontoInstant(date, when.endTime)
+  const end = when.endDate && when.endTime ? torontoInstant(when.endDate, when.endTime)
+    : when.endDate ? torontoInstant(addDays(when.endDate, 1)) : when.endTime ? torontoInstant(date, when.endTime)
     : when.startTime ? start : torontoInstant(addDays(date, 1));
   if (!Number.isFinite(start) || !Number.isFinite(end)) return 'undated';
   if (when.kind === 'restriction') return end > at && start < at + 14 * DAY ? null : 'concluded';
@@ -166,7 +189,13 @@ function dateFromRecord(record, source, when, post, now, claim) {
     const visible = resolvedDates(quoted, { source: { parse: 'html-page' }, now });
     return quoted && text.includes(quoted) && visible.includes(when.date) && text.indexOf(quoted) < 400 ? when.date : null;
   }
-  if (source.parse === 'html-page' && !['org', 'project'].includes(source.identityKind)) return null;
+  if (source.identityKind === 'news-discovery' || source.parse === 'html-page' && !['org', 'project'].includes(source.identityKind)) return null;
+  if (source.parse === 'html-page' || source.parse === 'ig-post') {
+    const quoted = norm(claim?.date_quote);
+    if (!quoted || !text.includes(quoted) || /\blast updated\b/i.test(quoted)) return null;
+    const dates = resolvedDates(quoted, { source, post, now });
+    return dates.includes(when.date) && resolvedDates(text, { source, post, now }).includes(when.date) ? when.date : null;
+  }
   const typedDate = typed.startDate || typed.date || typed.startTime;
   if (typedDate && /^\d{4}-\d\d-\d\d/.test(String(typedDate))) {
     const absolute = Date.parse(typedDate);
@@ -175,6 +204,21 @@ function dateFromRecord(record, source, when, post, now, claim) {
     return validDay(date) ? date : null;
   }
   return resolvedDates(text, { source, post, now }).includes(when.date) ? when.date : null;
+}
+
+function trustedWhen(formWhen, record, source) {
+  if (source.parse !== 'json-feed') return formWhen;
+  const typed = record.typed || {};
+  const startValue = typed.startTime || typed.activeStart || typed.activeFrom;
+  const endValue = typed.endTime || typed.activeEnd || typed.activeUntil;
+  const start = typeof startValue === 'number' ? startValue : Date.parse(startValue || '');
+  const end = typeof endValue === 'number' ? endValue : Date.parse(endValue || '');
+  if (!Number.isFinite(start)) return formWhen;
+  const startLocal = local(start);
+  const endLocal = Number.isFinite(end) ? local(end) : null;
+  const clock = (parts) => `${String(parts.hour).padStart(2, '0')}:${String(parts.minute).padStart(2, '0')}`;
+  return { ...formWhen, date: dayOf(start), startTime: clock(startLocal),
+    endDate: endLocal ? dayOf(end) : null, endTime: endLocal ? clock(endLocal) : null };
 }
 
 function identity(record, source, form, geo) {
@@ -217,7 +261,7 @@ async function loadBody(url, fetcher, context) {
 }
 
 /** Re-fetch and re-extract every cited record. All model fields are untrusted. */
-export async function verifyRoundupForms({ signals = [], forms = [], now, posts = [], fetcher = fetch, igRefetch,
+export async function verifyRoundupForms({ signals = [], forms = [], now, posts = [], fetcher = defaultFetch, igRefetch,
   recordExtractor, geography, sources, publisherTiers } = {}) {
   const at = Date.parse(now);
   if (!Number.isFinite(at)) throw new Error('roundup verifier requires now');
@@ -251,6 +295,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
         const source = sourceFor(registry, sourceSignal.sourceId);
         if (!source) { if (index === 0) fail('unverifiable'); else continue; }
         try {
+          if (source.enabled === false || source.robotsAllowed === false) fail('unverifiable');
           const igRows = Array.isArray(igRefetch?.posts) ? igRefetch.posts : [];
           const post = source.parse === 'ig-post' ? (igRows.find((row) => row.shortCode === sourceSignal.post?.shortCode) ||
             igRefetch?.[sourceSignal.post?.shortCode] || sourceSignal.post) : undefined;
@@ -278,29 +323,39 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             if (!normalized.includes(norm(quote))) fail(fresh.some((r) => norm(r.text).includes(norm(quote))) ? 'cross-record' : 'source-swapped');
           }
           if (!claim.subject_quote || !norm(claim.subject_quote).includes(norm(form.subject))) fail('unverifiable');
-          if (source.parse === 'json-feed' && digest(record.typed) !== digest((sourceSignal.records || []).find((r) => r.recordId === record.recordId)?.typed)) fail('record-missing');
+          if (source.parse === 'json-feed') {
+            const snapshot = (sourceSignal.records || []).find((r) => r.recordId === record.recordId)?.typed;
+            const fields = feedFields[source.identityKind] || [];
+            const projection = (typed) => Object.fromEntries(fields.map((field) => [field, typed?.[field] ?? null]));
+            if (!snapshot || digest(projection(record.typed)) !== digest(projection(snapshot))) fail('record-missing');
+          }
           if (source.parse === 'ig-post' && post.ownerUsername && post.ownerUsername.toLowerCase() !== String(source.handle || source.identityId?.replace(/^ig:/, '') || '').toLowerCase()) fail('unverifiable');
           if (original) {
             if (!resolvedDates(original.text.slice(0, 400), { source: { parse: 'html-page' }, now: at }).includes(form.when.date)) fail('stale');
           } else if (dateFromRecord(record, source, form.when, post, at, claim) !== form.when?.date) fail('undated');
-          if (form.when?.endDate && !(String(record.typed?.endDate || '').startsWith(form.when.endDate) ||
+          if (source.parse !== 'json-feed' && form.when?.endDate && !(String(record.typed?.endDate || '').startsWith(form.when.endDate) ||
             resolvedDates(norm(record.text), { source, post, now: at }).includes(form.when.endDate))) fail('undated');
-          if (form.when?.startTime && !recordProvesTime(record, form.when.date, torontoInstant(form.when.date, form.when.startTime))) fail('undated');
-          if (form.when?.endTime && !recordProvesTime(record, form.when.endDate || form.when.date, torontoInstant(form.when.endDate || form.when.date, form.when.endTime))) fail('undated');
+          if (form.when?.startTime && !(source.parse === 'json-feed'
+            ? typedTimeMatches(record, 'startTime', form.when.date, form.when.startTime)
+            : recordProvesTime(record, form.when.date, torontoInstant(form.when.date, form.when.startTime)))) fail('undated');
+          if (form.when?.endTime && !(source.parse === 'json-feed'
+            ? typedTimeMatches(record, 'endTime', form.when.endDate || form.when.date, form.when.endTime)
+            : recordProvesTime(record, form.when.endDate || form.when.date, torontoInstant(form.when.endDate || form.when.date, form.when.endTime)))) fail('undated');
           const place = identity(record, source, form, geo);
           if (place.locality === 'not-LV') fail('not-LV');
           const tier = source.identityKind === 'news-discovery'
-            ? tiers[publisherDomain(claim.url)] || 'lead'
+            ? tiers[registrableDomain(claim.url)] || 'lead'
             : source.tier || 'lead';
           const entry = { url: claim.url, recordId: record.recordId, subject_quote: claim.subject_quote,
-            place_quote: claim.place_quote, date_quote: claim.date_quote, tier, publisherDomain: publisherDomain(claim.url),
-            publisher: source.label || source.identityId || publisherDomain(claim.url), sourceId: source.id,
+            place_quote: claim.place_quote, date_quote: claim.date_quote, tier, publisherDomain: registrableDomain(claim.url),
+            publisher: source.label || source.identityId || registrableDomain(claim.url), sourceId: source.id,
             feed: source.parse === 'json-feed', listing: source.parse === 'html-listing',
             extractionSubstantive: record.extractionSubstantive ?? sourceSignal.extractionSubstantive ??
               (source.parse === 'html-page' ? normalized.length >= 40 : normalized.length >= 10),
             fetchOk: true, itemBound: true, locality: place.locality };
           evidence.push(entry);
-          if (index === 0) primary = { source, record, place, post, originalUrl: original?.url };
+          if (index === 0) primary = { source, record, place, post, originalUrl: original?.url,
+            when: trustedWhen(form.when, record, source) };
         } catch (error) { if (index === 0) throw error; }
       }
       if (!primary) fail('unverifiable');
@@ -316,13 +371,13 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
           !form.when.startTime && dayOf(timestamp) > form.when.date ||
           /\b(?:look back|recap|last (?:night|week|saturday|sunday)|yesterday|what a night)\b/i.test(primary.record.text)) fail('retrospective');
       }
-      const reason = temporalReason(form.when, at, isoWeekStart(at), posts);
+      const reason = temporalReason(primary.when, at, isoWeekStart(at), posts);
       if (reason) fail(reason);
       if (!roundupSourceQuality(evidence)) fail('weak-source');
       const identityKey = itemKey(form, primary.source, primary.record, primary.place, primary.originalUrl);
       if (covered.has(identityKey)) fail('previously-covered');
-      items.push({ ...form, locality, verdict: locality, identityKey, keys: [identityKey],
-        itemType: form.item_type, date: form.when.date, citations: evidence.map((entry) => ({
+      items.push({ ...form, when: primary.when, locality, verdict: locality, identityKey, keys: [identityKey],
+        itemType: form.item_type, date: primary.when.date, citations: evidence.map((entry) => ({
           url: entry.url, publisher: entry.publisher, sourceId: entry.sourceId, recordId: entry.recordId,
           feed: entry.feed, listing: entry.listing })),
         canonicalVenueId: primary.place.canonicalVenueId, venueId: primary.place.venueId,

@@ -25,6 +25,8 @@ test('item-bound record, trusted tier and digest', async () => {
   const result = await verifyRoundupForms(options());
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0].identityKey, 'occ:addr:171-east-liberty-st:2026-10-03:16:00');
+  assert.equal(result.items[0].citations[0].url, url);
+  assert.equal(result.items[0].citations[0].recordId, 'r1');
   assert.match(result.verifyDigest, /^[a-f0-9]{64}$/);
   const forged = options();
   forged.forms[0].tier = 'official';
@@ -54,6 +56,17 @@ test('risk, private or unclear person, and changed date refuse the item', async 
   assert.equal((await verifyRoundupForms(person)).excluded[0].reason, 'risky');
   const changed = options([signal()], [form()], text.replace('October 3', 'October 4'));
   assert.equal((await verifyRoundupForms(changed)).excluded[0].reason, 'source-swapped');
+});
+
+test('event dates on discovery prose and Last updated metadata cannot qualify', async () => {
+  const discovery = options();
+  discovery.sources = [{ ...source, identityKind: 'news-discovery', tier: 'lead' }];
+  discovery.publisherTiers = { 'official.example': 'official' };
+  assert.equal((await verifyRoundupForms(discovery)).excluded[0].reason, 'undated');
+  const updatedBody = text.replace('Date: October 3, 2026', 'Last updated: October 3, 2026');
+  const updated = options([signal(updatedBody)], [{ ...form(), evidence: [{ ...form().evidence[0],
+    date_quote: 'Last updated: October 3, 2026' }] }], updatedBody);
+  assert.equal((await verifyRoundupForms(updated)).excluded[0].reason, 'undated');
 });
 
 test('source quality requires an official item-bound entry or two independent substantive publishers', () => {
@@ -148,4 +161,25 @@ test('Instagram relative date is based on provider Toronto timestamp and own rec
   assert.equal((await verifyRoundupForms(ambiguous)).excluded[0].reason, 'undated');
   const late = { ...opts, now: '2026-10-01T12:00:00Z', signals: [{ ...igSignal, post: { ...post, timestamp: '2026-09-30T23:00:00Z' } }] };
   assert.equal((await verifyRoundupForms(late)).excluded[0].reason, 'retrospective');
+});
+
+test('feed records compare trusted snapshot fields before admission', async () => {
+  const feedUrl = 'https://city.example/roads';
+  const typed = { id: 'r42', road: 'Strachan Ave', fromRoad: 'King St W', toRoad: 'Fleet St',
+    startTime: '2026-09-29T12:00:00Z', endTime: '2026-10-02T12:00:00Z', description: 'Road work' };
+  const fresh = record(JSON.stringify(typed));
+  fresh.typed = typed;
+  const feedSignal = { signalId: 'road1', sourceId: 'roads', url: feedUrl, records: [fresh] };
+  const roadForm = { ...form('road1', feedUrl), subject: 'Strachan Ave', when: { kind: 'restriction', date: '2026-09-29' },
+    item_type: 'road', evidence: [{ url: feedUrl, recordId: 'r1', subject_quote: 'Strachan Ave', place_quote: null, date_quote: null }] };
+  const opts = { signals: [feedSignal], forms: [roadForm], now, posts: [],
+    fetcher: async () => ({ body: '{}', status: 200 }), recordExtractor: () => [fresh],
+    geography: { classifySegment: () => ({ locality: 'core' }) },
+    sources: [{ id: 'roads', parse: 'json-feed', identityKind: 'road-feed', tier: 'official' }], publisherTiers: {} };
+  const accepted = await verifyRoundupForms(opts);
+  assert.equal(accepted.items[0].identityKey, 'road:r42');
+  assert.equal(accepted.items[0].when.endDate, '2026-10-02');
+  assert.equal(accepted.items[0].when.endTime, '08:00');
+  const changed = { ...fresh, typed: { ...typed, endTime: '2026-10-03T12:00:00Z' } };
+  assert.equal((await verifyRoundupForms({ ...opts, recordExtractor: () => [changed] })).excluded[0].reason, 'record-missing');
 });

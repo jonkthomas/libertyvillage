@@ -29,6 +29,7 @@ test('occurrence identity, covered keys and still-in-effect', () => {
   assert.equal(merged.countedItems[0].constituents.length, 2);
   const coverage = roundupCoverageFromPack(merged);
   assert.deepEqual(coverage.keys, [core.identityKey, unit('a').identityKey, unit('b').identityKey].sort());
+  assert.deepEqual(merged.countedItems.find((item) => item.identityKey === core.identityKey).keys, [core.identityKey]);
   const road = unit('road', { item_type: 'road', identityKey: 'road:123' });
   const previous = [{ kind: 'roundup', roundupCoverage: { version: 1, isoWeek: '2026-W39', planningCutoff: '2026-09-25T16:00:00Z', keys: ['road:123'] } }];
   const plan = planRoundupV2([road, core, unit('a'), unit('b')], { now, posts: previous });
@@ -66,6 +67,8 @@ test('held previous week rolls news; published previous week uses cutoff', () =>
   assert.equal(roundupTemporalReason(news, w40), null);
   const previous = [{ roundupCoverage: { isoWeek: '2026-W39', planningCutoff: '2026-09-26T16:00:00Z' } }];
   assert.equal(roundupTemporalReason(news, w40, { posts: previous }), 'stale');
+  const legacy = [{ slug: 'liberty-village-news-week-2026-w39', publishedAt: '2026-09-26' }];
+  assert.equal(roundupTemporalReason(news, w40, { posts: legacy }), 'stale');
 });
 
 test('coverage keeps every constituent and refuses 65 keys', () => {
