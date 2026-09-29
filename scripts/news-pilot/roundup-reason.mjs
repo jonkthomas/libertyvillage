@@ -1,5 +1,6 @@
 import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './draft-model.mjs';
 import { ROUNDUP_SOURCES } from './sources.mjs';
+import { resolveCaptionDates } from './roundup-records.mjs';
 
 const KINDS = new Set(['news-update', 'event', 'restriction', 'alert']);
 const TYPES = new Set(['event', 'class', 'concert', 'sports', 'expo', 'community', 'opening', 'closure', 'road', 'transit', 'project', 'news']);
@@ -77,19 +78,40 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
     return source?.parse === 'ig-post' || ['org', 'project'].includes(source?.identityKind) ? 'first-party-core-lead' : 'other';
   };
   const selected = new Set();
-  const critical = signals.filter((signal) => priority(signal) === 'first-party-core-lead');
-  critical.sort((a, b) => Date.parse(b.post?.timestamp || '') - Date.parse(a.post?.timestamp || '') ||
-    a.signalId.localeCompare(b.signalId));
-  for (const signal of critical.slice(0, 60)) selected.add(signal);
-  const bySource = new Map();
-  for (const signal of signals) if (!selected.has(signal) && priority(signal) === 'other')
-    bySource.set(signal.sourceId, [...(bySource.get(signal.sourceId) || []), signal]);
-  while (selected.size < 60 && [...bySource.values()].some((rows) => rows.length)) {
-    for (const rows of bySource.values()) if (rows.length && selected.size < 60) selected.add(rows.shift());
+  const horizon = new Date(Date.parse(`${referenceDateToronto}T00:00:00Z`) + 14 * 86400000).toISOString().slice(0, 10);
+  const urgency = (signal) => {
+    const source = sources.get(signal.sourceId);
+    if (source?.identityKind === 'road-feed' || source?.identityKind === 'transit-feed')
+      return (signal.records || []).some((record) => {
+        const start = Number(record.typed?.startTime ?? record.typed?.activeStart);
+        const end = Number(record.typed?.endTime ?? record.typed?.activeEnd);
+        return Number.isFinite(end) && end > Date.parse(now) &&
+          (!Number.isFinite(start) || start <= Date.parse(`${horizon}T23:59:59Z`));
+      }) ? 1 : 0;
+    const dates = (signal.records || []).flatMap((record) => record.typed?.date
+      ? [record.typed.date] : resolveCaptionDates(record.text, signal.post?.timestamp || now));
+    return dates.some((day) => day >= referenceDateToronto && day <= horizon) ? 1 : 0;
+  };
+  const tier = (signal) => `${priority(signal)}-${urgency(signal) ? 'current' : 'other'}`;
+  const groups = ['first-party-core-lead-current', 'other-current', 'first-party-core-lead-other', 'other-other'];
+  for (const group of groups) {
+    if (selected.size >= 60) break;
+    const bySource = new Map();
+    for (const signal of signals) if (tier(signal) === group)
+      bySource.set(signal.sourceId, [...(bySource.get(signal.sourceId) || []), signal]);
+    for (const [sourceId, rows] of bySource) {
+      rows.sort((a, b) => (Date.parse(b.post?.timestamp || '') || 0) -
+        (Date.parse(a.post?.timestamp || '') || 0) || a.signalId.localeCompare(b.signalId));
+      // Search is a lead, never a way to crowd out official or first-party rows.
+      if (sources.get(sourceId)?.identityKind === 'news-discovery' && rows.length > 12) rows.splice(12);
+    }
+    while (selected.size < 60 && [...bySource.values()].some((rows) => rows.length)) {
+      for (const rows of bySource.values()) if (rows.length && selected.size < 60) selected.add(rows.shift());
+    }
   }
   const queue = [...selected];
   const forms = [], excluded = signals.filter((s) => !selected.has(s))
-    .map((s) => ({ signalId: s.signalId, sourceId: s.sourceId, reason: 'reason-budget', priority: priority(s) }));
+    .map((s) => ({ signalId: s.signalId, sourceId: s.sourceId, reason: 'reason-budget', priority: tier(s) }));
   for (let at = 0; at < queue.length; at += 10) {
     const batch = queue.slice(at, at + 10);
     const input = batch.map((s) => ({ signalId: s.signalId, sourceId: s.sourceId, url: s.url,
@@ -98,8 +120,12 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
     if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
     const answer = await callModel({ resolved: model, system: SYSTEM,
       userText: JSON.stringify({ referenceNow: now, referenceDateToronto, signals: input }).slice(0, 32_000),
-      maxTokens: 9000, timeoutMs: Math.min(90_000, remaining) });
-    if (!answer.ok) { for (const s of batch) excluded.push({ signalId: s.signalId, reason: 'reason-failed' }); continue; }
+      maxTokens: 9000, timeoutMs: Math.min(150_000, remaining) });
+    if (!answer.ok) {
+      const failure = /^(?:http_\d{3}|timeout_after_\d+ms)$/.test(answer.error || '') ? answer.error : 'model-error';
+      for (const s of batch) excluded.push({ signalId: s.signalId, reason: 'reason-failed', modelFailure: failure });
+      continue;
+    }
     let parsed;
     try { const result = parseModelJson(answer.text); parsed = result.ok ? result.value : null; } catch { parsed = null; }
     const proposed = Array.isArray(parsed?.forms) ? parsed.forms : [];

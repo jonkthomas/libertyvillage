@@ -85,7 +85,28 @@ test('first-party core leads outrank adjacent/search leads under the hard model 
   assert.ok(offered.some((id) => id.startsWith('adj-')));
   assert.ok(offered.some((id) => id.startsWith('search-')));
   assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 37);
-  assert.ok(result.excluded.filter((e) => e.reason === 'reason-budget').every((e) => e.priority === 'other'));
+  assert.ok(result.excluded.filter((e) => e.reason === 'reason-budget').every((e) => e.priority.startsWith('other-')));
+});
+
+test('future-dated first-party core event outranks stale first-party posts when that tier overflows', async () => {
+  const stale = Array.from({ length: 65 }, (_, i) => ({ ...signal, signalId: `stale-ig-${i}`,
+    sourceId: 'ig:burgerdrops', post: { timestamp: '2026-09-09T12:00:00Z' },
+    records: [{ recordId: 'r1', text: 'Yesterday: September 8, 2026' }] }));
+  const upcoming = { ...signal, signalId: 'oct3-core-ig', sourceId: 'ig:burgerdrops',
+    post: { timestamp: '2026-09-27T22:51:24Z' },
+    records: [{ recordId: 'r1', kind: 'ig-event', text: 'October 3 at 116 Atlantic Ave', typed: { date: '2026-10-03' } }] };
+  const offered = [];
+  const result = await reasonRoundupSignals([...stale, upcoming, signal], {
+    now: '2026-09-29T19:10:00Z', resolved: { ok: true, provider: { id: 'mock' } },
+    callModel: async ({ userText }) => {
+      offered.push(...JSON.parse(userText).signals.map((s) => s.signalId));
+      return { ok: true, text: '{"forms":[]}' };
+    },
+  });
+  assert.equal(offered[0], upcoming.signalId);
+  assert.equal(offered.length, 60);
+  assert.ok(offered.includes(signal.signalId), 'a current adjacent event outranks stale IG posts, not the current core event');
+  assert.ok(result.excluded.some((e) => e.priority === 'first-party-core-lead-other' && e.signalId.startsWith('stale-ig-')));
 });
 
 test('source-only credentials never enter reasoner or writer model requests', async () => {
