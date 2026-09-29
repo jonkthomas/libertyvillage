@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { openDb, TargetError } from './db.mjs';
@@ -8,7 +8,7 @@ import { verifyParity } from './parity.mjs';
 import { exportContent } from './export.mjs';
 import { restoreSnapshot } from './restore-snapshot.mjs';
 import { registry } from './canonical.mjs';
-const migrationPath = fileURLToPath(new URL('./migrations/0001_content.sql',import.meta.url));
+const migrationsDir = path.dirname(fileURLToPath(new URL('./migrations/0001_content.sql',import.meta.url)));
 function parse(argv) {
   const [command,...rest] = argv;
   const opts = {};
@@ -25,10 +25,16 @@ function actorFor(opts) {
 }
 async function migrate(db) {
   const exists = (await db.query("select to_regclass('content.schema_migrations') as table_name")).rows[0].table_name;
-  if (exists && (await db.query("select 1 from content.schema_migrations where version='0001'")).rowCount) return {applied:[]};
-  const sql = await readFile(migrationPath,'utf8');
-  await db.tx(async (c) => { await c.query(sql); await c.query("insert into content.schema_migrations(version) values('0001')"); });
-  return {applied:['0001']};
+  const done = exists ? new Set((await db.query('select version from content.schema_migrations')).rows.map((r) => r.version)) : new Set();
+  const applied = [];
+  for (const file of (await readdir(migrationsDir)).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort()) {
+    const version = file.slice(0, 4);
+    if (done.has(version)) continue;
+    const sql = await readFile(path.join(migrationsDir, file),'utf8');
+    await db.tx(async (c) => { await c.query(sql); await c.query("insert into content.schema_migrations(version) values($1)",[version]); });
+    applied.push(version);
+  }
+  return {applied};
 }
 async function reset(db, name) {
   if (name !== db.dbName || !(name === 'lv_staging' || /^lv_test_[a-z0-9_]+$/.test(name))) throw new TargetError('reset target refused');
@@ -72,7 +78,26 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
       case 'show': { result=await store.getSubmission(db,Number(required(opts.submission,'--submission'))); delete result.submission.context; for (const item of result.items) item.url=registry[item.dataset]?.route?.replace(':key',item.key)??null; for (const round of result.rounds) for (const item of round.items) delete item.payload; break; }
       case 'lookup': result=await store.findSubmissionByIdempotencyKey(db,required(opts.idempotencyKey,'--idempotency-key')); break;
       case 'list': result=opts.submissions ? await store.listSubmissions(db,{state:opts.state,kind:opts.kind,target:opts.target,dataset:opts.dataset,key:opts.key,since:opts.since}) : await store.listEntries(db,{dataset:opts.dataset,visibility:opts.visibility}); break;
-      case 'pending': result=await store.listPendingByKind(db,{target,kind:required(opts.kind,'--kind')}); break;
+      case 'pending': {
+        const kind = required(opts.kind,'--kind');
+        const limit = opts.limit === undefined ? undefined : Number(opts.limit);
+        const afterId = opts.after === undefined ? undefined : Number(opts.after);
+        if (opts.limit !== undefined && (!Number.isInteger(limit) || limit < 1)) throw new store.ValidationError('--limit must be a positive integer');
+        if (opts.after !== undefined && (!Number.isInteger(afterId) || afterId < 1)) throw new store.ValidationError('--after must be a positive integer');
+        if (limit !== undefined || afterId !== undefined) {
+          // Explicit single page: the caller owns paging and knows the page may be partial.
+          result = await store.listPendingByKind(db,{target,kind,...(limit !== undefined ? {limit} : {}),...(afterId !== undefined ? {afterId} : {})});
+        } else {
+          // Default: enumerate every page so a growing backlog never silently drops pending work.
+          result = [];
+          for (;;) {
+            const page = await store.listPendingByKind(db,{target,kind,afterId: result.length ? result[result.length-1] : null});
+            result.push(...page);
+            if (page.length < store.PENDING_NEWS_PAGE) break;
+          }
+        }
+        break;
+      }
       case 'stats': { result=await store.stats(db); result.warn=result.projectBytes>350*1024*1024; if (opts.alert && result.warn && process.env.SLACK_WEBHOOK_URL) await fetch(process.env.SLACK_WEBHOOK_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:`⚠ Neon content storage ${Math.round(result.projectBytes/1048576)} MB > 350 MB of 512 MB`})}); break; }
       case 'gc-assets': result=await gcAssets(db,opts); break;
       case 'submit': { const submitContent=delegates.submitContent ?? (await import('./submit.mjs')).submitContent; ({result,exitCode}=await submitContent(db,opts)); break; }

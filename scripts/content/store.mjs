@@ -299,9 +299,16 @@ export async function listPending(db, { target } = {}) {
 }
 // News preflight must not read every historical published submission and its
 // rounds. This predicate is the same as deploy's, narrowed to one writer kind.
-export async function listPendingByKind(db, { target, kind } = {}) {
+// The query is one bounded page of PENDING_NEWS_PAGE ids ascending (backed by
+// the 0002 partial index submissions_pending_idx); callers that need every
+// pending id enumerate pages with afterId instead of one unbounded query.
+export const PENDING_NEWS_PAGE = 200;
+export const PENDING_BY_KIND_SQL = "select id from content.submissions where state='published' and target=$1 and kind=$2 and (smoke_passed_at is null or notified_at is null) and ($3::bigint is null or id > $3) order by id limit $4";
+export async function listPendingByKind(db, { target, kind, limit = PENDING_NEWS_PAGE, afterId = null } = {}) {
   if (!['news', 'blog'].includes(kind)) throw new ValidationError('pending kind required');
-  return rows(await db.query("select id from content.submissions where state='published' and target=$1 and kind=$2 and (smoke_passed_at is null or notified_at is null) order by id", [target ?? db.target, kind])).map((r) => n(r.id));
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10000) throw new ValidationError('pending page limit must be an integer between 1 and 10000');
+  if (afterId != null && (!Number.isInteger(afterId) || afterId < 1)) throw new ValidationError('pending page cursor must be a positive integer');
+  return rows(await db.query(PENDING_BY_KIND_SQL, [target ?? db.target, kind, afterId, limit])).map((r) => n(r.id));
 }
 export async function findSubmissionByIdempotencyKey(db, key) {
   if (!key || typeof key !== 'string') throw new ValidationError('--idempotency-key required');
