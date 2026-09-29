@@ -14,7 +14,7 @@ import { buildRecordRepairPlan } from '../../scripts/automation/record-repair.mj
 import { buildSourcePack, canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
 import * as cadence from '../../scripts/content/cadence.mjs';
 import * as store from '../../scripts/content/store.mjs';
-import { BLOG_SOURCE_PACK_MAX_BYTES, submitContent } from '../../scripts/content/submit.mjs';
+import { BLOG_SOURCE_PACK_MAX_BYTES, blogDraftBindingErrors, submitContent } from '../../scripts/content/submit.mjs';
 import { baselineFile, hasTestDb, seededDb } from './fixtures/content-db.mjs';
 
 const { gateContent, blogPackEvidence } = await import('../../scripts/content/gate.mjs');
@@ -221,4 +221,71 @@ test('F2 a repair that unbinds the draft from its pack is refused by the repair 
     assert.notEqual(submission.state, 'published');
     assert.equal(rounds.length, 1, 'no repair round was written');
   } finally { await close(); }
+});
+
+test('R1 gate fails closed when a pack-bound blog has sourcePack facts but no stored pack (g1 rejected; repair validator refuses)', { skip }, async () => {
+  const { db, close } = await seededDb();
+  try {
+    const pack = await livePack(db, 'Brunch Spots');
+    const dropPack = (id) => db.query("update content.submissions set context = (context::jsonb #- '{sourcePack,pack}')::json where id=$1", [id]);
+    const env = { SLACK_WEBHOOK_URL: 'http://127.0.0.1:9/slack' };
+    const checkout = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-pack-checkout-'));
+    const g1 = (await submitBlog(db, { key: 'no-pack-g1', suffix: 'pppp', sourcePack: packFile(pack), pack })).result.submissionId;
+    await dropPack(g1);
+    assert.equal((await storedContext(db, g1)).sourcePack.pack, undefined);
+    assert.ok((await storedContext(db, g1)).sourcePack.sources.length, 'facts remain');
+    await gateContent(db, { submission: g1, actor: 'uat:pack' }, { env, checkout, deps: { fetchImpl: async () => new Response('ok'), review: async () => { throw new Error('must not review'); } } });
+    const first = await store.getSubmission(db, g1);
+    assert.equal(first.submission.state, 'rejected');
+    assert.match(JSON.stringify(first.rounds[0].lint), /missing-stored-pack/);
+
+    // Repair path: the repair decision persists, then the pack disappears before the fixer runs.
+    const rp = (await submitBlog(db, { key: 'no-pack-repair', suffix: 'qqqq', sourcePack: packFile(pack), pack })).result.submissionId;
+    const key = (await store.getSubmission(db, rp)).items[0].key;
+    const verdict = ({ contentSha }) => ({ overall: 7, findings: [{ severity: 'high', path: `data/posts.json#${key}`, note: 'overstated' }], model: GATE_MODEL, commit_sha: contentSha });
+    const crash = new Error('crash after repair decision');
+    await assert.rejects(gateContent(db, { submission: rp, actor: 'uat:pack' }, { env, checkout, deps: { fetchImpl: async () => new Response('ok'), review: verdict, fix: () => { throw new Error('not yet'); }, onPhase: (phase) => { if (phase === 'recordRound:repair') throw crash; } } }), (error) => error === crash);
+    await dropPack(rp);
+    const checks = [];
+    await gateContent(db, { submission: rp, actor: 'uat:pack' }, { env, checkout, deps: { fetchImpl: async () => new Response('ok'), review: verdict,
+      fix: async (args) => {
+        const check = args.validate(buildRecordRepairPlan({ files: [{ file: 'data/posts.json', records: [{ key, record: { ...args.payload[0].records[0], answerBlock: 'Some Liberty Village spots serve brunch.' } }] }], reason: 'soften' }));
+        checks.push(check);
+        if (!check.ok) throw new Error('invalid repair plan');
+        return { check };
+      } } });
+    assert.ok(checks.length >= 1 && checks.every((check) => !check.ok));
+    assert.match(checks[0].errors.join(' '), /missing-stored-pack/);
+    assert.equal((await store.getSubmission(db, rp)).rounds.length, 1, 'no repair round written');
+  } finally { await close(); }
+});
+
+test('R1 submit fails closed: cadence blog without --source-pack, and a pack replay whose stored context lacks the pack', { skip }, async () => {
+  const { db, close } = await seededDb();
+  try {
+    const pack = await livePack(db, 'Brunch Spots');
+    await assert.rejects(submitBlog(db, { key: 'cadence:no-pack-flag', suffix: 'rrrr', pack }), /cadence blog submit requires --source-pack/);
+    const legacy = await submitBlog(db, { key: 'legacy-no-pack', suffix: 'ssss', pack });
+    assert.ok(legacy.result.submissionId, 'a non-cadence blog without a pack is still accepted');
+    await assert.rejects(submitBlog(db, { key: 'legacy-no-pack', suffix: 'ssss', sourcePack: packFile(pack), pack }), /blog replay lacks its stored source pack/);
+  } finally { await close(); }
+});
+
+test('R4 binding uses the pack\'s own inventory: unrelated new live topics/services pass; a removed linked topic fails', () => {
+  const cafe = (slug, name, n) => ({ slug, name, category: 'Cafe', description: 'Espresso coffee and pastries.', address: `${n} Liberty Street`, hours: 'Mon-Sun 8am-6pm', phone: `416-555-020${n}`, website: `https://${slug}.example` });
+  const businesses = [cafe('cafe-one', 'Cafe One', 1), cafe('cafe-two', 'Cafe Two', 2)];
+  const now = new Date('2026-09-30T11:00:00.000Z');
+  const built = buildSourcePack({ topic: 'Coffee Shops', businesses, posts: [{ slug: 'p1' }], services: [{ slug: 's1' }], topics: [{ slug: 't1' }], now });
+  assert.ok(built.ok, built.reason);
+  const pack = built.pack;
+  const draft = {
+    ...blogPost('liberty-village-coffee-shops-notes', pack), title: 'Coffee Shops notes', image: '/images/blog/coffee.jpg',
+    relatedTopics: ['t1'], content: `${blogPost('x', pack).content}\nSee the [neighbourhood guide](/guide/t1).\n`,
+  };
+  const bind = (live) => blogDraftBindingErrors(draft, pack, { live: { businesses, ...live }, imagePaths: ['/images/blog/coffee.jpg'], now: new Date(now.getTime() + 60_000) });
+  assert.deepEqual(bind({ posts: [{ slug: 'p1' }], services: [{ slug: 's1' }], topics: [{ slug: 't1' }] }), []);
+  assert.deepEqual(bind({ posts: [{ slug: 'p1' }, { slug: 'daily-news' }], services: [{ slug: 's1' }, { slug: 's2' }], topics: [{ slug: 't1' }, { slug: 't2' }] }), [], 'unrelated live additions never unbind the draft');
+  const removed = bind({ posts: [{ slug: 'p1' }], services: [{ slug: 's1' }], topics: [] });
+  assert.ok(removed.some((error) => /internal-link-not-live:\/guide\/t1/.test(error)), removed.join('; '));
+  assert.ok(removed.every((error) => !/stale-internal-inventory/.test(error)), 'inventory comes from the pack, not live');
 });

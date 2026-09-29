@@ -312,7 +312,7 @@ function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 // ---------------------------------------------------------------------------
 export const CADENCE = Object.freeze({
   contentGoal: 2, maxContentSlot: 4, normalPerSlot: 3, reservePerWeek: 2, generationsPerRun: 4,
-  leaseSeconds: 3600, reserveCategories: 20, sidecarMaxBytes: 128 * 1024, postsMaxBytes: 32 * 1024 * 1024,
+  leaseSeconds: 3600, reserveCategories: 20, catchUpWeeks: 4, sidecarMaxBytes: 128 * 1024, postsMaxBytes: 32 * 1024 * 1024,
   artifactMaxBytes: 2 * 1024 * 1024,
 });
 const OPEN_OUTCOMES = new Set([null, 'published', 'smoked']);
@@ -388,22 +388,31 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
 }
 
 // Deadline alerts are durable DB intents: every weekly-blog/roundup run first
-// evaluates the PRIOR ISO week (no-op until it has ended) and delivers pending
-// alerts. Failures here are logged with a safe class and never abort the run.
+// evaluates ended prior ISO weeks, oldest first: always the immediate prior week,
+// plus up to CADENCE.catchUpWeeks older weeks where cadence was active for this
+// target (`cadence status` shows a slot or attempt), so a failed evaluation is
+// retried later and pre-activation weeks never alert. The DB deadline is
+// idempotent per target/week/type. Failures are logged, never abort the run.
 function evaluatePriorWeek(deps, target, week, now) {
-  const prior = deps.modules.weekStartUtc(new Date(Date.parse(`${week}T00:00:00Z`) - 7 * 86400000));
-  const call = cadenceCaller(deps, target, prior);
-  try {
-    const deadline = call('deadline', ['--now', now.toISOString()]);
-    const alerts = Array.isArray(deadline?.alerts) ? deadline.alerts : [];
-    deps.log('cadence-prior-week', { week: prior, due: Boolean(deadline?.due), alerts: alerts.length, created: alerts.filter((alert) => alert?.created).length });
-  } catch (error) {
-    deps.log('cadence-deadline-failed', { week: prior, reason: failureReason(error) });
-    return;
+  const weekAt = (back) => deps.modules.weekStartUtc(new Date(Date.parse(`${week}T00:00:00Z`) - back * 7 * 86400000));
+  for (let back = CADENCE.catchUpWeeks; back >= 1; back--) {
+    const prior = weekAt(back);
+    const call = cadenceCaller(deps, target, prior);
+    try {
+      if (back > 1) {
+        const status = call('status');
+        if (!(status?.slots?.length || status?.attempts?.length)) continue;
+      }
+      const deadline = call('deadline', ['--now', now.toISOString()]);
+      const alerts = Array.isArray(deadline?.alerts) ? deadline.alerts : [];
+      deps.log('cadence-prior-week', { week: prior, due: Boolean(deadline?.due), alerts: alerts.length, created: alerts.filter((alert) => alert?.created).length });
+    } catch (error) {
+      deps.log('cadence-deadline-failed', { week: prior, reason: failureReason(error) });
+    }
   }
   if (!deps.alertsEnabled) { deps.log('cadence-alert-delivery-skipped', { reason: 'no-webhook' }); return; }
   try {
-    const delivered = call('deliver-alerts');
+    const delivered = cadenceCaller(deps, target, weekAt(1))('deliver-alerts');
     deps.log('cadence-alerts-delivered', { delivered: Number(delivered?.delivered) || 0, failed: Number(delivered?.failed) || 0, pending: Number(delivered?.pending) || 0 });
   } catch (error) { deps.log('cadence-alert-delivery-failed', { reason: failureReason(error) }); }
 }
@@ -427,11 +436,14 @@ function blogCandidate(run, entry, snapshot, { reserve = false, consumed = run.c
   const ground = checkTopicGroundability({ title: entry.title, kind: 'blog', businesses: snapshot.businesses, livePosts: snapshot.posts, consumedFingerprints: [...consumed] });
   if (!ground.ok) return { skip: ground.reason };
   if (!ground.fingerprint) return { skip: 'empty-fingerprint' };
-  const built = buildSourcePack({ topic: ground.editorialTitle, businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, now: run.deps.now(), reserve });
-  if (!built.ok) return { skip: built.reason };
+  let built;
   if (reserve) {
-    const ids = new Set(built.pack.sources.map((source) => source.id));
-    if (!reserveGuideEligibility({ businesses: snapshot.businesses.filter((record) => ids.has(record?.slug)) }).ok) return { skip: 'reserve-ineligible' };
+    const reserved = reservePack(run.deps.modules, { title: ground.editorialTitle, category: entry.category, snapshot, now: run.deps.now() });
+    if (reserved.skip) return { skip: reserved.skip };
+    built = reserved;
+  } else {
+    built = buildSourcePack({ topic: ground.editorialTitle, businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, now: run.deps.now() });
+    if (!built.ok) return { skip: built.reason };
   }
   return { title: ground.editorialTitle, fingerprint: ground.fingerprint, topicKey: `${reserve ? 'reserve:' : ''}${entry.key}`, pack: built.pack, reserve };
 }
@@ -442,16 +454,36 @@ function queueEntries(run, snapshot) {
 }
 
 const humanize = (category) => category.split('-').filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
+const categoryOf = (record) => (typeof record?.category === 'string' ? record.category.trim().toLowerCase() : '');
+
+// A reserve guide pack is built ONLY from its category's live records, so every
+// source is in-category (categories partition the directory, so two reserve
+// packs never share a record). The generator builds its sidecar from the full
+// directory (scripts/weekly-blog-agent.js), so the guide runs only when that
+// selection is the same category-pure pack; otherwise it is skipped before spend.
+export function reservePack(modules, { title, category, snapshot, now }) {
+  const records = (Array.isArray(snapshot.businesses) ? snapshot.businesses : []).filter((record) => categoryOf(record) === category);
+  const input = { topic: title, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, now, reserve: true };
+  const built = modules.buildSourcePack({ ...input, businesses: records });
+  if (!built.ok) return { skip: built.reason };
+  const ids = new Set(built.pack.sources.map((source) => source.id));
+  if (!modules.reserveGuideEligibility({ businesses: records.filter((record) => ids.has(record.slug)) }).ok) return { skip: 'reserve-ineligible' };
+  const full = modules.buildSourcePack({ ...input, businesses: snapshot.businesses });
+  if (!full.ok || full.pack.fingerprint !== built.pack.fingerprint) return { skip: 'reserve-generator-off-category', pack: built.pack };
+  return { ok: true, pack: built.pack };
+}
 
 // Sunday reserve intents are derived from the directory, not the queue: one guide
 // per business category whose live records alone pass reserveGuideEligibility
 // (>=3 records, >=6 verbatim facts). Pack sources must also pass it, and two
 // reserves in one run never share a record.
-function reserveEntries(run, snapshot) {
+function reserveEntries(run, snapshot, { retryKey = null } = {}) {
   const byCategory = new Map();
   for (const record of Array.isArray(snapshot.businesses) ? snapshot.businesses : []) {
-    const category = typeof record?.category === 'string' ? record.category.trim().toLowerCase() : '';
-    if (!/^[a-z0-9][a-z0-9-]{1,60}$/.test(category)) continue;
+    const category = categoryOf(record);
+    // Durable disjointness: a category already attempted as a reserve this week
+    // (DB attempt topic key reserve:dir:<category>) is never reused.
+    if (!/^[a-z0-9][a-z0-9-]{1,60}$/.test(category) || (run.reservedCategories.has(category) && retryKey !== `dir:${category}`)) continue;
     if (!byCategory.has(category)) byCategory.set(category, []);
     byCategory.get(category).push(record);
   }
@@ -459,7 +491,7 @@ function reserveEntries(run, snapshot) {
     .filter(([, records]) => records.length >= 3 && run.deps.modules.reserveGuideEligibility({ businesses: records }).ok)
     .sort(([a, left], [b, right]) => right.length - left.length || a.localeCompare(b))
     .slice(0, CADENCE.reserveCategories)
-    .map(([category]) => ({ key: `dir:${category}`, title: `${humanize(category)} in Liberty Village`, reserve: true }));
+    .map(([category]) => ({ key: `dir:${category}`, category, title: `${humanize(category)} in Liberty Village`, reserve: true }));
 }
 
 // Next distinct eligible intent, chosen BEFORE any generator spend.
@@ -568,7 +600,8 @@ function retryBlogAttempt(run, slotNumber, token, attempt) {
   const snapshot = run.deps.exportSnapshot();
   const reserve = attempt.topic_key.startsWith('reserve:');
   const baseKey = reserve ? attempt.topic_key.slice('reserve:'.length) : attempt.topic_key;
-  const entry = (reserve ? reserveEntries(run, snapshot) : queueEntries(run, snapshot)).find((item) => item.key === baseKey);
+  // A same-key retry may re-admit exactly its own reserve category.
+  const entry = (reserve ? reserveEntries(run, snapshot, { retryKey: baseKey }) : queueEntries(run, snapshot)).find((item) => item.key === baseKey);
   const consumed = new Set([...run.consumed].filter((fingerprint) => fingerprint !== attempt.intent_fingerprint));
   const candidate = entry ? blogCandidate(run, entry, snapshot, { reserve, consumed }) : { skip: 'intent-missing' };
   if (candidate.skip || candidate.pack.fingerprint !== attempt.source_pack_digest || candidate.fingerprint !== attempt.intent_fingerprint) {
@@ -605,7 +638,11 @@ function processContentSlot(run, slotNumber) {
       const snapshot = deps.exportSnapshot();
       const candidate = nextCandidate(run, snapshot, { normal: normalLeft > 0, reserve: run.policy.reserveAllowed && run.reserveLeft > 0 });
       if (!candidate) break;
-      if (candidate.reserve) { run.reserveLeft -= 1; for (const source of candidate.pack.sources) run.reserveSourceIds.add(source.id); } else normalLeft -= 1;
+      if (candidate.reserve) {
+        run.reserveLeft -= 1;
+        run.reservedCategories.add(candidate.topicKey.slice('reserve:dir:'.length));
+        for (const source of candidate.pack.sources) run.reserveSourceIds.add(source.id);
+      } else normalLeft -= 1;
       run.budget -= 1;
       const result = attemptBlogIntent(run, slotNumber, token, candidate, snapshot);
       if (result.state !== 'closed') return result;
@@ -639,6 +676,7 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
     consumed, weekFingerprints: new Set(content.map((attempt) => attempt.intent_fingerprint)),
     budget: CADENCE.generationsPerRun, reserveLeft: Math.max(0, CADENCE.reservePerWeek - content.filter((a) => String(a.topic_key).startsWith('reserve:')).length),
     reserveSourceIds: new Set(), skipped: new Set(),
+    reservedCategories: new Set(content.map((a) => String(a.topic_key)).filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length))),
   };
   deps.log('cadence-plan', { week, phase: run.policy.phase, reserveAllowed: run.policy.reserveAllowed });
   const live = new Set(count.content.map((item) => Number(item.submissionId)));

@@ -387,14 +387,32 @@ export function sourcePackFacts(pack) {
   return facts;
 }
 
+// The pack's own verified internal inventory (posts/services/topics as captured).
+const packInventory = (pack) => Object.fromEntries([['posts', 'postSlugs'], ['services', 'serviceSlugs'], ['topics', 'topicSlugs']]
+  .map(([name, field]) => [name, (Array.isArray(pack?.internal?.[field]) ? pack.internal[field] : []).map((slug) => ({ slug }))]));
+
+// Every internal link the draft actually uses must still resolve to a live record.
+function draftLinksNotLive(post, live) {
+  const known = (records) => new Set((Array.isArray(records) ? records : []).map((record) => record?.slug));
+  const targets = { blog: known(live.posts), best: known(live.services), guide: known(live.topics), directory: known(live.businesses) };
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const refs = [
+    ...list(post?.relatedPosts).map((slug) => ['blog', slug]), ...list(post?.relatedServices).map((slug) => ['best', slug]),
+    ...list(post?.relatedTopics).map((slug) => ['guide', slug]), ...list(post?.relatedBusinesses).map((slug) => ['directory', slug]),
+    ...[...String(post?.content ?? '').matchAll(/\]\(\/(blog|guide|best|directory)\/([^)/#?\s]+)/g)].map((match) => [match[1], match[2]]),
+  ];
+  return [...new Set(refs.filter(([kind, slug]) => !targets[kind].has(slug)).map(([kind, slug]) => `internal-link-not-live:/${kind}/${String(slug).slice(0, 120)}`))];
+}
+
 // Binds a blog draft to its trusted pack (businesses, topic, premises, internal
-// links, lint). The pack's own post inventory is used so a post published after
-// submit cannot unbind it. After submit the hero is a verified /media asset owned
-// by the image pipeline, so the gate passes checkImage:false.
+// links, lint) against the pack's OWN captured inventory, so unrelated live
+// posts/services/topics added later cannot unbind it; links the draft uses must
+// still be live. After submit the hero is a verified /media asset owned by the
+// image pipeline, so the gate passes checkImage:false.
 export function blogDraftBindingErrors(post, pack, { live = {}, imagePaths = [], now, checkImage = true } = {}) {
-  const posts = (Array.isArray(pack?.internal?.postSlugs) ? pack.internal.postSlugs : []).map((slug) => ({ slug }));
-  const { errors } = checkDraftAgainstPack(post, pack, { businesses: live.businesses ?? [], posts, services: live.services ?? [], topics: live.topics ?? [], imagePaths, now });
-  return errors.filter((error) => checkImage || error !== 'missing-or-invalid-hero-image').slice(0, 20).map((error) => `blog draft is not bound to its source pack: ${error}`);
+  const { errors } = checkDraftAgainstPack(post, pack, { businesses: live.businesses ?? [], ...packInventory(pack), imagePaths, now });
+  return [...errors.filter((error) => checkImage || error !== 'missing-or-invalid-hero-image'), ...draftLinksNotLive(post, live)]
+    .slice(0, 20).map((error) => `blog draft is not bound to its source pack: ${error}`);
 }
 
 function workspaceBlogImages(root) {
@@ -404,9 +422,10 @@ function workspaceBlogImages(root) {
 
 async function blogSourcePackContext({ db, opts, live, clock, idempotencyKey, draftItems, root }) {
   const pack = readSourcePack(opts.sourcePack);
+  // Business claims re-verify against live records; inventory is the pack's own
+  // (live link targets are checked by blogDraftBindingErrors).
   const checked = verifySourcePack(pack, {
-    businesses: live.businesses, posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [],
-    now: new Date(clock()), maxAgeMs: BLOG_SOURCE_PACK_MAX_AGE_MS,
+    businesses: live.businesses, ...packInventory(pack), now: new Date(clock()), maxAgeMs: BLOG_SOURCE_PACK_MAX_AGE_MS,
   });
   if (!checked.ok) throw new ValidationError(`blog source pack failed verification: ${checked.errors.slice(0, 5).join(', ')}`);
   // A cadence key names one durable attempt; its recorded digest must be this pack.
@@ -467,6 +486,10 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live
   }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+  // A cadence blog is always pack-bound; a pack-bound replay must still carry its full stored pack.
+  const cadenceBlog = kind === 'blog' && String(idempotencyKey).startsWith('cadence:');
+  if (cadenceBlog && !opts.sourcePack) throw new ValidationError('cadence blog submit requires --source-pack');
+  if (prior && opts.sourcePack && !prior.context?.sourcePack?.pack) throw new ValidationError('blog replay lacks its stored source pack');
   // The stored context (including verified pack facts) is immutable on replay.
   if (prior && opts.sourcePack) return prior.context;
   const now = prior?.context?.now ?? new Date(clock()).toISOString();

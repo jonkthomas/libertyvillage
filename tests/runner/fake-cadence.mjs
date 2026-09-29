@@ -68,7 +68,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     repo, stateRoot, now, queue, posts, businesses, snapshotId: 'a'.repeat(40),
     slots: new Map(), attempts: [], submissions: new Map(), nextId: 100, live: new Set(),
     calls: [], logs: [], generated: [], sources: [],
-    heldByOther: new Set(), gatePlan: [], deployCode: 0, submitPlan: [], generatorPlan: [], deadlineCalls: [], alerts: new Map(), deliverCalls: 0, deliverFails: false, alertsEnabled: true, smokeAt: null,
+    heldByOther: new Set(), gatePlan: [], deployCode: 0, submitPlan: [], generatorPlan: [], deadlineCalls: [], alerts: new Map(), deliverCalls: 0, deliverFails: false, deadlineFails: false, alertsEnabled: true, smokeAt: null,
     cleanup() { fs.rmSync(repo, { recursive: true, force: true }); fs.rmSync(stateRoot, { recursive: true, force: true }); },
   };
   const slotKey = (week, lane, n) => lane === 'roundup' ? `${week}|roundup` : `${week}|${lane}|${n}`;
@@ -159,6 +159,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       case 'consumed': return [...new Set(world.attempts.filter((a) => a.target === target && ['smoked', 'consumed'].includes(a.outcome)).map((a) => a.intent_fingerprint))].sort();
       case 'deadline': {
         world.deadlineCalls.push({ week, now: f.now });
+        if (world.deadlineFails) throw cliError('cli-state', 1);
         if (new Date(f.now) < new Date(Date.parse(`${week}T00:00:00Z`) + 7 * 86400000)) return { due: false, alerts: [] };
         const counts = count(week);
         const alerts = [];

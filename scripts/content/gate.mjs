@@ -157,11 +157,17 @@ export function blogPackEvidence(context) {
 }
 
 // Every round and every repair must stay bound to the verified pack stored at submit.
-function packBindingErrors(kind, context, items, live) {
-  const pack = kind === 'blog' ? context?.sourcePack?.pack : null;
-  if (!pack) return [];
-  return items.filter((item) => item.dataset === 'posts')
-    .flatMap((item) => blogDraftBindingErrors(item.payload, pack, { live, now: new Date(), checkImage: false }).map((error) => `data/posts.json: ${item.key}: ${error}`));
+// Fail closed: a blog that claims a pack (sourcePack facts or a cadence key) but has
+// no stored full pack cannot be checked, so it is refused rather than skipped.
+function packBindingErrors(kind, context, items, live, idempotencyKey) {
+  if (kind !== 'blog') return [];
+  const posts = items.filter((item) => item.dataset === 'posts');
+  const pack = context?.sourcePack?.pack;
+  if (!pack) {
+    if (!context?.sourcePack && !String(idempotencyKey ?? '').startsWith('cadence:')) return [];
+    return posts.map((item) => `data/posts.json: ${item.key}: blog draft is not bound to its source pack: missing-stored-pack`);
+  }
+  return posts.flatMap((item) => blogDraftBindingErrors(item.payload, pack, { live, now: new Date(), checkImage: false }).map((error) => `data/posts.json: ${item.key}: ${error}`));
 }
 
 function withPackReferences(references, evidence, businesses) {
@@ -365,7 +371,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         // g1 deterministic
         const policy = checkKindPolicy({ kind, items: candidates, ctx: context, live: live.live, deps: policyDeps({ kind, context: { root: live.root }, checkout }) });
         const imageErrors = await recheckImages({ db, kind, items: candidates, checkout, sourceRef: sourceRefFor(submission.target) });
-        const errors = [...policy.errors, ...imageErrors, ...packBindingErrors(kind, context, candidates, live.live)];
+        const errors = [...policy.errors, ...imageErrors, ...packBindingErrors(kind, context, candidates, live.live, submission.idempotency_key)];
         // g2 document
         const bases = await basePayloads(db, state.items);
         let doc;
@@ -455,7 +461,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
       const validate = (plan) => {
         const check = validateRows(plan);
         if (!check.ok) return check;
-        const unbound = packBindingErrors(kind, context, check.repaired, live.live);
+        const unbound = packBindingErrors(kind, context, check.repaired, live.live, submission.idempotency_key);
         return unbound.length ? { ok: false, errors: unbound, repaired: [] } : check;
       };
       // The row fixer (review-agent.mjs, outside this module) has no evidence

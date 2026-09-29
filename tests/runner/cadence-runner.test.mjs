@@ -5,8 +5,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CADENCE, dayPolicy, runWeeklyBlog } from '../../ops/exedev-runner/runner.mjs';
-import { BUSINESSES, FRI, SUN, TOPICS, WED, attemptsOf, createWorld, submitCalls } from './fake-cadence.mjs';
+import { CADENCE, dayPolicy, reservePack, runWeeklyBlog } from '../../ops/exedev-runner/runner.mjs';
+import { BUSINESSES, FRI, SUN, TOPICS, WED, attemptsOf, createWorld, modules, submitCalls } from './fake-cadence.mjs';
 
 const run = (world, request = {}) => runWeeklyBlog({ target: 'staging', slot: '202609301100-testslot', request, deps: world.deps });
 const withWorld = (t, options) => { const world = createWorld(options); t.after(() => world.cleanup()); return world; };
@@ -237,7 +237,7 @@ test('F6 consumed exclusion is all-time via cadence consumed, not a lookback', (
   run(world);
   assert.deepEqual(world.generated.map((entry) => entry.title), ['Coffee Shops', 'Fitness Classes'], '30-week-old consumed intent still excluded');
   assert.equal(world.calls.filter((args) => args[1] === 'consumed').length, 1);
-  assert.equal(world.calls.some((args) => args[1] === 'status' && args[3] !== '2026-09-28'), false, 'no per-week lookback');
+  assert.equal(world.calls.some((args) => args.includes('2026-03-02')), false, 'the consumed week is never queried: no per-week lookback');
   assert.equal(fs.existsSync(path.join(world.stateRoot, 'topic-state.json')), false);
 });
 
@@ -247,4 +247,63 @@ test('Sunday with the goal already met is a no-op', (t) => {
   assert.equal(run(world).cadenceMet, true);
   assert.deepEqual(world.deadlineCalls.map((call) => call.week), ['2026-09-21'], 'only the prior week is evaluated');
   assert.equal(world.generated.length, 0);
+});
+
+const REAL_BUSINESSES = JSON.parse(fs.readFileSync(new URL('../../data/businesses.json', import.meta.url), 'utf8'));
+const categoryOf = (slug) => REAL_BUSINESSES.find((record) => record.slug === slug)?.category;
+
+test('R3 a directory reserve pack is built only from its category (real data): Bars stays bar-only and is skipped before spend', () => {
+  const snapshot = { businesses: REAL_BUSINESSES, posts: [], services: [], topics: [] };
+  const bars = reservePack(modules, { title: 'Bars in Liberty Village', category: 'bars', snapshot, now: SUN });
+  assert.ok(bars.pack.sources.length >= 3);
+  assert.ok(bars.pack.sources.every((source) => categoryOf(source.id) === 'bars'), 'no off-category source in the bars pack');
+  assert.equal(bars.skip, 'reserve-generator-off-category', 'the generator\'s full-directory pack would add off-category bars, so no spend');
+  const dentists = reservePack(modules, { title: 'Dentists in Liberty Village', category: 'dentists', snapshot, now: SUN });
+  assert.equal(dentists.ok, true);
+  assert.ok(dentists.pack.sources.every((source) => categoryOf(source.id) === 'dentists'));
+});
+
+test('R3 Sunday reserves on real data are category-pure and disjoint', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [], businesses: REAL_BUSINESSES });
+  run(world);
+  const reserves = attemptsOf(world).filter((a) => a.topic_key.startsWith('reserve:dir:'));
+  assert.equal(reserves.length, CADENCE.reservePerWeek);
+  const packs = submitCalls(world).map((args) => JSON.parse(fs.readFileSync(args[args.indexOf('--source-pack') + 1], 'utf8')));
+  packs.forEach((pack, index) => {
+    const category = reserves[index].topic_key.slice('reserve:dir:'.length);
+    assert.ok(pack.sources.every((source) => categoryOf(source.id) === category), `${category} pack is category-pure`);
+  });
+  assert.equal(reserves.some((a) => a.topic_key === 'reserve:dir:bars'), false);
+});
+
+test('R3 a restart after one Sunday reserve never reuses its category (durable, from DB attempts)', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [] });
+  // An earlier run this week already spent the bakery reserve (older title => different fingerprint).
+  world.attempts.push({ target: 'staging', week_start_utc: '2026-09-28', lane: 'content', slot_number: 1, ordinal: 1, intent_fingerprint: 'legacy bakery guide', topic_key: 'reserve:dir:bakery', idempotency_key: 'cadence:earlier', source_pack_digest: 'x', submission_id: null, outcome: 'rejected' });
+  world.slots.set('2026-09-28|content|1', { week_start_utc: '2026-09-28', lane: 'content', slot_number: 1, state: 'ready', attempt_ordinal: 1, token: null, owner: null, submission_id: null, roundup_slug: null });
+  assert.throws(() => run(world), /weekly content missed/, 'only one reserve left this week');
+  assert.deepEqual(world.generated.map((entry) => entry.title), ['Salon in Liberty Village']);
+  assert.deepEqual(attemptsOf(world).map((a) => a.topic_key), ['reserve:dir:bakery', 'reserve:dir:salon']);
+});
+
+test('R2 failed deadline evaluations are caught up later (active weeks only); pre-activation weeks never alert', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
+  const missed = (week) => [...world.alerts.values()].filter((alert) => alert.week === week).map((alert) => alert.kind);
+  run(world);  // week 2026-09-28: cadence active (slots + attempts), no roundup
+  world.now = new Date('2026-10-07T11:00:00.000Z');
+  world.deadlineFails = true;
+  for (let i = 0; i < 2; i++) assert.throws(() => run(world), /cadence content deficit/, 'deadline failure is non-fatal; the run continues');
+  assert.deepEqual(missed('2026-09-28'), []);
+  assert.ok(world.logs.filter((entry) => entry.event === 'cadence-deadline-failed').length >= 2);
+  world.deadlineFails = false;
+  world.now = new Date('2026-10-21T11:00:00.000Z');
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.deepEqual(missed('2026-09-28'), ['WEEKLY_NEWS_MISSED'], 'older active week caught up two weeks later');
+  // 2026-09-14 was only ever an older (back>=2) candidate with no cadence rows.
+  assert.deepEqual(missed('2026-09-14'), [], 'pre-activation week never alerts');
+  assert.equal(world.deadlineCalls.some((call) => call.week === '2026-09-14'), false, 'and is never deadline-evaluated');
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(missed('2026-09-28').length, 1, 'recorded once');
+  const evaluated = world.deadlineCalls.slice(-3).map((call) => call.week);
+  assert.deepEqual(evaluated, [...evaluated].sort(), 'oldest first');
 });
