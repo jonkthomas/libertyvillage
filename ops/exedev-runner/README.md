@@ -57,9 +57,9 @@ npm ci --ignore-scripts
 node scripts/content/cli.mjs export --root . --target staging      # read-only export of live staging content
 shasum -a 256 data/posts.json > "$DRY/posts.sha256"
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-env -i PATH="$PATH" HOME="$HOME" SERPER_API_KEY="$SERPER_API_KEY" APIFY_API_TOKEN="$APIFY_API_TOKEN" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+env -i PATH="$PATH" HOME="$HOME" SERPER_API_KEY="$SERPER_API_KEY" APIFY_API_TOKEN="$APIFY_API_TOKEN" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" ROUNDUP_REASON_PROVIDER=anthropic ROUNDUP_REVIEW_PROVIDER=deepseek \
   node scripts/news-pilot/roundup-v2-run.mjs --collect --out "$DRY/run" --now "$NOW"
-env -i PATH="$PATH" HOME="$HOME" SERPER_API_KEY="$SERPER_API_KEY" APIFY_API_TOKEN="$APIFY_API_TOKEN" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+env -i PATH="$PATH" HOME="$HOME" SERPER_API_KEY="$SERPER_API_KEY" APIFY_API_TOKEN="$APIFY_API_TOKEN" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" ROUNDUP_REASON_PROVIDER=anthropic ROUNDUP_REVIEW_PROVIDER=deepseek \
   node scripts/news-pilot/roundup-v2-run.mjs --run "$DRY/run" --out "$DRY/out" --root . --now "$NOW" --dry-run
 shasum -a 256 -c "$DRY/posts.sha256"           # must print OK
 ```
