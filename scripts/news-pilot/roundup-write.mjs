@@ -30,6 +30,24 @@ export function checkRoundupDraft(draft, units) {
   return errors;
 }
 
+export async function selectRoundupReviewer({ author, env = process.env, callModel = generateDraftWithModel,
+  deadline = Date.now() + 600_000, resolve = resolveModelProvider } = {}) {
+  const candidates = [...new Set([env.ROUNDUP_REVIEW_PROVIDER, 'google-gemini', 'deepseek', 'anthropic'].filter(Boolean))];
+  for (const id of candidates) {
+    if (id === author.provider?.id) continue;
+    const selected = await resolve(env, { prefer: id });
+    if (!selected.ok || selected.provider.id !== id) continue;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    try {
+      const probe = await callModel({ resolved: selected, system: 'Return only valid JSON with quoted keys: {"ok":true}.',
+        userText: '{}', maxTokens: 256, timeoutMs: Math.min(20_000, remaining) });
+      if (probe.ok && parseModelJson(probe.text).value?.ok === true) return selected;
+    } catch { /* failed probe: try another distinct provider, never reuse it */ }
+  }
+  throw new Error('roundup_independent_reviewer_unavailable');
+}
+
 async function jsonCall(callModel, resolved, system, user, maxTokens = 7000) {
   const result = await callModel({ resolved, system, userText: JSON.stringify(user), maxTokens, timeoutMs: 90_000 });
   if (!result?.ok) throw new Error(`roundup_model_failed:${result?.error || 'unknown'}`);
@@ -45,10 +63,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   if (!units.length) throw new Error('roundup_no_units');
   const author = resolved || await resolveModelProvider(env);
   if (!author.ok) throw new Error(`roundup_writer_unavailable:${author.error}`);
-  // The retired Gemini 2.0 endpoint returns 404; prefer the available
-  // independent DeepSeek reviewer and refuse silent same-provider fallback.
-  const critic = reviewer || await resolveModelProvider(env, { prefer: env.ROUNDUP_REVIEW_PROVIDER ||
-    (author.provider?.id === 'deepseek' ? 'anthropic' : 'deepseek') });
+  const critic = reviewer || await selectRoundupReviewer({ author, env, callModel, deadline });
   if (!critic.ok || critic.provider.id === author.provider.id) throw new Error('roundup_independent_reviewer_unavailable');
   const material = units.map(compact);
   const cappedCall = (args) => {
@@ -66,7 +81,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
   }
   const fact = await jsonCall(cappedCall, critic.ok ? critic : author,
-    'Independent fact reviewer. Return ONLY {findings:[{unitId,sentence,problem,fix}]} with problem unsupported|wrong-date|wrong-place|overclaim|missing-attribution. Compare every statement with its own quoted record. No new sources.',
+    'Independent fact reviewer. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","sentence":"...","problem":"unsupported|wrong-date|wrong-place|overclaim|missing-attribution","fix":"..."}]}. An empty array is valid. Compare each statement against verified unit.when, unit.what, unit.subject and its evidence; feed dates and location are verified typed facts even if not literal quote text. No new sources.',
     { draft, units: material });
   if (!Array.isArray(fact?.findings)) throw new Error('roundup_fact_review_invalid');
   findings.push({ round: 1, findings: fact.findings });
@@ -74,7 +89,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   errors = checkRoundupDraft(draft, units);
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
   const risk = await jsonCall(cappedCall, critic.ok ? critic : author,
-    'Independent locality, private-person, impact and tone reviewer. Assess named people in EACH quoted record and draft; a private individual includes a resident’s home, finances, relationships, health, victimhood or opinions. Return ONLY {findings:[{unitId,person,problem,fix}]}; problem private-individual|wrong-place|unsupported-impact|wrong-date|tone. Flag crime/election and ungrounded impact too.',
+    'Independent locality, private-person, impact and tone reviewer. Assess named people in EACH quoted record and draft; a private individual includes a resident’s home, finances, relationships, health, victimhood or opinions. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","person":"...","problem":"private-individual|wrong-place|unsupported-impact|wrong-date|tone","fix":"..."}]}. An empty array is valid. Flag crime/election and ungrounded impact too.',
     { draft, units: material });
   if (!Array.isArray(risk?.findings)) throw new Error('roundup_risk_review_invalid');
   findings.push({ round: 2, findings: risk.findings });

@@ -86,8 +86,8 @@ export const MODEL_PROVIDERS = Object.freeze([
     id: 'google-gemini',
     envVars: ['GOOGLE_API_KEY'],
     api: 'google-generate-content',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-    model: 'gemini-2.0-flash',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
+    model: 'gemini-3.6-flash',
     headers: {},
   },
   {

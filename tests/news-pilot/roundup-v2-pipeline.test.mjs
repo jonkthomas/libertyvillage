@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { validateRoundupForm, reasonRoundupSignals } from '../../scripts/news-pilot/roundup-reason.mjs';
-import { checkRoundupDraft, writeRoundup } from '../../scripts/news-pilot/roundup-write.mjs';
+import { checkRoundupDraft, selectRoundupReviewer, writeRoundup } from '../../scripts/news-pilot/roundup-write.mjs';
+import { MODEL_PROVIDERS } from '../../scripts/news-pilot/draft-model.mjs';
 import { parseRoundupV2Args, runRoundupV2 } from '../../scripts/news-pilot/roundup-v2-run.mjs';
 
 const signal = { signalId: 's1', sourceId: 'rv2-bmo-field', url: 'https://www.bmofield.com/events',
@@ -202,7 +203,8 @@ test('writer uses a distinct available reviewer and never silently self-reviews'
   const providers = [];
   const env = { ANTHROPIC_API_KEY: 'test-only', DEEPSEEK_API_KEY: 'test-only' };
   await writeRoundup({ units: [unit] }, { env,
-    resolved: { ok: true, provider: { id: 'anthropic' } }, callModel: async ({ resolved }) => {
+    resolved: { ok: true, provider: { id: 'anthropic' } },
+    reviewer: { ok: true, provider: { id: 'deepseek' } }, callModel: async ({ resolved }) => {
     providers.push(resolved.provider.id);
     return { ok: true, text: JSON.stringify(responses.shift()) };
   } });
@@ -212,6 +214,23 @@ test('writer uses a distinct available reviewer and never silently self-reviews'
     reviewer: { ok: true, provider: { id: 'anthropic' } },
     callModel: async () => { throw new Error('same-provider reviewer must not run'); },
   }), /roundup_independent_reviewer_unavailable/);
+});
+
+test('reviewer selection probes a current model and never uses a failed provider', async () => {
+  const gemini = MODEL_PROVIDERS.find((p) => p.id === 'google-gemini');
+  assert.equal(gemini.model, 'gemini-3.6-flash');
+  assert.ok(gemini.baseUrl.includes('/gemini-3.6-flash:generateContent'));
+  const attempted = [];
+  const chosen = await selectRoundupReviewer({ author: { provider: { id: 'anthropic' } }, env: {},
+    resolve: async (_env, { prefer }) => ({ ok: true, provider: { id: prefer } }),
+    callModel: async ({ resolved }) => {
+      attempted.push(resolved.provider.id);
+      return resolved.provider.id === 'google-gemini' ? { ok: false, error: 'http_404' }
+        : { ok: true, text: '{"ok":true}' };
+    },
+  });
+  assert.deepEqual(attempted, ['google-gemini', 'deepseek']);
+  assert.equal(chosen.provider.id, 'deepseek', 'failed Gemini cannot review even when its key is present');
 });
 
 test('writer post-check refuses unsupported impact and in/near mismatch', () => {

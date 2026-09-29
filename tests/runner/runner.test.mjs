@@ -304,6 +304,25 @@ test('APIFY_API_TOKEN reaches only sourceEnv(weekly-roundup): never trustedEnv, 
   assert.doesNotMatch(JSON.stringify({ trusted: trustedEnv(env), generator: generatorEnv(env) }), /apify-secret-token/);
 });
 
+test('staging and production source generators receive configured model providers without leaking into trusted actions', () => {
+  for (const target of ['staging', 'production']) {
+    const env = { PATH: '/bin', HOME: '/home/runner', CONTENT_TARGET: target,
+      ANTHROPIC_API_KEY: 'anthropic-test', DEEPSEEK_API_KEY: 'deepseek-test', GOOGLE_API_KEY: 'google-test',
+      ROUNDUP_REASON_PROVIDER: 'deepseek', ROUNDUP_REVIEW_PROVIDER: 'google-gemini', APIFY_API_TOKEN: 'apify-test' };
+    for (const job of ['weekly-roundup', 'news']) {
+      const source = sourceEnv(env, job);
+      assert.equal(source.DEEPSEEK_API_KEY, 'deepseek-test', `${target}/${job}`);
+      assert.equal(source.GOOGLE_API_KEY, 'google-test', `${target}/${job}`);
+    }
+    const roundup = sourceEnv(env, 'weekly-roundup');
+    assert.equal(roundup.ROUNDUP_REASON_PROVIDER, 'deepseek');
+    assert.equal(roundup.ROUNDUP_REVIEW_PROVIDER, 'google-gemini');
+    assert.equal(sourceEnv(env, 'news').APIFY_API_TOKEN, undefined);
+    assert.equal(trustedEnv(env).DEEPSEEK_API_KEY, undefined);
+    assert.equal(generatorEnv(env).GOOGLE_API_KEY, undefined);
+  }
+});
+
 test('a structured-v2 hold notice names the week and bounded counts only', async () => {
   let body;
   const sent = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-roundup', target: 'staging', slot: '202609301100-abcd1234',
