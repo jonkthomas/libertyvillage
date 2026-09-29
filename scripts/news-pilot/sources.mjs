@@ -6,6 +6,8 @@
  * and a short note so the next run does not re-guess dead URLs.
  */
 
+import fs from 'node:fs';
+
 /** @typedef {'official' | 'reputable' | 'lead'} SourceTier */
 /** @typedef {'rss' | 'json' | 'serper' | 'serpapi'} SourceType */
 
@@ -213,4 +215,235 @@ export function listEnabledSources({ maxSources } = {}) {
     return enabled.slice(0, maxSources);
   }
   return enabled;
+}
+
+// ---------------------------------------------------------------------------
+// Weekly roundup v2 registry (docs/specs/weekly-roundup-v2.md §4). Separate from
+// the daily-news SOURCES above, which are unchanged. Tiers here are the only
+// tier authority for roundup evidence: Serper, queries and model output never
+// assign or raise one (§6.7). Changed only by reviewed PR.
+// ---------------------------------------------------------------------------
+
+/** @typedef {'venue'|'road-feed'|'project'|'org'|'transit-feed'|'news-discovery'|'ig'} RoundupIdentityKind */
+/** @typedef {'jsonld-event'|'html-listing'|'json-feed'|'html-page'|'serper-news'|'ig-post'} RoundupParse */
+
+/**
+ * @typedef {object} RoundupSource
+ * @property {string} id
+ * @property {string} label
+ * @property {RoundupIdentityKind} identityKind
+ * @property {string|null} identityId
+ * @property {string} url
+ * @property {RoundupParse} parse
+ * @property {{row: string, title?: string, date?: string, time?: string, building?: string}|null} [recordSelector]
+ * @property {'official'|'primary'|null} tier
+ * @property {'core'|'adjacent'|null} [locality]
+ * @property {string[]} officialDomains
+ * @property {string[]} [venueAliases]
+ * @property {number} minIntervalMs
+ * @property {boolean} enabled
+ * @property {boolean} [feed]
+ * @property {boolean} [listing]
+ * @property {boolean} [snapshot]
+ * @property {string} note
+ */
+
+const PROBE_2026_09_29 = 'Re-probed 2026-09-29 by the roundup collector builder';
+
+/** Fixed Serper `/news` query set (§4.2). Recall only; admission is §6. */
+export const ROUNDUP_SERPER_QUERIES = Object.freeze([
+  '"Liberty Village" Toronto',
+  '"Exhibition Place" Toronto',
+  '"BMO Field"',
+  '"Coca-Cola Coliseum"',
+  '"Enercare Centre"',
+  '"Lamport Stadium"',
+  '"Ontario Line" Exhibition',
+  '"Hanna Avenue" OR "Atlantic Avenue" OR "Jefferson Avenue" OR "East Liberty Street" Toronto',
+]);
+
+/** TTC routes watched for LV (§4.1). Stop allowlists live in roundup-geo.mjs. */
+export const ROUNDUP_TTC_ROUTES = Object.freeze(['504', '29', '509', '511', '63']);
+
+/**
+ * Road-restriction recall filter: a feed record becomes a signal only when its
+ * `road`, `fromRoad`, `toRoad` or `atRoad` names one of these streets. This is a
+ * lead filter to keep the reasoner batch bounded; locality is decided only by
+ * the generated segment table in roundup-geo.mjs (§6.2).
+ */
+export const ROUNDUP_ROAD_LEAD_STREETS = Object.freeze([
+  'King St W', 'Strachan Ave', 'Dufferin St', 'Lake Shore Blvd W', 'Hanna Ave', 'Atlantic Ave',
+  'Liberty St', 'East Liberty St', 'Jefferson Ave', 'Mowat Ave', 'Fraser Ave', 'Pirandello St',
+  'Snooker St', 'Lynn Williams St', 'Western Battery Rd', 'Sudbury St', 'Shaw St', 'Joe Shuster Way',
+  "Princes' Blvd", 'Princes Blvd', 'Manitoba Dr', 'Nunavut Rd', 'Saskatchewan Rd', 'British Columbia Rd',
+  'Ontario Dr', 'Remembrance Dr', 'Newfoundland Rd', 'Canada Blvd', 'Stadium Rd', 'Exhibition Pl',
+]);
+
+/** Watched City LV project pages (§4.1 rv2-city-projects). */
+export const ROUNDUP_CITY_PROJECT_PAGES = Object.freeze([
+  { id: '34-hanna-park', label: 'New park at 34 Hanna Avenue',
+    url: 'https://www.toronto.ca/city-government/planning-development/construction-new-facilities/park-facility-projects/new-park-at-34-hanna-avenue/' },
+  { id: 'liberty-st', label: 'Liberty Street pedestrian improvements',
+    url: 'https://www.toronto.ca/services-payments/streets-parking-transportation/cycling-in-toronto/cycling-pedestrian-public-consultations/liberty-street-pedestrian-improvements/' },
+  { id: 'liberty-for-all', label: 'Liberty For All',
+    url: 'https://www.toronto.ca/city-government/planning-development/planning-studies-initiatives/liberty-for-all/' },
+]);
+
+/** Syndication partner domains (§6.4). */
+export const SYNDICATION_PARTNERS = Object.freeze([
+  'toronto.com', 'durhamregion.com', 'insidehalton.com', 'mississauga.com', 'hamiltonnews.com',
+  'thespec.com', 'therecord.com', 'niagarafallsreview.ca', 'stcatharinesstandard.ca', 'wellandtribune.ca',
+  'yorkregion.com', 'bramptonguardian.com', 'guelphmercury.com', 'cambridgetimes.ca', 'newhamburgindependent.ca',
+  'thepeterboroughexaminer.com', 'wellingtonadvertiser.com', 'kawarthalakesthisweek.com', 'northumberlandnews.com',
+  'insidebelleville.com', 'barrietoday.com',
+]);
+
+const STATIC_PUBLISHER_TIERS = Object.freeze({
+  // official: the organisation's own domain for its own events, services or statements.
+  'toronto.ca': 'official', 'ttc.ca': 'official', 'metrolinx.com': 'official', 'explace.on.ca': 'official',
+  'libertyvillagebia.com': 'official', 'bmofield.com': 'official', 'coca-colacoliseum.com': 'official',
+  'rbcamphitheatre.com': 'official', 'canadasoccer.com': 'official', 'torontofc.ca': 'official',
+  'argonauts.ca': 'official', 'thepwhl.com': 'official',
+  // reputable: carried from the daily-news SOURCES tiers.
+  'cbc.ca': 'reputable', 'globalnews.ca': 'reputable', 'thestar.com': 'reputable',
+});
+
+/**
+ * Committed Instagram watch list (§4.4), read from data/ig-watch.json. The file is
+ * owned and validated by the geography slice; a missing or unreadable file means
+ * no Instagram sources (fail closed), never an invented list.
+ * @returns {object[]}
+ */
+export function loadIgWatchList(file = new URL('./data/ig-watch.json', import.meta.url)) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const entries = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.entries) ? parsed.entries : [];
+    return entries.filter((e) => e && typeof e.handle === 'string' && /^[a-z0-9._]{1,30}$/i.test(e.handle));
+  } catch {
+    return [];
+  }
+}
+
+export const ROUNDUP_IG_WATCH = Object.freeze(loadIgWatchList().map((e) => Object.freeze({ ...e })));
+
+/** Registrable domain (eTLD+1 with the common two-part suffixes). */
+export function registrableDomain(urlOrHost) {
+  let host = String(urlOrHost || '').toLowerCase();
+  try {
+    if (/^[a-z]+:\/\//.test(host)) host = new URL(host).hostname;
+  } catch {
+    return '';
+  }
+  host = host.replace(/\.$/, '');
+  const labels = host.split('.').filter(Boolean);
+  if (labels.length <= 2) return labels.join('.');
+  const twoPart = /^(?:co|com|org|gov|ac|on|net)\.(?:uk|au|nz|jp|ca)$/.test(labels.slice(-2).join('.'));
+  return labels.slice(-(twoPart ? 3 : 2)).join('.');
+}
+
+function ownDomainOf(entry) {
+  const raw = entry?.ownDomain || entry?.verificationUrl || '';
+  return raw ? registrableDomain(/^[a-z]+:\/\//i.test(raw) ? raw : 'https://' + raw) : '';
+}
+
+/**
+ * Publisher tiers by registrable domain (§4.1). `primary` comes only from the
+ * committed watch list's ownDomain; it never overrides an official entry.
+ */
+export const ROUNDUP_PUBLISHER_TIERS = Object.freeze({
+  ...Object.fromEntries(ROUNDUP_IG_WATCH.map(ownDomainOf).filter(Boolean).map((d) => [d, 'primary'])),
+  ...STATIC_PUBLISHER_TIERS,
+});
+
+/** Tier for a discovered page: registry map or `lead`. */
+export function roundupPublisherTier(url, tiers = ROUNDUP_PUBLISHER_TIERS) {
+  return tiers[registrableDomain(url)] || 'lead';
+}
+
+const LISTING_BASE = Object.freeze({ tier: 'official', minIntervalMs: 2_000, enabled: true, listing: true, snapshot: true });
+
+/** @type {ReadonlyArray<RoundupSource>} */
+const STATIC_ROUNDUP_SOURCES = [
+  {
+    id: 'rv2-serper-news', label: 'Google News via Serper', identityKind: 'news-discovery', identityId: null,
+    url: 'https://google.serper.dev/news', parse: 'serper-news', tier: null, locality: null, officialDomains: [],
+    minIntervalMs: 2_000, enabled: true, maxQueries: 12,
+    note: 'Leads only; the fetched page tier comes from ROUNDUP_PUBLISHER_TIERS. Needs SERPER_API_KEY.',
+  },
+  {
+    ...LISTING_BASE, id: 'rv2-bmo-field', label: 'BMO Field', identityKind: 'venue', identityId: 'venue:bmo-field',
+    url: 'https://www.bmofield.com/events', parse: 'html-listing', locality: 'adjacent',
+    recordSelector: { row: '.eventItem', title: '.title', date: '.date', time: '.start' },
+    officialDomains: ['bmofield.com'], venueAliases: ['BMO Field'],
+    note: PROBE_2026_09_29 + ': HTTP 200, robots `User-agent: *` with no rules, rows `.eventItem` with `.date` "Oct 03" (yearless) + `.start` "3:00 PM".',
+  },
+  {
+    ...LISTING_BASE, id: 'rv2-coliseum', label: 'Coca-Cola Coliseum', identityKind: 'venue', identityId: 'venue:coca-cola-coliseum',
+    url: 'https://www.coca-colacoliseum.com/events', parse: 'html-listing', locality: 'adjacent',
+    recordSelector: { row: '.m-venueframework-eventslist__item', title: '.m-eventItem__title', date: '.m-eventItem__date', time: '.m-eventItem__start' },
+    officialDomains: ['coca-colacoliseum.com'], venueAliases: ['Coca-Cola Coliseum'],
+    note: PROBE_2026_09_29 + ': HTTP 200, robots no rules, rows carry "Saturday | Oct 3, 2026" (year-bearing) + start time.',
+  },
+  {
+    ...LISTING_BASE, id: 'rv2-explace', label: 'Exhibition Place', identityKind: 'venue', identityId: 'venue:exhibition-place',
+    url: 'https://www.explace.on.ca/event/', parse: 'html-listing', locality: 'adjacent',
+    recordSelector: { row: '.card-events', title: '.card-events__title', date: '.card-events__bottom-text span', building: '.card-events__bottom-text span:nth(1)' },
+    officialDomains: ['explace.on.ca'],
+    venueAliases: ['Exhibition Place', 'Enercare Centre', 'Beanfield Centre', 'Queen Elizabeth Building'],
+    excludedBuildings: ['Hotel X'],
+    note: PROBE_2026_09_29 + ': /events/ 301 → /event/ (registered at the final URL), HTTP 200, robots disallows only wp-admin/plugins/readme; rows "Oct 1 - Oct 2, 2026" + building.',
+  },
+  {
+    ...LISTING_BASE, listing: false, id: 'rv2-rbc-amphitheatre', label: 'RBC Amphitheatre', identityKind: 'venue',
+    identityId: 'venue:rbc-amphitheatre', url: 'https://www.rbcamphitheatre.com/shows', parse: 'jsonld-event', locality: 'adjacent',
+    officialDomains: ['rbcamphitheatre.com'], venueAliases: ['RBC Amphitheatre', 'Budweiser Stage'],
+    note: PROBE_2026_09_29 + ': HTTP 200, robots no rules, JSON-LD MusicEvent with offset startDate and location.name "RBC Amphitheatre".',
+  },
+  {
+    id: 'rv2-road-restrictions', label: 'City of Toronto road restrictions v3', identityKind: 'road-feed', identityId: null,
+    url: 'https://secure.toronto.ca/opendata/cart/road_restrictions/v3?format=json', parse: 'json-feed', tier: 'official',
+    locality: null, officialDomains: ['toronto.ca'], minIntervalMs: 2_000, enabled: true, feed: true, snapshot: true,
+    note: PROBE_2026_09_29 + ': HTTP 200 JSON {Closure:[…]} (~3.4 MB, 2,308 active records), robots.txt 403 (RFC 9309 unavailable → no rules); epoch-ms startTime/endTime.',
+  },
+  {
+    id: 'rv2-lv-bia-events', label: 'Liberty Village BIA events', identityKind: 'org', identityId: 'org:lv-bia',
+    url: 'https://www.libertyvillagebia.com/events', parse: 'html-page', tier: 'official', locality: null,
+    officialDomains: ['libertyvillagebia.com'], minIntervalMs: 2_000, enabled: true, snapshot: true,
+    note: PROBE_2026_09_29 + ': HTTP 200, robots `*` disallows /config /search /account /api /static only; one heading per event section.',
+  },
+  ...ROUNDUP_CITY_PROJECT_PAGES.map((p) => ({
+    id: 'rv2-city-project-' + p.id, label: p.label, identityKind: 'project', identityId: 'project:' + p.id,
+    url: p.url, parse: 'html-page', tier: 'official', locality: null, officialDomains: ['toronto.ca'],
+    minIntervalMs: 2_000, enabled: true, snapshot: true,
+    note: PROBE_2026_09_29 + ': HTTP 200, www.toronto.ca robots `*` does not disallow this path; dated statements are year-bearing.',
+  })),
+  {
+    id: 'rv2-ttc-alerts', label: 'TTC live alerts', identityKind: 'transit-feed', identityId: null,
+    url: 'https://alerts.ttc.ca/api/alerts/live-alerts', parse: 'json-feed', tier: 'official', locality: null,
+    officialDomains: ['ttc.ca'], minIntervalMs: 2_000, enabled: true, feed: true, snapshot: true, routes: ROUNDUP_TTC_ROUTES,
+    note: PROBE_2026_09_29 + ': HTTP 200 JSON {routes:[…]} with id/route/stopStart/stopEnd/effect/activePeriod; robots.txt 404 (no rules).',
+  },
+];
+
+/** One registry entry per watch-list account; tier `primary` applies only to its own event (§6.7). */
+export function igWatchSources(watch = ROUNDUP_IG_WATCH) {
+  return watch.map((e) => {
+    const handle = e.handle.toLowerCase();
+    return {
+      id: 'ig:' + handle, label: e.business || handle, identityKind: 'ig', identityId: 'ig:' + handle, handle,
+      url: `https://www.instagram.com/${handle}/`, parse: 'ig-post', tier: 'primary', locality: null,
+      canonicalVenueId: e.canonicalVenueId || null, verifiedAddress: e.address || e.verifiedAddress || null,
+      ownDomain: ownDomainOf(e) || null, multiLocation: e.multiLocation === true,
+      requiresVenueInPost: e.requiresVenueInPost === true, provider: e.provider || 'apify',
+      officialDomains: [], minIntervalMs: 0, enabled: e.enabled !== false,
+      note: 'Instagram watch-list account; read only through ig-provider.mjs.',
+    };
+  });
+}
+
+/** @type {ReadonlyArray<RoundupSource>} */
+export const ROUNDUP_SOURCES = Object.freeze([...STATIC_ROUNDUP_SOURCES, ...igWatchSources()].map((s) => Object.freeze(s)));
+
+export function roundupSourceById(id, registry = ROUNDUP_SOURCES) {
+  return registry.find((s) => s.id === id) || null;
 }

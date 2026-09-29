@@ -197,6 +197,9 @@ export async function fetchWithRetry(url, opts = {}) {
     maxRedirects = 5,
     dnsLookup = null,
     dnsTimeoutMs = URL_GUARD_DEFAULTS.dnsTimeoutMs,
+    // Opt-in (roundup collectors): robots.txt cache and per-host pacer, applied to every hop.
+    robots = null,
+    pacer = null,
   } = opts;
 
   let lastError = null;
@@ -239,8 +242,19 @@ export async function fetchWithRetry(url, opts = {}) {
     }
   }
 
+  /** @param {string} candidate */
+  const politeGate = async (candidate) => {
+    if (robots && !(await robots.allowed(candidate))) {
+      return { ok: false, status: null, error: 'robots-disallowed', errorCode: 'robots-disallowed', rawText: '', contentType: '', attempts };
+    }
+    if (pacer) await pacer.wait(candidate);
+    return null;
+  };
+
   for (let i = 0; i <= maxRetries; i++) {
     attempts = i + 1;
+    const refused = await politeGate(currentUrl);
+    if (refused) return refused;
     if (budget) {
       try {
         budget.take(1, sourceId);
@@ -308,6 +322,8 @@ export async function fetchWithRetry(url, opts = {}) {
           };
         }
         currentUrl = next;
+        const hopRefused = await politeGate(currentUrl);
+        if (hopRefused) return hopRefused;
         // Redirect hops after the first response still consume budget when budgeted.
         if (budget) {
           try {
@@ -803,5 +819,167 @@ async function fetchCkanDevApps(source, { budget, timeoutMs, maxRetries, base })
     },
     attempts,
     requestCount: budget.used,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// robots.txt (RFC 9309) and per-host politeness, opt-in for roundup collectors.
+// ---------------------------------------------------------------------------
+
+export const ROBOTS_DEFAULTS = Object.freeze({ minIntervalMs: 2_000, maxRobotsBytes: 500_000 });
+
+function robotsPatternToRegExp(pattern) {
+  const anchored = pattern.endsWith('$');
+  const body = (anchored ? pattern.slice(0, -1) : pattern)
+    .split('*')
+    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
+    .join('.*');
+  return new RegExp('^' + body + (anchored ? '$' : ''));
+}
+
+/**
+ * Parse robots.txt into user-agent groups of allow/disallow rules.
+ * @param {string} text
+ * @returns {{agents: string[], rules: {allow: boolean, path: string}[]}[]}
+ */
+export function parseRobotsTxt(text) {
+  const groups = [];
+  let current = null;
+  let lastWasAgent = false;
+  for (const rawLine of String(text || '').split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, '').trim();
+    const m = line.match(/^([A-Za-z-]+)\s*:\s*(.*)$/);
+    if (!m) continue;
+    const field = m[1].toLowerCase();
+    const value = m[2].trim();
+    if (field === 'user-agent') {
+      if (!current || !lastWasAgent) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
+      }
+      current.agents.push(value.toLowerCase());
+      lastWasAgent = true;
+      continue;
+    }
+    lastWasAgent = false;
+    if (!current) continue;
+    if (field === 'allow' || field === 'disallow') {
+      // An empty Disallow allows everything; it contributes no rule.
+      if (value) current.rules.push({ allow: field === 'allow', path: value });
+    }
+  }
+  return groups;
+}
+
+/**
+ * Longest-match robots decision for one URL. Allow wins ties.
+ * The group whose user-agent token is a prefix of our product token wins over `*`.
+ * @param {string} robotsTxt
+ * @param {string} url
+ * @param {string} [userAgent]
+ */
+export function robotsAllows(robotsTxt, url, userAgent = FETCH_DEFAULTS.userAgent) {
+  const groups = parseRobotsTxt(robotsTxt);
+  const product = String(userAgent).split('/')[0].trim().toLowerCase();
+  const specific = groups.filter((g) => g.agents.some((a) => a !== '*' && product.startsWith(a)));
+  const chosen = specific.length ? specific : groups.filter((g) => g.agents.includes('*'));
+  const rules = chosen.flatMap((g) => g.rules);
+  let target;
+  try {
+    const parsed = new URL(url);
+    target = parsed.pathname + parsed.search;
+  } catch {
+    return false;
+  }
+  let best = null;
+  for (const rule of rules) {
+    if (!robotsPatternToRegExp(rule.path).test(target)) continue;
+    const len = rule.path.replace(/\$$/, '').length;
+    if (!best || len > best.len || (len === best.len && rule.allow && !best.allow)) best = { len, allow: rule.allow };
+  }
+  return best ? best.allow : true;
+}
+
+/**
+ * robots.txt fetched at most once per host per run (cached in memory and, when
+ * `dir` is given, in the run dir). 2xx → parsed; 4xx → no rules (RFC 9309
+ * "unavailable"); 5xx/network error → treat the whole host as disallowed.
+ * @param {{fetchText: (url: string) => Promise<{status: number, body: string}>, userAgent?: string, dir?: string|null, writeFile?: Function}} opts
+ */
+export function createRobotsCache({ fetchText, userAgent = FETCH_DEFAULTS.userAgent, dir = null, writeFile = null } = {}) {
+  if (typeof fetchText !== 'function') throw new Error('createRobotsCache requires fetchText');
+  /** @type {Map<string, Promise<{status: number|null, text: string, mode: string}>>} */
+  const hosts = new Map();
+  const load = async (origin, host) => {
+    try {
+      const res = await fetchText(origin + '/robots.txt');
+      const status = Number(res?.status) || null;
+      const text = String(res?.body ?? '').slice(0, ROBOTS_DEFAULTS.maxRobotsBytes);
+      const mode = status >= 200 && status < 300 ? 'rules' : status >= 400 && status < 500 ? 'allow-all' : 'disallow-all';
+      if (dir && writeFile && mode === 'rules') writeFile(host, text);
+      return { status, text: mode === 'rules' ? text : '', mode };
+    } catch {
+      return { status: null, text: '', mode: 'disallow-all' };
+    }
+  };
+  return {
+    /** @param {string} url */
+    async allowed(url) {
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return false;
+      }
+      const host = parsed.host.toLowerCase();
+      if (!hosts.has(host)) hosts.set(host, load(parsed.origin, host));
+      const entry = await hosts.get(host);
+      if (entry.mode === 'allow-all') return true;
+      if (entry.mode === 'disallow-all') return false;
+      // robots.txt itself is always fetchable.
+      if (parsed.pathname === '/robots.txt') return true;
+      return robotsAllows(entry.text, url, userAgent);
+    },
+    async summary() {
+      const out = {};
+      for (const [host, p] of hosts) {
+        const e = await p;
+        out[host] = { status: e.status, mode: e.mode };
+      }
+      return out;
+    },
+  };
+}
+
+/**
+ * At most one request per host per `minIntervalMs`. Clock and sleep are injectable.
+ * @param {{minIntervalMs?: number, now?: () => number, sleep?: (ms: number) => Promise<void>}} [opts]
+ */
+export function createHostPacer({ minIntervalMs = ROBOTS_DEFAULTS.minIntervalMs, now = Date.now, sleep: sleepFn = sleep } = {}) {
+  /** @type {Map<string, number>} */
+  const last = new Map();
+  /** @type {Map<string, Promise<void>>} */
+  const chains = new Map();
+  return {
+    /** @param {string} url @param {number} [intervalMs] */
+    wait(url, intervalMs = minIntervalMs) {
+      let host;
+      try {
+        host = new URL(url).host.toLowerCase();
+      } catch {
+        return Promise.resolve();
+      }
+      const prev = chains.get(host) || Promise.resolve();
+      const next = prev.then(async () => {
+        const seen = last.get(host);
+        if (seen !== undefined) {
+          const delta = seen + intervalMs - now();
+          if (delta > 0) await sleepFn(delta);
+        }
+        last.set(host, now());
+      });
+      chains.set(host, next);
+      return next;
+    },
   };
 }
