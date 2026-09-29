@@ -26,14 +26,17 @@ test('reasoner validates exact signal and record, and treats JSON parse wrapper 
 
 test('six-call model budget preserves IG even after a large road feed', async () => {
   const large = Array.from({ length: 70 }, (_, index) => ({ ...signal, signalId: `road-${index}`, sourceId: 'rv2-road-restrictions' }));
+  large.push(...Array.from({ length: 20 }, (_, index) => ({ ...signal, signalId: `bmo-${index}`, sourceId: 'rv2-bmo-field' })));
+  large.push({ ...signal, signalId: 'bia-last', sourceId: 'rv2-lv-bia-events' });
   large.push({ ...signal, signalId: 'ig-last', sourceId: 'ig:libertyvillagebia' });
   const offered = [];
   const result = await reasonRoundupSignals(large, { resolved: { ok: true, provider: { id: 'mock' } },
     callModel: async ({ userText }) => { offered.push(...JSON.parse(userText).map((s) => s.signalId));
       return { ok: true, text: '{"forms":[]}' }; } });
   assert.ok(offered.includes('ig-last'));
+  assert.ok(offered.includes('bia-last'), 'one listing source must not starve other official sources');
   assert.equal(offered.length, 60);
-  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 11);
+  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 32);
 });
 
 test('writer post-check refuses unsupported impact and in/near mismatch', () => {

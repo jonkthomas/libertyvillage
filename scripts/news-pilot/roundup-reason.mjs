@@ -52,8 +52,13 @@ export async function reasonRoundupSignals(signals, { env = process.env, resolve
   const quotas = { road: 12, transit: 6, ig: 16, news: 12, other: 14 };
   const selected = new Set();
   for (const [family, cap] of Object.entries(quotas)) {
-    let count = 0;
-    for (const signal of signals) if (familyOf(signal) === family && count++ < cap) selected.add(signal);
+    const bySource = new Map();
+    for (const signal of signals) if (familyOf(signal) === family)
+      bySource.set(signal.sourceId, [...(bySource.get(signal.sourceId) || []), signal]);
+    let remaining = cap;
+    while (remaining > 0 && [...bySource.values()].some((rows) => rows.length)) {
+      for (const rows of bySource.values()) if (rows.length && remaining > 0) { selected.add(rows.shift()); remaining--; }
+    }
   }
   for (const signal of signals) if (selected.size < 60) selected.add(signal);
   const queue = [...selected];
