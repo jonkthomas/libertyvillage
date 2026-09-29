@@ -57,7 +57,7 @@ const registrableDomain = (url) => {
 };
 const syndicated = /originally published|first published|appeared originally|republished with permission|this article is from|©\s*Toronto Star/i;
 
-async function originalFor(body, url, fetcher) {
+async function originalFor(body, url, fetcher, recordTools = {}) {
   const html = String(body);
   const canonicalTag = html.match(/<link\b(?=[^>]*\brel=["']canonical["'])[^>]*\bhref=["']([^"']+)["']/i);
   const canonicalUrl = canonicalTag ? canonical(new URL(canonicalTag[1], url).href) : null;
@@ -77,7 +77,10 @@ async function originalFor(body, url, fetcher) {
     const ownCanonical = original.match(/<link\b(?=[^>]*\brel=["']canonical["'])[^>]*\bhref=["']([^"']+)["']/i)?.[1];
     if (syndicated.test(original) || ownCanonical && canonical(new URL(ownCanonical, originalUrl).href) !== originalUrl) fail('unverifiable');
   }
-  return { url: originalUrl, text: norm(original.replace(/<[^>]+>/g, ' ')) };
+  const visible = typeof recordTools.cleanMainHtml === 'function' && typeof recordTools.htmlToText === 'function'
+    ? recordTools.htmlToText(recordTools.cleanMainHtml(original))
+    : original.replace(/<[^>]+>/g, ' ');
+  return { url: originalUrl, text: norm(visible) };
 }
 
 function parseCalendar(raw, { base, allowYearless = false, horizon = 60 } = {}) {
@@ -305,12 +308,12 @@ async function loadBody(url, fetcher, context) {
 
 /** Re-fetch and re-extract every cited record. All model fields are untrusted. */
 export async function verifyRoundupForms({ signals = [], forms = [], now, posts = [], fetcher, igRefetch,
-  recordExtractor, geography, sources, publisherTiers, packUnits } = {}) {
+  recordExtractor, recordTools, geography, sources, publisherTiers, packUnits } = {}) {
   const at = Date.parse(now);
   if (!Number.isFinite(at)) throw new Error('roundup verifier requires now');
   const accessFetcher = fetcher || await createRoundupVerifierFetcher();
   const [recordModule, geo, sourceModule] = await Promise.all([
-    recordExtractor ? { extractRoundupRecords: recordExtractor } : import('./roundup-records.mjs'),
+    recordExtractor ? { ...recordTools, extractRoundupRecords: recordExtractor } : import('./roundup-records.mjs'),
     geography || import('./roundup-geo.mjs'),
     sources && publisherTiers ? { ROUNDUP_SOURCES: sources, ROUNDUP_PUBLISHER_TIERS: publisherTiers } : import('./sources.mjs'),
   ]);
@@ -359,7 +362,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
           }
           const body = source.parse === 'ig-post' ? post.caption || post.text || sourceSignal.body : await loadBody(claim.url, accessFetcher, { source, signal: sourceSignal });
           const original = (source.parse === 'html-page' || source.identityKind === 'news-discovery') &&
-            form.when?.kind === 'news-update' ? await originalFor(body, claim.url, accessFetcher) : null;
+            form.when?.kind === 'news-update' ? await originalFor(body, claim.url, accessFetcher, recordModule) : null;
           const fresh = extractRoundupRecords({ source, url: claim.url, body, post });
           const record = fresh.find((r) => r.recordId === claim.recordId);
           if (!record) fail('record-missing');

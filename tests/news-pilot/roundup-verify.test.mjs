@@ -151,6 +151,11 @@ test('syndicated news uses original dateline and refuses unresolved originals', 
     body: requested === copyUrl ? copyBody : loop, status: 200 }) })).excluded[0].reason, 'unverifiable');
   const self = copyBody.replace(originalUrl, copyUrl) + ' Originally published in the Star.';
   assert.equal((await verifyRoundupForms({ ...opts, fetcher: async () => ({ body: self, status: 200 }) })).excluded[0].reason, 'unverifiable');
+  const navOnlyDate = '<nav>September 25, 2026</nav><main>September 20, 2026. Autumn Market at 171 East Liberty St, Toronto.</main>';
+  const recordTools = { cleanMainHtml: (html) => html.replace(/<nav>[\s\S]*?<\/nav>/i, ''),
+    htmlToText: (html) => html.replace(/<[^>]+>/g, ' ') };
+  assert.equal((await verifyRoundupForms({ ...opts, recordTools, fetcher: async (requested) => ({
+    body: requested === copyUrl ? copyBody : navOnlyDate, status: 200 }) })).excluded[0].reason, 'stale');
 });
 
 test('submit re-verifies pack units against its first-submit clock', async () => {
