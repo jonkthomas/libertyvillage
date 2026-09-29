@@ -1,0 +1,1 @@
+archived backtest capture | items.jsonl line 60 | verified_at 2026-09-29T14:27:22.092Z | verify_http 200 | url https://www.newswire.ca/news-releases/the-royal-agricultural-winter-fair-returns-to-toronto-november-6-15-2026-826002978.html | quote: The Royal Agricultural Winter Fair returns to Toronto's Exhibition Place from November 6–15

@@ -1,0 +1,1 @@
+archived backtest capture | items.jsonl line 23 | verified_at 2026-09-29T14:26:27.653Z | verify_http 200 | url https://www.cbc.ca/sports/basketball/toronto-tempo-new-york-liberty-recap-sept20-9.7351643 | quote: 106-69 defeat fails to dampen mood in front of capacity crowd of 8,200 at Coca-Cola Coliseum

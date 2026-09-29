@@ -1,0 +1,1 @@
+archived backtest capture | items.jsonl line 14 | verified_at 2026-09-29T14:26:23.824Z | verify_http  | url https://globalnews.ca/news/12055408/union-outraged-as-ontario-science-centre-lays-off-science-department/ | quote: 

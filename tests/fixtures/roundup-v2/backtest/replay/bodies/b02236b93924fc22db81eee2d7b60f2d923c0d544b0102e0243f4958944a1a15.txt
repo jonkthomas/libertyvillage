@@ -1,0 +1,1 @@
+archived backtest capture | items.jsonl line 35 | verified_at 2026-09-29T14:26:52.341Z | verify_http 200 | url https://streetsoftoronto.com/fashion/toronto-vintage-show-2026-fall/ | quote: The Toronto Vintage Show returns to the Queen Elizabeth Building on Sept. 26 and 27

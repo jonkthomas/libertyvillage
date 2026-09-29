@@ -1,0 +1,1 @@
+archived backtest capture | items.jsonl line 64 | verified_at 2026-09-29T14:27:29.212Z | verify_http 200 | url https://secure.toronto.ca/opendata/cart/road_restrictions/v3?format=json | quote: "name":"Douro St 14 m Southeast of King-Liberty Pedestrian Cycle Bridge to 3 m South of King St W"

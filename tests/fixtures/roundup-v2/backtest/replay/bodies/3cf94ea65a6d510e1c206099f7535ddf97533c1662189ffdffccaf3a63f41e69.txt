@@ -1,0 +1,1 @@
+archived backtest capture | items.jsonl line 36 | verified_at 2026-09-29T14:26:52.790Z | verify_http 200 | url https://www.cbc.ca/sports/soccer/canada-chile-soccer-friendly-recap-sept-26-9.7360117 | quote: kicked off a new four-year cycle in style Saturday night with a 1-0 win over Chile in a chippy international friendly at BMO Field in Toronto

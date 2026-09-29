@@ -1,0 +1,1 @@
+archived backtest capture | items.jsonl line 44 | verified_at 2026-09-29T14:26:54.462Z | verify_http 200 | url https://www.torontotoday.ca/local/crime-emergency-services/2-men-injured-downtown-stabbing-12821753 | quote: The stabbing occurred in the King Street West and Portland Street area around 4:35 a.m.
