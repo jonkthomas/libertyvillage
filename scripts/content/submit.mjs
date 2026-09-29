@@ -1,6 +1,7 @@
 // `content submit` (§4.4). This module owns the kind policy that submit, gate g1
 // and the repair adapter all apply, so every round and every repair re-runs the
 // exact checks the submission first passed.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,6 +15,7 @@ import { createRequestBudget, fetchWithRetry } from '../news-pilot/fetch.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
 import { roundupPackDigest, validateRoundupPack, revalidateRoundupItems } from '../news-pilot/roundup-evidence.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
+import { canonicalJson, verifySourcePack } from '../automation/blog-source-pack.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
@@ -22,6 +24,10 @@ import { prepareImages } from './images.mjs';
 const MANUAL_DATASETS = Object.freeze(['businesses', 'posts', 'buildings', 'neighborhoods', 'services', 'topics', 'guide-hub']);
 export const BLOG_LIVE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 export const ROUNDUP_REVALIDATE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+export const BLOG_SOURCE_PACK_MAX_BYTES = 128 * 1024;
+export const BLOG_SOURCE_PACK_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const PACK_FACT_CHARS = 600;
+const PACK_FACTS_MAX_CHARS = 48000;
 
 const INSERT = Object.freeze(['insert']);
 const EDIT = Object.freeze(['insert', 'update']);
@@ -353,8 +359,53 @@ export function actorFor(opts, env = process.env) {
   return actor;
 }
 
+// Trusted blog source pack: bounded read of a regular file the trusted runner wrote.
+function readSourcePack(file) {
+  let fd;
+  try { fd = fs.openSync(path.resolve(file), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK); }
+  catch (error) { throw new ValidationError(`blog source pack unreadable: ${error.code ?? 'open failed'}`); }
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size < 2 || stat.size > BLOG_SOURCE_PACK_MAX_BYTES) throw new ValidationError('blog source pack must be a bounded regular file');
+    const bytes = Buffer.alloc(stat.size);
+    if (fs.readSync(fd, bytes, 0, stat.size, 0) !== stat.size) throw new ValidationError('blog source pack changed while reading');
+    try { return JSON.parse(bytes.toString('utf8')); } catch { throw new ValidationError('blog source pack is not JSON'); }
+  } finally { fs.closeSync(fd); }
+}
+
+// Bounded facts the gate reviewer and fixer see; never the scratch sidecar.
+export function sourcePackFacts(pack) {
+  const clip = (value) => String(value ?? '').slice(0, PACK_FACT_CHARS);
+  const rows = (list) => (Array.isArray(list) ? list : []).slice(0, 12).map((claim) => ({ field: clip(claim?.field).slice(0, 40), verbatim: clip(claim?.verbatim) }));
+  const facts = {
+    fingerprint: pack.fingerprint, sha256: createHash('sha256').update(canonicalJson(pack)).digest('hex'),
+    topic: clip(pack.topic).slice(0, 300), intentKey: clip(pack.intentKey).slice(0, 200), reserve: pack.reserve === true, generatedAt: pack.generatedAt,
+    sources: pack.sources.slice(0, 12).map((source) => ({ id: clip(source.id).slice(0, 200), name: clip(source.name).slice(0, 200), claims: rows(source.claims), premiseClaims: rows(source.premiseClaims) })),
+    directorySlugs: (pack.internal?.directorySlugs ?? []).slice(0, 12).map((slug) => clip(slug).slice(0, 200)),
+  };
+  if (JSON.stringify(facts).length > PACK_FACTS_MAX_CHARS) throw new ValidationError('blog source pack facts exceed the context bound');
+  return facts;
+}
+
+async function blogSourcePackContext({ db, opts, live, clock, idempotencyKey }) {
+  const pack = readSourcePack(opts.sourcePack);
+  const checked = verifySourcePack(pack, {
+    businesses: live.businesses, posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [],
+    now: new Date(clock()), maxAgeMs: BLOG_SOURCE_PACK_MAX_AGE_MS,
+  });
+  if (!checked.ok) throw new ValidationError(`blog source pack failed verification: ${checked.errors.slice(0, 5).join(', ')}`);
+  // A cadence key names one durable attempt; its recorded digest must be this pack.
+  if (String(idempotencyKey).startsWith('cadence:')) {
+    const attempt = (await db.query('select source_pack_digest from content.cadence_attempts where idempotency_key=$1 and target=$2', [idempotencyKey, db.target])).rows[0];
+    if (!attempt || attempt.source_pack_digest !== pack.fingerprint) throw new ValidationError('blog source pack does not match its cadence attempt');
+  }
+  return sourcePackFacts(pack);
+}
+
 // Gate context: identical inputs for every round and every resume.
-async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
+async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live }) {
+  if (opts.sourcePack !== undefined && kind !== 'blog') throw new ValidationError('--source-pack is only for blog');
+  if (opts.sourcePack === true) throw new ValidationError('--source-pack requires a file');
   if (kind === 'blog-live') {
     if (!opts.topicKey || opts.topicKey === true) throw new ValidationError('blog-live requires --topic-key');
     if (!opts.generatedAt || opts.generatedAt === true) throw new ValidationError('blog-live requires --generated-at');
@@ -397,11 +448,14 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey }) {
   }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
-  return { now: prior?.context?.now ?? new Date(clock()).toISOString() };
+  // The stored context (including verified pack facts) is immutable on replay.
+  if (prior && opts.sourcePack) return prior.context;
+  const now = prior?.context?.now ?? new Date(clock()).toISOString();
+  return opts.sourcePack ? { now, sourcePack: await blogSourcePackContext({ db, opts, live, clock, idempotencyKey }) } : { now };
 }
 
 // opts: {kind, idempotencyKey, actor, dir | recordFile+dataset+baseline, topicKey, generatedAt,
-// newsOut}; returns {result, exitCode}. Never gates.
+// newsOut, roundupOut, sourcePack (blog only: trusted runner pack file)}; returns {result, exitCode}. Never gates.
 export async function submitContent(db, opts, { env = process.env, clock = Date.now, checkout = process.cwd(), roundupRefetch } = {}) {
   const kind = opts.kind;
   if (!KIND_RULES[kind]) throw new ValidationError(`unsupported submit kind: ${kind}`);
@@ -433,25 +487,26 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
   const images = KIND_RULES[kind].images
     ? await prepareImages({ items, root, sourceRef, registry, resolveAssets: (list) => resolveAssets(db, list), assetExists: assetExistsIn(db) })
     : { items, assets: [], report: [] };
-  const context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey });
-  if (kind === 'roundup') {
-    const existing = (await db.query('select 1 from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
-    if (!existing) {
-      const budget = createRequestBudget(80);
-      const refetch = roundupRefetch ?? (async (url, source) => {
-        const fetched = await fetchWithRetry(url, { budget, guardPublicHttp: true, sourceId: 'roundup-submit',
-          maxRetries: 1, timeoutMs: 12_000 });
-        const evidence = buildSourceEvidence({ canonicalUrl: url, publisher: source.publisher }, fetched);
-        return { ...source, excerpt: evidence.bodyExcerpt, extractionSubstantive: evidence.extractionSubstantive,
-          fetchOk: evidence.fetchOk, urlUsable: evidence.urlUsable };
-      });
-      const checked = await revalidateRoundupItems(context.items, { refetch });
-      if (checked.excluded.length || checked.accepted.length !== context.items.length)
-        throw new ValidationError('roundup source evidence changed or unreachable; rebuild before submit');
-    }
-  }
   const liveCtx = await liveContext(db);
+  let context;
   try {
+    context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey, live: liveCtx.live });
+    if (kind === 'roundup') {
+      const existing = (await db.query('select 1 from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+      if (!existing) {
+        const budget = createRequestBudget(80);
+        const refetch = roundupRefetch ?? (async (url, source) => {
+          const fetched = await fetchWithRetry(url, { budget, guardPublicHttp: true, sourceId: 'roundup-submit',
+            maxRetries: 1, timeoutMs: 12_000 });
+          const evidence = buildSourceEvidence({ canonicalUrl: url, publisher: source.publisher }, fetched);
+          return { ...source, excerpt: evidence.bodyExcerpt, extractionSubstantive: evidence.extractionSubstantive,
+            fetchOk: evidence.fetchOk, urlUsable: evidence.urlUsable };
+        });
+        const checked = await revalidateRoundupItems(context.items, { refetch });
+        if (checked.excluded.length || checked.accepted.length !== context.items.length)
+          throw new ValidationError('roundup source evidence changed or unreachable; rebuild before submit');
+      }
+    }
     const policy = checkKindPolicy({
       kind, items: images.items, ctx: context, live: liveCtx.live,
       deps: policyDeps({ kind, context: { root: liveCtx.root }, checkout: root }),

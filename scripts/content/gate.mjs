@@ -140,6 +140,29 @@ export function fixerPayload(items) {
 // gateContent: g0-g8 driven only by DB state; every mutation carries the claim.
 // ---------------------------------------------------------------------------
 const GROUNDED = Object.freeze(['blog', 'blog-live', 'news', 'roundup']);
+
+// Verified blog source-pack facts stored by trusted submit (submissions.context),
+// re-bounded here; a scratch sidecar never reaches the gate.
+export function blogPackEvidence(context) {
+  const pack = context?.sourcePack;
+  if (!pack || !Array.isArray(pack.sources)) return null;
+  const clip = (value, max) => String(value ?? '').slice(0, max);
+  const rows = (list) => (Array.isArray(list) ? list : []).slice(0, 12).map((claim) => ({ field: clip(claim?.field, 40), verbatim: clip(claim?.verbatim, 600) }));
+  return {
+    sourcePack: {
+      fingerprint: clip(pack.fingerprint, 64), topic: clip(pack.topic, 300), reserve: pack.reserve === true,
+      sources: pack.sources.slice(0, 12).map((source) => ({ id: clip(source?.id, 200), name: clip(source?.name, 200), claims: rows(source?.claims), premiseClaims: rows(source?.premiseClaims) })),
+    },
+  };
+}
+
+function withPackReferences(references, evidence, businesses) {
+  const ids = new Set((evidence?.sourcePack?.sources ?? []).map((source) => source.id));
+  if (!ids.size) return references;
+  const seen = new Set(references.map((record) => record?.slug));
+  const cited = (businesses ?? []).filter((record) => ids.has(record?.slug) && !seen.has(record.slug)).slice(0, 12);
+  return [...references, ...cited];
+}
 const DECISION_STATE = { validation: 'rejected', lint: 'rejected', unrepairable: 'blocked', exhausted: 'blocked', 'not-converging': 'blocked', block: 'blocked' };
 
 export async function roundVector(db, id, round) {
@@ -379,7 +402,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
               text: String(claim.text || '').slice(0, 600), sourceUrl: claim.sourceUrl,
               span: String(claim.span || '').slice(0, 400),
             })),
-          })) } : null;
+          })) } : kind === 'blog' ? blogPackEvidence(context) : null;
         rt.onPhase(`review:${n}`);
         const verdict = script
           ? scriptedVerdict(script, n, doc.contentSha)
@@ -420,7 +443,12 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         kind, candidates, ctx: context, live: live.live,
         deps: policyDeps({ kind, context: { root: live.root }, checkout }),
       });
-      const references = grounded ? agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []) : [];
+      // The row fixer (review-agent.mjs, outside this module) has no evidence
+      // parameter: pass the pack as `evidence` for fixers that accept it AND fold
+      // the pack's cited live business records into `references`, the existing
+      // ground-truth channel the fixer prompt already renders.
+      const fixEvidence = kind === 'blog' ? blogPackEvidence(context) : null;
+      const references = grounded ? withPackReferences(agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []), fixEvidence, live.live.businesses) : [];
       const inventory = grounded ? await inventoryFor(live, candidates) : null;
       const lintFindings = KIND_RULES[kind].lint
         ? candidates.flatMap((item) => lintPost(item.payload, { businesses: live.live.businesses ?? [], now: context.now ? new Date(context.now) : undefined }).findings)
@@ -434,7 +462,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
           repaired = check.repaired;
         } else {
           const result = await leased(() => fix({
-            kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings,
+            kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings, evidence: fixEvidence,
             schema: agent.rowRepairSchema(files), describeContract: describeRowContract,
           }));
           repaired = result.check.repaired;
