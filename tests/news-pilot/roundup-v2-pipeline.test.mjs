@@ -146,6 +146,24 @@ test('reasoner retries one timed-out core batch within six calls; exhaustion is 
   assert.equal(result.published, false);
 });
 
+test('a timeout retry consumes one of six model attempts and defers unreasoned current core leads', async () => {
+  const coreSignals = Array.from({ length: 30 }, (_, i) => ({ ...signal, signalId: `core-${i}`,
+    sourceId: 'ig:burgerdrops', post: { timestamp: '2026-09-27T22:51:24Z' },
+    records: [{ recordId: 'r1', text: 'October 3 at 116 Atlantic Ave', typed: { date: '2026-10-03' } }] }));
+  let calls = 0;
+  const result = await reasonRoundupSignals(coreSignals, { now: '2026-09-29T19:10:00Z',
+    resolved: { ok: true, provider: { id: 'mock' } }, callModel: async ({ userText }) => {
+      calls++;
+      assert.ok(JSON.parse(userText).signals.length <= 5);
+      return calls === 1 ? { ok: false, error: 'timeout_after_180000ms' }
+        : { ok: true, text: '{"forms":[]}' };
+    } });
+  assert.equal(calls, 6);
+  assert.equal(result.modelCalls, 6);
+  assert.equal(result.excluded.filter((e) => e.reason === 'reason-budget').length, 5);
+  assert.equal(result.technicalFailure, true, 'deferred current core leads cannot masquerade as a complete census');
+});
+
 test('reasoner can prefer an explicitly configured available provider without changing the default', async () => {
   let provider;
   await reasonRoundupSignals([signal], {
