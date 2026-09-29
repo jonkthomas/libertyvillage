@@ -19,8 +19,12 @@ const form = { signalId: 's1', recordId: 'r1', subject: 'Toronto FC', what: 'A m
 test('reasoner validates exact signal and record, and treats JSON parse wrapper correctly', async () => {
   assert.equal(validateRoundupForm(form, signal), true);
   assert.equal(validateRoundupForm({ ...form, recordId: 'other' }, signal), false);
-  const result = await reasonRoundupSignals([signal], { resolved: { ok: true, provider: { id: 'mock' } },
-    callModel: async () => ({ ok: true, text: JSON.stringify({ forms: [form] }) }) });
+  const result = await reasonRoundupSignals([signal], { now: '2026-09-30T01:20:00Z',
+    resolved: { ok: true, provider: { id: 'mock' } },
+    callModel: async ({ userText }) => {
+      assert.equal(JSON.parse(userText).referenceDateToronto, '2026-09-29');
+      return { ok: true, text: JSON.stringify({ forms: [form] }) };
+    } });
   assert.deepEqual(result.forms, [form]);
 });
 
