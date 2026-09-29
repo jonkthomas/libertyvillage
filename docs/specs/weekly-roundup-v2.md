@@ -14,7 +14,7 @@ The independent review of revision 1 (commit `035e216`) returned NOT-READY with 
 |---|---|---|---|
 | 1 | Page-level token matching permits false locality and cross-item evidence | Item-bound evidence. Every item names one trusted record, and its subject, place and date must all come from that record. Prose must state the place as where the item happens. Ambiguous or multi-item prose is `unverifiable`. Project identity never makes an off-site meeting core. | §5, §6.1–6.3, A1, A2 |
 | 2 | Source-quality rule silently deleted | The inherited predicate is carried forward: an official or primary source, or two independent substantive publishers. Tiers come from the checked-in registry only. | §4.1, §6.7, §11, A2 |
-| 3 | Replay input cannot satisfy the verifier; the table used future reports | `items.jsonl` (and the Instagram trial's `ig-items.jsonl`) become immutable reference data. A separate, reviewed conversion produces schema-valid, item-level fixtures with exact spans. Synthetic fixtures are kept separate. The table is recomputed at the cadence clocks. Without Instagram, weeks 37 and 39 hold. With it, W37 and W40 publish outright, and W38 and W39 publish only if named spans verify (§7). | §7, A4 |
+| 3 | Replay input cannot satisfy the verifier; the table used future reports | `items.jsonl` (and the Instagram trial's `ig-items.jsonl`) become immutable reference data. A separate, reviewed conversion produces schema-valid, item-level fixtures with exact spans. Synthetic fixtures are kept separate. A cadence-clock projection was proposed from partial trial data; §7/A4 now separates that original hypothesis from the independently checked, incomplete captured-evidence replay. No historical publication decision is inferred from missing full bodies. | §7, A4 |
 | 4 | Event dates excluded the BIA and City open-house items | Year-bearing event dates from an item-bound official org or project section are allowed. | §6.4, A2 |
 | 5 | A frozen planning `now` weakened submit freshness | Planning identity stays at `T_plan`. Temporal eligibility is rechecked at the trusted first-submit instant `T_submit` (`temporalValidationNow`). End-of-day, unknown-end and week-mapping rules are defined. | §6.5, §7, §9.4, A3 |
 | 6 | Prior coverage and roll-forward needed history the pipeline lacks | Each published roundup post carries a structured `roundupCoverage` field. Later runs read it from the normal live export. | §6.6, §9.3, §11, A3 |
@@ -38,8 +38,8 @@ See §4.4, §6.1, §6.2, §6.4, §6.7, §7, §10 and §12.
 
 **Parent decisions (final edit, same round).**
 
-- **Relative dates.** Unambiguous relative day words (today, tonight, tomorrow, this/next <weekday>) resolve against the post's platform timestamp in America/Toronto. Ambiguous phrases stay `undated` (§4.4, §6.4). The effect on the replay: IG215 becomes a W40 core class. W37–W39 are unchanged.
-- **Raw trial data.** The raw data is archived and is the conversion's source. Only minimal spans and metadata are committed (A4).
+- **Relative dates.** Unambiguous relative day words (today, tonight, tomorrow, this/next <weekday>) resolve against the post's platform timestamp in America/Toronto. Ambiguous phrases stay `undated` (§4.4, §6.4). The original prediction that IG215 would count as a W40 core class was not confirmed by the captured replay; §7/A4 records the actual verifier outcome.
+- **Raw trial data.** The full Instagram provider dumps/images remain in the archive. Only minimal provider rows with full raw captions, caption hashes and record-bound spans are committed; separate byte-pinned web captures support A4. The trial summary alone proves no earlier clock availability.
 
 The raw data also corrected the timestamp cross-check band (§4.4).
 
@@ -55,7 +55,7 @@ The focused recheck of `bf2d81f` found 8 of the 10 original findings resolved. I
 | N2 | Image-only dates depended on a reviewer that runs after verification | **Image-only-dated Instagram units are excluded from v2.** They stay leads. Image transcription is a possible later addendum. | §4.4, §6.4, §7, A2 |
 | N3 | Instagram had no canonical event or venue identity | One shared venue registry supplies `canonicalVenueId` (the normalized verified address) for watch entries, core addresses and venue sources. The occurrence key is `(canonicalVenueId, Toronto date, start time or 'all-day')`. Same-key reminders and corroborations merge; different start times stay separate; ambiguous matches keep one and hold the other. The class cap is per canonical venue, and coverage stores occurrence keys. | §4.4, §6.2, §6.6, §7, A3 |
 
-Recomputed replay: **W37 publish, W38 HOLD, W39 publish only if the Canada Soccer dateline verifies (otherwise HOLD), W40 publish** (§7).
+Original projected replay (not historical A4 acceptance): **W37 publish, W38 HOLD, W39 publish only if the Canada Soccer dateline verifies (otherwise HOLD), W40 publish**. The captured-evidence correction and measured exercise are in §7/A4.
 
 ---
 
@@ -593,7 +593,7 @@ Otherwise the item is `weak-source` and refused.
 - The verifier does not search for corroboration. It checks only the entries the form cites, all of which must come from URLs fetched for this signal group.
 - The predicate is exported from `roundup-evidence.mjs` as `roundupSourceQuality(entries)` and shared by the pipeline and submit.
 
-Consequence, stated plainly: a lone blogTO, CityNews, Star, CBC or TFC Republic page does not qualify on its own, however local and well dated it is. This is the main reason weeks 37 and 39 hold in §7.
+Consequence, stated plainly: a lone blogTO, CityNews, Star, CBC or TFC Republic page does not qualify on its own, however local and well dated it is. §7 distinguishes this refusal rule from what the incomplete historical capture can prove about any particular week's decision.
 
 ## 7. Publish rule (`planRoundupV2` in `scripts/news-pilot/roundup.mjs`)
 
@@ -606,14 +606,30 @@ Consequence, stated plainly: a lone blogTO, CityNews, Star, CBC or TFC Republic 
 3. **Cap and order.** At most 12 units per edition. Order: core first, then roads and transit, then venues, then news and announcements. Ties break by first date, then identity key. "Still in effect" is not numbered and not counted. The copy never claims coverage it does not have.
 4. **Two clocks.** The plan and the writer use `T_plan`. Submit re-verification re-applies this rule at `T_submit`, and a pack that falls below 3/1 is refused (§9.4). An idempotent replay keeps the original context, including both instants.
 
-### Expected replay result (A4)
+### Captured-evidence limit on A4
 
-This was recomputed under this revision's rules from the backtest rows (`R<line>` in `items.jsonl`) and the Instagram trial rows (`IG<line>` in `ig-items.jsonl`). It supersedes revision 1's table, which assumed every week published, and revision 2's table, which counted image-only dates. It also supersedes the trial's own 4/5/3/7 core tally, which did not apply clocks, prior coverage, event records, occurrence keys or the class rule.
+The §7 threshold, cap, clocks and one-pool availability rules remain normative. **The historical decisions projected in the original table below are not A4 acceptance criteria or a claim that those editions actually would have published.** The original trial rows and its 14:26 UTC collection note do not establish that the same full source bodies committed for the replay were available at each earlier slot. Three Wayback bodies have embedded, checkable August 28, August 31 and September 24 capture instants; the archived Instagram provider rows have pinned timestamps and raw captions. The other full bodies were copied from a September 29 live capture with no independent acquisition log; their 18:14–18:16 UTC file mtimes are not proof of availability by the September 29 15:00 UTC clock. They remain conservatively declared as captured at 18:30 UTC, after **every** replay clock. In particular, feed `createdTime` cannot substitute for a captured response. The R37 Canada Soccer body is a September 29 revision modified September 28; it cannot prove the page's contents at the September 25 clock, and unresolved fact (ii) stays unavailable.
+
+A4 instead evaluates the frozen available evidence through the production record extractor, verifier and planner at each slot, including the explicitly labelled after-clock future-event exception. Its printed HOLD/PUBLISH table is a **captured-evidence exercise** (an incomplete candidate pool), not a guaranteed lower bound on actual historical publication decisions: a missing earlier source could change W37's result and therefore which occurrence keys remain for W38. No source is silently backdated or outcome tuned to this original projection. Captured-record controls run separately after their capture; fully synthetic boundary/clock controls prove isolated rules, not real-source historical availability. The measured table, exclusions and provenance limitations are recorded in `tests/fixtures/roundup-v2/backtest/replay/REVIEW.md` and asserted under A4 after independent review. With the same-record IG214 location quote, unambiguous day-first date grammar and reviewed 909 Lakeshore address normalization, the **captured-evidence exercise** currently measures:
+
+| Week and slot | Ceiling exercise | Floor exercise | Evidence limit |
+|---|---|---|---|
+| W37 Wed Sep 9 | HOLD 5 (0 core / 0 anchors) | same | All five counted groups are adjacent; no source-bound core anchor verifies. |
+| W37 Fri / Sun | HOLD 4 (0/0) at both | same | Held groups roll forward; some earlier events conclude. |
+| W38 Wed Sep 16 | PUBLISH 5 (1/1) | same | R20 is the core anchor; uncovered Coliseum rows roll over from held W37. |
+| W39 Wed / Fri / Sun | HOLD 3 (0/0) at every slot | same | Adjacent-only RBC and Coliseum groups; R37 fact (ii) has no pre-cutoff capture. |
+| W40 Tue Sep 29 15:00Z | PUBLISH 10 (2/2), no cap cut | same | IG214 and R50 are core; post-clock road R52–R54 cannot prove earlier availability. |
+
+The two scenarios have different constituent rows and digests (for example R22b and R57b-ii are removed in the floor), but these decisions/counts coincide. Neither column is a guarantee of historical publication or completeness. The 3-unit/1-core-anchor publish rule and all negative verifier gates are unchanged.
+
+### Original projected replay result (not historical acceptance)
+
+This table was projected from the backtest rows (`R<line>` in `items.jsonl`) and Instagram trial rows (`IG<line>` in `ig-items.jsonl`) before full captured bodies, production extraction and one-pool replay were exercised. It superseded earlier projections but is retained only as the original **hypothesis** for comparing evidence gaps; where the verified captured-evidence exercise diverges, its old decisions/counts are not assertions.
 
 **Replay clocks.**
 
 - Weeks 37–39 are evaluated at the three cadence slot instants, Wednesday, Friday and Sunday at 16:00 UTC, in order. The week's result is the first slot that publishes, or HOLD if none does.
-- Week 40 is evaluated once, at `2026-09-29T15:00:00Z`, just after its evidence was captured live (14:26 UTC).
+- Week 40 is evaluated once, at `2026-09-29T15:00:00Z`. The trial reported a 14:26 UTC collection, but no byte-identical full-body capture with a verifiable pre-clock timestamp is available for the committed September 29 live bodies.
 
 **One pool, replayed in sequence.** Every converted unit is available at every clock it is available for:
 
@@ -637,7 +653,7 @@ Image-only-dated Instagram units are excluded (§4.4): IG034 Liberate Your Locke
 | 39 | Fri 2026-09-25T16:00Z | 3 (1 / 1) | 2 (1 / 1) at Fri and Sun | **publish** at Fri only if (ii) verifies; otherwise **HOLD `below-minimum`** |
 | 40 | 2026-09-29T15:00Z | 16 (4 / 3) → cap **12** | 15 (5 / 4) → cap **12** | **publish** |
 
-**Pinned eligible units.**
+**Original candidate-unit projections, not observed admissions.** The following rows document why the earlier table was expected; their individual historical availability and verifier outcome are determined by the actual captured bodies and may differ, as the A4 review notes.
 
 - **W37 (Wed).**
   - Core:
@@ -687,11 +703,7 @@ Image-only-dated Instagram units are excluded (§4.4): IG034 Liberate Your Locke
 
 **Other conditional spans.** Some units need an exact span in the frozen body: R22b (Suki Waterhouse row), R57b's Brand New row, R59c, R61's dateline, and the per-record RBC JSON-LD objects. They change only the counts shown, never a decision. If a span is absent, that unit is excluded, and the expected table is updated by review. Nothing is relaxed to keep a unit.
 
-**What this means.** Without Instagram, weeks 37 and 39 hold under the inherited source rule. With Instagram under this revision's rules:
-
-- W37 and W40 publish;
-- W38 holds;
-- W39 publishes only if the Canada Soccer dateline verifies.
+**What the original projection meant (not a historical decision).** Its incomplete rows suggested that without Instagram weeks 37 and 39 would hold, and with the expected Instagram positives W37/W40 would publish, W38 would hold, and W39 might publish after fact (ii). The later real-body, one-pool A4 exercise does **not** establish those results; see the captured-evidence correction above and the independently reviewed measured table in the replay notes.
 
 The trial's 13 items shrink because:
 
@@ -1103,14 +1115,14 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
 
 ```jsonc
 { "unitId": "R22b", "sourceRow": 22, "form": { /* schema-valid §5 form */ },
-  "bodies": [ { "url": "...", "file": "bodies/<sha256>.html", "capturedAt": "...", "capture": "live|wayback",
-                "capturedAfterClock": false } ],
+  "bodies": [ { "url": "...", "file": "captures/<sha256>.html", "capturedAt": "...", "capture": "live|wayback",
+                "capturedAfterClock": null } ],
   "spans": [ { "recordId": "...", "field": "subject|place|date|dateline", "start": 0, "end": 0, "text": "..." } ],
   "unavailable": [ "dateline" ],
   "expected": { "week": 38, "clock": "2026-09-16T16:00:00Z", "class": "eligible|weak-source|undated|...", "unitKind": "sports" } }
 ```
 
-- **Building the conversion.** The builder re-captures each source: live where it still exists, or the Wayback capture the backtest used for venue listings. The builder records exact spans (offsets into the normalized record text), record IDs and datelines.
+- **Building the conversion.** The builder pins each available full captured source body, including the Wayback captures used for venue listings, and records its actual or explicitly declared capture instant. `captures.json` binds the canonical URL, provenance basis, byte length and SHA-256. The production `extractRoundupRecords` derives record IDs, typed snapshots and exact spans (offsets into normalized record text); `verifyRoundupForms` re-extracts from the single served body. A historical clock never upgrades an undated live capture to pre-clock evidence.
   - Bundled rows are split, one unit per event (for example R22 → R22a Tempo vs Fever, R22b Suki Waterhouse, R22c Tempo vs NY Liberty).
   - A fact that is not in the frozen body is listed in `unavailable`, and the unit is expected to fail on it. It is never reconstructed.
   - Ellipsis-joined backtest quotes are never used as quotes. Each part becomes its own span in its own record, or is unavailable.
@@ -1119,27 +1131,20 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
   - `apify-items1..5.json` and `owned-posts.json`: the raw provider rows, with **raw captions including line breaks**;
   - `website-audit.json` (watch-list verification) and `classify.py` (the trial's classification).
 
-  The committed fixtures copy **only** the minimal fields: `ownerUsername`, `shortCode`, `timestamp`, `type`, and the exact event-record text and spans used. Raw dumps and images stay in the archive and are never committed. Image-only units (IG034, IG099, IG100) are converted as leads with `unavailable: ['text-date']`.
+  The committed `ig-posts.jsonl` copies **only** `ownerUsername`, `shortCode`, `timestamp`, `type`, the full raw caption (line breaks intact), caption SHA-256 and archive filename. The production extractor selects its event records; conversion spans bind to those records. Full provider dumps and images stay in the archive and are never committed. Image-only units (IG034, IG099, IG100) are leads with `unavailable: ['text-date']`.
 - **Rows that cannot be re-captured** stay in the replay with the expected class `unverifiable`: bot-walled pages, R12 and R13 (truncated `article_` URLs, empty quotes, no canonical metadata), and the Globe. They are **not** asserted as detected syndication; stale detection is proven only by the A2 synthetic fixtures.
 - **No model calls.** The replay runs `verify → plan` with the converted forms as the reasoner's output.
 
-**Clocks and availability** are exactly as in §7: one pool, replayed in sequence, with Wed, Fri and Sun 16:00 UTC for weeks 37–39 and `2026-09-29T15:00:00Z` for week 40. News is available only if its dateline is at or before the clock, and Instagram posts only if their timestamp is. Records captured after the clock are labelled `capturedAfterClock` and used only in their backtest week, for events after the clock.
+**Clocks and availability** use §7's one pool, replayed in sequence: Wed, Fri and Sun 16:00 UTC for weeks 37–39; `2026-09-29T15:00:00Z` for week 40. A news item needs a supported same-record dateline at or before the clock to be counted; an unknown-dateline form may enter only as a diagnostic negative, never as proved historical availability. An Instagram post is available only after its archived provider timestamp. Records captured after the clock are labelled `capturedAfterClock` and used only in their assigned backtest week for events starting after the clock. That exception exercises the algorithm; it cannot prove those records were already visible at the clock.
 
 **Assertions:**
 
-- The per-week decisions, eligible unit IDs, unit and core counts, and cap cuts equal the §7 table, as updated by conversion review:
-  - W37 publish at the Wednesday slot, 8 (3/1), with IG084 as its anchor;
-  - W38 HOLD `below-minimum` at all three slots;
-  - W39 publish at the Friday slot, 3 (1/1), if (ii) verifies; otherwise HOLD `below-minimum`;
-  - W40 publish 12, with IG215 as a core class, and R57b, R56a and R56b cut by the cap (plus R61 in the ceiling).
-- The eval runs both the ceiling and the floor scenario by toggling (ii) and the other conditional spans, and asserts both columns of §7. The real conversion then selects one.
-- **No expectation may override a verifier rule.** A deviation is reported for review, never forced.
-- Removing IG084 turns week 37 into `hold` (`no-core`) in the floor, because the classes IG069 and IG065 cannot anchor.
-- Every Instagram row in `ig-items.jsonl` that the trial did not qualify stays excluded: `undated`, `outside-window`, `promo-only`, `recurring-generic`, `routine-holiday-hours`, `off-site event` and `no-caption` map to `undated`, `concluded` or `stale`, `not-news`, `not-news`, `not-news`, `not-LV` and `record-missing`. Trial duplicates merge into their event. Of the trial's 13 qualified rows, IG124 and IG227 are `retrospective`. IG034, IG099 and IG100 are image-only leads. IG157 and IG158 date correctly but arrive after the deciding clocks, and IG157 is also `unverifiable` for place. IG221 is `unverifiable`, so it never adds to IG214. IG223 loses the class cap to IG215, which the trial had excluded and which now counts. Trial rows with relative words that are promos, off-site, holiday hours or recaps stay excluded for those reasons (for example IG134, IG162, IG217 and IG218 are off-site; IG119 and IG133 are recaps).
-- Every trap row is excluded with the expected reason class: R44 TorontoToday stabbing (`not-LV`); R03 Toro Toro (`not-LV`); R02 Eco-Fair and R65 Don't Tell Comedy (`unverifiable`; R02 has no venue, so no occurrence key); R43 CBC Parkdale and R41 Parkdale Barbers (`not-LV`); R62 Joe Shuster Way, R63 Temple Ave and R64 Douro St (`not-LV`). R23 CBC Tempo/NY Liberty is a venue-qualified row: it is future at the W38 Wednesday clock, and at later clocks it is a merged `duplicate` of R22c.
-- Every crime, election and weak-source row is excluded: R04, R42, R17, R18, R19, R26, R28, R49, plus R01, R05, R06, R21, R32, R33, R36, R51 and R60 as `weak-source`. So is every blocked row: R10 TorontoToday, R25 Toronto Life, R11 NOW and R30 Globe.
-- No Reddit, directory or Ontario Place row is admitted (R16, R17, R18, R19, R31, R40, R41, R48, R49).
-- The eval prints a per-week, per-slot census table, including the `capturedAfterClock` labels, which is kept as evidence.
+- The eval asserts the **independently reviewed measured captured-evidence table**: each slot's decision, units/core/anchor counts, counted unit IDs, coverage rollover and any cap cuts. The retained original §7 projection is printed for comparison only, not silently used as an acceptance oracle. No expectation overrides a verifier rule or changes a captured timestamp. Any change to the measured table needs a cited same-record capture/product fix and refreshed independent review of the affected contract.
+- Run the ceiling and floor conditional-span exercises on the same one-pool captured evidence. R37's historical fact (ii) remains unavailable in both; toggling a form without a pre-cutoff body cannot make it verified. Assert each measured scenario, not the unsupported original ceiling/floor counts.
+- The original IG084-removal result is **not evidenced** by the captured replay while that archived caption is excluded; do not claim a vacuous removal check as sensitivity proof. `tests/news-pilot/roundup-plan.test.mjs` proves the 3/1 positive and no-core refusal with clearly synthetic controls. If a new source-bound IG084 admission is established, add its non-vacuous A4 sensitivity only after its provenance and product rule are independently reviewed.
+- All unqualified Instagram leads, image-only rows, retrospective posts and expired/off-site items remain **uncounted** under actual timestamps, record text and verifier rules. The replay records their observed exclusion reasons; the original trial's expected reason classes are not promoted into facts when production extraction returns no record. IG124/IG227 are retrospective, IG034/IG099/IG100 are image-only leads, and IG221 cannot augment IG214 from another post. Whether an archived first-party positive (for example IG084, IG193 or IG215) is recognized is reported as a measured product gap, not repaired by fixture-enforced admission.
+- No trap, blocked, crime, election, weak-source, Reddit, directory or Ontario Place row may be counted by the captured replay. For R62 Joe Shuster Way, R63 Temple Ave and R64 Douro St, a **separate, post-capture real-feed** check runs production extraction/verifier and asserts `not-LV`; they are never backdated into W40 just to test their geography. Rows represented only by labelled fragments (including R03 Toro Toro, R44 TorontoToday stabbing and R23 CBC Tempo) cannot prove the former exact reason or later duplicate claim from real source bodies; retain these as unresolved historical-evidence gaps. A2's clearly synthetic controls exercise the not-LV, blocked, weak-source and duplicate refusal boundaries independently; do not describe those tests as source-backed A4 replay.
+- Print and retain a per-week, per-slot census of served capture IDs, `capturedAfterClock` labels, admitted and excluded units, reasons, counted occurrence keys and coverage. The independent reviewer checks provenance/negative controls and the resulting measured assertion table before A4 acceptance.
 
 ### A5: Mode, boundary and reconciliation tests
 
@@ -1204,7 +1209,7 @@ Each check produces evidence: a command, its output, and IDs. "Tests green" is n
 
 ## 14. Open questions for the owner (do not block staging)
 
-1. **Holds under the inherited source rule.** With Instagram, the replay publishes W37 and W40 and holds W38. W39 publishes only if the Canada Soccer dateline verifies (§7). Holds emit `WEEKLY_NEWS_MISSED`. Relaxing §6.7 would be a substantive cadence change needing its own review. This spec does not propose it.
+1. **Holds under the inherited source rule.** The current captured-evidence replay has incomplete earlier source availability, so its W37–W40 decisions are algorithm exercises, not established historical outcomes (§7/A4). Real holds emit `WEEKLY_NEWS_MISSED`. Relaxing §6.7 would be a substantive cadence change needing its own review; this amendment does not propose it.
 2. **Brand fit.** In published weeks, most counted units are stadium and expo items. The ≥1 core rule enforces a local anchor but not a local majority. Is that the intended brand balance? (The title's "+ Exhibition Place" is intended to make this honest.)
 3. **Image-text dates (possible later addendum).** Image-only Instagram dates are excluded from v2 (§4.4). They cost W38 its IG099 unit and W39 the IG100 class. A later addendum could add blinded, media-bound transcription before the verifier, with submit binding to the image hash.
 4. **Meta Business Discovery (optional).** Apify is approved for production (2026-09-29). Should the Meta adapter be added later? It needs John to provide a professional Instagram account, a Facebook Page and a Facebook app (§4.4).

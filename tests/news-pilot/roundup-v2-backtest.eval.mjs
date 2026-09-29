@@ -26,11 +26,10 @@
 // the clock (`capturedAfterClock`). Held weeks roll everything forward;
 // published coverage removes keys. Feed createdTime is never availability.
 //
-// Tests assert INVARIANTS (evidence binding, availability, coverage, publish
-// rule arithmetic, no trap admission). Observed counts are printed and
-// compared with the approved §7 table as a census; a mismatch caused by what
-// the captures actually contain is reported in replay/REVIEW.md, not failed
-// and not tuned.
+// Tests assert evidence binding, availability, coverage, publish rule arithmetic,
+// negative controls and the independently reviewed MEASURED captured-evidence
+// table. The original projected §7 table is printed only as a comparison;
+// these incomplete captures cannot establish actual historical decisions.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -300,19 +299,53 @@ async function runReplay(verify, plan, { floor = false } = {}) {
   return weeks;
 }
 
-// Approved §7 table (docs/specs/weekly-roundup-v2.md @ 5590d7c), printed for
-// comparison only — never asserted against the captures.
-const APPROVED = {
+// Original projected §7 table (docs/specs/weekly-roundup-v2.md @ 5590d7c),
+// printed for comparison only — never asserted against incomplete captures.
+const ORIGINAL_PROJECTION = {
   ceiling: { 37: 'publish Wed 8 (3/1)', 38: 'HOLD below-minimum (Wed 2 (1/1); Fri/Sun 1 (0/0))',
     39: 'publish Fri 3 (1/1)', 40: 'publish 16 (4/3) -> cap 12' },
   floor: { 37: 'publish Wed 8 (3/1)', 38: 'HOLD below-minimum (Wed 2 (1/1); Fri/Sun 1 (0/0))',
     39: 'HOLD below-minimum (Fri/Sun 2 (1/1))', 40: 'publish 15 (5/4) -> cap 12' },
 };
-const APPROVED_UNITS = {
+const ORIGINAL_UNITS = {
   37: ['IG084', 'IG069', 'IG065', 'R07a', 'R07b', 'R22b', 'R22a', 'R22c', 'R08-i', 'R24-i', 'R09'],
   38: ['R20', 'R38'],
   39: ['R39-i', 'IG193', 'R37'],
   40: ['R50', 'R52', 'IG214', 'IG215', 'R53', 'R54', 'R58-i', 'R59a', 'R59b', 'R59c', 'R55', 'R57a'],
+};
+// Captured-evidence exercise after the reviewed real-body conversion, exact
+// IG214 location-line witness and same-record day-first/Lakeshore parsers. These
+// are not claims that the archived bodies existed at earlier historical clocks.
+// Group strings retain each aggregate's constituent reference IDs in plan order.
+const MEASURED = {
+  ceiling: {
+    37: [
+      ['hold', 5, 0, 0, 'R09|R08-iii+R08-iv+R08-v+R08-vi+R24-i+R24-ii+R24-iii+R24-iv|R07a+R07b+R22b|R22a|R22c'],
+      ['hold', 4, 0, 0, 'R07a+R07b+R22b+R38|R08-v+R08-vi+R24-i+R24-ii+R24-iii+R24-iv|R22a|R22c'],
+      ['hold', 4, 0, 0, 'R07b+R22b+R38|R08-vi+R24-i+R24-ii+R24-iii+R24-iv+R39-i+R39-ii|R22a|R22c'],
+    ],
+    38: [['publish', 5, 1, 1, 'R20|R24-iii+R24-iv+R39-i+R39-ii+R39-iii|R22a|R22b+R38|R22c']],
+    39: [
+      ['hold', 3, 0, 0, 'R58-i+R58-ii+R58-iii|R57a|R57b-i'],
+      ['hold', 3, 0, 0, 'R58-i+R58-ii+R58-iii|R57a|R57b-i'],
+      ['hold', 3, 0, 0, 'R58-i+R58-ii+R58-iii|R57a|R57b-i+R57b-ii'],
+    ],
+    40: [['publish', 10, 2, 2, 'IG214|R50|R58-i+R58-ii+R58-iii|R59a|R59b|R55|R57a|R57b-i+R57b-ii|R56a|R56b']],
+  },
+  floor: {
+    37: [
+      ['hold', 5, 0, 0, 'R09|R08-iii+R08-iv+R08-v+R08-vi+R24-i+R24-ii+R24-iii+R24-iv|R07a+R07b|R22a|R22c'],
+      ['hold', 4, 0, 0, 'R07a+R07b+R38|R08-v+R08-vi+R24-i+R24-ii+R24-iii+R24-iv|R22a|R22c'],
+      ['hold', 4, 0, 0, 'R07b+R38|R08-vi+R24-i+R24-ii+R24-iii+R24-iv+R39-i+R39-ii|R22a|R22c'],
+    ],
+    38: [['publish', 5, 1, 1, 'R20|R24-iii+R24-iv+R39-i+R39-ii+R39-iii|R22a|R22c|R38']],
+    39: [
+      ['hold', 3, 0, 0, 'R58-i+R58-ii+R58-iii|R57a|R57b-i'],
+      ['hold', 3, 0, 0, 'R58-i+R58-ii+R58-iii|R57a|R57b-i'],
+      ['hold', 3, 0, 0, 'R58-i+R58-ii+R58-iii|R57a|R57b-i'],
+    ],
+    40: [['publish', 10, 2, 2, 'IG214|R50|R58-i+R58-ii+R58-iii|R59a|R59b|R55|R57a|R57b-i|R56a|R56b']],
+  },
 };
 const fmtSlot = (s) => `${s.decision} ${s.units} (${s.core}/${s.anchors})${s.reasons.length ? ' ' + s.reasons.join('+') : ''}`;
 
@@ -448,6 +481,30 @@ if (V.integrated) {
     assert.equal(byId.get('R59a').form.recordId, 'row:7c5442462325e6b189bffd5b65f54675');
     assert.equal(byId.get('R59b').form.recordId, 'row:40f104176844a06a2551b8b3d969ef66');
     assert.equal(byId.get('R59c').form.recordId, 'row:3fdaa0679cffa3b219cbef9290b1bba8');
+    // IG214's whole-block inherited quote obscured the caption's actual
+    // pinned-location line. Preserve its exact same-record place witness.
+    const ig214 = byId.get('IG214');
+    assert.equal(ig214.form.evidence[0].place_quote, '116 Atlantic Ave. Patio');
+    assert.ok(ig214.spans.some((s) => s.field === 'place' && s.text === '116 Atlantic Ave. Patio'));
+    assert.ok(boundRecords(ig214).find((r) => r.recordId === ig214.form.recordId).text
+      .split('\n').some((line) => /^\s*📍\s*116 Atlantic Ave\. Patio\s*$/.test(line)));
+  });
+
+  test('REAL captured-record geography controls are not historical clock admissions', async () => {
+    // These roads exist only in the Sep 29 18:30Z captured feed, after the
+    // 15:00Z replay clock. Exercise their real records separately rather
+    // than bypassing the replay's availability guard or calling them counted.
+    const clock = '2026-09-29T19:00:00Z';
+    for (const id of ['R62x', 'R63x', 'R64x']) {
+      const u = byId.get(id);
+      const avail = { served: { kind: 'capture', captureId: u.bodies[0].captureId } };
+      const { signals, forms } = buildInputs([{ u, avail }], { floor: false });
+      const { fetcher } = makeFetcher(clock);
+      const result = await V.verify({ signals, forms, now: clock, posts: [], fetcher });
+      assert.equal(result.items.length, 0, `${id} must not count even in a post-capture control`);
+      assert.equal(result.excluded.find((e) => e.signalId === u.form.signalId)?.reason, 'not-LV',
+        `${id} real bound feed record excludes an off-site street`);
+    }
   });
 
   const REPLAY = {};
@@ -511,6 +568,25 @@ if (V.integrated) {
     }
   });
 
+  test('REAL replay: reviewed measured captured-evidence slots, group IDs and cap cuts', async () => {
+    for (const floor of [false, true]) {
+      const name = floor ? 'floor' : 'ceiling';
+      const w = await replay(floor);
+      for (const week of [37, 38, 39, 40]) {
+        assert.equal(w[week].length, MEASURED[name][week].length, `${name} W${week} deciding slot`);
+        w[week].forEach((s, i) => {
+          const [decision, units, core, anchors, groups] = MEASURED[name][week][i];
+          assert.equal(s.clock, SLOTS[week][i], `${name} W${week} slot clock`);
+          assert.deepEqual([s.decision, s.units, s.core, s.anchors], [decision, units, core, anchors],
+            `${name} W${week} ${s.clock} measured result`);
+          assert.equal(s.counted.map((c) => c.unitIds.join('+')).join('|'), groups,
+            `${name} W${week} ${s.clock} measured source-bound unit groups`);
+          assert.deepEqual(s.cut, [], `${name} W${week} ${s.clock} no cap cut on these captured bodies`);
+        });
+      }
+    }
+  });
+
   test('REAL replay: no trap, lead or reviewer-excluded row is ever counted', async () => {
     for (const floor of [false, true]) {
       const w = await replay(floor);
@@ -537,7 +613,7 @@ if (V.integrated) {
     for (const week of [37, 38, 39, 40]) assert.equal(all[week][0].decision, 'publish', `evidence-blind mock publishes W${week}`);
   });
 
-  test('REAL replay census (printed; compared with the approved §7 table, not asserted)', async () => {
+  test('REAL replay census (measured outcome asserted above; original projection diagnostic only)', async () => {
     const out = {};
     for (const floor of [false, true]) {
       const name = floor ? 'floor' : 'ceiling';
@@ -559,10 +635,10 @@ if (V.integrated) {
         }
         const last = w[week][w[week].length - 1];
         const observed = new Set(w[week].flatMap((s) => s.counted.flatMap((c) => c.unitIds)));
-        const approved = APPROVED_UNITS[week].filter((id) => !(floor && (id === 'R37' || FLOOR_DROP.has(id))));
-        console.log(`      approved: ${APPROVED[name][week]} | observed deciding: ${last.clock} ${fmtSlot(last)}`);
-        console.log(`      approved units missing: ${approved.filter((id) => !observed.has(id)).join(' ') || '-'}; ` +
-          `extra: ${[...observed].filter((id) => !APPROVED_UNITS[week].includes(id)).join(' ') || '-'}`);
+        const original = ORIGINAL_UNITS[week].filter((id) => !(floor && (id === 'R37' || FLOOR_DROP.has(id))));
+        console.log(`      original projection: ${ORIGINAL_PROJECTION[name][week]} | observed deciding: ${last.clock} ${fmtSlot(last)}`);
+        console.log(`      original units absent: ${original.filter((id) => !observed.has(id)).join(' ') || '-'}; ` +
+          `extra: ${[...observed].filter((id) => !ORIGINAL_UNITS[week].includes(id)).join(' ') || '-'}`);
       }
     }
     if (process.env.RV_CENSUS_OUT) writeFileSync(process.env.RV_CENSUS_OUT, JSON.stringify(out, null, 1));

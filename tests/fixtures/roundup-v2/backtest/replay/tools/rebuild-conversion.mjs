@@ -151,6 +151,19 @@ for (const u of units) {
   const quoteNotes = { ...(prev.quoteNotes || {}) };
   if (chosen) {
     const n = normalizeRecordText(chosen.text);
+    if (u.unitId === 'IG214') {
+      // The inherited quote covered the whole event block. The caption's
+      // own pinned-location line is a narrower, same-record place quote;
+      // the verifier requires the quote on that line for venue fallback.
+      const place = '116 Atlantic Ave. Patio';
+      if (!chosen.text.split('\n').some((line) => /^\s*📍\s*116 Atlantic Ave\. Patio\s*$/.test(line))) {
+        throw new Error('IG214 pinned location line absent from its bound record');
+      }
+      if (ev.place_quote !== place) {
+        quoteNotes.place_quote = `narrowed same-record location line from:${ev.place_quote}`;
+        ev.place_quote = place;
+      }
+    }
     u.form.recordId = chosen.recordId;
     for (const e of u.form.evidence) if (e.url === url) e.recordId = chosen.recordId;
     for (const [qk, field] of Object.entries(FIELD)) {
