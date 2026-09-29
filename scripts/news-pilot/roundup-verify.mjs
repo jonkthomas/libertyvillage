@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { registrableDomain } from './sources.mjs';
 import { detectNonEventLabels, detectRiskFlags, isDevelopmentApplication } from './score.mjs';
 import { roundupSourceQuality, sourceSpanProvesTime } from './roundup-evidence.mjs';
-import { isoWeekOf, roundupCoveredKeys, planRoundupV2 } from './roundup.mjs';
+import { isoWeekOf, planRoundupV2 } from './roundup.mjs';
 export { roundupCoverageFromPack } from './roundup.mjs';
 
 const DAY = 86400000;
@@ -130,6 +130,33 @@ function timeOf(raw) {
   if (!m) return null;
   const hour = Number(m[1]) % 12 + (m[3].toLowerCase() === 'p' ? 12 : 0);
   return `${String(hour).padStart(2, '0')}:${m[2] || '00'}`;
+}
+
+// The first explicit clock in an event record is its start, not a disposable
+// optional form field. A range also proves its end. Ignore clock-looking metadata
+// on news and feed records, which have their own typed temporal contracts.
+function statedTimes(record, source) {
+  const typed = record.typed || {};
+  if (source.parse === 'jsonld-event') {
+    const start = typed.startDate;
+    const end = typed.endDate;
+    const clock = (value) => {
+      if (!value || !/T\d\d:\d\d/.test(String(value))) return null;
+      const instant = Date.parse(value);
+      return Number.isFinite(instant) ? `${String(local(instant).hour).padStart(2, '0')}:${String(local(instant).minute).padStart(2, '0')}` : null;
+    };
+    return { start: clock(start), end: clock(end) };
+  }
+  const text = norm(source.parse === 'html-listing' && typed.timeText ? typed.timeText : record.text);
+  const range = text.match(/\b(noon|\d{1,2}(?::\d\d)?\s*(?:a\.?m\.?|p\.?m\.?))\s*(?:-|to)\s*(noon|\d{1,2}(?::\d\d)?\s*(?:a\.?m\.?|p\.?m\.?))\b/i)
+    || text.match(/\b(\d{1,2}(?::\d\d)?)\s*-\s*(\d{1,2}(?::\d\d)?\s*[ap]\.?m\.?)\b/i);
+  if (range) {
+    const period = range[2].match(/([ap])\.?m\.?$/i)?.[0] || '';
+    return { start: timeOf(range[1].match(/[ap]\.?m\.?$/i) || /^noon$/i.test(range[1]) ? range[1] : range[1] + period),
+      end: timeOf(range[2]) };
+  }
+  const literal = text.match(timePattern)?.[0];
+  return { start: literal ? timeOf(literal) : null, end: null };
 }
 
 function torontoInstant(day, time = '00:00') {
@@ -334,7 +361,6 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
   const { extractRoundupRecords } = recordModule;
   const registry = sources || sourceModule.ROUNDUP_SOURCES || [];
   const tiers = publisherTiers || sourceModule.ROUNDUP_PUBLISHER_TIERS || {};
-  const covered = roundupCoveredKeys(posts);
   const signalMap = new Map(signals.map((s) => [s.signalId, s]));
   const igRows = Array.isArray(igRefetch?.rows) ? igRefetch.rows : [];
   const expectedIg = [...new Set(signals.filter((signal) => signal.sourceId === 'rv2-instagram' ||
@@ -373,7 +399,11 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             if (sourceSignal.post && (post.caption !== sourceSignal.post.caption || post.timestamp !== sourceSignal.post.timestamp ||
               post.ownerUsername !== sourceSignal.post.ownerUsername)) fail('unverifiable');
           }
-          const body = source.parse === 'ig-post' ? post.caption : await loadBody(claim.url, accessFetcher, { source, signal: sourceSignal });
+          // Capture the actual verification response, not the planning clock or a
+          // collector snapshot masquerading as a fresh re-fetch.
+          const response = source.parse === 'ig-post' ? null : await accessFetcher(claim.url, { source, signal: sourceSignal });
+          const body = source.parse === 'ig-post' ? post.caption : await loadBody(claim.url, async () => response, { source, signal: sourceSignal });
+          const verifyStatus = source.parse === 'ig-post' ? null : Number.isInteger(response?.status) ? response.status : null;
           const original = (source.parse === 'html-page' || source.identityKind === 'news-discovery') &&
             form.when?.kind === 'news-update' ? await originalFor(body, claim.url, accessFetcher, recordModule) : null;
           const fresh = extractRoundupRecords({ source, url: claim.url, body, post });
@@ -391,6 +421,8 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             if (!normalized.includes(norm(quote))) fail(fresh.some((r) => norm(r.text).includes(norm(quote))) ? 'cross-record' : 'source-swapped');
           }
           if (!claim.subject_quote || !norm(claim.subject_quote).includes(norm(form.subject))) fail('unverifiable');
+          if (['jsonld-event', 'html-listing'].includes(recordSource.parse) &&
+            norm(record.typed?.name ?? record.typed?.subject) !== norm(form.subject)) fail('unverifiable');
           if (source.parse === 'json-feed') {
             const snapshot = (sourceSignal.records || []).find((r) => r.recordId === record.recordId)?.typed;
             const fields = feedFields[source.identityKind] || [];
@@ -403,6 +435,11 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
           } else if (dateFromRecord(record, recordSource, form.when, post, at, claim) !== form.when?.date) fail('undated');
           if (source.parse !== 'json-feed' && form.when?.endDate && !(String(record.typed?.endDate || '').startsWith(form.when.endDate) ||
             resolvedDates(norm(record.text), { source: recordSource, post, now: at }).includes(form.when.endDate))) fail('undated');
+          if (form.when?.kind === 'event' && source.parse !== 'json-feed') {
+            const stated = statedTimes(record, recordSource);
+            if (stated.start && stated.start !== form.when.startTime ||
+              stated.end && stated.end !== form.when.endTime) fail('undated');
+          }
           if (form.when?.startTime && !(source.parse === 'json-feed'
             ? typedTimeMatches(record, 'startTime', form.when.date, form.when.startTime)
             : recordProvesTime(record, form.when.date, torontoInstant(form.when.date, form.when.startTime)))) fail('undated');
@@ -413,14 +450,24 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
           if (place.locality === 'not-LV') fail('not-LV');
           const tier = source.identityKind === 'news-discovery'
             ? tiers[registrableDomain(claim.url)] || 'lead'
-            : source.tier || 'lead';
+            : recordSource.parse === 'ig-post' && place.canonicalVenueId !== source.canonicalVenueId &&
+                !(place.locality === 'core' && claim.place_quote)
+              ? 'lead' : source.tier || 'lead';
+          const typed = record.typed || {};
+          if (Buffer.byteLength(JSON.stringify(typed)) > 4096) fail('unverifiable');
           const entry = { url: claim.url, recordId: record.recordId, subject_quote: claim.subject_quote,
             place_quote: claim.place_quote, date_quote: claim.date_quote, tier, publisherDomain: registrableDomain(claim.url),
             publisher: source.label || source.identityId || registrableDomain(claim.url), sourceId: source.id,
             feed: source.parse === 'json-feed', listing: source.parse === 'html-listing',
             extractionSubstantive: record.extractionSubstantive ?? sourceSignal.extractionSubstantive ??
               (source.parse === 'html-page' ? normalized.length >= 40 : normalized.length >= 10),
-            fetchOk: true, itemBound: true, locality: place.locality };
+            fetchOk: true, itemBound: true, locality: place.locality,
+            typed, snapshotSha256: createHash('sha256').update(body).digest('hex'),
+            capturedSnapshotSha256: sourceSignal.snapshotSha256 || null,
+            fetchStatus: Number.isInteger(sourceSignal.fetchStatus) ? sourceSignal.fetchStatus : null,
+            verifyStatus, verifiedAt: new Date().toISOString() };
+          if (index > 0 && primary && (place.locality !== primary.place.locality ||
+            place.canonicalVenueId !== primary.place.canonicalVenueId)) continue;
           evidence.push(entry);
           if (index === 0) primary = { source: recordSource, record, place, post, originalUrl: original?.url,
             when: trustedWhen(form.when, record, source) };
@@ -443,7 +490,8 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
       if (reason) fail(reason);
       if (!roundupSourceQuality(evidence)) fail('weak-source');
       const identityKey = itemKey(form, primary.source, primary.record, primary.place, primary.originalUrl);
-      if (covered.has(identityKey)) fail('previously-covered');
+      // The planner alone separates covered active items into uncounted
+      // stillInEffect; refusing them here makes that branch unreachable.
       items.push({ ...form, when: primary.when, locality, verdict: locality, identityKey, keys: [identityKey],
         itemType: form.item_type, date: primary.when.date, citations: evidence.map((entry) => ({
           url: entry.url, publisher: entry.publisher, sourceId: entry.sourceId, recordId: entry.recordId,
@@ -462,11 +510,16 @@ export async function revalidateRoundupForms(pack, options = {}) {
   const plan = planRoundupV2(result.items, { now: options.now, posts: options.posts || [] });
   const oldKeys = (pack.units || pack.items || []).flatMap((item) => item.keys || [item.identityKey]).sort();
   const newKeys = plan.countedItems.flatMap((item) => item.keys).sort();
-  if (plan.decision !== 'publish' || JSON.stringify(oldKeys) !== JSON.stringify(newKeys))
+  const oldStill = (pack.stillInEffect || []).flatMap((item) => item.keys || [item.identityKey]).sort();
+  const newStill = plan.stillInEffect.flatMap((item) => item.keys || [item.identityKey]).sort();
+  if (plan.decision !== 'publish' || JSON.stringify(oldKeys) !== JSON.stringify(newKeys) ||
+    JSON.stringify(oldStill) !== JSON.stringify(newStill))
     throw new Error('roundup source evidence changed or unreachable; rebuild before submit');
   const projection = (item) => ({ identityKey: item.identityKey, keys: item.keys, members: item.members,
     subject: item.subject, what: item.what, verdict: item.verdict, itemType: item.itemType,
-    date: item.date, citations: item.citations, evidence: item.evidence });
+    date: item.date, citations: item.citations, evidence: item.evidence?.map((entry) => Object.fromEntries(
+      Object.entries(entry).filter(([key]) => !['snapshotSha256', 'capturedSnapshotSha256',
+        'fetchStatus', 'verifyStatus', 'verifiedAt'].includes(key)))) });
   if (digest((pack.units || pack.items || []).map(projection)) !== digest(plan.countedItems.map(projection)))
     throw new Error('roundup source evidence changed or unreachable; rebuild before submit');
   return { ...result, plan };

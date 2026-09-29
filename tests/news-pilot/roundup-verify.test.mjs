@@ -138,6 +138,125 @@ test('two corroborating lead pages require a deterministic shared group', async 
   assert.equal((await verifyRoundupForms(corroborated)).excluded[0].reason, 'weak-source');
 });
 
+test('secondary evidence cannot upgrade a conflicting venue or locality', async () => {
+  const secondaryUrl = 'https://city.example/event';
+  const first = { ...signal(), groupId: 'shared' };
+  const second = { ...signal('Autumn Market at Exhibition Place, Toronto. Date: October 3, 2026. Starts at 4pm.', 's2', secondaryUrl), sourceId: 'city', groupId: 'shared' };
+  const proposed = form();
+  proposed.evidence.push({ url: secondaryUrl, recordId: 'r1', subject_quote: 'Autumn Market',
+    place_quote: 'at Exhibition Place, Toronto', date_quote: 'October 3, 2026' });
+  const opts = options([first, second], [proposed]);
+  opts.sources = [{ ...source, tier: 'lead' }, { ...source, id: 'city', tier: 'official' }];
+  opts.fetcher = async (requested) => ({ body: requested === url ? text : second.body, status: 200 });
+  opts.geography = { classifySectionPlace: ({ placeQuote }) => placeQuote.includes('Exhibition')
+    ? { verdict: 'adjacent', canonicalVenueId: 'addr:100-princes-blvd' }
+    : { verdict: 'core', canonicalVenueId: 'addr:171-east-liberty-st' } };
+  const result = await verifyRoundupForms(opts);
+  assert.equal(result.items.length, 0);
+  assert.equal(result.excluded[0].reason, 'weak-source');
+});
+
+test('omitted stated start or end time cannot extend eligibility; submit rechecks', async () => {
+  const omitted = options([signal()], [{ ...form(), when: { kind: 'event', date: '2026-10-03', startTime: null } }]);
+  omitted.now = '2026-10-03T21:00:00Z';
+  const result = await verifyRoundupForms(omitted);
+  assert.equal(result.items.length, 0);
+  assert.equal(result.excluded[0].reason, 'undated');
+  const names = ['Autumn Market', 'Second Market', 'Third Market'];
+  const signals = names.map((name, index) => signal(text.replace('Autumn Market', name), `s${index}`, `${url}/${index}`));
+  const forms = names.map((name, index) => ({ ...form(`s${index}`, signals[index].url), subject: name,
+    when: { kind: 'event', date: '2026-10-03', startTime: null },
+    evidence: [{ ...form().evidence[0], url: signals[index].url, subject_quote: name }] }));
+  const opts = options(signals, forms);
+  opts.fetcher = async (requested) => ({ body: signals.find((s) => s.url === requested).body, status: 200 });
+  const pack = { signals, forms, units: [{ identityKey: 'invented' }] };
+  await assert.rejects(revalidateRoundupForms(pack, opts), /rebuild before submit/);
+});
+
+test('structured record typed subject must match, even when description quotes a different subject', async () => {
+  const structured = options();
+  structured.sources = [{ ...source, parse: 'jsonld-event', identityKind: 'venue' }];
+  structured.recordExtractor = ({ body }) => [{ ...record(body), kind: 'jsonld-event', typed: {
+    name: 'Red Clay Strays', startDate: '2026-10-03T16:00:00-04:00', location: { name: 'Autumn Market' } } }];
+  structured.geography = { classifyVenueName: () => ({ verdict: 'core', canonicalVenueId: 'addr:171-east-liberty-st' }) };
+  assert.equal((await verifyRoundupForms(structured)).excluded[0].reason, 'unverifiable');
+});
+
+test('Instagram third-party adjacent events remain lead while own/core events are primary', async () => {
+  const igUrl = 'https://www.instagram.com/p/THIRD/';
+  const caption = 'Burger Drops Pop-Up October 3, 2026 at BMO Field, Toronto. Starts at 4pm.';
+  const post = { shortcode: 'THIRD', ownerUsername: 'burgerdrops', timestamp: '2026-09-29T14:00:00Z', caption };
+  const src = ROUNDUP_SOURCES.find((s) => s.id === 'ig:burgerdrops');
+  const records = extractRoundupRecords({ source: src, url: igUrl, body: caption, post });
+  const proposed = { ...form('third', igUrl), recordId: records[0].recordId, subject: 'Burger Drops Pop-Up',
+    item_type: 'event', verdict: 'adjacent', evidence: [{ url: igUrl, recordId: records[0].recordId,
+      subject_quote: 'Burger Drops Pop-Up', place_quote: 'Burger Drops Pop-Up October 3, 2026 at BMO Field, Toronto', date_quote: 'October 3, 2026' }] };
+  const opts = { signals: [{ signalId: 'third', sourceId: src.id, url: igUrl, records, post }], forms: [proposed],
+    now, posts: [], geography: realGeography, sources: [src], publisherTiers: {},
+    fetcher: async () => { throw new Error('no fetch for IG'); } };
+  const result = await verifyRoundupForms(opts);
+  assert.equal(result.items.length, 0, JSON.stringify(result));
+  assert.equal(result.excluded[0].reason, 'weak-source');
+});
+
+test('fresh evidence carries actual typed fields, body digest, honest provenance and covered roads reach planner', async () => {
+  const feedUrl = 'https://city.example/roads';
+  const typed = { id: 'r42', road: 'Strachan Ave', fromRoad: 'King St W', toRoad: 'Fleet St',
+    startTime: '2026-09-29T12:00:00Z', endTime: '2026-10-02T12:00:00Z', description: 'Road work' };
+  const body = JSON.stringify({ Closure: [typed] });
+  const roadSource = { id: 'roads', parse: 'json-feed', identityKind: 'road-feed', tier: 'official' };
+  const fresh = extractRoundupRecords({ source: roadSource, url: feedUrl, body })[0];
+  const sig = { signalId: 'road1', sourceId: 'roads', url: feedUrl, records: [fresh],
+    snapshotSha256: 'a'.repeat(64), fetchedAt: '2026-09-29T14:00:00Z' };
+  const roadForm = { ...form('road1', feedUrl), subject: 'Strachan Ave', when: { kind: 'restriction', date: '2026-09-29' },
+    item_type: 'road', recordId: fresh.recordId,
+    evidence: [{ url: feedUrl, recordId: fresh.recordId, subject_quote: 'Strachan Ave', place_quote: null, date_quote: null }] };
+  const opts = { signals: [sig], forms: [roadForm], now, posts: [{ kind: 'roundup', roundupCoverage: { version: 1, keys: ['road:r42'] } }],
+    fetcher: async () => ({ body, status: 200 }),
+    geography: { classifySegment: () => ({ locality: 'core' }) },
+    sources: [roadSource], publisherTiers: {} };
+  const result = await verifyRoundupForms(opts);
+  assert.equal(result.items.length, 1, JSON.stringify(result.excluded));
+  const entry = result.items[0].evidence[0];
+  assert.deepEqual(entry.typed, fresh.typed);
+  assert.match(entry.snapshotSha256, /^[a-f0-9]{64}$/);
+  assert.notEqual(entry.snapshotSha256, sig.snapshotSha256);
+  assert.equal(entry.capturedSnapshotSha256, sig.snapshotSha256);
+  assert.equal(entry.fetchStatus, null); // collector did not retain its response status
+  assert.equal(entry.verifyStatus, 200);
+  assert.match(entry.verifiedAt, /^\d{4}-\d\d-\d\dT/);
+  const plan = planRoundupV2(result.items, { now, posts: opts.posts });
+  assert.equal(plan.countedItems.length, 0);
+  assert.equal(plan.stillInEffect[0].identityKey, 'road:r42');
+  assert.equal(plan.stillInEffect[0].evidence[0].recordId, fresh.recordId);
+  // The submit path must retain the covered road while revalidating counted units.
+  const names = ['First Market', 'Second Market', 'Third Market'];
+  const events = names.map((name, index) => {
+    const eventUrl = `${url}/${index}`;
+    const eventBody = text.replace('Autumn Market', name).replace('October 3', `October ${index + 3}`);
+    return { signal: signal(eventBody, `event${index}`, eventUrl),
+      form: { ...form(`event${index}`, eventUrl), subject: name,
+        when: { kind: 'event', date: `2026-10-0${index + 3}`, startTime: '16:00' },
+        evidence: [{ ...form().evidence[0], url: eventUrl, subject_quote: name,
+          date_quote: `October ${index + 3}, 2026` }] } };
+  });
+  const combined = { ...opts, signals: [sig, ...events.map((item) => item.signal)],
+    forms: [roadForm, ...events.map((item) => item.form)], sources: [roadSource, source],
+    geography: { ...opts.geography, ...geo },
+    recordExtractor: ({ source: extracting, url: requested, body: fetched }) => extracting.parse === 'json-feed'
+      ? extractRoundupRecords({ source: extracting, url: requested, body: fetched }) : [record(fetched)],
+    fetcher: async (requested) => ({ body: requested === feedUrl ? body : events.find((item) => item.signal.url === requested)?.signal.body, status: 200 }) };
+  const combinedVerified = await verifyRoundupForms(combined);
+  const combinedPlan = planRoundupV2(combinedVerified.items, { now, posts: opts.posts });
+  assert.equal(combinedPlan.decision, 'publish');
+  assert.equal(combinedPlan.countedItems.length, 3);
+  assert.equal(combinedPlan.stillInEffect.length, 1);
+  const pack = { now, units: combinedPlan.countedItems, stillInEffect: combinedPlan.stillInEffect,
+    signals: combined.signals, forms: combined.forms };
+  const submitted = await revalidateRoundupForms(pack, { ...combined, now: '2026-09-29T15:30:00Z' });
+  assert.equal(submitted.plan.stillInEffect[0].identityKey, 'road:r42');
+});
+
 test('resolved-date time proof accepts literal times only', () => {
   assert.equal(recordProvesTime('This Wednesday at 6:30pm', '2026-09-30', Date.parse('2026-09-30T22:30:00Z')), true);
   assert.equal(recordProvesTime('Tuesday, September 15 @ 5:30PM', '2026-09-15', Date.parse('2026-09-15T21:30:00Z')), true);
