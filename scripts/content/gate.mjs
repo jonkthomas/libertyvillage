@@ -200,11 +200,68 @@ function inventoryFromLive(agent, live, checkout, { verified, rejected }) {
   });
 }
 
+// #182: the 900 s claim must outlive a slow review or fixer call (four fixer attempts
+// ran 24 min). The SAME token is renewed once before `work` starts — the claim may be
+// nearly spent by the deterministic checks, live context and media evidence before
+// it — and then serially while `work` is pending: the next renewal is scheduled only
+// after the previous one settles. The timer is stopped and any in-flight renewal
+// drained before this returns, so no renewal can race a later write or the final
+// releaseClaim. A renewal failure (lost lease, network), up front or periodic, rejects
+// at once with that error, marked so the fixer's catch rethrows it instead of counting
+// a fixer failure; it wins over the work's own outcome. The work itself is not aborted.
+export const HEARTBEAT_MS = 300_000;
+const leaseFailures = new WeakSet();
+export const isLeaseFailure = (error) => typeof error === 'object' && error !== null && leaseFailures.has(error);
+const leaseFailure = (error) => {
+  const failure = typeof error === 'object' && error !== null ? error : new Error('claim renewal failed');
+  leaseFailures.add(failure);
+  return failure;
+};
+
+export async function withHeartbeat(work, { renew, intervalMs = HEARTBEAT_MS }) {
+  try {
+    await renew();
+  } catch (error) {
+    throw leaseFailure(error);
+  }
+  let timer = null;
+  let inflight = null;
+  let stopped = false;
+  let failure = null;
+  let signalFailure;
+  const failed = new Promise((_, reject) => { signalFailure = reject; });
+  failed.catch(() => {});
+  const schedule = () => { if (!stopped) timer = setTimeout(beat, intervalMs); };
+  function beat() {
+    timer = null;
+    inflight = Promise.resolve().then(renew).then(schedule, (error) => {
+      stopped = true;
+      failure = leaseFailure(error);
+      signalFailure(failure);
+    });
+  }
+  schedule();
+  const pending = Promise.resolve().then(work);
+  pending.catch(() => {});
+  let outcome;
+  try {
+    outcome = { value: await Promise.race([pending, failed]) };
+  } catch (error) {
+    outcome = { error };
+  }
+  stopped = true;
+  if (timer) clearTimeout(timer);
+  await inflight;
+  if (failure) throw failure;
+  if ('error' in outcome) throw outcome.error;
+  return outcome.value;
+}
+
 // review-agent pulls in the agent SDK; load it only when the gate really runs.
 const loadReviewAgent = () => import('../automation/review-agent.mjs');
 
 // opts: {submission, script, actor, owner}; runtime: {env, deps:{review, fix, fetchImpl, now, wait,
-// onPhase, smoke}, checkout}. Returns {result, exitCode}.
+// onPhase, smoke, renewClaim, heartbeatMs}, checkout}. Returns {result, exitCode}.
 export async function gateContent(db, opts, { env = process.env, deps = {}, checkout = process.cwd() } = {}) {
   const id = Number(opts.submission);
   if (!Number.isInteger(id) || id <= 0) throw new Error('--submission required');
@@ -241,6 +298,8 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
   const review = deps.review ?? agent.reviewRows;
   const fix = deps.fix ?? agent.planRecordRepair;
   const inventoryFor = async (live, candidates) => inventoryFromLive(agent, live, checkout, await currentSubmissionMediaPaths(db, candidates));
+  const renew = deps.renewClaim ?? renewClaim;
+  const leased = (work) => withHeartbeat(work, { renew: () => renew(db, id, token), intervalMs: deps.heartbeatMs });
   let fixerFailures = 0;
   const closed = ({ submission, rounds }, extra = {}) => {
     const last = rounds.at(-1);
@@ -306,7 +365,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         rt.onPhase(`review:${n}`);
         const verdict = script
           ? scriptedVerdict(script, n, doc.contentSha)
-          : await review({ kind, lenses, document: doc.document, contentSha: doc.contentSha, references, inventory, evidence });
+          : await leased(() => review({ kind, lenses, document: doc.document, contentSha: doc.contentSha, references, inventory, evidence }));
         // g4 decision, persisted once
         const decided = decideRound({
           kind, verdict, contentSha: doc.contentSha, repairs: submission.repairs, round: n,
@@ -321,7 +380,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         if (DECISION_STATE[decision]) continue;
         state = await getSubmission(db, id);
       }
-      await renewClaim(db, id, token);
+      await renew(db, id, token);
 
       if (decision === 'go') {
         try {
@@ -356,13 +415,15 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
           if (!check.ok) throw new Error(`invalid repair plan: ${check.errors.join('; ')}`);
           repaired = check.repaired;
         } else {
-          const result = await fix({
+          const result = await leased(() => fix({
             kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings,
             schema: agent.rowRepairSchema(files), describeContract: describeRowContract,
-          });
+          }));
           repaired = result.check.repaired;
         }
-      } catch {
+      } catch (error) {
+        // A lost lease or failed renewal is not a fixer failure: it ends this process.
+        if (isLeaseFailure(error)) throw error;
         // No rows written: the round stays `repair`, so the loop (or a rerun) retries the
         // fixer; a second consecutive failure in this process closes the submission.
         fixerFailures += 1;
