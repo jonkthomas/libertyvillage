@@ -1,0 +1,5 @@
+# Byte-exact archive copies: hashes are pinned in conversion.jsonl and the
+# backtest eval. Their bytes (including CRLF) must never change, so they
+# are exempt from patch whitespace hygiene. Everything else under
+# backtest/replay/ is authored JSON without trailing whitespace.
+backtest/reference/** -whitespace

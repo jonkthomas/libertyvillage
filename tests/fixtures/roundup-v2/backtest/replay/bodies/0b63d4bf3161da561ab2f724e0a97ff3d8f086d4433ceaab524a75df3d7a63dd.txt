@@ -1,1 +1,0 @@
-archived backtest capture | items.jsonl line 1 | verified_at 2026-09-29T14:26:12.256Z | verify_http 200,200 | url https://www.blogto.com/events/board-game-night-left-field-brewery-in-liberty-village-toronto-toronto-5/ | quote: Friday, September 11, 2026 Report Inaccuracy Board Game Night @ Left Field Brewery in Liberty Village Toronto … "address": "40 Hanna Ave Suite G1

@@ -1,1 +1,0 @@
-archived backtest capture | items.jsonl line 63 | verified_at 2026-09-29T14:27:26.875Z | verify_http 200 | url https://secure.toronto.ca/opendata/cart/road_restrictions/v3?format=json | quote: "name":"Temple Ave 69 m East of Tyndall Ave to 3 m West of Dufferin St"

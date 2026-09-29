@@ -1,1 +1,0 @@
-archived backtest capture | items.jsonl line 34 | verified_at 2026-09-29T14:26:52.200Z | verify_http 200 | url https://toronto.citynews.ca/2026/09/24/weekend-need-to-know-toronto-vintage-show-garlic-festival-among-start-of-fall-events/ | quote: The show features 120 vendors spread across 60,000 square feet of the Queen Elizabeth Building at Exhibition Place

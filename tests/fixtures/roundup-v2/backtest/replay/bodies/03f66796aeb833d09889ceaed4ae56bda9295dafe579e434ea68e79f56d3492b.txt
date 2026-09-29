@@ -1,1 +1,0 @@
-archived backtest capture | items.jsonl line 30 | verified_at 2026-09-29T14:26:28.236Z | verify_http  | url https://www.theglobeandmail.com/canada/article-world-cup-vancouver-toronto-neighbourhoods- | quote: 
