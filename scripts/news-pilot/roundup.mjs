@@ -33,14 +33,15 @@ export function planRoundup(pack, opts = {}) {
   if (isoWeek !== week.isoWeek || (opts.weekStartUtc && opts.weekStartUtc !== week.weekStartUtc)) throw new Error('roundup week mismatch');
   const checked = validateRoundupPack(pack, { ...opts, nowMs, weekStartUtc: week.weekStartUtc });
   const items = checked.accepted.map((entry) => entry.item);
-  const decision = items.length >= 2 ? 'roundup' : items.length === 1 ? 'single-update' : 'missed';
+  const decision = items.length >= 2 ? 'roundup' : items.length === 1 ? 'single-update' : 'hold';
   const slug = roundupSlug(isoWeek);
+  // Only the durable cadence deadline can declare a terminal weekly miss.
   return { decision, items, slug, isoWeek, weekStartUtc: week.weekStartUtc, now: new Date(nowMs).toISOString(), census: checked.census,
-    ...(decision === 'missed' ? { alert: { kind: 'WEEKLY_NEWS_MISSED', isoWeek, census: checked.census } } : {}) };
+    ...(decision === 'hold' ? { hold: { reason: 'zero-eligible-now', census: checked.census } } : {}) };
 }
 
 export function buildRoundupPost(plan, { image, root = process.cwd(), imageExists } = {}) {
-  if (!plan || plan.decision === 'missed' || !Array.isArray(plan.items) || !plan.items.length) throw new Error('no eligible roundup items');
+  if (!plan || plan.decision === 'hold' || !Array.isArray(plan.items) || !plan.items.length) throw new Error('no eligible roundup items');
   if (typeof image !== 'string' || !/^\/images\/[a-zA-Z0-9/_-]+\.[a-zA-Z0-9]+$/.test(image) ||
     !(typeof imageExists === 'function' ? imageExists(image) : fs.existsSync(path.join(root, 'public', image.slice(1)))))
     throw new Error('roundup image must be an existing /images/ path');

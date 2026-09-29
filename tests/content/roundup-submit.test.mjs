@@ -17,13 +17,14 @@ const submitClock = Date.parse(now) + 60_000;
 const submit = (db, opts, at = submitClock) => submitContent(db, opts, { checkout: ROOT, clock: () => at });
 const source = (id) => ({
   canonicalUrl: 'https://example.org/weekly/' + id, publisher: 'Example', publisherDomain: 'example.org',
-  sourceTier: 'official', excerpt: 'Liberty Village community group announced a new local event at Hanna Avenue.',
+  sourceTier: 'official', excerpt: 'September 29, 2026: Liberty Village community group announced a new local event at Hanna Avenue.',
   extractionSubstantive: true, extractedAt: '2026-09-29T11:00:00.000Z', fetchOk: true, urlUsable: true,
 });
 const item = (id) => ({
   id, title: 'Liberty Village update ' + id, location: 'Liberty Village', actor: 'Liberty Village community group',
   category: 'community', summary: 'A local event at Hanna Avenue was announced.',
   announcedAt: '2026-09-29T10:00:00.000Z', announcedAtVerified: true,
+  announcedAtSourceUrl: source(id).canonicalUrl, announcedAtSpan: 'September 29, 2026',
   riskFlags: [], fingerprint: id, sources: [source(id)],
   claims: [{ text: 'The group announced a local event.', sourceUrl: source(id).canonicalUrl, span: 'announced a new local event' }],
 });
@@ -85,6 +86,24 @@ test('DB submit accepts two item roundup and one item weekly update; blog/news b
       /news kind may not submit a weekly roundup slug/);
     } finally { await ctx.closeAll(); }
   }
+});
+
+test('DB submit accepts cross-Monday verified news and rejects a swapped date passage', async () => {
+  const ctx = await setup();
+  try {
+    const older = { ...item('cross-monday'), announcedAt: '2026-09-27T23:00:00.000Z',
+      announcedAtSpan: 'September 27, 2026', sources: [{ ...source('cross-monday'), excerpt:
+        'September 27, 2026: Liberty Village community group announced a new local event at Hanna Avenue.' }] };
+    const f = filesFor([older]);
+    const accepted = await submit(ctx.db, { ...f.opts, kind: 'roundup', actor: 'uat:roundup', idempotencyKey: 'cross-monday' });
+    assert.ok(accepted.result.submissionId);
+    const swapped = { ...older, announcedAtSpan: 'unverified sidebar date' };
+    const changedPack = { items: [swapped] };
+    write(path.join(f.dir, 'pack.json'), changedPack);
+    write(path.join(f.dir, 'result.json'), { isoWeek: '2026-W40', slug: f.plan.slug, now, packDigest: roundupPackDigest(changedPack) });
+    await assert.rejects(submit(ctx.db, { ...f.opts, kind: 'roundup', actor: 'uat:roundup',
+      idempotencyKey: 'cross-monday-swapped' }), /roundup pack has no accepted items/);
+  } finally { await ctx.closeAll(); }
 });
 
 test('link-only mention of a refused item is rejected at submit', async () => {

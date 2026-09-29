@@ -5,6 +5,33 @@ import { publisherDomain } from './normalize.mjs';
 import { matchExistingPost } from './dedupe.mjs';
 
 const WEEK_MS = 604800000;
+const DAY_MS = 86400000;
+const torontoDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const torontoParts = (ms) => Object.fromEntries(torontoDate.formatToParts(ms).filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]));
+function torontoMidnight(date) {
+  const parsed = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? Date.parse(date + 'T00:00:00.000Z') : NaN;
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== date) return NaN;
+  const [year, month, day] = date.split('-').map(Number);
+  const wall = Date.UTC(year, month - 1, day);
+  // Resolve Toronto's offset at local midnight, including DST transitions.
+  let instant = wall + 5 * 3600000;
+  for (let n = 0; n < 3; n += 1) {
+    const parts = torontoParts(instant);
+    const local = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+    instant += wall - local;
+  }
+  const parts = torontoParts(instant);
+  return parts.year === year && parts.month === month && parts.day === day && parts.hour === 0 && parts.minute === 0 ? instant : NaN;
+}
+const sourceProves = (sources, url, span) => {
+  if (typeof span !== 'string' || !span.trim()) return false;
+  const cited = sources.find((s) => s.canonicalUrl === url && s.fetchOk === true && s.extractionSubstantive === true &&
+    String(s.excerpt || '').includes(span));
+  if (!cited) return false;
+  if (['official', 'primary'].includes(cited.sourceTier)) return true;
+  return new Set(sources.filter((s) => s.fetchOk === true && s.extractionSubstantive === true &&
+    String(s.excerpt || '').includes(span)).map((s) => s.publisherDomain)).size >= 2;
+};
 const RISK_CATEGORIES = new Set(['crime', 'safety', 'civic-controversy', 'development-application']);
 const NON_NEWS = new Set(['directory', 'query', 'landing-page', 'application', 'opinion', 'promotion']);
 const isoTime = (value) => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(value) && Number.isFinite(Date.parse(value));
@@ -54,17 +81,32 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
   const start = Date.parse(weekStartUtc ?? '');
   if (!Number.isFinite(start) || new Date(start).toISOString() !== weekStartUtc || new Date(start).getUTCDay() !== 1 ||
     new Date(start).getUTCHours() !== 0 || new Date(start).getUTCMinutes() !== 0) reasons.push('invalid-week');
-  if (item?.announcedAtVerified !== true || !isoTime(item?.announcedAt)) reasons.push('undated');
-  else if (Number.isFinite(start) && (Date.parse(item.announcedAt) < start || Date.parse(item.announcedAt) >= start + WEEK_MS ||
-    Date.parse(item.announcedAt) > nowMs)) reasons.push('stale');
-  if (item?.updatedOldPage && item?.substantiveDevelopment !== true) reasons.push('stale');
+  const publicationProof = item?.announcedAtVerified === true && isoTime(item?.announcedAt) &&
+    sourceProves(sources, item?.announcedAtSourceUrl, item?.announcedAtSpan);
+  const publicationMs = publicationProof ? Date.parse(item.announcedAt) : NaN;
+  const newsWindow = publicationMs >= nowMs - WEEK_MS && publicationMs <= nowMs &&
+    (!item?.updatedOldPage || item?.substantiveDevelopment === true);
+  const datedStart = item?.eventStartDate ? torontoMidnight(item.eventStartDate) : NaN;
+  const datedEnd = item?.eventStartDate && Number.isFinite(datedStart)
+    ? torontoMidnight(new Date(Date.parse(item.eventStartDate + 'T00:00:00.000Z') + DAY_MS).toISOString().slice(0, 10)) : NaN;
+  const timedStart = isoTime(item?.eventStart) ? Date.parse(item.eventStart) : NaN;
+  const hasEvent = !!(item?.eventStart || item?.eventStartDate);
+  const eventProof = hasEvent && item?.eventStartVerified === true &&
+    sourceProves(sources, item?.eventStartSourceUrl, item?.eventStartSpan);
+  const eventWindow = eventProof && !item?.eventConcluded &&
+    (item?.eventStartDate ? Number.isFinite(datedStart) && datedStart > nowMs && datedEnd <= nowMs + 14 * DAY_MS
+      : Number.isFinite(timedStart) && timedStart > nowMs && timedStart < nowMs + 14 * DAY_MS);
   if (item?.eventStart && !isoTime(item.eventStart)) reasons.push('invalid-event');
+  if (hasEvent && !eventProof) reasons.push('invalid-event');
+  if (item?.eventStartDate && (!Number.isFinite(datedStart) || item?.eventStart)) reasons.push('invalid-event');
   if (item?.eventEnd && (!isoTime(item.eventEnd) || Date.parse(item.eventEnd) <= nowMs)) reasons.push('concluded');
-  if (item?.eventEnd && !item?.eventStart) reasons.push('invalid-event');
-  if (isoTime(item?.eventStart) && isoTime(item?.eventEnd) && Date.parse(item.eventEnd) <= Date.parse(item.eventStart))
-    reasons.push('invalid-event');
-  if (item?.eventStart && Date.parse(item.eventStart) <= nowMs && !item?.eventEnd) reasons.push('concluded');
-  if (item?.eventConcluded === true) reasons.push('concluded');
+  if (item?.eventEnd && !hasEvent) reasons.push('invalid-event');
+  if (isoTime(item?.eventEnd) && (Number.isFinite(timedStart) || Number.isFinite(datedStart)) &&
+    Date.parse(item.eventEnd) <= (Number.isFinite(timedStart) ? timedStart : datedStart)) reasons.push('invalid-event');
+  if (hasEvent && ((Number.isFinite(timedStart) && timedStart <= nowMs) ||
+    (Number.isFinite(datedStart) && datedStart <= nowMs) || item?.eventConcluded === true)) reasons.push('concluded');
+  if (!newsWindow && !eventWindow) reasons.push(!publicationProof && !eventProof ? 'undated' : 'stale');
+  if (item?.updatedOldPage && item?.substantiveDevelopment !== true && !eventWindow) reasons.push('stale');
   const duplicate = [...livePosts, ...dailyNews].some((p) =>
     (item?.fingerprint && item.fingerprint === (p?.fingerprint ?? p?.newsFingerprint)) ||
     sources.some((s) => postUrls(p).includes(s.canonicalUrl)));
@@ -83,7 +125,7 @@ export function validateRoundupItem(item, { weekStartUtc, nowMs = Date.now(), li
   const unique = [...new Set(reasons)];
   const decision = unique.some((r) => ['risky', 'risk-unassessed', 'weak-source', 'source-swapped', 'invalid-source-url'].includes(r)) ? 'refused'
     : unique.includes('undated') ? 'held' : unique.length ? 'excluded' : 'accepted';
-  return { item, decision, reasons: unique };
+  return { item, decision, reasons: unique, temporalCategory: newsWindow ? 'news-update' : eventWindow ? 'upcoming-event' : null };
 }
 
 export function validateRoundupPack(pack, opts = {}) {
@@ -117,13 +159,18 @@ export async function revalidateRoundupItems(items, { refetch } = {}) {
     try {
       const fresh = await Promise.all((item.sources || []).map((source) => refetch(source.canonicalUrl, source)));
       const oldDigest = sha({ sources: item.sources.map((s) => [s.canonicalUrl, s.excerpt, s.extractionSubstantive, s.publisherDomain, s.fetchOk, s.urlUsable]),
-        riskFlags: item.riskFlags, announcedAt: item.announcedAt, duplicateRelation: item.duplicateRelation ?? null });
+        riskFlags: item.riskFlags, announcedAt: item.announcedAt, eventStart: item.eventStart, eventStartDate: item.eventStartDate,
+        eventEnd: item.eventEnd, duplicateRelation: item.duplicateRelation ?? null });
       const changedRisk = fresh.find((s) => s && Object.hasOwn(s, 'riskFlags'));
       const changedDate = fresh.find((s) => s && Object.hasOwn(s, 'announcedAt'));
+      const changedEvent = fresh.find((s) => s && (Object.hasOwn(s, 'eventStart') || Object.hasOwn(s, 'eventStartDate') || Object.hasOwn(s, 'eventEnd')));
       const changedRelation = fresh.find((s) => s && Object.hasOwn(s, 'duplicateRelation'));
       const newDigest = sha({ sources: fresh.map((s) => [s?.canonicalUrl, s?.excerpt, s?.extractionSubstantive, s?.publisherDomain, s?.fetchOk, s?.urlUsable]),
         riskFlags: changedRisk ? changedRisk.riskFlags : item.riskFlags,
         announcedAt: changedDate ? changedDate.announcedAt : item.announcedAt,
+        eventStart: changedEvent && Object.hasOwn(changedEvent, 'eventStart') ? changedEvent.eventStart : item.eventStart,
+        eventStartDate: changedEvent && Object.hasOwn(changedEvent, 'eventStartDate') ? changedEvent.eventStartDate : item.eventStartDate,
+        eventEnd: changedEvent && Object.hasOwn(changedEvent, 'eventEnd') ? changedEvent.eventEnd : item.eventEnd,
         duplicateRelation: changedRelation ? changedRelation.duplicateRelation : item.duplicateRelation ?? null });
       if (oldDigest !== newDigest) excluded.push({ item, reason: 'source-changed-rebuild' });
       else accepted.push(item);
