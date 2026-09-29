@@ -52,6 +52,42 @@ test('valid private-individual refusal removes exactly those units', async () =>
   assert.equal(out.modelCalls, calls.length);
 });
 
+const criticCase = async (factFindings, riskFindings) => {
+  const units = [unit('occ:a'), unit('occ:b'), unit('occ:c')];
+  let calls = 0;
+  const callModel = async ({ system }) => {
+    calls += 1;
+    if (system.includes('Independent fact reviewer')) return { ok: true, text: JSON.stringify({ findings: factFindings }) };
+    if (system.includes('Independent locality')) return { ok: true, text: JSON.stringify({ findings: riskFindings }) };
+    return { ok: true, text: JSON.stringify(draftFor(units.map((entry) => entry.identityKey))) };
+  };
+  const output = await writeRoundup({ units }, { resolved: { ok: true, provider: { id: 'anthropic' } },
+    reviewer: { ok: true, provider: { id: 'deepseek' } }, callModel });
+  return { output, calls };
+};
+
+for (const [name, fact, risk, error] of [
+  ['null in fact findings', [null], [], /roundup_fact_review_invalid/],
+  ['empty object in fact findings', [{}], [], /roundup_fact_review_invalid/],
+  ['null in risk findings', [], [null], /roundup_risk_review_invalid/],
+  ['empty object in risk findings', [], [{}], /roundup_risk_review_invalid/],
+  ['unknown fact finding', [{ unitId: 'occ:a', sentence: 'x', problem: 'not-a-problem', fix: 'y' }], [], /roundup_fact_review_invalid/],
+  ['unknown risk finding', [], [{ unitId: 'occ:a', problem: 'not-a-problem', fix: 'y' }], /roundup_risk_review_invalid/],
+  ['unknown fact unit', [{ unitId: 'occ:unknown', sentence: 'x', problem: 'unsupported', fix: 'y' }], [], /roundup_fact_review_invalid/],
+  ['unknown non-private risk unit', [], [{ unitId: 'occ:unknown', problem: 'tone', fix: 'y' }], /roundup_risk_review_invalid/],
+  ['missing fact sentence', [{ unitId: 'occ:a', problem: 'unsupported', fix: 'y' }], [], /roundup_fact_review_invalid/],
+  ['missing private person', [], [{ unitId: 'occ:a', problem: 'private-individual' }], /roundup_risk_review_invalid/],
+]) test(`schema-invalid ${name} fails closed before publishable copy`, async () => {
+  await assert.rejects(criticCase(fact, risk), error);
+});
+
+test('two empty findings arrays are valid independent reviews', async () => {
+  const { output, calls } = await criticCase([], []);
+  assert.equal(output.draft.units.length, 3);
+  assert.equal(output.findings.length, 2);
+  assert.equal(calls, 3);
+});
+
 test('reviewer probe counts inside the six-call writer ceiling; budget overrun is writer-failed', async () => {
   assert.equal(WRITER_MAX_CALLS, 6);
   const units = [unit('occ:a'), unit('occ:b'), unit('occ:c')];
