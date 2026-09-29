@@ -162,4 +162,3 @@ export function roundupSlug(isoWeek) {
     throw new Error('invalid ISO week');
   return 'liberty-village-news-week-' + isoWeek.slice(0, 4) + '-w' + isoWeek.slice(6);
 }
-
