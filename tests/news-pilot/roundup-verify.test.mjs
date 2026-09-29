@@ -147,7 +147,7 @@ test('submit re-verifies pack units against its first-submit clock', async () =>
 test('Instagram relative date is based on provider Toronto timestamp and own record', async () => {
   const igUrl = 'https://www.instagram.com/p/ABC123/';
   const caption = 'Studio Open House at 171 East Liberty St, Toronto. This Wednesday at 6:30pm. Meet the team.';
-  const post = { shortCode: 'ABC123', ownerUsername: 'studio', timestamp: '2026-09-27T23:07:57Z', caption };
+  const post = { shortcode: 'ABC123', ownerUsername: 'studio', timestamp: '2026-09-27T23:07:57Z', caption };
   const igSignal = { signalId: 'ig1', sourceId: 'ig:studio', url: igUrl, post, records: [record(caption)] };
   const igForm = { ...form('ig1', igUrl), subject: 'Studio Open House', when: { kind: 'event', date: '2026-09-30', startTime: '18:30' },
     evidence: [{ url: igUrl, recordId: 'r1', subject_quote: 'Studio Open House',
@@ -161,6 +161,13 @@ test('Instagram relative date is based on provider Toronto timestamp and own rec
   assert.equal((await verifyRoundupForms(ambiguous)).excluded[0].reason, 'undated');
   const late = { ...opts, now: '2026-10-01T12:00:00Z', signals: [{ ...igSignal, post: { ...post, timestamp: '2026-09-30T23:00:00Z' } }] };
   assert.equal((await verifyRoundupForms(late)).excluded[0].reason, 'retrospective');
+  const verified = await verifyRoundupForms(opts);
+  const excludedLead = { ...igSignal, signalId: 'ig-lead', post: { ...post, shortcode: 'LEAD' } };
+  const refetch = { fetchedAt: '2026-09-29T14:55:00Z', provider: 'fixture', rows: [{ ...post, status: 'ok' }] };
+  assert.equal((await verifyRoundupForms({ ...opts, signals: [igSignal, excludedLead], igRefetch: refetch,
+    packUnits: verified.items })).items.length, 1);
+  assert.equal((await verifyRoundupForms({ ...opts, igRefetch: { ...refetch, rows: [{ ...post, caption: caption + ' changed', status: 'ok' }] },
+    packUnits: verified.items })).excluded[0].reason, 'unverifiable');
 });
 
 test('feed records compare trusted snapshot fields before admission', async () => {

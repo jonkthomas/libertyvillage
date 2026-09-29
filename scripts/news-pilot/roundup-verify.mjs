@@ -181,7 +181,7 @@ function dateFromRecord(record, source, when, post, now, claim) {
   const typed = record.typed || {};
   const text = norm(record.text);
   if (when.kind === 'alert' || when.kind === 'restriction') {
-    const date = typed.startTime || typed.startDate || typed.activeFrom || typed.date;
+    const date = typed.startTime || typed.startDate || typed.activeStart || typed.activeFrom || typed.date;
     return date && dayOf(typeof date === 'number' ? date : Date.parse(date));
   }
   if (when.kind === 'news-update') {
@@ -221,19 +221,31 @@ function trustedWhen(formWhen, record, source) {
     endDate: endLocal ? dayOf(end) : null, endTime: endLocal ? clock(endLocal) : null };
 }
 
-function identity(record, source, form, geo) {
+function identity(record, source, form, claim, geo) {
   const typed = record.typed || {};
   const text = norm(record.text);
   const invoke = (name, ...args) => {
     try { return typeof geo[name] === 'function' ? geo[name](...args) : null; } catch { return null; }
   };
+  const context = { source, record, toronto: true };
   let result;
   if (source.identityKind === 'road-feed') result = invoke('classifySegment', typed);
-  else if (source.identityKind === 'transit-feed') result = invoke('classifyTransitAlert', typed);
-  else if (source.parse === 'html-listing') result = invoke('classifyVenueName', source.identityId || source.id, { source, record });
-  else if (source.parse === 'jsonld-event') result = invoke('classifyVenueName', typed.location?.name || typed.place || '', { source, record }) || invoke('classifyAddress', typed.location?.address || typed.address, { source, record });
-  else if (source.parse === 'ig-post') result = invoke('classifyVenueName', typed.venue || text, { source, record }) || invoke('classifyAddress', typed.address || source.verifiedAddress, { source, record });
-  else result = invoke('classifySectionPlace', text, { source, record, form });
+  else if (source.identityKind === 'transit-feed') result = invoke('classifyTransitAlert',
+    { route: typed.route, stops: typed.stops, segmentText: typed.segment || typed.segmentText });
+  else if (source.parse === 'html-listing') result = invoke('classifyVenueName',
+    source.venueName || source.label || source.identityId || source.id, context);
+  else if (source.parse === 'jsonld-event') result = invoke('classifyVenueName',
+    typed.location?.name || typed.place || '', context) || invoke('classifyAddress', typed.location?.address || typed.address, context);
+  else if (source.parse === 'ig-post') {
+    const quote = claim?.place_quote;
+    if (quote) result = invoke('classifySectionPlace', { placeQuote: quote, sectionText: text,
+      subject: form.subject, dateQuote: claim.date_quote, domain: registrableDomain(claim.url), agentVerdict: form.verdict });
+    if (!result && quote) result = invoke('classifyAddress', quote, context) || invoke('classifyVenueName', quote, context);
+    if (!result && source.canonicalVenueId && !source.multiLocation && !source.requiresVenueInPost)
+      result = { verdict: 'core', canonicalVenueId: source.canonicalVenueId };
+  } else result = invoke('classifySectionPlace', { placeQuote: claim?.place_quote,
+    sectionText: text, subject: form.subject, dateQuote: claim?.date_quote,
+    domain: registrableDomain(claim.url), agentVerdict: form.verdict });
   const verdict = typeof result === 'string' ? result : result?.verdict || result?.locality || result?.classification;
   if (!['core', 'adjacent', 'not-LV'].includes(verdict)) fail('unverifiable');
   return { locality: verdict, canonicalVenueId: result?.canonicalVenueId || typed.canonicalVenueId || source.canonicalVenueId,
@@ -262,7 +274,7 @@ async function loadBody(url, fetcher, context) {
 
 /** Re-fetch and re-extract every cited record. All model fields are untrusted. */
 export async function verifyRoundupForms({ signals = [], forms = [], now, posts = [], fetcher = defaultFetch, igRefetch,
-  recordExtractor, geography, sources, publisherTiers } = {}) {
+  recordExtractor, geography, sources, publisherTiers, packUnits } = {}) {
   const at = Date.parse(now);
   if (!Number.isFinite(at)) throw new Error('roundup verifier requires now');
   const [recordModule, geo, sourceModule] = await Promise.all([
@@ -275,6 +287,13 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
   const tiers = publisherTiers || sourceModule.ROUNDUP_PUBLISHER_TIERS || {};
   const covered = roundupCoveredKeys(posts);
   const signalMap = new Map(signals.map((s) => [s.signalId, s]));
+  const igRows = Array.isArray(igRefetch?.rows) ? igRefetch.rows : [];
+  const expectedIg = Array.isArray(packUnits) ? [...new Set(packUnits.flatMap((unit) => unit.constituents || [unit])
+    .map((member) => signalMap.get(member.signalId)).filter((member) => member?.sourceId?.startsWith('ig:'))
+    .map((member) => member.post?.shortcode).filter(Boolean))].sort() : null;
+  const actualIg = [...new Set(igRows.map((row) => row.shortcode).filter(Boolean))].sort();
+  const igSetValid = !igRefetch || expectedIg === null || JSON.stringify(expectedIg) === JSON.stringify(actualIg);
+  const igFetchedAt = Date.parse(igRefetch?.fetchedAt || '');
   const items = [], excluded = [];
   for (const form of forms) {
     const signal = signalMap.get(form?.signalId);
@@ -296,15 +315,13 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
         if (!source) { if (index === 0) fail('unverifiable'); else continue; }
         try {
           if (source.enabled === false || source.robotsAllowed === false) fail('unverifiable');
-          const igRows = Array.isArray(igRefetch?.posts) ? igRefetch.posts : [];
-          const post = source.parse === 'ig-post' ? (igRows.find((row) => row.shortCode === sourceSignal.post?.shortCode) ||
-            igRefetch?.[sourceSignal.post?.shortCode] || sourceSignal.post) : undefined;
+          const post = source.parse === 'ig-post' ? (igRefetch
+            ? igRows.find((row) => row.shortcode === sourceSignal.post?.shortcode)
+            : sourceSignal.post) : undefined;
           if (source.parse === 'ig-post' && (!post || post.status === 'missing' || post.status === 'private')) fail('record-missing');
           if (source.parse === 'ig-post' && (!Number.isFinite(Date.parse(post.timestamp)) || Date.parse(post.timestamp) > at)) fail('unverifiable');
           if (source.parse === 'ig-post' && igRefetch) {
-            const fetched = Date.parse(igRefetch.fetchedAt);
-            if (Array.isArray(igRefetch.posts) && (!Number.isFinite(fetched) || fetched > at || at - fetched > 30 * 60000 ||
-              JSON.stringify(igRows.map((row) => row.shortCode).sort()) !== JSON.stringify(signals.filter((row) => row.sourceId?.startsWith('ig:') || row.sourceId === 'rv2-instagram').map((row) => row.post?.shortCode).sort()))) fail('unverifiable');
+            if (!igSetValid || !Number.isFinite(igFetchedAt) || igFetchedAt > at || at - igFetchedAt > 30 * 60000) fail('unverifiable');
             if (sourceSignal.post && (post.caption !== sourceSignal.post.caption || post.timestamp !== sourceSignal.post.timestamp ||
               post.ownerUsername !== sourceSignal.post.ownerUsername)) fail('unverifiable');
           }
@@ -329,7 +346,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             const projection = (typed) => Object.fromEntries(fields.map((field) => [field, typed?.[field] ?? null]));
             if (!snapshot || digest(projection(record.typed)) !== digest(projection(snapshot))) fail('record-missing');
           }
-          if (source.parse === 'ig-post' && post.ownerUsername && post.ownerUsername.toLowerCase() !== String(source.handle || source.identityId?.replace(/^ig:/, '') || '').toLowerCase()) fail('unverifiable');
+          if (source.parse === 'ig-post' && post.ownerUsername && post.ownerUsername.toLowerCase() !== String(source.handle || source.identityId?.replace(/^ig:/, '') || '').replace(/^@/, '').toLowerCase()) fail('unverifiable');
           if (original) {
             if (!resolvedDates(original.text.slice(0, 400), { source: { parse: 'html-page' }, now: at }).includes(form.when.date)) fail('stale');
           } else if (dateFromRecord(record, source, form.when, post, at, claim) !== form.when?.date) fail('undated');
@@ -341,7 +358,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
           if (form.when?.endTime && !(source.parse === 'json-feed'
             ? typedTimeMatches(record, 'endTime', form.when.endDate || form.when.date, form.when.endTime)
             : recordProvesTime(record, form.when.endDate || form.when.date, torontoInstant(form.when.endDate || form.when.date, form.when.endTime)))) fail('undated');
-          const place = identity(record, source, form, geo);
+          const place = identity(record, source, form, claim, geo);
           if (place.locality === 'not-LV') fail('not-LV');
           const tier = source.identityKind === 'news-discovery'
             ? tiers[registrableDomain(claim.url)] || 'lead'
@@ -390,7 +407,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
 export async function revalidateRoundupForms(pack, options = {}) {
   if ((pack.signals || []).some((signal) => signal.sourceId?.startsWith('ig:') || signal.sourceId === 'rv2-instagram') && !options.igRefetch)
     throw new Error('roundup source evidence changed or unreachable; rebuild before submit');
-  const result = await verifyRoundupForms({ ...options, signals: pack.signals, forms: pack.forms });
+  const result = await verifyRoundupForms({ ...options, signals: pack.signals, forms: pack.forms, packUnits: pack.units });
   const plan = planRoundupV2(result.items, { now: options.now, posts: options.posts || [] });
   const oldKeys = (pack.units || pack.items || []).flatMap((item) => item.keys || [item.identityKey]).sort();
   const newKeys = plan.countedItems.flatMap((item) => item.keys).sort();
