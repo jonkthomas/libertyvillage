@@ -98,7 +98,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {} } = 
             if (page.length < store.PENDING_NEWS_PAGE) break;
             if (result.length >= store.PENDING_NEWS_BACKLOG_CAP) {
               const overflow = await store.listPendingByKind(db,{target,kind,afterId: result[result.length-1],limit:1});
-              if (overflow.length) throw new store.ValidationError(`pending backlog exceeds ${store.PENDING_NEWS_BACKLOG_CAP} ids for kind ${kind}; propagation is stuck, investigate instead of truncating`);
+              if (overflow.length) throw new store.StateError(`pending backlog exceeds ${store.PENDING_NEWS_BACKLOG_CAP} ids for kind ${kind}; propagation is stuck, investigate instead of truncating`);
               break;
             }
           }
