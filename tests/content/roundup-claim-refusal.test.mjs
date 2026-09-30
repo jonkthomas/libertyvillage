@@ -267,6 +267,8 @@ test('F1 civic-address precision: dates/transit/venue/year pass, real addresses 
     'The 29 Dufferin bus detours on October 4.',
     'Oct. 3 at Exhibition Place',
     'the 2026 Toronto Waterfront Marathon course',
+    'Community event a2026-09-30 takes place in Liberty Village on September 30, 2026.',
+    'September 30 takes place in Liberty Village.',
   ]) assert.deepEqual(findRoundupBannedCopy(sentence), [], sentence);
   for (const address of ['999 Imaginary Street', '999 imaginary street', '40 Hanna Ave',
     '171 East Liberty Street', '999 King St. W.', 'Unit 5, 999 Imaginary Street',

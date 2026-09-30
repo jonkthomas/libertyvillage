@@ -17,7 +17,7 @@
 const STREET_TYPES = 'Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Drive|Dr|Crescent|Cres|Terrace|Trail|Parkway|Pkwy|Court|Ct|Place|Pl|Lane|Ln|Way';
 const DIRECTION = '(?:West|East|North|South|W|E|N|S)';
 const MONTHS = 'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
-const CONNECTOR = 'at|on|in|near|the|and|to|from|until|of|for|by';
+const CONNECTOR = 'at|on|in|near|the|and|to|from|until|of|for|by|takes';
 // Numbered civic address, case-insensitive so lower-case evasion still holds.
 // Bounded precision: street type needs a word boundary (no streetcar/Stadium/
 // Stage/Drake/players prefix match); intermediate tokens cannot be connector
