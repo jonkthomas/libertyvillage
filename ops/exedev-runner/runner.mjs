@@ -1005,11 +1005,13 @@ function retryRoundupAttempt(run, token, attempt, slotSlug) {
   let saved = null;
   try { saved = readBoundedJson(path.join(dir, 'snapshot.json'), 4096); } catch { /* no retained artifacts */ }
   if (saved?.snapshotId && saved.snapshotId === snapshot.snapshotId) {
-    fs.copyFileSync(path.join(dir, 'posts.json'), path.join(deps.repo, 'data', 'posts.json'));
+    let reusable = false;
     try {
+      fs.copyFileSync(path.join(dir, 'posts.json'), path.join(deps.repo, 'data', 'posts.json'));
       const checked = validateRoundupOutput({ out: dir, exportedPosts: snapshot.posts, generatedPosts: readBoundedJson(path.join(deps.repo, 'data', 'posts.json'), CADENCE.postsMaxBytes), week: run.week, slotSlug, modules: deps.modules });
-      if (!checked.hold && checked.result.packDigest === attempt.source_pack_digest) return submitRoundup(run, token, attempt.idempotency_key, dir);
-    } catch (error) { if (error.message === 'roundup submit refused') throw error; }
+      reusable = !checked.hold && checked.result.packDigest === attempt.source_pack_digest;
+    } catch { /* retained artifacts are missing or invalid */ }
+    if (reusable) return submitRoundup(run, token, attempt.idempotency_key, dir);
   }
   run.call('outcome', ['--idempotency-key', attempt.idempotency_key, '--token', token, '--outcome', 'failed-before-submit']);
   deps.log('cadence-attempt-failed', { lane: 'roundup', reason: 'retry-artifacts-changed' });

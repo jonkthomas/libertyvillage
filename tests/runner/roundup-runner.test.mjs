@@ -230,6 +230,70 @@ test('roundup crash before submit resubmits the SAME key from retained artifacts
   assert.deepEqual(keys, [open.idempotency_key, open.idempotency_key]);
 });
 
+test('roundup retained-artifact submit failures preserve the open attempt for another retry', (t) => {
+  const world = withWorld(t);
+  world.roundupPlan = [writer(), writer()];
+  world.submitPlan = ['network', 'network'];
+  assert.throws(() => run(world), (error) => error.cliFailure?.reason === 'cli-network');
+  const [open] = attemptsOf(world, 'roundup');
+  assert.throws(() => run(world, 'staging', '202610021100-roundup-retry1'), (error) => error.cliFailure?.reason === 'cli-network');
+  assert.equal(attemptsOf(world, 'roundup').length, 1);
+  assert.equal(open.outcome, null);
+  assert.equal(open.submission_id, null);
+  assert.equal(v2Calls(world).length, 2, 'retry did not draft again');
+  assert.equal(run(world, 'staging', '202610021100-roundup-retry2').success, true);
+  assert.equal(attemptsOf(world, 'roundup').length, 1);
+  assert.deepEqual(submitCalls(world).map((args) => args[args.indexOf('--idempotency-key') + 1]),
+    [open.idempotency_key, open.idempotency_key, open.idempotency_key]);
+});
+
+test('roundup retry gate failure preserves the attached submission and original key', (t) => {
+  const world = withWorld(t);
+  world.roundupPlan = [writer(), writer()];
+  world.submitPlan = ['network'];
+  assert.throws(() => run(world), (error) => error.cliFailure?.reason === 'cli-network');
+  const [open] = attemptsOf(world, 'roundup');
+  world.gatePlan = ['operational'];
+  assert.throws(() => run(world, 'staging', '202610021100-roundup-gate1'), /content gate failed/);
+  assert.equal(attemptsOf(world, 'roundup').length, 1);
+  assert.equal(open.outcome, null);
+  assert.equal(open.submission_id, 100);
+  assert.equal(world.submissions.get(100).key, open.idempotency_key);
+  assert.equal(world.submissions.get(100).state, 'open');
+  assert.equal(v2Calls(world).length, 2, 'retry did not draft again');
+  assert.equal(run(world, 'staging', '202610021100-roundup-gate2').success, true);
+  assert.equal(attemptsOf(world, 'roundup').length, 1);
+  assert.equal(submitCalls(world).length, 2, 'resumed submission without submitting again');
+  assert.equal(open.outcome, 'consumed');
+});
+
+test('roundup retry attach failure recovers the durable submission by its original key', (t) => {
+  const world = withWorld(t);
+  world.roundupPlan = [writer()];
+  world.submitPlan = ['network'];
+  assert.throws(() => run(world), (error) => error.cliFailure?.reason === 'cli-network');
+  const [open] = attemptsOf(world, 'roundup');
+  const cli = world.deps.cli;
+  let failAttach = true;
+  world.deps.cli = (...args) => {
+    if (failAttach && args[0][0] === 'cadence' && args[0][1] === 'attach') {
+      failAttach = false;
+      throw new Error('attach unavailable');
+    }
+    return cli(...args);
+  };
+  assert.throws(() => run(world, 'staging', '202610021100-roundup-attach1'), /attach unavailable/);
+  assert.equal(open.outcome, null);
+  assert.equal(open.submission_id, null);
+  assert.equal(world.submissions.get(100).key, open.idempotency_key);
+  assert.equal(attemptsOf(world, 'roundup').length, 1);
+  assert.equal(run(world, 'staging', '202610021100-roundup-attach2').success, true);
+  assert.equal(v2Calls(world).length, 2);
+  assert.equal(submitCalls(world).length, 2);
+  assert.equal(attemptsOf(world, 'roundup').length, 1);
+  assert.equal(open.outcome, 'consumed');
+});
+
 test('F1 roundup smoked but not current-live is an honest failure; a consumed-but-unpublished slot needs operator review', (t) => {
   const world = withWorld(t);
   world.roundupPlan = [writer()];
