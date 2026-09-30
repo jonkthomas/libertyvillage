@@ -264,3 +264,21 @@ export async function assertSafePublicHttpUrl(candidateUrl, opts = {}) {
   }
   return true;
 }
+
+/** Statuses that mean "access refused": never retried with another UA, cookies or a browser. */
+export const BLOCKED_STATUSES = Object.freeze([401, 402, 403, 406, 429]);
+/** Challenge/interstitial markers served in place of content (Cloudflare and similar). */
+export const CHALLENGE_MARKERS = Object.freeze([/Just a moment/i, /Security Verification/i, /cf-chl/i]);
+
+/**
+ * Classify a response as `blocked` (401/402/403/406/429 or a known challenge body)
+ * or null. A blocked page is `unverifiable` downstream; callers must not retry.
+ * @param {number|null|undefined} status
+ * @param {string} [body]
+ * @returns {'blocked'|null}
+ */
+export function classifyBlockedResponse(status, body = '') {
+  if (BLOCKED_STATUSES.includes(Number(status))) return 'blocked';
+  const head = String(body || '').slice(0, 20_000);
+  return CHALLENGE_MARKERS.some((re) => re.test(head)) ? 'blocked' : null;
+}

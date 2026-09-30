@@ -14,18 +14,18 @@ export const JOBS = Object.freeze({
   // On-demand only (no timer): staging until John authorizes production.
   'weekly-roundup': { calendar: null, kind: 'roundup', stagingOnly: true },
 });
-// Runner configuration: no free-text roundup may be published until a reviewed
-// structured-source contract replaces this census-only mode. Not an env toggle.
-export const ROUNDUP_PUBLICATION = Object.freeze({ mode: 'census-only' });
 export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
 const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
 const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DB_NAME', 'CONTENT_TARGET', 'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'CONTENT_DEPLOY_HOOK_URL', 'SLACK_WEBHOOK_URL'];
 const SOURCE_ENV = {
   'topic-discovery': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE', 'SERPAPI_API_KEY'],
   'discover-businesses': ['SERPAPI_API_KEY', 'PEXELS_API_KEY'],
-  news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY'],
+  news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY', 'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY'],
   'weekly-growth-report': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE'],
-  'weekly-roundup': ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY'],
+  // APIFY_API_TOKEN (Instagram provider) is scoped to this source process only:
+  // never trustedEnv, the generator, the gate or any other job (spec §4.4).
+  'weekly-roundup': ['SERPER_API_KEY', 'APIFY_API_TOKEN', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY',
+    'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY', 'ROUNDUP_REASON_PROVIDER', 'ROUNDUP_REVIEW_PROVIDER'],
 };
 
 export function childEnv(source, keys) {
@@ -172,11 +172,14 @@ export function command(binary, args, { cwd, env, allowExit = [] } = {}) {
 export function parseJson(text) { return JSON.parse(text.trim()); }
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
+// The root-owned generator helper's environment (it adds nothing secret itself).
+export const generatorEnv = (env) => childEnv(env, ['PATH', 'HOME', 'LANG', 'TZ']);
 
-export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null, stuckSubmissionId = null }, fetchImpl = fetch) {
+export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null }, fetchImpl = fetch) {
   if (!webhook) return false;
   try {
-    const text = holdCensus ? `⚠ ${job} publication held (${target}); lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
+    const week = typeof holdWeek === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(holdWeek) ? ` week ${holdWeek};` : '';
+    const text = holdCensus ? `⚠ ${job} publication held (${target});${week} lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
       Number.isSafeInteger(stuckSubmissionId) && stuckSubmissionId > 0 ? `⚠ ${job} held (${target}); submission #${stuckSubmissionId} smoked but not current-live; lv-runner ${slot}; inspect original slot` :
         codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` :
           `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}`;
@@ -256,7 +259,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
   // The root-owned helper validates this path, changes ownership, and starts a
   // transient service as lv-generator with strict filesystem protection.
   const helper = '/usr/local/libexec/lv-runner-generator';
-  command('sudo', ['-n', helper, job, slot], { cwd: repo, env: childEnv(process.env, ['PATH', 'HOME', 'LANG', 'TZ']) });
+  command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env) });
   const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
   if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
   const allPaths = changedPaths(scratch, repo);
@@ -391,7 +394,7 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
   if (gate.state === 'smoked') {
     outcome('smoked');
     const late = typeof gate.smokedAt === 'string' && deps.modules.weekStartUtc(new Date(gate.smokedAt)) !== ctx.week;
-    if (late && ctx.lane === 'content') {
+    if (late) {
       // The trusted CLI verifies current-live alias proof in the actual smoke
       // week before making this original-week attempt terminal. If it refuses
       // because the post is not live, hold the original key and name its ID for
@@ -400,10 +403,14 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
       catch (error) {
         if (error?.cliFailure?.reason !== 'cli-state') throw error;
         const actualWeek = deps.modules.weekStartUtc(new Date(gate.smokedAt));
-        const count = cadenceCaller(deps, ctx.target, actualWeek)('count');
-        if (count.content.some((item) => Number(item.submissionId) === Number(id))) throw error;
-        deps.log('cadence-prior-smoke-hold', { id, week: ctx.week, actualWeek, reason: 'not-current-live' });
-        const hold = new Error('prior content smoke not current-live');
+        // Roundup: the old week's own slug, proven by current-live (never by a
+        // later week's count, which cannot include an old-week roundup slug).
+        const live = ctx.lane === 'roundup'
+          ? cadenceCaller(deps, ctx.target, ctx.week)('current-live', ['--submission-id', id]).live === true
+          : cadenceCaller(deps, ctx.target, actualWeek)('count').content.some((item) => Number(item.submissionId) === Number(id));
+        if (live) throw error;
+        deps.log('cadence-prior-smoke-hold', { id, lane: ctx.lane, week: ctx.week, actualWeek, reason: 'not-current-live' });
+        const hold = new Error(ctx.lane === 'roundup' ? 'prior roundup smoke not current-live' : 'prior content smoke not current-live');
         hold.stuckSubmissionId = Number(id);
         throw hold;
       }
@@ -741,7 +748,7 @@ function processContentSlot(run, slotNumber) {
 // lookback. Inspect a bounded oldest-first page and never start new work while
 // an older publication is pending, held by another owner or beyond the cap.
 function recoverPriorContent(deps, target, slot, week) {
-  const attempts = cadenceCaller(deps, target, week)('unresolved');
+  const attempts = cadenceCaller(deps, target, week)('unresolved', ['--lane', 'content']);
   const prior = attempts.filter((a) => a.week_start_utc < week);
   let budget = CADENCE.generationsPerRun;
   for (const attempt of prior.slice(0, 2)) {
@@ -848,15 +855,22 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
 }
 
 // ---------------------------------------------------------------------------
-// weekly-roundup (on-demand, staging-only). Writer output contract (worker E,
-// confirmed by orchestrator): roundup-run.mjs --run --out --root --now always
-// writes <out>/result.json {isoWeek, slug, now, packDigest, decision, published,
-// census} and <out>/pack.json {items}; it appends one data/posts.json post only
-// when >=1 item is eligible. Item eligibility is the writer's job; the runner
-// only enforces post identity (week slot, slug, one new post, pack digest).
+// weekly-roundup (on-demand, staging-only; docs/specs/weekly-roundup-v2.md §10).
+// The per-target mode comes from the pinned tree's scripts/content/roundup-mode.mjs.
+// Writer contract: roundup-v2-run.mjs --collect --out --now, then
+// --run <collect> --out <out> --root <repo> --now [--dry-run], always writing
+// <out>/result.json {pipeline:'structured-v2', isoWeek, slug, now, packDigest,
+// verifyDigest, decision, units, coreUnits, coreAnchorUnits, published, census}
+// and <out>/pack.json {isoWeek, now, units, stillInEffect, signals, forms}; it
+// appends one data/posts.json post only for a `publish` decision without
+// --dry-run. The runner enforces post identity and the §7 floor; the trusted
+// submit re-verifies everything at T_submit.
 // ---------------------------------------------------------------------------
 const HEX64 = /^[0-9a-f]{64}$/;
 const isIsoInstant = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+const ROUNDUP_V2_RUN = 'scripts/news-pilot/roundup-v2-run.mjs';
+const ROUNDUP_IG_REFETCH = 'scripts/news-pilot/ig-refetch.mjs';
+const ROUNDUP_MIN_UNITS = 3;
 
 function censusCounts(census) {
   if (!census || typeof census !== 'object' || Array.isArray(census)) return {};
@@ -866,8 +880,17 @@ function censusCounts(census) {
   return Object.keys(reasons).length ? { ...counts, byReason: reasons } : counts;
 }
 
-// Returns {zero:true, census} for a consistent zero-eligible hold, {post, result,
-// pack} for a submit-ready roundup, or throws a safe refusal. No DB writes.
+// Bounded hold census: counts and top reasons only; never URLs or evidence text.
+function holdCensus(result) {
+  const counts = censusCounts(result?.census);
+  for (const key of ['units', 'coreUnits', 'coreAnchorUnits']) if (Number.isInteger(result?.[key]) && result[key] >= 0) counts[key] = result[key];
+  const reasons = (Array.isArray(result?.reasons) ? result.reasons : []).filter((reason) => typeof reason === 'string' && /^[a-z0-9-]{1,40}$/.test(reason)).slice(0, 5);
+  if (reasons.length) counts.byReason = { ...(counts.byReason ?? {}), ...Object.fromEntries(reasons.map((reason) => [reason, counts.byReason?.[reason] ?? 1])) };
+  return counts;
+}
+
+// Returns {hold:true, census} for a consistent structured-v2 hold, {post, result,
+// pack} for a submit-ready v2 roundup, or throws a safe refusal. No DB writes.
 export function validateRoundupOutput({ out, exportedPosts, generatedPosts, week, slotSlug, modules }) {
   let result;
   let pack;
@@ -875,15 +898,22 @@ export function validateRoundupOutput({ out, exportedPosts, generatedPosts, week
     result = readBoundedJson(path.join(out, 'result.json'), CADENCE.artifactMaxBytes);
     pack = readBoundedJson(path.join(out, 'pack.json'), CADENCE.artifactMaxBytes);
   } catch { throw new Error('roundup artifact invalid'); }
-  if (!result || typeof result !== 'object' || Array.isArray(result) || !Number.isInteger(result.published) || result.published < 0
-    || typeof result.decision !== 'string' || !pack || typeof pack !== 'object' || Array.isArray(pack) || !Array.isArray(pack.items)
+  if (result?.decision === 'technical-failure') throw new Error('roundup model technical failure');
+  if (!result || typeof result !== 'object' || Array.isArray(result) || result.pipeline !== 'structured-v2'
+    || typeof result.published !== 'boolean' || !['publish', 'hold'].includes(result.decision)
+    || !pack || typeof pack !== 'object' || Array.isArray(pack) || !Array.isArray(pack.units)
     || !Array.isArray(generatedPosts)) throw new Error('roundup artifact invalid');
   const existing = new Set(exportedPosts.map((post) => post?.slug));
   const kept = generatedPosts.filter((post) => existing.has(post?.slug)).length;
   const added = generatedPosts.filter((post) => typeof post?.slug === 'string' && post.slug && !existing.has(post.slug));
   if (kept !== exportedPosts.length || generatedPosts.length !== exportedPosts.length + added.length) throw new Error('roundup artifact inconsistent');
-  if (result.published === 0 && result.decision === 'hold' && pack.items.length === 0 && added.length === 0) return { zero: true, census: censusCounts(result.census) };
-  if (result.published < 1 || pack.items.length < 1 || added.length !== 1) throw new Error('roundup artifact inconsistent');
+  if (result.decision === 'hold') {
+    if (result.published !== false || added.length !== 0) throw new Error('roundup artifact inconsistent');
+    return { hold: true, census: holdCensus(result) };
+  }
+  if (result.published !== true || added.length !== 1 || !Number.isInteger(result.units) || result.units < ROUNDUP_MIN_UNITS
+    || !Number.isInteger(result.coreAnchorUnits) || result.coreAnchorUnits < 1 || pack.units.length !== result.units
+    || !HEX64.test(result.verifyDigest ?? '')) throw new Error('roundup artifact inconsistent');
   const [post] = added;
   let expectedWeek;
   let expectedSlug;
@@ -891,8 +921,9 @@ export function validateRoundupOutput({ out, exportedPosts, generatedPosts, week
   catch { throw new Error('roundup artifact inconsistent'); }
   if (result.isoWeek !== expectedWeek || !isIsoInstant(result.now) || modules.isoWeekOf(result.now).isoWeek !== expectedWeek
     || result.slug !== expectedSlug || result.slug !== slotSlug || post.slug !== result.slug || post.category !== 'news') throw new Error('roundup artifact inconsistent');
+  if (!post.roundupCoverage || modules.roundupCoverageErrors(post).length) throw new Error('roundup artifact inconsistent');
   if (!HEX64.test(result.packDigest ?? '') || modules.roundupPackDigest(pack) !== result.packDigest) throw new Error('roundup artifact inconsistent');
-  return { zero: false, result, pack, post, census: censusCounts(result.census) };
+  return { hold: false, result, pack, post, census: holdCensus(result) };
 }
 
 function roundupArtifactDir(deps, target, week, digest) {
@@ -900,23 +931,61 @@ function roundupArtifactDir(deps, target, week, digest) {
 }
 
 // Keep the exact validated artifacts per pack digest so a crash-before-submit
-// can resubmit the SAME key/intent instead of burning a new ordinal.
-function persistRoundupArtifacts(dir, out, snapshotId, deps) {
+// can resubmit the SAME key/intent instead of burning a new ordinal. Snapshots
+// the pack cites (by content address) are retained with it (§8).
+function persistRoundupArtifacts(dir, out, snapshotId, deps, snapshotsDir = null) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   for (const name of ['result.json', 'pack.json']) fs.copyFileSync(path.join(out, name), path.join(dir, name));
   fs.copyFileSync(path.join(deps.repo, 'data', 'posts.json'), path.join(dir, 'posts.json'));
   fs.writeFileSync(path.join(dir, 'snapshot.json'), `${JSON.stringify({ snapshotId })}\n`, { mode: 0o600 });
+  if (!snapshotsDir || !fs.existsSync(snapshotsDir)) return;
+  const cited = new Set(fs.readFileSync(path.join(out, 'pack.json'), 'utf8').match(/[0-9a-f]{64}/g) ?? []);
+  for (const source of fs.readdirSync(snapshotsDir, { withFileTypes: true })) {
+    if (!source.isDirectory() || !/^[a-z0-9:_-]{1,80}$/i.test(source.name)) continue;
+    for (const file of fs.readdirSync(path.join(snapshotsDir, source.name), { withFileTypes: true })) {
+      const match = /^([0-9a-f]{64})\.(json|html)$/.exec(file.name);
+      if (!file.isFile() || !match || !cited.has(match[1])) continue;
+      const target = path.join(dir, 'snapshots', source.name);
+      fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+      fs.copyFileSync(path.join(snapshotsDir, source.name, file.name), path.join(target, file.name));
+      fs.chmodSync(path.join(target, file.name), 0o600);
+    }
+  }
 }
 
-function submitRoundup(run, token, key, out) {
+// Instagram units are re-verified at submit only from a runner-owned re-fetch
+// file written by the source-only helper under sourceEnv('weekly-roundup'); the
+// provider token never reaches the trusted submit, the generator or the gate.
+const isInstagramSignal = (signal) => typeof signal?.sourceId === 'string' && (signal.sourceId === 'rv2-instagram' || signal.sourceId.startsWith('ig:'));
+function packCitesInstagram(dir) {
+  try { return (readBoundedJson(path.join(dir, 'pack.json'), CADENCE.artifactMaxBytes).signals ?? []).some(isInstagramSignal); }
+  catch { return false; }
+}
+function refreshInstagram(deps, dir) {
+  if (!packCitesInstagram(dir)) return [];
+  const file = path.join(dir, 'ig-refetch.json');
+  fs.rmSync(file, { force: true });
+  try {
+    deps.source(ROUNDUP_IG_REFETCH, ['--pack', path.join(dir, 'pack.json'), '--out', file]);
+    if (fs.existsSync(file)) fs.chmodSync(file, 0o600);
+    deps.log('roundup-ig-refetch', { ok: fs.existsSync(file) });
+  } catch (error) {
+    // Submit still runs and refuses the Instagram units (§10.3 step 5).
+    deps.log('roundup-ig-refetch-failed', { reason: failureReason(error) });
+  }
+  return ['--ig-refetch', file];
+}
+
+function submitRoundup(run, token, key, dir) {
   const { deps, call } = run;
   const fail = (reason) => {
     call('outcome', ['--idempotency-key', key, '--token', token, '--outcome', 'failed-before-submit']);
     deps.log('cadence-attempt-failed', { lane: 'roundup', reason });
     throw new Error('roundup submit refused');
   };
+  const igArgs = refreshInstagram(deps, dir);
   let submitted;
-  try { submitted = parseJson(deps.cli(['submit', '--dir', '.', '--kind', 'roundup', '--roundup-out', out, '--idempotency-key', key, '--actor', run.actor]).stdout); }
+  try { submitted = parseJson(deps.cli(['submit', '--dir', '.', '--kind', 'roundup', '--roundup-out', dir, ...igArgs, '--idempotency-key', key, '--actor', run.actor]).stdout); }
   catch (error) {
     if (['cli-validation', 'cli-conflict'].includes(error?.cliFailure?.reason)) fail('submit-refused');
     throw error;
@@ -939,7 +1008,7 @@ function retryRoundupAttempt(run, token, attempt, slotSlug) {
     fs.copyFileSync(path.join(dir, 'posts.json'), path.join(deps.repo, 'data', 'posts.json'));
     try {
       const checked = validateRoundupOutput({ out: dir, exportedPosts: snapshot.posts, generatedPosts: readBoundedJson(path.join(deps.repo, 'data', 'posts.json'), CADENCE.postsMaxBytes), week: run.week, slotSlug, modules: deps.modules });
-      if (!checked.zero && checked.result.packDigest === attempt.source_pack_digest) return submitRoundup(run, token, attempt.idempotency_key, dir);
+      if (!checked.hold && checked.result.packDigest === attempt.source_pack_digest) return submitRoundup(run, token, attempt.idempotency_key, dir);
     } catch (error) { if (error.message === 'roundup submit refused') throw error; }
   }
   run.call('outcome', ['--idempotency-key', attempt.idempotency_key, '--token', token, '--outcome', 'failed-before-submit']);
@@ -947,52 +1016,90 @@ function retryRoundupAttempt(run, token, attempt, slotSlug) {
   return { state: 'closed' };
 }
 
-function censusOnlyRoundup({ slot, deps, now, week }) {
-  // Even if the writer mistakenly accepts an off-area item, its dry run cannot
-  // append a post; independently verify the exported posts stayed byte-identical.
-  deps.exportSnapshot();
-  const postsFile = path.join(deps.repo, 'data', 'posts.json');
-  const before = fs.readFileSync(postsFile, 'utf8');
+// One v2 pipeline pass for this slot. Collection is reused only within the same
+// slot (crash resume); a later slot re-collects fresh signals.
+function runRoundupPipeline({ deps, slot, now, dryRun }) {
   const runDir = path.join(deps.stateRoot, 'roundup', slot);
-  const discovery = path.join(runDir, 'discovery');
+  const collect = path.join(runDir, 'collect');
   const out = path.join(runDir, 'out');
   fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
   fs.rmSync(out, { recursive: true, force: true });
-  if (!fs.existsSync(path.join(discovery, 'candidates.json')))
-    deps.source('scripts/news-pilot/run.mjs', [`--out=${discovery}`, '--dry-run', '--vault=/dev/null']);
-  const discovered = readJson(path.join(discovery, 'candidates.json'));
-  if ((discovered.meta?.sourcesOk ?? 0) < 1) throw new Error('no healthy news source');
-  deps.source('scripts/news-pilot/roundup-run.mjs', [`--run=${discovery}`, `--out=${out}`, `--root=${deps.repo}`, `--now=${now.toISOString()}`, '--dry-run']);
+  if (!fs.existsSync(path.join(collect, 'signals.jsonl')))
+    deps.source(ROUNDUP_V2_RUN, ['--collect', '--out', collect, '--now', now.toISOString()]);
+  deps.source(ROUNDUP_V2_RUN, ['--run', collect, '--out', out, '--root', deps.repo, '--now', now.toISOString(), ...(dryRun ? ['--dry-run'] : [])]);
+  return { out, snapshots: path.join(collect, 'snapshots') };
+}
+
+function censusOnlyRoundup({ slot, deps, now, week, mode }) {
+  // No reservation, attempt or submit. Even if the writer mistakenly accepts an
+  // item, its dry run cannot append a post; independently verify the exported
+  // posts stayed byte-identical.
+  deps.exportSnapshot();
+  const postsFile = path.join(deps.repo, 'data', 'posts.json');
+  const before = fs.readFileSync(postsFile, 'utf8');
+  const { out } = runRoundupPipeline({ deps, slot, now, dryRun: true });
   let result;
   let pack;
   try {
     result = readBoundedJson(path.join(out, 'result.json'), CADENCE.artifactMaxBytes);
     pack = readBoundedJson(path.join(out, 'pack.json'), CADENCE.artifactMaxBytes);
   } catch { throw new Error('roundup census invalid'); }
-  if (result?.published !== 0 || !result.census || typeof result.census !== 'object' || Array.isArray(result.census)
-    || !pack || !Array.isArray(pack.items) || fs.readFileSync(postsFile, 'utf8') !== before)
+  if (result?.decision === 'technical-failure') throw new Error('roundup model technical failure');
+  if (result?.pipeline !== 'structured-v2' || result.published !== false || !result.census || typeof result.census !== 'object' || Array.isArray(result.census)
+    || !pack || !Array.isArray(pack.units) || fs.readFileSync(postsFile, 'utf8') !== before)
     throw new Error('roundup census invalid');
-  const census = censusCounts(result.census);
-  deps.log('roundup-publication-held', { week, mode: ROUNDUP_PUBLICATION.mode, census });
-  return { noChanges: true, reason: 'roundup-publication-disabled', census };
+  const census = holdCensus(result);
+  deps.log('roundup-publication-held', { week, mode, census });
+  return { noChanges: true, reason: 'roundup-publication-disabled', census, week };
+}
+
+// Prior-week roundup reconciliation (§10.3.1): settle up to two unresolved
+// attempts from ended weeks with their ORIGINAL idempotency keys, before the
+// current week is counted. Never drafts or submits an old-week edition. Resume
+// reads only the DB and the idempotency lookup, so VM state loss changes nothing.
+function recoverPriorRoundup(deps, target, slot, week) {
+  const attempts = cadenceCaller(deps, target, week)('unresolved', ['--lane', 'roundup']);
+  const prior = attempts.filter((a) => a.lane === 'roundup' && a.week_start_utc < week);
+  for (const attempt of prior.slice(0, 2)) {
+    const call = cadenceCaller(deps, target, attempt.week_start_utc);
+    const owner = `runner:weekly-roundup:${target}:${slot}`;
+    const reserved = call('reserve', ['--lane', 'roundup', '--slot-number', 1, '--owner', owner, '--lease-seconds', CADENCE.leaseSeconds]);
+    if (!reserved.reserved) throw new Error('prior roundup slot held');
+    const run = { deps, call, target, week: attempt.week_start_utc, kind: 'roundup', lane: 'roundup', actor: `runner:weekly-roundup#${slot}` };
+    let result;
+    try {
+      result = resumeOpenAttempt(deps, run, attempt, reserved.token);
+      if (result.state === 'no-submission') {
+        call('outcome', ['--idempotency-key', attempt.idempotency_key, '--token', reserved.token, '--outcome', 'failed-before-submit']);
+        deps.log('cadence-attempt-failed', { lane: 'roundup', week: attempt.week_start_utc, reason: 'prior-no-submission' });
+        result = { state: 'closed' };
+      }
+    } finally {
+      try { call('release', ['--lane', 'roundup', '--slot-number', 1, '--token', reserved.token]); }
+      catch (error) { deps.log('cadence-release-failed', { lane: 'roundup', reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+    }
+    deps.log('cadence-prior-roundup', { week: attempt.week_start_utc, state: result.state });
+    if (!['closed', 'counted', 'late-smoke'].includes(result.state)) throw new Error('prior roundup publication pending');
+  }
+  if (prior.length > 2) throw new Error('prior roundup backlog exceeds recovery budget');
 }
 
 export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
   // Refused for production here as well as in main() and the launcher.
   if (target === 'production') throw new Error('weekly-roundup is staging-only');
   if (request.dryRun || request.topic) throw new Error('weekly-roundup options unsupported');
-  const mode = deps.roundupPublicationMode ?? ROUNDUP_PUBLICATION.mode;
-  if (!['census-only', 'legacy-fixture'].includes(mode)) throw new Error('roundup publication disabled');
+  const mode = deps.roundupPublicationMode ?? deps.modules.roundupPublication?.[target];
+  if (!['census-only', 'structured-v2'].includes(mode)) throw new Error('roundup publication disabled');
   const now = deps.now();
   const week = deps.modules.weekStartUtc(now);
   evaluatePriorWeek(deps, target, week, now);
+  // census-only never reserves, attempts or submits, so it has nothing to settle.
+  if (mode === 'structured-v2') recoverPriorRoundup(deps, target, slot, week);
   const call = cadenceCaller(deps, target, week);
   const count = call('count');
   deps.log('cadence-count', { week, roundupCount: count.roundupCount });
   if (count.roundupCount >= 1) return { cadenceMet: true, noChanges: true };
-  if (mode === 'census-only') return censusOnlyRoundup({ slot, deps, now, week });
-  // Retained for isolated legacy contract tests only. The installed runner sets
-  // census-only and the trusted submit CLI rejects roundup submissions too.
+  if (mode === 'census-only') return censusOnlyRoundup({ slot, deps, now, week, mode });
   const run = { deps, call, target, week, kind: 'roundup', lane: 'roundup', actor: `runner:weekly-roundup#${slot}` };
   const reservation = call('reserve', ['--lane', 'roundup', '--slot-number', 1, '--owner', `runner:weekly-roundup:${target}:${slot}`, '--lease-seconds', CADENCE.leaseSeconds]);
   // Losers of the one-per-week roundup slot never draft a second candidate.
@@ -1021,27 +1128,20 @@ export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
       if (resumed.state !== 'closed') return finish(resumed);
     }
     const snapshot = deps.exportSnapshot();
-    const runDir = path.join(deps.stateRoot, 'roundup', slot);
-    const discovery = path.join(runDir, 'discovery');
-    const out = path.join(runDir, 'out');
-    fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
-    fs.rmSync(out, { recursive: true, force: true });
-    if (!fs.existsSync(path.join(discovery, 'candidates.json'))) deps.source('scripts/news-pilot/run.mjs', [`--out=${discovery}`, '--no-dry-run', '--vault=/dev/null']);
-    const discovered = readJson(path.join(discovery, 'candidates.json'));
-    if ((discovered.meta?.sourcesOk ?? 0) < 1) throw new Error('no healthy news source');
-    deps.source('scripts/news-pilot/roundup-run.mjs', [`--run=${discovery}`, `--out=${out}`, `--root=${deps.repo}`, `--now=${now.toISOString()}`]);
+    const { out, snapshots } = runRoundupPipeline({ deps, slot, now, dryRun: false });
     let generatedPosts;
     try { generatedPosts = readBoundedJson(path.join(deps.repo, 'data', 'posts.json'), CADENCE.postsMaxBytes); }
     catch { throw new Error('roundup artifact invalid'); }
     const checked = validateRoundupOutput({ out, exportedPosts: snapshot.posts, generatedPosts, week, slotSlug, modules: deps.modules });
-    if (checked.zero) {
-      // Non-terminal hold: no attempt, no alert; the slot is released so a later
-      // run this week can retry. Only `cadence deadline` emits a missed alert.
-      deps.log('roundup-zero-hold', { week, census: checked.census });
-      return { noChanges: true, reason: 'zero-eligible-hold' };
+    if (checked.hold) {
+      // Non-terminal hold under the §7 rule: no attempt; the slot is released so a
+      // later slot this week re-collects. Only `cadence deadline` emits a missed alert.
+      deps.log('roundup-hold', { week, census: checked.census });
+      return { noChanges: true, reason: 'roundup-hold', census: checked.census, week };
     }
     const digest = checked.result.packDigest;
-    persistRoundupArtifacts(roundupArtifactDir(deps, target, week, digest), out, snapshot.snapshotId, deps);
+    const dir = roundupArtifactDir(deps, target, week, digest);
+    persistRoundupArtifacts(dir, out, snapshot.snapshotId, deps, snapshots);
     let recorded;
     try { recorded = call('attempt', ['--lane', 'roundup', '--slot-number', 1, '--token', token, '--intent-fingerprint', digest, '--topic-key', checked.result.slug, '--source-pack-digest', digest]); }
     catch (error) {
@@ -1049,8 +1149,8 @@ export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
       throw error;
     }
     if (recorded.existing) throw new Error('cadence attempt already open');
-    deps.log('cadence-attempt', { lane: 'roundup', items: checked.pack.items.length, census: checked.census });
-    return finish(submitRoundup(run, token, recorded.idempotencyKey, out));
+    deps.log('cadence-attempt', { lane: 'roundup', units: checked.pack.units.length, census: checked.census });
+    return finish(submitRoundup(run, token, recorded.idempotencyKey, dir));
   } finally {
     try { call('release', ['--lane', 'roundup', '--slot-number', 1, '--token', token]); }
     catch (error) { deps.log('cadence-release-failed', { lane: 'roundup', reason: error?.cliFailure?.reason ?? 'operational-error' }); }
@@ -1061,14 +1161,16 @@ export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
 // loaded from the pinned, freshly checked-out repo, never from scratch.
 async function trustedModules(root) {
   const load = (rel) => import(pathToFileURL(path.join(root, rel)).href);
-  const [cadence, queue, pack, evidence, roundup] = await Promise.all([
+  const [cadence, queue, pack, evidence, roundup, roundupMode, validate] = await Promise.all([
     load('scripts/content/cadence.mjs'), load('scripts/automation/topic-queue.mjs'), load('scripts/automation/blog-source-pack.mjs'),
     load('scripts/news-pilot/roundup-evidence.mjs'), load('scripts/news-pilot/roundup.mjs'),
+    load('scripts/content/roundup-mode.mjs'), load('scripts/content/validate.mjs'),
   ]);
   return {
     weekStartUtc: cadence.weekStartUtc, checkTopicGroundability: queue.checkTopicGroundability, reserveGuideEligibility: queue.reserveGuideEligibility,
     buildSourcePack: pack.buildSourcePack, verifySourcePack: pack.verifySourcePack, canonicalJson: pack.canonicalJson, checkDraftAgainstPack: pack.checkDraftAgainstPack,
     roundupPackDigest: evidence.roundupPackDigest, isoWeekOf: roundup.isoWeekOf, roundupSlug: roundup.roundupSlug,
+    roundupPublication: roundupMode.ROUNDUP_PUBLICATION, roundupCoverageErrors: validate.roundupCoverageErrors,
   };
 }
 
@@ -1104,7 +1206,7 @@ export function claimWeeklyInventoryDiscovery(root, target, week) {
 async function cadenceDeps(job, target, slot, log) {
   return {
     repo, stateRoot, modules: await trustedModules(repo), now: () => new Date(), alertsEnabled: Boolean(process.env.SLACK_WEBHOOK_URL),
-    cadenceStartWeek: process.env.CADENCE_START_ISO_WEEK, roundupPublicationMode: ROUNDUP_PUBLICATION.mode,
+    cadenceStartWeek: process.env.CADENCE_START_ISO_WEEK,
     cli: (args, allowExit = []) => cli(args, repo, allowExit),
     log: (event, details) => logLine(log, event, details),
     exportSnapshot: () => exportSnapshot(target, log),
@@ -1224,9 +1326,11 @@ export const SAFE_FAILURES = Object.freeze(new Set([
   'weekly-roundup is staging-only', 'weekly-roundup options unsupported', 'roundup artifact invalid', 'roundup artifact inconsistent',
   'roundup submit refused', 'roundup intent already attempted', 'idempotency kind mismatch', 'submission lacks smoke success',
   'smoked but not counted for week', 'late smoke; old week missed', 'roundup consumed but no longer live',
-  'invalid cadence start week', 'roundup publication disabled', 'roundup census invalid',
+  'invalid cadence start week', 'roundup publication disabled', 'roundup census invalid', 'roundup model technical failure',
   'prior content slot held', 'prior content publication pending', 'prior content backlog exceeds recovery budget',
   'prior content smoke not current-live',
+  'prior roundup slot held', 'prior roundup publication pending', 'prior roundup backlog exceeds recovery budget',
+  'prior roundup smoke not current-live',
 ]));
 export function failureReason(error) {
   return error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : SAFE_FAILURES.has(error?.message) ? error.message : 'operational-error');
@@ -1247,8 +1351,8 @@ export async function main(argv = process.argv.slice(2)) {
     const request = fs.existsSync(requestPath) ? readJson(requestPath) : {};
     const sha = checkout(target, log);
     const result = await runJob(job, target, slot, request, log, notifications);
-    if (job === 'weekly-roundup' && result?.reason === 'roundup-publication-disabled') {
-      const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, holdCensus: result.census });
+    if (job === 'weekly-roundup' && ['roundup-publication-disabled', 'roundup-hold'].includes(result?.reason)) {
+      const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, holdCensus: result.census, holdWeek: result.week });
       logLine(log, alerted ? 'roundup-hold-alerted' : 'roundup-hold-alert-skipped', { census: result.census });
     }
     logLine(log, 'success', { sha, result: result && { id: result.id ?? null, dryRun: !!result.dryRun, noChanges: !!result.noChanges, ...(result.cadenceMet !== undefined ? { cadenceMet: result.cadenceMet } : {}), ...(typeof result.reason === 'string' ? { reason: result.reason } : {}) } });

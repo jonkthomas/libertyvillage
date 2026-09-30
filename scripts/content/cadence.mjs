@@ -162,14 +162,21 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
     if (attempt.outcome && attempt.outcome !== 'published' && attempt.outcome !== 'smoked') throw new StateError('attempt closed');
     if (attempt.outcome === 'smoked' && !['consumed','late-smoked'].includes(outcome)) throw new StateError('invalid outcome transition');
     if (outcome === 'late-smoked') {
-      if (ref.lane !== 'content' || attempt.outcome !== 'smoked' || !attempt.submission_id || typeof observe !== 'function') throw new StateError('late smoke requires observation');
-      const submission = row(await client.query(`select smoke_passed_at from content.submissions
+      if (attempt.outcome !== 'smoked' || !attempt.submission_id || typeof observe !== 'function') throw new StateError('late smoke requires observation');
+      const submission = row(await client.query(`select smoke_passed_at,kind from content.submissions
         where id=$1 and target=$2 and state='published'`, [attempt.submission_id, ref.target]));
       if (!submission?.smoke_passed_at) throw new StateError('submission not smoked');
       const actualWeek = weekStartUtc(submission.smoke_passed_at);
       if (actualWeek <= ref.weekStart) throw new StateError('smoke not late');
-      const counted = await countCurrentWeek(db, { target: ref.target, weekStart: actualWeek, observe });
-      if (!counted.content.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('late submission is not current-live');
+      if (ref.lane === 'roundup') {
+        // The old week's own slug must be current-live; countCurrentWeek never
+        // counts an old-week roundup slug in a later week, so it cannot prove this.
+        const live = await currentLiveSubmission(db, { target: ref.target, submissionId: attempt.submission_id, observe });
+        if (submission.kind !== 'roundup' || !live.live || live.slug !== roundupSlug(ref.weekStart)) throw new StateError('late submission is not current-live');
+      } else {
+        const counted = await countCurrentWeek(db, { target: ref.target, weekStart: actualWeek, observe });
+        if (!counted.content.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('late submission is not current-live');
+      }
     }
     if (outcome === 'consumed') {
       if (!attempt.submission_id) throw new StateError('submission missing');
@@ -194,12 +201,39 @@ export async function consumedFingerprints(db, { target }) {
     order by intent_fingerprint`, [target])).rows.map((r) => r.intent_fingerprint);
 }
 
-export async function unresolvedContentAttempts(db, { target, limit = 3 }) {
+// Open (unsettled) attempts of one lane, oldest first. The blog lane and the
+// roundup lane (docs/specs/weekly-roundup-v2.md §10.3.1) share the filter.
+export async function unresolvedAttempts(db, { target, lane, limit = 3 }) {
   checkTarget(db, target);
+  if (!['content', 'roundup'].includes(lane)) throw new ValidationError('invalid unresolved lane');
   if (!Number.isInteger(limit) || limit < 1 || limit > 21) throw new ValidationError('invalid unresolved limit');
   return (await db.query(`select ${dateText} from content.cadence_attempts a
-    where a.target=$1 and a.lane='content' and (a.outcome is null or a.outcome in ('published','smoked'))
-    order by a.week_start_utc,a.slot_number,a.ordinal limit $2`, [target, limit])).rows;
+    where a.target=$1 and a.lane=$2 and (a.outcome is null or a.outcome in ('published','smoked'))
+    order by a.week_start_utc,a.slot_number,a.ordinal limit $3`, [target, lane, limit])).rows;
+}
+
+// Whether one published submission's own posts insert is current-live: the DB
+// entry is still at its published_rev, its final gate round passed, and the
+// hosted alias serves that exact rev. Unlike countCurrentWeek this has no week
+// filter, so it can prove a late roundup's OLD-week slug without ever counting it
+// for a later week.
+export async function currentLiveSubmission(db, { target, submissionId, observe }) {
+  checkTarget(db, target);
+  const id = number(submissionId);
+  if (!Number.isSafeInteger(id) || id < 1) throw new ValidationError('invalid submission id');
+  if (typeof observe !== 'function') throw new StateError('observer required');
+  const found = row(await db.query(`select i.key as slug,s.id as submission_id,s.kind,i.published_rev,s.smoke_passed_at
+    from content.submissions s join content.submission_items i on i.submission_id=s.id
+    join content.entries e on e.dataset=i.dataset and e.key=i.key and e.live_rev=i.published_rev
+    join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
+    where s.id=$1 and s.target=$2 and s.state='published' and s.smoke_passed_at is not null and i.smoke='passed'
+      and i.dataset='posts' and i.op='insert' and i.published_rev is not null
+      and g.passed=true and g.overall>=8 and g.blocking_count=0
+    order by i.key limit 1`, [id, target]));
+  if (!found) return { submissionId: id, live: false };
+  const receipt = await observe(found.slug);
+  const live = Boolean(receipt?.snapshotId) && number(receipt.rev) === number(found.published_rev);
+  return { submissionId: id, kind: found.kind, slug: found.slug, publishedRev: found.published_rev, smokePassedAt: found.smoke_passed_at, live };
 }
 
 export async function countCurrentWeek(db, { target, weekStart, observe }) {

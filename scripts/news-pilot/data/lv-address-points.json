@@ -1,0 +1,1539 @@
+{
+  "licence": "Open Government Licence \u2013 Toronto",
+  "retrieved": "2026-09-29",
+  "addressPoints": {
+    "package": "address-points-municipal-toronto-one-address-repository",
+    "packageId": "abedd8bc-e3dd-4d45-8e69-79165a76e4fa",
+    "resourceId": "64d4e54b-738f-4cd9-a9e7-8050fac8a52f",
+    "resource": "address-points-4326.csv",
+    "sha256": "e6fcedbbf71b8bba6c5e876653488cd0f17a27cad54841cf4cb1564e465d22a3",
+    "note": "Municipal address points whose coordinate falls strictly inside the core ring."
+  },
+  "addresses": [
+    {
+      "number": "1",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "1AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "2",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "15",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "15RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "17",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "17RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "19",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "19RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "20",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "21",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "21RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "23RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "25",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "25RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "27",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "27RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "28",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "29",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "29RR",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "30",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "31",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "32",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "33",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "50",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "56",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "58",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "60",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "80",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "98",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "99",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "102",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "107",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "109",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "110",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "110AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "112",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "112AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "114",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "114AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "116",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "116AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "118",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "118AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "120",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "120AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "122",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "122AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "124",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "124AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "126",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "126AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "128",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "128AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "130",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "130AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "132",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "132AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "134",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "134AA",
+      "street": "Atlantic Ave"
+    },
+    {
+      "number": "27",
+      "street": "Canniff St"
+    },
+    {
+      "number": "29",
+      "street": "Canniff St"
+    },
+    {
+      "number": "33",
+      "street": "Canniff St"
+    },
+    {
+      "number": "35",
+      "street": "Canniff St"
+    },
+    {
+      "number": "37",
+      "street": "Canniff St"
+    },
+    {
+      "number": "39",
+      "street": "Canniff St"
+    },
+    {
+      "number": "1",
+      "street": "Crawford St"
+    },
+    {
+      "number": "3AA",
+      "street": "Crawford St"
+    },
+    {
+      "number": "3BB",
+      "street": "Crawford St"
+    },
+    {
+      "number": "5AA",
+      "street": "Crawford St"
+    },
+    {
+      "number": "5BB",
+      "street": "Crawford St"
+    },
+    {
+      "number": "7AA",
+      "street": "Crawford St"
+    },
+    {
+      "number": "7BB",
+      "street": "Crawford St"
+    },
+    {
+      "number": "9AA",
+      "street": "Crawford St"
+    },
+    {
+      "number": "9BB",
+      "street": "Crawford St"
+    },
+    {
+      "number": "11AA",
+      "street": "Crawford St"
+    },
+    {
+      "number": "11BB",
+      "street": "Crawford St"
+    },
+    {
+      "number": "13AA",
+      "street": "Crawford St"
+    },
+    {
+      "number": "13BB",
+      "street": "Crawford St"
+    },
+    {
+      "number": "15",
+      "street": "Crawford St"
+    },
+    {
+      "number": "10",
+      "street": "Douro St"
+    },
+    {
+      "number": "12",
+      "street": "Douro St"
+    },
+    {
+      "number": "26",
+      "street": "Douro St"
+    },
+    {
+      "number": "28",
+      "street": "Douro St"
+    },
+    {
+      "number": "58",
+      "street": "Douro St"
+    },
+    {
+      "number": "60",
+      "street": "Douro St"
+    },
+    {
+      "number": "62",
+      "street": "Douro St"
+    },
+    {
+      "number": "64",
+      "street": "Douro St"
+    },
+    {
+      "number": "66",
+      "street": "Douro St"
+    },
+    {
+      "number": "68",
+      "street": "Douro St"
+    },
+    {
+      "number": "70",
+      "street": "Douro St"
+    },
+    {
+      "number": "153",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "159",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "163",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "165",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "165RR",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "169",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "173",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "189",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "201",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "219",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "221",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "233",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "235",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "249",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "259",
+      "street": "Dufferin St"
+    },
+    {
+      "number": "5",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "9",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "25",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "31",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "35",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "38",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "39",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "40",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "46",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "49",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "50",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "51",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "54",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "55",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "57",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "59",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "65",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "67AA",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "67BB",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "69AA",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "69BB",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "70",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "71AA",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "71BB",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "73",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "75",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "75RR",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "77AA",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "77BB",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "79AA",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "79BB",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "81AA",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "81BB",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "83",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "85",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "87",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "125",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "129",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "132RR",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "135",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "137",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "139",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "143",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "145",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "147",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "149",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "150",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "151",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "153",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "165",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "167",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "171",
+      "street": "East Liberty St"
+    },
+    {
+      "number": "1",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "2",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "7",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "8",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "15",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "23",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "29",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "30",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "33",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "35",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "39",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "41",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "42",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "47",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "47AA",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "49",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "53",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "53AA",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "54",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "58",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "60",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "62",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "64",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "66",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "68",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "69",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "70",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "72",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "74",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "74AA",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "76",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "80",
+      "street": "Fraser Ave"
+    },
+    {
+      "number": "5",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "9",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "18",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "20",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "30",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "34",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "37",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "38",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "40",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "42",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "43",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "46",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "51",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "61",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "75",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "85",
+      "street": "Hanna Ave"
+    },
+    {
+      "number": "1",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "2",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "2-24",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "24",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "27",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "30",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "33",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "41",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "47",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "51",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "57",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "61",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "61AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "64",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "65",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "70",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "101",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "105",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "105AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "107",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "107AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "109",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "109AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "111",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "111AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "113",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "113AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "117",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "117AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "119",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "119AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "121",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "121AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "123",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "123AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "125",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "125AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "127",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "127AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "129",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "129AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "131",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "131AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "133",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "133AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "135",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "135AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "137",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "137AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "139",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "139AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "141",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "141AA",
+      "street": "Jefferson Ave"
+    },
+    {
+      "number": "905",
+      "street": "King St W"
+    },
+    {
+      "number": "915",
+      "street": "King St W"
+    },
+    {
+      "number": "945",
+      "street": "King St W"
+    },
+    {
+      "number": "1005",
+      "street": "King St W"
+    },
+    {
+      "number": "1007AA",
+      "street": "King St W"
+    },
+    {
+      "number": "1007BB",
+      "street": "King St W"
+    },
+    {
+      "number": "1009AA",
+      "street": "King St W"
+    },
+    {
+      "number": "1009BB",
+      "street": "King St W"
+    },
+    {
+      "number": "1011AA",
+      "street": "King St W"
+    },
+    {
+      "number": "1011BB",
+      "street": "King St W"
+    },
+    {
+      "number": "1013",
+      "street": "King St W"
+    },
+    {
+      "number": "1015",
+      "street": "King St W"
+    },
+    {
+      "number": "1017",
+      "street": "King St W"
+    },
+    {
+      "number": "1019",
+      "street": "King St W"
+    },
+    {
+      "number": "1021",
+      "street": "King St W"
+    },
+    {
+      "number": "1023",
+      "street": "King St W"
+    },
+    {
+      "number": "1025",
+      "street": "King St W"
+    },
+    {
+      "number": "1027",
+      "street": "King St W"
+    },
+    {
+      "number": "1029",
+      "street": "King St W"
+    },
+    {
+      "number": "1033",
+      "street": "King St W"
+    },
+    {
+      "number": "1063",
+      "street": "King St W"
+    },
+    {
+      "number": "1067",
+      "street": "King St W"
+    },
+    {
+      "number": "1071",
+      "street": "King St W"
+    },
+    {
+      "number": "1075",
+      "street": "King St W"
+    },
+    {
+      "number": "1081",
+      "street": "King St W"
+    },
+    {
+      "number": "1137",
+      "street": "King St W"
+    },
+    {
+      "number": "1155",
+      "street": "King St W"
+    },
+    {
+      "number": "1177",
+      "street": "King St W"
+    },
+    {
+      "number": "1179",
+      "street": "King St W"
+    },
+    {
+      "number": "1179AA",
+      "street": "King St W"
+    },
+    {
+      "number": "1183",
+      "street": "King St W"
+    },
+    {
+      "number": "1185",
+      "street": "King St W"
+    },
+    {
+      "number": "1187",
+      "street": "King St W"
+    },
+    {
+      "number": "1189",
+      "street": "King St W"
+    },
+    {
+      "number": "1195",
+      "street": "King St W"
+    },
+    {
+      "number": "1205",
+      "street": "King St W"
+    },
+    {
+      "number": "1207",
+      "street": "King St W"
+    },
+    {
+      "number": "1209",
+      "street": "King St W"
+    },
+    {
+      "number": "2",
+      "street": "Liberty St"
+    },
+    {
+      "number": "10",
+      "street": "Liberty St"
+    },
+    {
+      "number": "25",
+      "street": "Liberty St"
+    },
+    {
+      "number": "35",
+      "street": "Liberty St"
+    },
+    {
+      "number": "42",
+      "street": "Liberty St"
+    },
+    {
+      "number": "65",
+      "street": "Liberty St"
+    },
+    {
+      "number": "67",
+      "street": "Liberty St"
+    },
+    {
+      "number": "69",
+      "street": "Liberty St"
+    },
+    {
+      "number": "71",
+      "street": "Liberty St"
+    },
+    {
+      "number": "73",
+      "street": "Liberty St"
+    },
+    {
+      "number": "75",
+      "street": "Liberty St"
+    },
+    {
+      "number": "77",
+      "street": "Liberty St"
+    },
+    {
+      "number": "79",
+      "street": "Liberty St"
+    },
+    {
+      "number": "100",
+      "street": "Liberty St"
+    },
+    {
+      "number": "108",
+      "street": "Liberty St"
+    },
+    {
+      "number": "135",
+      "street": "Liberty St"
+    },
+    {
+      "number": "147",
+      "street": "Liberty St"
+    },
+    {
+      "number": "151",
+      "street": "Liberty St"
+    },
+    {
+      "number": "153",
+      "street": "Liberty St"
+    },
+    {
+      "number": "155",
+      "street": "Liberty St"
+    },
+    {
+      "number": "157",
+      "street": "Liberty St"
+    },
+    {
+      "number": "159",
+      "street": "Liberty St"
+    },
+    {
+      "number": "161",
+      "street": "Liberty St"
+    },
+    {
+      "number": "190",
+      "street": "Liberty St"
+    },
+    {
+      "number": "195",
+      "street": "Liberty St"
+    },
+    {
+      "number": "30",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "50",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "69",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "70",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "80",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "86",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "100",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "120",
+      "street": "Lynn Williams St"
+    },
+    {
+      "number": "3",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "10",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "18",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "20",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "22",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "24",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "35",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "37",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "39",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "42",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "67",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "77",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "78",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "85",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "87",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "96",
+      "street": "Mowat Ave"
+    },
+    {
+      "number": "1",
+      "street": "Pardee Ave"
+    },
+    {
+      "number": "2",
+      "street": "Pardee Ave"
+    },
+    {
+      "number": "4",
+      "street": "Pardee Ave"
+    },
+    {
+      "number": "6",
+      "street": "Pardee Ave"
+    },
+    {
+      "number": "38",
+      "street": "Pardee Ave"
+    },
+    {
+      "number": "39",
+      "street": "Pardee Ave"
+    },
+    {
+      "number": "42",
+      "street": "Pardee Ave"
+    },
+    {
+      "number": "6",
+      "street": "Pirandello St"
+    },
+    {
+      "number": "21",
+      "street": "Pirandello St"
+    },
+    {
+      "number": "1",
+      "street": "Shaw St"
+    },
+    {
+      "number": "2",
+      "street": "Shaw St"
+    },
+    {
+      "number": "4",
+      "street": "Shaw St"
+    },
+    {
+      "number": "1",
+      "street": "Snooker St"
+    },
+    {
+      "number": "15",
+      "street": "Solidarity Way"
+    },
+    {
+      "number": "25",
+      "street": "Solidarity Way"
+    },
+    {
+      "number": "48",
+      "street": "Strachan Ave"
+    },
+    {
+      "number": "92",
+      "street": "Strachan Ave"
+    },
+    {
+      "number": "94",
+      "street": "Strachan Ave"
+    },
+    {
+      "number": "96",
+      "street": "Strachan Ave"
+    },
+    {
+      "number": "98",
+      "street": "Strachan Ave"
+    },
+    {
+      "number": "100",
+      "street": "Strachan Ave"
+    },
+    {
+      "number": "19",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "21",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "22",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "26",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "30",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "34",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "38",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "42",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "46",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "50",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "65",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "80",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "100",
+      "street": "Western Battery Rd"
+    },
+    {
+      "number": "125",
+      "street": "Western Battery Rd"
+    }
+  ],
+  "reviewNote": "Complete City address-point extract strictly inside the generated Centreline ring (381 pairs). Every pair is core with Toronto context except Douro St (11 pairs), which the A1 street exception keeps not-LV."
+}

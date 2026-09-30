@@ -84,18 +84,56 @@ test('prior-week pending intent is fenced, then late smoke settles terminal only
     const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'cross-week' });
     const recorded = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: 'brunch', topicKey: 'brunch', sourcePackDigest: 'pack' });
     assert.deepEqual(await cadence.consumedFingerprints(db, { target: 'test' }), ['brunch']);
-    assert.equal((await cadence.unresolvedContentAttempts(db, { target: 'test' }))[0].idempotency_key, recorded.idempotencyKey);
+    assert.equal((await cadence.unresolvedAttempts(db, { target: 'test', lane: 'content' }))[0].idempotency_key, recorded.idempotencyKey);
     const id = await fixture(db, { slug: 'late-brunch', time: '2026-10-05T00:10:00Z', idempotencyKey: recorded.idempotencyKey });
     await cadence.attachSubmission(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, submissionId: id });
     await cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'smoked' });
     await assert.rejects(cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe: async () => null }), /not current-live/);
     assert.equal((await cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe })).outcome, 'late-smoked');
-    assert.equal((await cadence.unresolvedContentAttempts(db, { target: 'test' })).length, 0);
+    assert.equal((await cadence.unresolvedAttempts(db, { target: 'test', lane: 'content' })).length, 0);
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).contentCount, 0);
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-05', observe })).contentCount, 1);
     await db.query("set time zone 'America/Toronto'");
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-05', observe })).contentCount, 1, 'session timezone cannot move a UTC-week smoke');
     assert.deepEqual(await cadence.consumedFingerprints(db, { target: 'test' }), ['brunch']);
+  } finally { await close(); }
+});
+
+test('roundup lane: unresolved by lane, current-live proof of the OLD-week slug, and terminal late-smoked (spec 10.3.1)', async () => {
+  const { db, close } = await testDb();
+  try {
+    await assert.rejects(cadence.unresolvedAttempts(db, { target: 'test', lane: 'other' }), /invalid unresolved lane/);
+    const slotRef = ref(1, 'roundup');
+    const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'runner:weekly-roundup:test:a' });
+    const recorded = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: 'd'.repeat(64), topicKey: cadence.roundupSlug(week), sourcePackDigest: 'd'.repeat(64) });
+    assert.deepEqual((await cadence.unresolvedAttempts(db, { target: 'test', lane: 'roundup' })).map((a) => a.idempotency_key), [recorded.idempotencyKey]);
+    assert.equal((await cadence.unresolvedAttempts(db, { target: 'test', lane: 'content' })).length, 0);
+    // Published Sunday, smoke passed Monday (W41): the W40 slug is live but late.
+    const id = await fixture(db, { slug: cadence.roundupSlug(week), kind: 'roundup', category: 'news', time: '2026-10-05T00:10:00Z', idempotencyKey: recorded.idempotencyKey });
+    await cadence.attachSubmission(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, submissionId: id });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'smoked' });
+    assert.deepEqual(await cadence.currentLiveSubmission(db, { target: 'test', submissionId: id, observe: async () => null }),
+      { submissionId: id, kind: 'roundup', slug: cadence.roundupSlug(week), publishedRev: 1, smokePassedAt: (await db.query('select smoke_passed_at from content.submissions where id=$1', [id])).rows[0].smoke_passed_at, live: false });
+    assert.equal((await cadence.currentLiveSubmission(db, { target: 'test', submissionId: id, observe })).live, true);
+    await assert.rejects(cadence.currentLiveSubmission(db, { target: 'test', submissionId: id }), /observer required/);
+    await assert.rejects(cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe: async () => null }), /not current-live/);
+    assert.equal((await cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe })).outcome, 'late-smoked');
+    assert.equal((await cadence.unresolvedAttempts(db, { target: 'test', lane: 'roundup' })).length, 0);
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-05', observe })).roundupCount, 0, 'the old-week slug never counts for W41');
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).roundupCount, 0, 'W40 stays missed');
+  } finally { await close(); }
+});
+
+test('roundup late-smoked refuses a live submission that is not the old week\'s own slug', async () => {
+  const { db, close } = await testDb();
+  try {
+    const slotRef = ref(1, 'roundup');
+    const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'runner:weekly-roundup:test:b' });
+    const recorded = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: 'e'.repeat(64), topicKey: 'x', sourcePackDigest: 'e'.repeat(64) });
+    const id = await fixture(db, { slug: cadence.roundupSlug('2026-10-05'), kind: 'roundup', category: 'news', time: '2026-10-05T00:10:00Z', idempotencyKey: recorded.idempotencyKey });
+    await cadence.attachSubmission(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, submissionId: id });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'smoked' });
+    await assert.rejects(cadence.recordAttemptOutcome(db, { idempotencyKey: recorded.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe }), /not current-live/);
   } finally { await close(); }
 });
 

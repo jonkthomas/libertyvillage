@@ -170,6 +170,27 @@ function packBindingErrors(kind, context, items, live, idempotencyKey) {
   return posts.flatMap((item) => blogDraftBindingErrors(item.payload, pack, { live, now: new Date(), checkImage: false }).map((error) => `data/posts.json: ${item.key}: ${error}`));
 }
 
+// Roundup v2 gate/fixer evidence (docs/specs/weekly-roundup-v2.md §9.4): the
+// bounded per-unit projection submit stored at T_submit, never live re-fetches.
+// Temporal checks use temporalValidationNow, as before.
+export function roundupEvidence(context) {
+  const units = (list) => (Array.isArray(list) ? list : []).slice(0, 20).map((unit) => ({
+    identity: unit?.identityKey, label: unit?.label, verdict: unit?.verdict, itemType: unit?.itemType,
+    date: unit?.date, endDate: unit?.endDate, startTime: unit?.startTime, endTime: unit?.endTime,
+    members: unit?.members,
+    citations: (Array.isArray(unit?.citations) ? unit.citations : []).map((citation) => ({ url: citation?.url, publisher: citation?.publisher, recordId: citation?.recordId, tier: citation?.tier })),
+    evidence: (Array.isArray(unit?.evidence) ? unit.evidence : []).map((entry) => ({
+      url: entry?.url, recordId: entry?.recordId, tier: entry?.tier, typed: entry?.typed,
+      subject_quote: entry?.subject_quote, place_quote: entry?.place_quote, date_quote: entry?.date_quote,
+    })),
+  }));
+  return {
+    pipeline: context.pipeline ?? null, submittedAt: context.temporalValidationNow ?? context.now, planningNow: context.now,
+    isoWeek: context.isoWeek, weekStartUtc: context.weekStartUtc, counts: context.counts ?? null,
+    units: units(context.units), stillInEffect: units(context.stillInEffect),
+  };
+}
+
 function withPackReferences(references, evidence, businesses) {
   const ids = new Set((evidence?.sourcePack?.sources ?? []).map((source) => source.id));
   if (!ids.size) return references;
@@ -399,24 +420,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         const references = grounded ? agent.selectReferenceRecords(doc.document, live.live.businesses ?? []) : [];
         const inventory = grounded ? await inventoryFor(live, candidates) : null;
         const evidence = kind === 'news' ? trimEvidence(context.evidence)
-          : kind === 'roundup' ? { submittedAt: context.temporalValidationNow ?? context.now,
-            isoWeek: context.isoWeek, weekStartUtc: context.weekStartUtc,
-            items: (context.items || []).map((item) => ({
-            title: String(item.title || '').slice(0, 300), location: String(item.location || '').slice(0, 200),
-            actor: String(item.actor || '').slice(0, 200), announcedAt: item.announcedAt,
-            announcedAtVerified: item.announcedAtVerified, announcedAtSourceUrl: item.announcedAtSourceUrl,
-            announcedAtSpan: String(item.announcedAtSpan || '').slice(0, 400), eventStart: item.eventStart,
-            eventStartDate: item.eventStartDate, eventStartVerified: item.eventStartVerified,
-            eventStartSourceUrl: item.eventStartSourceUrl, eventStartSpan: String(item.eventStartSpan || '').slice(0, 400),
-            eventEnd: item.eventEnd, eventConcluded: item.eventConcluded, riskFlags: item.riskFlags,
-            sources: item.sources?.map((source) => ({
-              canonicalUrl: source.canonicalUrl, publisher: String(source.publisher || '').slice(0, 200),
-              excerpt: String(source.excerpt || '').slice(0, 1200),
-            })), claims: item.claims?.map((claim) => ({
-              text: String(claim.text || '').slice(0, 600), sourceUrl: claim.sourceUrl,
-              span: String(claim.span || '').slice(0, 400),
-            })),
-          })) } : kind === 'blog' ? blogPackEvidence(context) : null;
+          : kind === 'roundup' ? roundupEvidence(context) : kind === 'blog' ? blogPackEvidence(context) : null;
         rt.onPhase(`review:${n}`);
         const verdict = script
           ? scriptedVerdict(script, n, doc.contentSha)
@@ -466,7 +470,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
       };
       // Pass the pack to the fixer and include its cited live business records
       // in the ground-truth references rendered by the fixer prompt.
-      const fixEvidence = kind === 'blog' ? blogPackEvidence(context) : null;
+      const fixEvidence = kind === 'blog' ? blogPackEvidence(context) : kind === 'roundup' ? roundupEvidence(context) : null;
       const references = grounded ? withPackReferences(agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []), fixEvidence, live.live.businesses) : [];
       const inventory = grounded ? await inventoryFor(live, candidates) : null;
       const lintFindings = KIND_RULES[kind].lint
