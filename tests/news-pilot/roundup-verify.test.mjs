@@ -624,3 +624,96 @@ test('B2-R1: a news-update is bound to the page dateline, not a later non-dateli
   const kept = await tiered('2026-10-02', 'October 3, 2026');
   assert.equal(kept.items[0]?.identityKey, `news:${original}`, JSON.stringify(kept.excluded));
 });
+
+// Astra F2: `when.kind` is a model label. It may not move a venue's structured
+// Event onto the transit/road active exceptions or their identity namespaces.
+const kindNow = '2026-09-30T15:00:00Z';
+function bmoEvent(startDate, endDate) {
+  const source = ROUNDUP_SOURCES.find((s) => s.identityKind === 'venue' && s.url.includes('bmofield'));
+  const body = '<script type="application/ld+json">' + JSON.stringify({ '@context': 'https://schema.org', '@type': 'Event',
+    name: 'Autumn Match', startDate, endDate, location: { '@type': 'Place', name: 'BMO Field',
+      address: { streetAddress: '170 Princes Blvd', addressLocality: 'Toronto' } } }) + '</script>';
+  const records = extractRoundupRecords({ source, url: source.url, body });
+  const run = (when) => verifyRoundupForms({ signals: [{ signalId: 'bmo', sourceId: source.id, url: source.url, records }],
+    forms: [{ signalId: 'bmo', recordId: records[0].recordId, subject: 'Autumn Match', what: 'Autumn Match',
+      where_it_happens: 'BMO Field', item_type: 'event', people: [], risk: {}, verdict: 'adjacent', exclude_reason: null, when,
+      evidence: [{ url: source.url, recordId: records[0].recordId, subject_quote: 'Autumn Match', place_quote: null, date_quote: null }] }],
+    now: kindNow, posts: [], fetcher: async () => ({ status: 200, body }) });
+  return { records, run };
+}
+
+test('F2: an expired or far-future venue JSON-LD Event relabelled alert, restriction or news-update is refused', async () => {
+  for (const [start, end, day, eventReason] of [
+    ['2026-09-01T16:00:00-04:00', '2026-09-01T18:00:00-04:00', '2026-09-01', 'concluded'],
+    ['2026-12-15T16:00:00-05:00', '2026-12-15T18:00:00-05:00', '2026-12-15', 'outside-window']]) {
+    const { run } = bmoEvent(start, end);
+    const when = { date: day, endDate: day, startTime: '16:00', endTime: '18:00' };
+    for (const kind of ['alert', 'restriction', 'news-update']) {
+      for (const shape of [when, { date: day, endDate: day, startTime: null, endTime: null }]) {
+        const result = await run({ ...shape, kind });
+        assert.deepEqual(result.items, [], `${day} ${kind}`);
+        assert.deepEqual(result.excluded.map((row) => row.reason), ['undated'], `${day} ${kind}`);
+      }
+    }
+    // Read as the event it is, the same record meets the concluded/window rule.
+    const asEvent = await run({ ...when, kind: 'event' });
+    assert.deepEqual(asEvent.excluded.map((row) => row.reason), [eventReason], day);
+  }
+});
+
+test('F2 control: an in-window venue JSON-LD Event is admitted only as an event occurrence', async () => {
+  const { run } = bmoEvent('2026-10-03T16:00:00-04:00', '2026-10-03T18:00:00-04:00');
+  const when = { date: '2026-10-03', endDate: '2026-10-03', startTime: '16:00', endTime: '18:00' };
+  const admitted = await run({ ...when, kind: 'event' });
+  assert.equal(admitted.items.length, 1, JSON.stringify(admitted.excluded));
+  assert.match(admitted.items[0].identityKey, /^occ:.+:2026-10-03:16:00$/);
+  for (const kind of ['alert', 'restriction']) {
+    const relabelled = await run({ ...when, kind });
+    assert.deepEqual(relabelled.items, [], kind);
+    assert.deepEqual(relabelled.excluded.map((row) => row.reason), ['undated'], kind);
+  }
+});
+
+test('F2 control: a live TTC feed alert stays an alert; the feed cannot be relabelled', async () => {
+  const source = ROUNDUP_SOURCES.find((s) => s.id === 'rv2-ttc-alerts');
+  const body = JSON.stringify({ routes: [{ id: '77009', route: '509', stopStart: 'Exhibition Loop', stopEnd: 'Union Station',
+    stops: ['Exhibition Loop'], headerText: '509 Harbourfront: Diversion at Exhibition Loop', effect: 'DETOUR',
+    activePeriod: { start: '2026-09-29T12:00:00Z', end: '2026-10-05T12:00:00Z' } }] });
+  const records = extractRoundupRecords({ source, url: source.url, body });
+  const run = (kind) => verifyRoundupForms({ signals: [{ signalId: 'ttc', sourceId: source.id, url: source.url, records }],
+    forms: [{ signalId: 'ttc', recordId: records[0].recordId, subject: '509 Harbourfront', what: 'Streetcar diversion',
+      where_it_happens: 'Exhibition Loop', item_type: 'transit', people: [], risk: {}, verdict: 'adjacent', exclude_reason: null,
+      when: { kind, date: '2026-09-29', endDate: null, startTime: null, endTime: null },
+      evidence: [{ url: source.url, recordId: records[0].recordId, subject_quote: '509 Harbourfront', place_quote: null, date_quote: null }] }],
+    now: kindNow, posts: [], fetcher: async () => ({ status: 200, body }) });
+  const alert = await run('alert');
+  assert.equal(alert.items.length, 1, JSON.stringify(alert.excluded));
+  assert.equal(alert.items[0].identityKey, 'ttc:77009');
+  for (const kind of ['restriction', 'event', 'news-update']) {
+    const relabelled = await run(kind);
+    assert.deepEqual(relabelled.items, [], kind);
+    assert.deepEqual(relabelled.excluded.map((row) => row.reason), ['undated'], kind);
+  }
+});
+
+test('F2 control: a road feed record stays a restriction; it is never an alert or event', async () => {
+  const feedUrl = 'https://city.example/roads';
+  const typed = { id: 'r42', road: 'Strachan Ave', fromRoad: 'King St W', toRoad: 'Fleet St',
+    startTime: '2026-09-29T12:00:00Z', endTime: '2026-10-02T12:00:00Z', description: 'Road work' };
+  const roadSource = { id: 'roads', parse: 'json-feed', identityKind: 'road-feed', tier: 'official' };
+  const body = JSON.stringify({ Closure: [typed] });
+  const records = extractRoundupRecords({ source: roadSource, url: feedUrl, body });
+  const run = (kind) => verifyRoundupForms({ signals: [{ signalId: 'road1', sourceId: 'roads', url: feedUrl, records }],
+    forms: [{ ...form('road1', feedUrl), subject: 'Strachan Ave', item_type: 'road', recordId: records[0].recordId,
+      when: { kind, date: '2026-09-29' },
+      evidence: [{ url: feedUrl, recordId: records[0].recordId, subject_quote: 'Strachan Ave', place_quote: null, date_quote: null }] }],
+    now, posts: [], fetcher: async () => ({ body, status: 200 }),
+    geography: { classifySegment: () => ({ locality: 'core', canonicalVenueId: 'seg:strachan' }) },
+    sources: [roadSource], publisherTiers: {} });
+  assert.equal((await run('restriction')).items[0]?.identityKey, 'road:r42');
+  for (const kind of ['alert', 'event', 'news-update']) {
+    const relabelled = await run(kind);
+    assert.deepEqual(relabelled.items, [], kind);
+    assert.deepEqual(relabelled.excluded.map((row) => row.reason), ['undated'], kind);
+  }
+});

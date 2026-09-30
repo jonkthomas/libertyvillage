@@ -200,7 +200,7 @@ TOPIC SELECTED:
 - Topic: [selected topic]
 - Title: [proposed blog post title]
 - Slug: [kebab-case-slug]
-- Category: [one of: news, development, food-drink, events, transit, real-estate, lifestyle, community]
+- Category: [one of: development, food-drink, events, transit, real-estate, lifestyle, community]
 - Target Keywords: [comma-separated keywords]
 - Justification: [1-2 sentences on why this topic was selected]
 ```
@@ -227,7 +227,6 @@ export interface BlogPost {
   publishedAt: string;
   updatedAt: string;
   category:
-    | "news"
     | "development"
     | "food-drink"
     | "events"
@@ -249,24 +248,24 @@ export interface BlogPost {
 
 ### 3.2 Field Requirements
 
-| Field             | Type     | Constraints                                                                               |
-| ----------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `slug`            | string   | Kebab-case, unique, matches the proposed slug from Step 2                                 |
-| `title`           | string   | 50-70 characters, includes primary keyword                                                |
-| `description`     | string   | 120-160 characters, compelling for search results                                         |
-| `content`         | string   | 800-1200 words, markdown format                                                           |
-| `publishedAt`     | string   | Today's date in ISO format (YYYY-MM-DD)                                                   |
-| `updatedAt`       | string   | Same as publishedAt for new posts                                                         |
-| `category`        | enum     | One of: news, development, food-drink, events, transit, real-estate, lifestyle, community |
-| `tags`            | string[] | 4-6 relevant tags, lowercase                                                              |
-| `answerBlock`     | string   | 40-60 words, AEO-optimized direct answer                                                  |
-| `faqs`            | FAQ[]    | 4-5 questions with substantive answers (>20 words each)                                   |
-| `image`           | string   | `/images/blog/{slug}.jpg`                                                                 |
-| `relatedServices` | string[] | 2-4 real slugs from data/services.json                                                    |
-| `relatedTopics`   | string[] | 2-4 real slugs from data/topics.json                                                      |
-| `relatedPosts`    | string[] | 1-3 real slugs from data/posts.json                                                       |
-| `keyTakeaways`    | string[] | 4-6 concise bullet points                                                                 |
-| `author`          | string   | Always `"LibertyVillage.co"`                                                              |
+| Field             | Type     | Constraints                                                                         |
+| ----------------- | -------- | ----------------------------------------------------------------------------------- |
+| `slug`            | string   | Kebab-case, unique, matches the proposed slug from Step 2                           |
+| `title`           | string   | 50-70 characters, includes primary keyword                                          |
+| `description`     | string   | 120-160 characters, compelling for search results                                   |
+| `content`         | string   | 800-1200 words, markdown format                                                     |
+| `publishedAt`     | string   | Today's date in ISO format (YYYY-MM-DD)                                             |
+| `updatedAt`       | string   | Same as publishedAt for new posts                                                   |
+| `category`        | enum     | One of: development, food-drink, events, transit, real-estate, lifestyle, community |
+| `tags`            | string[] | 4-6 relevant tags, lowercase                                                        |
+| `answerBlock`     | string   | 40-60 words, AEO-optimized direct answer                                            |
+| `faqs`            | FAQ[]    | 4-5 questions with substantive answers (>20 words each)                             |
+| `image`           | string   | `/images/blog/{slug}.jpg`                                                           |
+| `relatedServices` | string[] | 2-4 real slugs from data/services.json                                              |
+| `relatedTopics`   | string[] | 2-4 real slugs from data/topics.json                                                |
+| `relatedPosts`    | string[] | 1-3 real slugs from data/posts.json                                                 |
+| `keyTakeaways`    | string[] | 4-6 concise bullet points                                                           |
+| `author`          | string   | Always `"LibertyVillage.co"`                                                        |
 
 ### 3.3 Content Guidelines
 
