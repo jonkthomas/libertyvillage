@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { evidenceStatesClock, verifyRoundupForms } from '../../scripts/news-pilot/roundup-verify.mjs';
-import { writeRoundup } from '../../scripts/news-pilot/roundup-write.mjs';
+import { assembleRoundupPost, writeRoundup } from '../../scripts/news-pilot/roundup-write.mjs';
 import { planRoundupV2 } from '../../scripts/news-pilot/roundup.mjs';
 import * as realGeography from '../../scripts/news-pilot/roundup-geo.mjs';
 import { extractRoundupRecords } from '../../scripts/news-pilot/roundup-records.mjs';
@@ -24,15 +24,29 @@ const CAPTIONS = {
   // The observed layout: an unlabelled clock line, neither "starts" nor "hours".
   ambiguous: { caption: `[ OCT. 3: $6 Fried Onion Burgers by George Motz]\n⏰ 11:30AM until sold out\n📍 ${place}`,
     subject: '$6 Fried Onion Burgers by George Motz', dateQuote: 'OCT. 3' },
+  // Same record, independently quoted short (clock-free) or wide (clock-bearing).
+  inline: { caption: `Guest pop-up Saturday Oct 3, 11:30 AM until sold out.\n📍 ${place}`,
+    subject: 'Guest pop-up', dateQuote: 'Saturday Oct 3' },
+  inlineWide: { caption: `Guest pop-up Saturday Oct 3, 11:30 AM until sold out.\n📍 ${place}`,
+    subject: 'Guest pop-up', dateQuote: 'Saturday Oct 3, 11:30 AM until sold out' },
+  // An hours line quoted verbatim is still not an event start.
+  hoursQuoted: { caption: `Guest pop-up Saturday Oct 3. Shop hours 11:30 AM until sold out.\n📍 ${place}`,
+    subject: 'Guest pop-up', dateQuote: 'Saturday Oct 3. Shop hours 11:30 AM until sold out' },
+  // Explicit event end control, and an end that is only a shop closing time.
+  explicitEnd: { caption: `Guest pop-up at our shop. The pop-up begins at 11:30 AM Saturday Oct 3 and ends 3 PM.\n📍 ${place}`,
+    subject: 'Guest pop-up', dateQuote: 'begins at 11:30 AM Saturday Oct 3 and ends 3 PM', endTime: '15:00' },
+  shopClose: { caption: `Guest pop-up at our shop. The pop-up begins at 11:30 AM Saturday Oct 3; shop open until 3 PM.\n📍 ${place}`,
+    subject: 'Guest pop-up', dateQuote: 'begins at 11:30 AM Saturday Oct 3; shop open until 3 PM', endTime: '15:00' },
 };
+const SEMANTIC_NEGATIVES = ['hours', 'ambiguous', 'inline', 'inlineWide', 'hoursQuoted'];
 
 async function verifiedUnit(name, startTime = '11:30') {
-  const { caption, subject, dateQuote } = CAPTIONS[name];
+  const { caption, subject, dateQuote, endTime = null } = CAPTIONS[name];
   const url = `https://www.instagram.com/p/${name.toUpperCase()}/`;
   const post = { shortcode: name.toUpperCase(), ownerUsername: 'burgerdrops', timestamp: '2026-09-27T22:51:24Z', caption };
   const records = extractRoundupRecords({ source, url, body: caption, post });
   const form = { signalId: name, recordId: records[0].recordId, subject, what: embellished, where_it_happens: place,
-    when: { kind: 'event', date: '2026-10-03', endDate: null, startTime, endTime: null },
+    when: { kind: 'event', date: '2026-10-03', endDate: null, startTime, endTime },
     who_is_affected: 'Visitors', relevance_reason: 'Local pop-up', verdict: 'core', item_type: 'event',
     people: [], risk: {}, exclude_reason: null,
     evidence: [{ url, recordId: records[0].recordId, subject_quote: subject, place_quote: place, date_quote: dateQuote }] };
@@ -61,6 +75,11 @@ const recorder = ({ body = () => 'On Oct 3 at 116 Atlantic Ave. Patio in Liberty
 const write = (units, callModel) => writeRoundup({ units, now }, { resolved: { ok: true, provider: { id: 'anthropic' } },
   reviewer: { ok: true, provider: { id: 'deepseek' } }, callModel });
 const sentUnits = (req) => JSON.parse(req.userText).units;
+// A payload-driven author: it states whatever start the material gives it.
+const literalAuthor = (u) => u.when?.startTime ? `${u.subject} starts at ${u.when.startTime} on Oct 3.`
+  : `${u.subject} takes place on Oct 3.`;
+const assembled = (units, draft) => assembleRoundupPost({ pack: { units, isoWeek: '2026-W40', now }, draft,
+  imageExists: () => true }).content;
 
 test('verifier keeps a record clock for eligibility (§6.4) and still refuses a dropped clock', async () => {
   for (const name of Object.keys(CAPTIONS)) {
@@ -73,8 +92,8 @@ test('verifier keeps a record clock for eligibility (§6.4) and still refuses a 
   assert.equal(dropped.verified.excluded[0].reason, 'undated');
 });
 
-test('opening-hours and ambiguous caption clocks reach the writer and reviewers as date-only events', async () => {
-  for (const name of ['hours', 'ambiguous']) {
+test('opening-hours, unlabelled and quoted-hours clocks reach the writer and reviewers as date-only events', async () => {
+  for (const name of SEMANTIC_NEGATIVES) {
     const { unit } = await verifiedUnit(name);
     const { calls, callModel } = recorder();
     await write([unit], callModel);
@@ -84,8 +103,9 @@ test('opening-hours and ambiguous caption clocks reach the writer and reviewers 
       assert.deepEqual(sent.when, { ...unit.when, startTime: null, endTime: null }, `${name}: ${req.system.slice(0, 30)}`);
       assert.equal('what' in sent, false, `${name}: model summary is not writer/reviewer evidence`);
       assert.ok(!req.userText.includes('limited batches') && !req.userText.includes('tasting programme'));
-      // The only remaining 11:30 is the opaque identity key (not a fact field).
-      assert.deepEqual(req.userText.split(unit.identityKey).join('').match(/11:30/g), null, name);
+      // Outside the opaque identity key, 11:30 survives only inside a verbatim quote.
+      const quoted = sent.evidence[0].date_quote.includes('11:30') ? sent.evidence[0].date_quote : unit.identityKey;
+      assert.deepEqual(req.userText.split(unit.identityKey).join('').split(quoted).join('').match(/11:30/g), null, name);
     }
   }
 });
@@ -113,13 +133,28 @@ test('typed feed, structured and listing times remain trusted; unquoted clocks d
   assert.equal(evidenceStatesClock(structured, day, '19:00'), true);
   assert.equal(evidenceStatesClock([{ typed: { startDate: '2026-10-03' }, subject_quote: 'Expo' }], day, '00:00'), false);
   assert.equal(evidenceStatesClock([{ listing: true, typed: { timeText: '7 pm' }, subject_quote: 'Match' }], day, '19:00'), true);
+  assert.equal(evidenceStatesClock([{ listing: true, typed: { timeText: '7-10 pm' }, subject_quote: 'Match' }], day, '22:00', 'end'), true);
+  assert.equal(evidenceStatesClock([{ listing: false, typed: { timeText: '7 pm' }, subject_quote: 'Match' }], day, '19:00'), false,
+    'timeText counts only on a listing record');
+  assert.equal(evidenceStatesClock([{ listing: true, typed: { timeText: 'Shop hours 11:30 AM' }, subject_quote: 'Match' }], day, '11:30'), false);
   const igTyped = { owner: 'burgerdrops', timestamp: '2026-10-03T15:30:00Z', shortcode: 'X', ordinal: 0, date: day };
   assert.equal(evidenceStatesClock([{ typed: igTyped, subject_quote: 'Guest pop-up', date_quote: 'Oct 3' }], day, '11:30'), false,
     'a post timestamp is not an event time');
-  assert.equal(evidenceStatesClock([{ typed: igTyped, subject_quote: 'Guest pop-up', date_quote: 'Oct 3 from 11:30am' }], day, '11:30'), true);
+  const quoted = (date_quote) => [{ typed: igTyped, subject_quote: 'Guest pop-up', date_quote }];
+  for (const [quote, time, edge, expected] of [
+    ['Starts Saturday Oct 3 at 11:30 a.m.', '11:30', 'start', true],
+    ['Doors 7-10pm Oct 3', '19:00', 'start', true],
+    ['Doors 7-10pm Oct 3', '22:00', 'end', true],
+    ['Starts at noon Oct 3', '12:00', 'start', true],
+    ['Oct 3 from 11:30am', '11:30', 'start', false],
+    ['Oct 3, 11:30 AM until sold out', '11:30', 'start', false],
+    ['Oct 3 7-10pm', '19:00', 'start', false],
+    ['Pop-up starts Oct 3 during shop hours 11:30 AM', '11:30', 'start', false],
+    ['Starts Oct 3; open until 3 PM', '15:00', 'end', false],
+  ]) assert.equal(evidenceStatesClock(quoted(quote), day, time, edge), expected, `${quote} ${edge} ${time}`);
 });
 
-test('an unsupported start also withholds its end; a feed unit keeps both', async () => {
+test('an unsupported start also withholds its end; feed and structured units keep typed times', async () => {
   const base = { identityKey: 'occ:x', verdict: 'core', itemType: 'event', date: '2026-10-03', subject: 'Market',
     citations: [{ url: 'https://source.example/x', sourceId: 's', recordId: 'r1' }] };
   const quoteOnly = { ...base, when: { kind: 'event', date: '2026-10-03', endDate: null, startTime: '11:30', endTime: '22:00' },
@@ -129,9 +164,13 @@ test('an unsupported start also withholds its end; a feed unit keeps both', asyn
     endDate: '2026-10-03', startTime: '11:30', endTime: '16:00' },
   evidence: [{ url: 'https://source.example/x', recordId: 'r1', subject_quote: 'Market', place_quote: null, date_quote: null,
     feed: true, typed: { startTime: '2026-10-03T15:30:00Z', endTime: '2026-10-03T20:00:00Z' } }] };
+  const structured = { ...base, identityKey: 'occ:ld', when: { kind: 'event', date: '2026-10-03', endDate: null,
+    startTime: '19:00', endTime: null }, evidence: [{ url: 'https://source.example/x', recordId: 'r1', subject_quote: 'Market',
+    place_quote: null, date_quote: null, typed: { name: 'Market', startDate: '2026-10-03T19:00:00-04:00' } }] };
   const { calls, callModel } = recorder();
-  await write([quoteOnly, road], callModel);
-  const [sentQuote, sentRoad] = sentUnits(calls[0]);
+  await write([quoteOnly, road, structured], callModel);
+  const [sentQuote, sentRoad, sentStructured] = sentUnits(calls[0]);
+  assert.equal(sentStructured.when.startTime, '19:00');
   assert.equal(sentQuote.when.startTime, null);
   assert.equal(sentQuote.when.endTime, null);
   assert.equal(sentRoad.when.startTime, '11:30');
@@ -182,5 +221,34 @@ test('private-person regeneration and its fresh reviews also use the date-only, 
     assert.deepEqual(sent.map((u) => u.unitId), [unit.identityKey]);
     assert.equal(sent[0].when.startTime, null);
     assert.equal('what' in sent[0], false);
+  }
+});
+
+test('short and wide quotes of one ambiguous record, and a quoted hours line, assemble date-only copy', async () => {
+  for (const name of SEMANTIC_NEGATIVES) {
+    const { unit } = await verifiedUnit(name);
+    assert.equal(unit.identityKey, 'occ:addr:116-atlantic-ave:2026-10-03:11:30', `${name}: identity unchanged`);
+    const { calls, callModel } = recorder({ body: literalAuthor });
+    const out = await write([unit], callModel);
+    for (const req of calls) assert.equal(sentUnits(req)[0].when.startTime, null, name);
+    const content = assembled([unit], out.draft);
+    assert.match(content, /Guest pop-up takes place on Oct 3\.|\$6 Fried Onion Burgers by George Motz takes place on Oct 3\./, name);
+    assert.doesNotMatch(content, /starts at 11:30/, name);
+  }
+});
+
+test('explicit start and end phrases stay writable; a shop closing time is not the event end', async () => {
+  const cases = [['explicit', '11:30', null], ['explicitEnd', '11:30', '15:00'], ['shopClose', '11:30', null]];
+  for (const [name, start, end] of cases) {
+    const { unit } = await verifiedUnit(name);
+    assert.equal(unit.when.startTime, '11:30', name);
+    assert.equal(unit.when.endTime, CAPTIONS[name].endTime ?? null, `${name}: pack end unchanged`);
+    const { calls, callModel } = recorder({ body: literalAuthor });
+    const out = await write([unit], callModel);
+    for (const req of calls) {
+      assert.equal(sentUnits(req)[0].when.startTime, start, name);
+      assert.equal(sentUnits(req)[0].when.endTime, end, name);
+    }
+    assert.match(assembled([unit], out.draft), /Guest pop-up starts at 11:30 on Oct 3\./, name);
   }
 });
