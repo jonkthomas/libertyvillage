@@ -242,6 +242,24 @@ export function recordProvesTime(record, resolvedDate, instant) {
       [timeOf(`${startHour}:${startMinute || '00'}${period}m`), timeOf(`${endHour}:${endMinute || '00'}${period}m`)].includes(target));
 }
 
+// §6.4 applies a record's first stated clock to eligibility, but an unlabelled
+// caption clock (for example a shop's hours line) is not thereby an event start
+// that copy may assert. A verified unit's clock is copy-grade only when a
+// trusted typed instant or listing time field, or one of its own quoted spans,
+// states it. The model's normalized `when`/`what` is never that evidence.
+const typedClockFields = { start: ['startTime', 'startDate', 'activeStart', 'activeFrom'],
+  end: ['endTime', 'endDate', 'activeEnd', 'activeUntil'] };
+export function evidenceStatesClock(evidence, day, time, edge = 'start') {
+  const instant = torontoInstant(day, time);
+  if (!Number.isFinite(instant)) return false;
+  return (evidence || []).some((entry) => {
+    const typed = entry?.typed || {};
+    if (typedClockFields[edge].some((field) => typedTimeMatches({ typed }, field, day, time))) return true;
+    return [entry?.subject_quote, entry?.place_quote, entry?.date_quote, typed.timeText]
+      .some((span) => typeof span === 'string' && span.trim() && recordProvesTime(span, day, instant));
+  });
+}
+
 export function roundupTemporalReason(when, now, { editionNow = now, posts = [] } = {}) {
   const at = Date.parse(now);
   if (!Number.isFinite(at)) return 'undated';

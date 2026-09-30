@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './draft-model.mjs';
-import { roundupCoverageFromPack } from './roundup-verify.mjs';
+import { evidenceStatesClock, roundupCoverageFromPack } from './roundup-verify.mjs';
 import { roundupSlug } from './roundup.mjs';
 import { lintPost } from '../blog-lint.mjs';
 
@@ -13,8 +13,21 @@ const unsafeCopy = /\b(?:crime|murder|stabbing|robbery|election|candidate|vote f
 // not mutation.
 const unsafeControls = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFE00-\uFE0F\uFEFF\uFFF9-\uFFFB\uFFFE\uFFFF\u061C]/;
 const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max;
-const compact = (unit) => ({ unitId: unit.identityKey, subject: unit.subject, what: unit.what,
-  verdict: unit.verdict, when: unit.when, date: unit.date, itemType: unit.itemType,
+// Writer and reviewers see only evidence-bound facts. The reasoner's `what`
+// summary and a clock the verifier kept only for eligibility are model or
+// record normalizations, not item-bound proof, so neither reaches copy: an
+// unsupported clock leaves a date-only event (the pack itself is unchanged).
+const copyWhen = (unit) => {
+  const when = unit.when;
+  if (!when?.startTime && !when?.endTime) return when;
+  const startTime = when.startTime && evidenceStatesClock(unit.evidence, when.date, when.startTime, 'start')
+    ? when.startTime : null;
+  const endTime = startTime && when.endTime &&
+    evidenceStatesClock(unit.evidence, when.endDate || when.date, when.endTime, 'end') ? when.endTime : null;
+  return { ...when, startTime, endTime };
+};
+const compact = (unit) => ({ unitId: unit.identityKey, subject: unit.subject,
+  verdict: unit.verdict, when: copyWhen(unit), date: unit.date, itemType: unit.itemType,
   evidence: unit.evidence, citations: unit.citations,
   people: unit.people });
 
@@ -78,7 +91,7 @@ const validRiskFinding = (finding, known) => findingObject(finding) && known.has
 /** Writer budget (§9.2): reviewer probes count inside the six-call writer ceiling. */
 export const WRITER_MAX_CALLS = 6;
 
-const FACT_REVIEW_SYSTEM = 'Independent fact reviewer. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","sentence":"...","problem":"unsupported|wrong-date|wrong-place|overclaim|missing-attribution","fix":"..."}]}. An empty array is valid. Compare each statement against verified unit.when, unit.what, unit.subject and its evidence; feed dates and location are verified typed facts even if not literal quote text. No new sources.';
+const FACT_REVIEW_SYSTEM = 'Independent fact reviewer. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","sentence":"...","problem":"unsupported|wrong-date|wrong-place|overclaim|missing-attribution","fix":"..."}]}. An empty array is valid. Compare each statement against its unit.subject, verified unit.when, unit.verdict locality, evidence quotes and typed fields (unitId is an opaque key, not evidence); feed dates and location are verified typed facts even if not literal quote text. Every other detail, for example a time, format, scarcity, programme, league, activity or relationship between a venue and operator, must be stated in the same unit evidence quotes or typed fields: flag it as unsupported even if plausible. If unit.when has no startTime, any stated hour is unsupported; a quoted hours line is not an event start unless the quote says so. No new sources.';
 const RISK_REVIEW_SYSTEM = 'Independent locality, private-person, impact and tone reviewer. Assess named people in EACH quoted record and draft; a private individual includes a resident’s home, finances, relationships, health, victimhood or opinions. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","person":"...","problem":"private-individual|wrong-place|unsupported-impact|wrong-date|tone","fix":"..."}]}. An empty array is valid. Flag crime/election and ungrounded impact too.';
 
 /** Model calls have no tools; only verified items enter the copywriter. Two separate review roles run before assembly. */
@@ -103,7 +116,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
     return countingCall({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
   };
-  const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
+  const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts stated in the same unit subject, unit.when, evidence quotes or typed fields (unitId is an opaque key, not a fact); one short factual sentence is fine, so do not add descriptions, qualifiers or relationships to fill space. State a time only when unit.when has it, in the terms the source uses (never turn opening hours into an event start). No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
   // One shared targeted retry for the inherited lint on the draft (§9.2),
   // inside the six-call ceiling. A second failure — or an exhausted budget
   // with no call left — is a writer-failed HOLD, never a silent pass. Lint
