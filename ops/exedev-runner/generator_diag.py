@@ -81,6 +81,8 @@ class GeneratorDiagnostic:
             self.relay_successes += 1
             self.relay_invalid |= self.relay_successes > 1
             self.relay_after_success = text in ('Success: true', 'Success: false')
+        elif text.startswith('Pipeline error:') and self.relay_outcome is not None:
+            self.relay_invalid = True
         elif text.startswith('[outcome]'):
             self.relay_outcomes += 1
             parsed = _strict_outcome(text)
@@ -90,9 +92,10 @@ class GeneratorDiagnostic:
                 self.relay_outcome = parsed
 
     def _relay_skip(self, data, continuation):
-        # An oversized line is dropped unread; if it starts an outcome, fail closed.
+        # Once an outcome was claimed, ANY dropped line could hide a fatal error
+        # or repeated summary. Before that, an oversized outcome is also invalid.
         self.relay_after_success = False
-        if not continuation and data.lstrip().startswith(b'[outcome]'):
+        if self.relay_outcome is not None or (not continuation and data.lstrip().startswith(b'[outcome]')):
             self.relay_invalid = True
 
     def relay(self, exit_code):

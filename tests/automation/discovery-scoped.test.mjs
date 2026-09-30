@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { CATEGORY_QUERIES, parseScopedArgs, runScoped } from '../../scripts/discover-businesses.mjs';
+import { CATEGORY_QUERIES, fetchImage, mapsSearch, parseScopedArgs, runScoped } from '../../scripts/discover-businesses.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SCRIPT = path.join(ROOT, 'scripts', 'discover-businesses.mjs');
@@ -133,6 +133,25 @@ test('Maps 5xx, 429, 4xx, API error, malformed body and timeout are typed outage
     assert.equal(fetch.maps().length, 1, `${reason} does not retry or fan out`);
     assertBounded(result, ['Invalid API', 'run out', 'proxy']);
   }
+});
+
+test('HTTP failure headers abort unread Maps and Pexels bodies before clearing deadlines', async (t) => {
+  const { root } = directory(t);
+  const responseWithUnreadBody = (status) => new Response(new ReadableStream({ start() { /* deliberately never finish */ } }), { status });
+  let mapsSignal;
+  const maps = await mapsSearch('coffee shops', {
+    apiKey: SERP_KEY, timeoutMs: 500,
+    fetchImpl: async (_url, { signal }) => { mapsSignal = signal; return responseWithUnreadBody(503); },
+  });
+  assert.deepEqual(maps, { ok: false, reason: 'http-5xx' });
+  assert.equal(mapsSignal.aborted, true, 'unread Maps response must release its transport');
+  let imageSignal;
+  const image = await fetchImage('no-image', 'coffee-shops', path.join(root, 'public'), {
+    apiKey: PEXELS_KEY, timeoutMs: 500,
+    fetchImpl: async (_url, { signal }) => { imageSignal = signal; return responseWithUnreadBody(429); },
+  });
+  assert.equal(image, '');
+  assert.equal(imageSignal.aborted, true, 'unread Pexels response must release its transport');
 });
 
 test('optional Pexels failure or timeout is not a Maps outage and never blocks the addition', async (t) => {

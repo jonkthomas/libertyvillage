@@ -89,6 +89,18 @@ test('timeout, abnormal exit or a unit still active after exit emit nothing on s
   const lingering = helper(TRAILER(REFUSAL), { FAKE_CODE: '1', FAKE_ACTIVE: '1' });
   assert.equal(lingering.status, 1);
   assert.equal(lingering.stdout, '', 'a unit that outlived its exit is not a normal completion');
+  const lingeringSuccess = helper(TRAILER('{"postWritten":true,"stopReason":"post-written"}'), { FAKE_CODE: '0', FAKE_ACTIVE: '1' });
+  assert.notEqual(lingeringSuccess.status, 0, 'a success exit does not prove the unit stopped');
+  assert.equal(lingeringSuccess.stdout, '', 'do not relay or return ownership while the successful unit remains active');
+});
+
+test('oversized fatal or repeated summary after refusal never relays a claimed outcome', (t) => {
+  const helper = sandbox(t);
+  for (const suffix of ['Fatal error: ', 'Pipeline error: ', 'Success: ']) {
+    const run = helper(TRAILER(REFUSAL) + suffix + 'X'.repeat(5000) + '\n', { FAKE_CODE: '1' });
+    assert.equal(run.status, 1);
+    assert.equal(run.stdout, '{"postWritten":false,"stopReason":"absent"}\n');
+  }
 });
 
 test('helper stdout and diagnostics never carry prose, secrets, topic or URLs', (t) => {

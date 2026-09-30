@@ -86,11 +86,13 @@ try:
         except Exception:
             # Diagnostics must not skip the inactive check or stop a live unit.
             pass
-    if result != 0 and not _unit_inactive(unit):
+    # A successful client exit alone does not prove the transient unit is gone.
+    # Never return scratch ownership or relay a result while it can still write.
+    if not _unit_inactive(unit):
         stop_ok = _stop_unit(unit)
         if not stop_ok:
             sys.exit(1)
-        sys.exit(result)
+        sys.exit(result or 1)
     # Normal completion (the agent exits 1 for a designed no-post outcome): the
     # exit code is unchanged and stdout gets exactly one validated relay line.
     if result in (0, 1):

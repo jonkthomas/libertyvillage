@@ -207,6 +207,14 @@ class RelayTest(unittest.TestCase):
                          'an oversized non-outcome line does not poison a valid relay')
         self.assertEqual(self.relay('[agent] no outcome at all\n', 1), ABSENT)
 
+    def test_oversized_error_or_duplicate_summary_after_refusal_invalidates_relay(self):
+        for trailing in ('Fatal error: ' + 'X' * 5000,
+                         'Pipeline error: ' + 'X' * 5000,
+                         'Success: ' + 'X' * 5000):
+            payload = '[agent] example\n' + TRAILER + trailing + '\n'
+            self.assertEqual(self.relay(payload, 1, bytewise=True), ABSENT, trailing[:30])
+        self.assertEqual(self.relay(TRAILER + 'Pipeline error: late failure\n', 1), ABSENT)
+
     def test_relay_line_is_fixed_vocabulary_and_never_carries_prose(self):
         prose = ('[agent] Candidate Name sk-PRIVATE pet-friendly\n'
                  'Pipeline error: https://serpapi.com/?api_key=sk-PRIVATE Candidate Name\n')

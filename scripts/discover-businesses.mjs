@@ -154,7 +154,7 @@ export function selectBatch(found, state, max) {
 function deadline(ms) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException("deadline", "TimeoutError")), Math.max(1, ms));
-  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+  return { signal: controller.signal, abort: () => controller.abort(), clear: () => clearTimeout(timer) };
 }
 
 // One Maps search. Returns {ok:true, results} for a real answer (including
@@ -164,13 +164,14 @@ export async function mapsSearch(query, { fetchImpl = fetch, apiKey = API_KEY, t
   const url =
     `https://serpapi.com/search.json?engine=google_maps&type=search&ll=${encodeURIComponent(CENTER)}` +
     `&q=${encodeURIComponent(query + " Liberty Village Toronto")}&api_key=${encodeURIComponent(apiKey || "")}`;
-  const { signal, clear } = deadline(timeoutMs);
+  const { signal, abort, clear } = deadline(timeoutMs);
   let json;
   try {
     const res = await fetchImpl(url, { signal });
-    if (res.status >= 500) return { ok: false, reason: "http-5xx" };
-    if (res.status === 429) return { ok: false, reason: "rate-limited" };
-    if (!res.ok) return { ok: false, reason: "http-4xx" };
+    // Reject by status without retaining an unread streaming body/socket.
+    if (res.status >= 500) { abort(); return { ok: false, reason: "http-5xx" }; }
+    if (res.status === 429) { abort(); return { ok: false, reason: "rate-limited" }; }
+    if (!res.ok) { abort(); return { ok: false, reason: "http-4xx" }; }
     try {
       json = JSON.parse(await res.text());
     } catch (error) {
@@ -238,19 +239,19 @@ export async function fetchImage(slug, category, dir = IMAGE_DIR, { fetchImpl = 
   if (fs.existsSync(path.join(dir, `${slug}.jpg`))) return `/images/businesses/${slug}.jpg`;
   if (!apiKey || timeoutMs <= 0) return "";
   const query = PEXELS_QUERY[category] || "toronto small business storefront";
-  const { signal, clear } = deadline(timeoutMs);
+  const { signal, abort, clear } = deadline(timeoutMs);
   try {
     const res = await fetchImpl(
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=5&orientation=landscape`,
       { headers: { Authorization: apiKey, "User-Agent": UA }, signal }
     );
-    if (!res.ok) return "";
+    if (!res.ok) { abort(); return ""; }
     const photos = (await res.json()).photos || [];
     if (!photos.length) return "";
     const src = photos[Math.floor(Math.random() * photos.length)].src.landscape.split("?")[0] +
       "?auto=compress&cs=tinysrgb&w=1280&h=720&fit=crop";
     const img = await fetchImpl(src, { headers: { "User-Agent": UA }, signal });
-    if (!img.ok) return "";
+    if (!img.ok) { abort(); return ""; }
     const buf = Buffer.from(await img.arrayBuffer());
     if (buf.length < 5000) return "";
     fs.mkdirSync(dir, { recursive: true });
