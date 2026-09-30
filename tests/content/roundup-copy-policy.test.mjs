@@ -101,6 +101,23 @@ test('assembly keeps address/price copy and the trusted citation label verbatim'
   assert.ok(post.content.includes('[New park at 34 Hanna Avenue](https://example.org/roundup/a)'), 'citation identity is unchanged');
 });
 
+test('takeaways are the final reviewed headings, never the raw source subject (address/price headings allowed)', () => {
+  const fixture = buildFixture({ now, units: threeUnits() });
+  const raw = 'Local event \u202E private detail';
+  const pack = { ...fixture.pack, units: fixture.pack.units.map((entry, index) => index === 0 ? { ...entry, subject: raw } : entry) };
+  const heading = 'Market at 999 Imaginary Street, $25 entry';
+  const draft = { intro: 'Three local plans for the week.',
+    units: pack.units.map((entry, index) => ({ unitId: entry.identityKey, heading: index === 0 ? heading : entry.label,
+      body: `${entry.label} takes place ${entry.verdict === 'core' ? 'in' : 'near'} Liberty Village on ${entry.date}.` })) };
+  const post = assembleRoundupPost({ pack, draft, image: '/images/og/og-home.jpg', imageExists: () => true });
+  assert.deepEqual(post.keyTakeaways, draft.units.map((entry) => entry.heading));
+  assert.ok(!JSON.stringify(post).includes('\u202E') && !JSON.stringify(post).includes('private detail'), 'raw subject never reaches visible copy');
+  assert.deepEqual(checkRoundupRecordV2({ item: { key: fixture.slug }, record: post, ctx: ctxFor({ ...fixture, pack }), news }), []);
+  const missing = { ...draft, units: draft.units.map((entry, index) => index === 0 ? { ...entry, heading: ' ' } : entry) };
+  assert.throws(() => assembleRoundupPost({ pack, draft: missing, image: '/images/og/og-home.jpg', imageExists: () => true }),
+    /roundup draft invalid/, 'an empty reviewed heading holds before assembly');
+});
+
 // ---------------------------------------------------------------------------
 // Trusted policy: submit, gate g1, fixer and later edits.
 // ---------------------------------------------------------------------------

@@ -272,9 +272,13 @@ export function assembleRoundupPost({ pack, draft, image = '/images/og/og-home.j
     `- ${escapeMarkdown(u.subject)} (${u.date || u.when?.date}): ${(u.citations || []).map(citation).join('; ')}`).join('\n'));
   const date = new Date(pack.now).toISOString().slice(0, 10);
   const description = `Liberty Village + Exhibition Place this week. ${draft.intro}`;
+  // Takeaways reuse the same-unit final draft heading, which passed the draft
+  // shape/unsafe-control check above and the final fact/risk review; the raw
+  // source subject never reaches visible copy.
+  const keyTakeaways = units.map((unit) => draft.units.find((entry) => entry.unitId === unit.identityKey).heading);
   return { slug: roundupSlug(isoWeek), title, description, content: `${draft.intro}\n\n${sections.join('\n\n')}`,
     publishedAt: date, updatedAt: date, category: 'news', tags: ['liberty village', 'exhibition place', 'news'],
-    answerBlock: draft.intro, faqs: [], keyTakeaways: units.map((u) => u.subject || u.identityKey),
+    answerBlock: draft.intro, faqs: [], keyTakeaways,
     relatedServices: [], relatedTopics: [], relatedPosts: [], author: 'LibertyVillage.co', image,
     roundupCoverage: roundupCoverageFromPack(pack) };
 }
