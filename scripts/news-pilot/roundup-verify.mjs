@@ -242,6 +242,58 @@ export function recordProvesTime(record, resolvedDate, instant) {
       [timeOf(`${startHour}:${startMinute || '00'}${period}m`), timeOf(`${endHour}:${endMinute || '00'}${period}m`)].includes(target));
 }
 
+// §6.4 applies a record's first stated clock to eligibility, but an unlabelled
+// caption clock (for example a shop's hours line) is not thereby an event start
+// that copy may assert. A verified unit's clock is copy-grade only when a
+// trusted typed start/end instant, a listing row's own time field, or an
+// explicit event start/end phrase in one of its quotes states it. A bare clock,
+// an "until sold out" line or an hours line, even inside a quote, is date-only
+// copy. The model's normalized `when`/`what` is never that evidence.
+const typedClockFields = { start: ['startTime', 'startDate', 'activeStart', 'activeFrom'],
+  end: ['endTime', 'endDate', 'activeEnd', 'activeUntil'] };
+const eventStartMark = /\b(?:starts?|starting|start time|begins?|beginning|kicks? off|kick-off|doors(?: open)?|showtime)\b/gi;
+const eventEndMark = /\b(?:ends?|ending|finish(?:es)?|wraps? up)\b/gi;
+const clockSpan = /(noon|(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:[ap]\.?m\.?)?)(?:\s*(?:-|to|until|till)\s*(noon|(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*[ap]\.?m\.?))?(?![\w:])/gi;
+const hoursWord = /\bhours?\b/i;
+// The first clock (optionally a range) within 30 characters, with no hours
+// wording in between; a bare number counts only as the start of a pm/am range.
+function leadingClock(rest) {
+  for (const m of rest.matchAll(clockSpan)) {
+    if (m.index > 30 || hoursWord.test(rest.slice(0, m.index))) return null;
+    const period = m[2]?.match(/[ap]\.?m\.?$/i)?.[0] || '';
+    const start = /(?:[ap]\.?m\.?|^noon)$/i.test(m[1].trim()) ? timeOf(m[1]) : m[2] ? timeOf(m[1] + period) : null;
+    if (start) return { start, end: m[2] ? timeOf(m[2]) : null };
+  }
+  return null;
+}
+function attributedEventClocks(span) {
+  const found = { start: null, end: null };
+  for (const line of String(span).split(/\r?\n/)) for (const clause of norm(line).split(/[!?;|]|\.(?=\s|$)/)) {
+    for (const mark of clause.matchAll(eventStartMark)) {
+      const clock = leadingClock(clause.slice(mark.index + mark[0].length));
+      if (clock) { found.start ??= clock.start; found.end ??= clock.end; }
+    }
+    for (const mark of clause.matchAll(eventEndMark)) {
+      const clock = leadingClock(clause.slice(mark.index + mark[0].length));
+      if (clock) found.end ??= clock.start;
+    }
+  }
+  return found;
+}
+export function evidenceStatesClock(evidence, day, time, edge = 'start') {
+  if (!Number.isFinite(torontoInstant(day, time))) return false;
+  return (evidence || []).some((entry) => {
+    const typed = entry?.typed || {};
+    if (typedClockFields[edge].some((field) => typedTimeMatches({ typed }, field, day, time))) return true;
+    if (entry?.listing === true && typeof typed.timeText === 'string' && !hoursWord.test(typed.timeText)) {
+      const clock = leadingClock(norm(typed.timeText));
+      if (clock?.[edge] === time) return true;
+    }
+    return [entry?.subject_quote, entry?.place_quote, entry?.date_quote]
+      .some((span) => typeof span === 'string' && attributedEventClocks(span)[edge] === time);
+  });
+}
+
 export function roundupTemporalReason(when, now, { editionNow = now, posts = [] } = {}) {
   const at = Date.parse(now);
   if (!Number.isFinite(at)) return 'undated';
