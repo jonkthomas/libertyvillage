@@ -16,6 +16,16 @@ const services = read('services.json');
 const topics = read('topics.json');
 const now = new Date('2026-09-28T12:00:00.000Z');
 
+test('weekly blog prompt does not offer the news category refused by submit', () => {
+  const prompt = fs.readFileSync(path.join(repo, 'scripts', 'prompts', 'weekly-blog-system.md'), 'utf8');
+  const selected = prompt.match(/- Category: \[one of: ([^\]]+)\]/)?.[1]?.split(', ');
+  const required = prompt.match(/\| `category`\s*\| enum\s*\| One of: ([^|]+)\|/)?.[1]?.trim().split(', ');
+  assert.ok(selected?.length, 'topic selection lists allowed categories');
+  assert.deepEqual(required, selected, 'the category field agrees with topic selection');
+  assert.equal(selected.includes('news'), false, 'blog submit refuses category news');
+  assert.doesNotMatch(prompt.match(/  category:\s*([\s\S]*?);/)?.[1] ?? '', /"news"/);
+});
+
 function tempRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cq-blog-pack-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
