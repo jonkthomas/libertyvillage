@@ -1,0 +1,199 @@
+// Decision B: roundup-only deterministic refusal of civic-address and
+// monetary-price copy in ALL visible roundup post fields.
+//
+// Scope: title, description, answerBlock, content (numbered headings, bodies,
+// aggregate lines, trailing Still in effect, visible citation labels),
+// keyTakeaways, FAQs, author, tags, exploreCta label/description and
+// crossLinks labels — every post-controlled string the blog page renders
+// (`app/blog/[slug]/page.tsx`, via `resolveCrossLinks` for cross-link titles).
+// Attribution-independent: business attribution (or its absence) never permits
+// these specifics. URL targets (link destinations, bare URLs, exploreCta href,
+// related slugs) are not prose and are never scanned. Opaque
+// evidence/identity keys (roundupCoverage, ctx units, citation record IDs)
+// are never scanned.
+//
+// Pure and deterministic: no network, no model, no clock. blog-lint.mjs is
+// unchanged and still runs separately; this module only ADDS the roundup ban.
+const STREET_TYPES = 'Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Drive|Dr|Crescent|Cres|Terrace|Trail|Parkway|Pkwy|Court|Ct|Place|Pl|Lane|Ln|Way';
+const DIRECTION = '(?:West|East|North|South|W|E|N|S)';
+const MONTHS = 'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
+const CONNECTOR = 'at|on|in|near|the|and|to|from|until|of|for|by|takes';
+// Numbered civic address, case-insensitive so lower-case evasion still holds.
+// Bounded precision: street type needs a word boundary (no streetcar/Stadium/
+// Stage/Drake/players prefix match); intermediate tokens cannot be connector
+// words; a month name before the number never matches. No year guard: civic
+// numbers in the 1900-2099 range are ordinary addresses (2000 Imaginary
+// Street, 1995 Lake Shore Blvd W), and the trailing street-type boundary plus
+// the connector exclusion already clear legitimate dates, years and transit.
+const CIVIC_ADDRESS = new RegExp(
+  String.raw`(?<!\b(?:${MONTHS})\.?\s)\b\d{1,5}[A-Za-z]?\s+(?:(?!(?:${CONNECTOR})\b)[\w.'’~-]+\s+){0,3}(?:${STREET_TYPES})\b\.?(?:\s+${DIRECTION}\b\.?)?(?:\s+(?:Unit|Suite|Ste|#)\s*[\w-]+)?`,
+  'gi',
+);
+const SPELLED_NUM = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand';
+const PRICE_PATTERNS = Object.freeze([
+  /\$\s?\d[\d,]*(?:\.\d{1,2})?/g,
+  /[€£¥]\s?\d[\d,]*(?:\.\d{1,2})?/g,
+  /\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollars?|cents?|bucks?)\b/gi,
+  /\b(?:CAD|USD)\s?\$?\s?\d[\d,]*(?:\.\d{1,2})?\b/gi,
+  /\b\d[\d,]*(?:\.\d{1,2})?\s?(?:CAD|USD)\b/gi,
+  /\b\d[\d,]*(?:\.\d{1,2})?\s?(?:canadian|us|american)\s+dollars?\b/gi,
+  new RegExp(String.raw`\b(?:(?:${SPELLED_NUM})[\s-]*)+(?:(?:canadian|us|american)\s+)?(?:dollars?|bucks?|cents?|loonies|toonies)\b`, 'gi'),
+  /\b\d[\d,.]*\s?¢/g,
+  /¢\s?\d[\d,.]*/g,
+  /\b\d[\d,.]*\s?\$/g,
+]);
+// A promised free admission is a $0 price claim. Bounded informational forms:
+// "the event is free", "admission: free", "free of charge", "no charge (to
+// attend)", "at no cost". The no-charge form excludes the legal "charge laid"
+// sense; bare "free speech" has no admission subject and never matches.
+const FREE_ADMISSION = Object.freeze([
+  /\bfree\s+(?:admission|entry|cover|tickets?)\b/gi,
+  /\b(?:admission|entry|cover)(?:\s+is)?\s+free\b/gi,
+  /\bno\s+cover(?:\s+charge)?\b/gi,
+  /\b(?:tickets?|entry|admission)\s+(?:are|is)\s+free\b/gi,
+  /\bfree\s+to\s+(?:attend|enter)\b/gi,
+  /\bfree\s+of\s+charge\b/gi,
+  /\b(?:event|show|concert|exhibition|program|admission|entry|cover)(?:'s|\s+is)?\s+free\b/gi,
+  /\b(?:admission|entry|cover)\s*:\s*free\b/gi,
+  /\bno\s+charge\b(?!\s+laid\b)/gi,
+  /\bat\s+no\s+cost\b/gi,
+]);
+
+// Numeric/named HTML entities that render as visible characters. Decoded
+// before scanning so `&#36;999` cannot bypass the price ban; anything left
+// over in entity shape is refused fail-closed below.
+const NAMED_ENTITIES = Object.freeze({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  dollar: '$', euro: '\u20AC', pound: '\u00A3', yen: '\u00A5', cent: '\u00A2' });
+function decodeEntities(text) {
+  return String(text ?? '')
+    .replace(/&#(\d+);/g, (match, digits) => {
+      const point = Number(digits);
+      return Number.isSafeInteger(point) && point <= 0x10FFFF ? String.fromCodePoint(point) : match;
+    })
+    .replace(/&#[xX]([0-9a-fA-F]+);/g, (match, hex) => {
+      const point = Number.parseInt(hex, 16);
+      return Number.isSafeInteger(point) && point <= 0x10FFFF ? String.fromCodePoint(point) : match;
+    })
+    .replace(/&([A-Za-z][A-Za-z0-9]*);/g, (match, name) =>
+      Object.hasOwn(NAMED_ENTITIES, name) ? NAMED_ENTITIES[name] : match);
+}
+// Any entity-shaped token surviving the decode (unknown named entities such
+// as `&Dollar;`, double-encoded or malformed) is refused fail-closed: some
+// renderer may still decode it, so it can never be trusted as plain text.
+const ENTITY_PATTERN = /&(?:#\d+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
+
+// Fold rendering variants so Markdown/Unicode/entity evasion still matches:
+// NFKC, entity decode, backslash escapes, emphasis markers, zero-width
+// chars, whitespace.
+function foldVisible(text) {
+  return decodeEntities(String(text ?? '').normalize('NFKC'))
+    .replace(/\\/g, '')
+    .replace(/\p{Default_Ignorable_Code_Point}/gu, '')
+    .replace(/[*_~`|]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+// Visible text only: keep markdown link labels and image alt text, drop every
+// URL target (link destinations and bare URLs are not prose). Labels splice in
+// place with no added spaces: the renderer (`lib/markdown.ts` processInline)
+// emits `<a>label</a>` adjacent to surrounding text, so `dol[lars](/about)`
+// renders the single word "dollars" and the scanner must see it whole.
+function visibleText(text) {
+  const folded = foldVisible(text);
+  const labelled = folded
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  return labelled.replace(/https?:\/\/[^\s)\]>'"]+/g, ' ');
+}
+
+function collect(patterns, text, kind, out) {
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      const claim = match[0].trim();
+      if (claim) out.push({ kind, claim: claim.slice(0, 120) });
+      if (match[0].length === 0) pattern.lastIndex += 1;
+    }
+  }
+}
+
+/** All banned spans in one visible string, in scan order. Claim samples are
+ * private diagnostics for the writer retry prompt only; they never enter
+ * retained errors, logs or census fields. */
+export function findRoundupBannedCopy(text) {
+  const visible = visibleText(text);
+  const out = [];
+  collect([CIVIC_ADDRESS], visible, 'civic-address', out);
+  collect(PRICE_PATTERNS, visible, 'price', out);
+  collect(FREE_ADMISSION, visible, 'price', out);
+  collect([ENTITY_PATTERN], visible, 'entity-encoded', out);
+  return out;
+}
+
+const FIELDS = Object.freeze(['title', 'description', 'answerBlock', 'content']);
+
+/**
+ * Deterministic refusal errors for every visible field of a roundup post.
+ * Bounded to rule + field + count: no generated claim snippet, URL or person
+ * text ever enters a retained error (and so never reaches census/logs).
+ */
+export function checkRoundupVisibleCopy(post) {
+  const errors = [];
+  const push = (field, found) => {
+    const counts = new Map();
+    for (const span of found) counts.set(span.kind, (counts.get(span.kind) || 0) + 1);
+    for (const [kind, count] of counts)
+      errors.push(`roundup ${kind} copy is refused in ${field} (${count} match${count === 1 ? '' : 'es'})`);
+  };
+  if (post && typeof post === 'object') {
+    for (const field of FIELDS) {
+      if (typeof post[field] === 'string') push(field, findRoundupBannedCopy(post[field]));
+    }
+    for (const [index, item] of (Array.isArray(post.keyTakeaways) ? post.keyTakeaways : []).entries()) {
+      if (typeof item === 'string') push(`keyTakeaways[${index}]`, findRoundupBannedCopy(item));
+    }
+    for (const [index, faq] of (Array.isArray(post.faqs) ? post.faqs : []).entries()) {
+      if (typeof faq?.question === 'string') push(`faqs[${index}].question`, findRoundupBannedCopy(faq.question));
+      if (typeof faq?.answer === 'string') push(`faqs[${index}].answer`, findRoundupBannedCopy(faq.answer));
+    }
+    // Rendered by the blog page: author byline, tag chips, ExploreCTA heading
+    // and body, and cross-link titles (the post-controlled `label`; resolved
+    // descriptions come from the linked service/guide record, hrefs are URLs).
+    if (typeof post.author === 'string') push('author', findRoundupBannedCopy(post.author));
+    for (const [index, tag] of (Array.isArray(post.tags) ? post.tags : []).entries()) {
+      if (typeof tag === 'string') push(`tags[${index}]`, findRoundupBannedCopy(tag));
+    }
+    if (post.exploreCta && typeof post.exploreCta === 'object') {
+      if (typeof post.exploreCta.label === 'string') push('exploreCta.label', findRoundupBannedCopy(post.exploreCta.label));
+      if (typeof post.exploreCta.description === 'string') push('exploreCta.description', findRoundupBannedCopy(post.exploreCta.description));
+    }
+    for (const [index, link] of (Array.isArray(post.crossLinks) ? post.crossLinks : []).entries()) {
+      if (typeof link?.label === 'string') push(`crossLinks[${index}].label`, findRoundupBannedCopy(link.label));
+    }
+  }
+  return errors.slice(0, 8);
+}
+
+/** Deterministic refusal codes for a writer draft (intro, headings, bodies). */
+export function checkRoundupDraftCopy(draft) {
+  const kinds = new Set();
+  const scan = (text) => { for (const span of findRoundupBannedCopy(text)) kinds.add(span.kind); };
+  scan(draft?.intro);
+  for (const entry of draft?.units || []) {
+    scan(entry?.heading);
+    scan(entry?.body);
+  }
+  return [...kinds].map((kind) => `banned-${kind === 'civic-address' ? 'civic-address' : kind === 'price' ? 'price' : 'entity'}`);
+}
+
+/** Bounded claim samples for the targeted omission retry prompt. */
+export function draftBannedSamples(draft, max = 3) {
+  const samples = [];
+  const scan = (text) => { for (const span of findRoundupBannedCopy(text)) samples.push(span.claim); };
+  scan(draft?.intro);
+  for (const entry of draft?.units || []) {
+    scan(entry?.heading);
+    scan(entry?.body);
+  }
+  return [...new Set(samples)].slice(0, max);
+}

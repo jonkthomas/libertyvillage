@@ -86,7 +86,10 @@ export async function runRoundupV2(args, deps = {}) {
   let draft = null, reviewFindings = [];
   if (decision === 'publish') {
     try {
-      const written = await (deps.write || writeRoundup)(pack, { deadline: modelDeadline });
+      // Fail-closed trusted business export for the §9.2 writer lint retry.
+      const writerBusinesses = deps.writerBusinesses !== undefined ? deps.writerBusinesses : readBusinesses(root);
+      if (!Array.isArray(writerBusinesses)) throw new Error('roundup_businesses_unavailable:business export must be an explicit array');
+      const written = await (deps.write || writeRoundup)(pack, { deadline: modelDeadline, businesses: writerBusinesses });
       draft = written.draft;
       reviewFindings = written.findings;
       if (written.refused?.length) {
@@ -121,6 +124,23 @@ export async function runRoundupV2(args, deps = {}) {
             now, units: pack.units, stillInEffect: pack.stillInEffect },
           news: { imageExists: (image) => fs.existsSync(path.join(root, 'public', image.slice(1))) } });
         if (errors.length) throw new Error(`roundup_post_policy:${errors.join('; ')}`);
+        // Unchanged inherited lint runs on the final assembly too; any failure
+        // is a writer-failed HOLD here (the writer's single omission retry is
+        // spent inside writeRoundup, and there is no second model budget).
+        // The retained message carries rule + field + count only, never the
+        // generated claim text.
+        const { lintPost } = await import('../blog-lint.mjs');
+        const lint = lintPost(post, { businesses: readBusinesses(root), now: new Date(now) });
+        if (!lint.ok) {
+          const groups = new Map();
+          for (const finding of lint.findings.slice(0, 12)) {
+            const field = String(finding.detail || '').split(':')[0].trim() || 'post';
+            const key = `${finding.rule} in ${field}`;
+            groups.set(key, (groups.get(key) || 0) + 1);
+          }
+          const summary = [...groups].slice(0, 3).map(([key, count]) => `lint ${key} (${count})`).join('; ');
+          throw new Error(`roundup_post_policy:${summary}`);
+        }
       }
     } catch (error) { decision = 'hold'; census.reasons.push('writer-failed'); census.writerError = error.message; post = null; }
   }
@@ -184,6 +204,20 @@ function redactFindings(rounds, keys) {
 }
 
 function readIf(file) { try { return read(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }
+
+// Trusted business export for the inherited lint post-check; a missing file,
+// malformed JSON or a non-array export fails closed to HOLD (never silent []).
+// Probe only the authoritative business export.
+function readBusinesses(root) {
+  let records;
+  try {
+    records = JSON.parse(fs.readFileSync(path.join(root, 'data', 'businesses.json'), 'utf8'));
+  } catch (error) {
+    throw new Error(`roundup_businesses_unavailable:business export unreadable (${error.code || 'parse failed'})`);
+  }
+  if (!Array.isArray(records)) throw new Error('roundup_businesses_unavailable:business export must be an explicit array');
+  return records;
+}
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
