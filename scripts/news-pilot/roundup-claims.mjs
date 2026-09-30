@@ -3,9 +3,13 @@
 //
 // Scope: title, description, answerBlock, content (numbered headings, bodies,
 // aggregate lines, trailing Still in effect, visible citation labels),
-// keyTakeaways and FAQs. Attribution-independent: business attribution (or its
-// absence) never permits these specifics. URL targets are not prose and are
-// never scanned. Opaque evidence/identity keys (roundupCoverage, ctx units)
+// keyTakeaways, FAQs, author, tags, exploreCta label/description and
+// crossLinks labels — every post-controlled string the blog page renders
+// (`app/blog/[slug]/page.tsx`, via `resolveCrossLinks` for cross-link titles).
+// Attribution-independent: business attribution (or its absence) never permits
+// these specifics. URL targets (link destinations, bare URLs, exploreCta href,
+// related slugs) are not prose and are never scanned. Opaque
+// evidence/identity keys (roundupCoverage, ctx units, citation record IDs)
 // are never scanned.
 //
 // Pure and deterministic: no network, no model, no clock. blog-lint.mjs is
@@ -17,9 +21,12 @@ const CONNECTOR = 'at|on|in|near|the|and|to|from|until|of|for|by';
 // Numbered civic address, case-insensitive so lower-case evasion still holds.
 // Bounded precision: street type needs a word boundary (no streetcar/Stadium/
 // Stage/Drake/players prefix match); intermediate tokens cannot be connector
-// words; a month name before the number or a 19xx/20xx year number never matches.
+// words; a month name before the number never matches. No year guard: civic
+// numbers in the 1900-2099 range are ordinary addresses (2000 Imaginary
+// Street, 1995 Lake Shore Blvd W), and the trailing street-type boundary plus
+// the connector exclusion already clear legitimate dates, years and transit.
 const CIVIC_ADDRESS = new RegExp(
-  String.raw`(?<!\b(?:${MONTHS})\.?\s)\b(?!(?:19|20)\d{2}\b)\d{1,5}[A-Za-z]?\s+(?:(?!(?:${CONNECTOR})\b)[\w.'’~-]+\s+){0,3}(?:${STREET_TYPES})\b\.?(?:\s+${DIRECTION}\b\.?)?(?:\s+(?:Unit|Suite|Ste|#)\s*[\w-]+)?`,
+  String.raw`(?<!\b(?:${MONTHS})\.?\s)\b\d{1,5}[A-Za-z]?\s+(?:(?!(?:${CONNECTOR})\b)[\w.'’~-]+\s+){0,3}(?:${STREET_TYPES})\b\.?(?:\s+${DIRECTION}\b\.?)?(?:\s+(?:Unit|Suite|Ste|#)\s*[\w-]+)?`,
   'gi',
 );
 const SPELLED_NUM = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand';
@@ -35,13 +42,21 @@ const PRICE_PATTERNS = Object.freeze([
   /¢\s?\d[\d,.]*/g,
   /\b\d[\d,.]*\s?\$/g,
 ]);
-// A promised free admission is a $0 price claim.
+// A promised free admission is a $0 price claim. Bounded informational forms:
+// "the event is free", "admission: free", "free of charge", "no charge (to
+// attend)", "at no cost". The no-charge form excludes the legal "charge laid"
+// sense; bare "free speech" has no admission subject and never matches.
 const FREE_ADMISSION = Object.freeze([
   /\bfree\s+(?:admission|entry|cover|tickets?)\b/gi,
   /\b(?:admission|entry|cover)(?:\s+is)?\s+free\b/gi,
   /\bno\s+cover(?:\s+charge)?\b/gi,
   /\b(?:tickets?|entry|admission)\s+(?:are|is)\s+free\b/gi,
   /\bfree\s+to\s+(?:attend|enter)\b/gi,
+  /\bfree\s+of\s+charge\b/gi,
+  /\b(?:event|show|concert|exhibition|program|admission|entry|cover)(?:'s|\s+is)?\s+free\b/gi,
+  /\b(?:admission|entry|cover)\s*:\s*free\b/gi,
+  /\bno\s+charge\b(?!\s+laid\b)/gi,
+  /\bat\s+no\s+cost\b/gi,
 ]);
 
 // Numeric/named HTML entities that render as visible characters. Decoded
@@ -79,12 +94,15 @@ function foldVisible(text) {
 }
 
 // Visible text only: keep markdown link labels and image alt text, drop every
-// URL target (link destinations and bare URLs are not prose).
+// URL target (link destinations and bare URLs are not prose). Labels splice in
+// place with no added spaces: the renderer (`lib/markdown.ts` processInline)
+// emits `<a>label</a>` adjacent to surrounding text, so `dol[lars](/about)`
+// renders the single word "dollars" and the scanner must see it whole.
 function visibleText(text) {
   const folded = foldVisible(text);
   const labelled = folded
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, ' $1 ')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, ' $1 ');
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
   return labelled.replace(/https?:\/\/[^\s)\]>'"]+/g, ' ');
 }
 
@@ -137,6 +155,20 @@ export function checkRoundupVisibleCopy(post) {
     for (const [index, faq] of (Array.isArray(post.faqs) ? post.faqs : []).entries()) {
       if (typeof faq?.question === 'string') push(`faqs[${index}].question`, findRoundupBannedCopy(faq.question));
       if (typeof faq?.answer === 'string') push(`faqs[${index}].answer`, findRoundupBannedCopy(faq.answer));
+    }
+    // Rendered by the blog page: author byline, tag chips, ExploreCTA heading
+    // and body, and cross-link titles (the post-controlled `label`; resolved
+    // descriptions come from the linked service/guide record, hrefs are URLs).
+    if (typeof post.author === 'string') push('author', findRoundupBannedCopy(post.author));
+    for (const [index, tag] of (Array.isArray(post.tags) ? post.tags : []).entries()) {
+      if (typeof tag === 'string') push(`tags[${index}]`, findRoundupBannedCopy(tag));
+    }
+    if (post.exploreCta && typeof post.exploreCta === 'object') {
+      if (typeof post.exploreCta.label === 'string') push('exploreCta.label', findRoundupBannedCopy(post.exploreCta.label));
+      if (typeof post.exploreCta.description === 'string') push('exploreCta.description', findRoundupBannedCopy(post.exploreCta.description));
+    }
+    for (const [index, link] of (Array.isArray(post.crossLinks) ? post.crossLinks : []).entries()) {
+      if (typeof link?.label === 'string') push(`crossLinks[${index}].label`, findRoundupBannedCopy(link.label));
     }
   }
   return errors.slice(0, 8);

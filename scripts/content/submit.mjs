@@ -400,7 +400,8 @@ export function checkRoundupRecordV2({ item, record, ctx = {}, news }) {
   });
   // Decision B: roundup-only deterministic refusal of civic-address and
   // monetary-price copy in every visible field (headings, bodies, aggregate
-  // lines, Still in effect, visible citation labels, takeaways, FAQs).
+  // lines, Still in effect, visible citation labels, takeaways, FAQs, author,
+  // tags, exploreCta label/description, cross-link labels).
   // Attribution-independent and never LINT_MODE-bypassable: these are errors.
   errors.push(...checkRoundupVisibleCopy(record));
   return [...new Set(errors)];

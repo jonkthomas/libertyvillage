@@ -261,11 +261,38 @@ test('F1 civic-address precision: dates/transit/venue/year pass, real addresses 
     'On October 2 players from both clubs visit.',
     'Starting October 1 on Strachan Avenue, one lane is closed.',
     'Final Burger Tour 2026 Stop',
+    'The 2026 season opens at BMO Field.',
+    'In 2025 Liberty Village hosted it.',
+    'Route 511 Bathurst streetcar returns.',
+    'The 29 Dufferin bus detours on October 4.',
+    'Oct. 3 at Exhibition Place',
+    'the 2026 Toronto Waterfront Marathon course',
   ]) assert.deepEqual(findRoundupBannedCopy(sentence), [], sentence);
   for (const address of ['999 Imaginary Street', '999 imaginary street', '40 Hanna Ave',
-    '171 East Liberty Street', '999 King St. W.', 'Unit 5, 999 Imaginary Street']) {
+    '171 East Liberty Street', '999 King St. W.', 'Unit 5, 999 Imaginary Street',
+    '2000 Imaginary Street', '1995 Lake Shore Blvd W', '2026 Imaginary Ave']) {
     assert.ok(findRoundupBannedCopy(address).some((span) => span.kind === 'civic-address'), address);
   }
+});
+
+test('R1 19xx/20xx civic numbers refuse through scanner, assembly, submit and g1', () => {
+  for (const copy of ['The venue is 2000 Imaginary Street.', 'Meet at 1995 Lake Shore Blvd W.']) {
+    assert.ok(findRoundupBannedCopy(copy).some((span) => span.kind === 'civic-address'), `scanner: ${copy}`);
+    assert.match(policy(null, (post) => { post.content += `\n\n${copy}`; }).join('; '), /refused in content/, `submit: ${copy}`);
+    const fixture = buildFixture({ now, units: threeUnits() });
+    const banned = { ...fixture.post, content: `${fixture.post.content}\n\n${copy}` };
+    const g1 = checkKindPolicy({ kind: 'roundup',
+      items: [{ dataset: 'posts', key: fixture.slug, op: 'insert', payload: banned }],
+      ctx: ctxFor(fixture), live: {}, deps: { validateRecord, news, lintMode: 'fail' } });
+    assert.equal(g1.ok, false, `g1: ${copy}`);
+    assert.match(g1.errors.join('; '), /refused in content/, `g1: ${copy}`);
+  }
+  const fixture = buildFixture({ now, units: threeUnits() });
+  const draft = { intro: 'Three local plans for the week.',
+    units: fixture.pack.units.map((entry) => ({ unitId: entry.identityKey, heading: entry.label,
+      body: `${entry.label} takes place ${entry.verdict === 'core' ? 'in' : 'near'} Liberty Village on ${entry.date}. Meet at 2000 Imaginary Street.` })) };
+  assert.throws(() => assembleRoundupPost({ pack: fixture.pack, draft,
+    image: '/images/og/og-home.jpg', imageExists: () => true }), /roundup_banned_copy/, 'assembly holds');
 });
 
 test('F2 lexical price coverage: spoken/qualified/free/cent/trailing forms refuse', () => {
@@ -275,53 +302,179 @@ test('F2 lexical price coverage: spoken/qualified/free/cent/trailing forms refus
   }
 });
 
+test('informational free-admission promises refuse as prices; non-price idioms pass', () => {
+  for (const sentence of ['The event is free.', 'Admission: free', 'Free of charge.',
+    'No charge to attend.', 'Visit us at no cost this weekend.', 'The show is free.',
+    'Entry is free for neighbours.']) {
+    assert.ok(findRoundupBannedCopy(sentence).some((span) => span.kind === 'price'), sentence);
+  }
+  for (const sentence of ['A free speech forum meets Thursday.', 'No charge laid against the driver.',
+    'Doors open at 7 pm.', 'Top 10 picks.', 'It runs 3 days.']) {
+    assert.deepEqual(findRoundupBannedCopy(sentence), [], sentence);
+  }
+});
+
+test('B1 every rendered post-controlled field is scanned; opaque targets are not', () => {
+  const bannedAuthor = { author: 'LibertyVillage.co $999 Special' };
+  assert.match(checkRoundupVisibleCopy({ content: 'x', ...bannedAuthor }).join('; '), /refused in author/);
+  assert.match(checkRoundupVisibleCopy({ content: 'x', tags: ['news', '$25 special'] }).join('; '), /refused in tags\[1\]/);
+  assert.match(checkRoundupVisibleCopy({ content: 'x',
+    exploreCta: { label: 'Visit 999 Imaginary Street', href: '/about', description: 'See the week ahead.' } }).join('; '),
+    /refused in exploreCta\.label/);
+  assert.match(checkRoundupVisibleCopy({ content: 'x',
+    exploreCta: { label: 'Explore', href: '/about', description: 'Free admission inside.' } }).join('; '),
+    /refused in exploreCta\.description/);
+  assert.match(checkRoundupVisibleCopy({ content: 'x',
+    crossLinks: [{ type: 'service', slug: 'coffee', label: 'Deals at $5' }] }).join('; '),
+    /refused in crossLinks\[0\]\.label/);
+  // Opaque targets stay unscanned: hrefs, related slugs, coverage and record IDs.
+  assert.deepEqual(checkRoundupVisibleCopy({ content: 'x', author: 'LibertyVillage.co',
+    tags: ['liberty village'], exploreCta: { label: 'Explore', href: '/about?price=$999', description: 'See more.' },
+    crossLinks: [{ type: 'service', slug: 'coffee' }],
+    relatedServices: ['$999'], roundupCoverage: { keys: ['999 Imaginary Street'] } }), []);
+  // The clean fixture (author + tags, no CTA/cross-links) still passes.
+  assert.deepEqual(checkRoundupVisibleCopy(buildFixture({ now, units: threeUnits() }).post), []);
+});
+
 test('F3 default-ignorable invisibles refuse in scanner and writer guard', () => {
   assert.ok(findRoundupBannedCopy('$⁠999').some((span) => span.kind === 'price'), 'U+2060 word joiner');
   assert.ok(findRoundupBannedCopy('999 Imag­inary Street').some((span) => span.kind === 'civic-address'), 'U+00AD soft hyphen');
   assert.ok(findRoundupBannedCopy('999᠎ Imaginary Street').some((span) => span.kind === 'civic-address'), 'U+180E mongolian vowel separator');
 });
 
-test('F4 post-refusal omission retry sends only surviving units, never the refused person', async () => {
+test('R2 draft lint uses T_plan: correct 2025 Thanksgiving date needs no retry, wrong one retries then holds', async () => {
+  const planNow = '2025-10-08T15:00:00.000Z';
+  const ids = ['occ:a', 'occ:b', 'occ:c'];
+  const units = ids.map((id) => wunit(id));
+  const bodyFor = (date) => (id) => id === 'occ:a'
+    ? `Thanksgiving Monday, October ${date} gathering in Liberty Village.`
+    : `In Liberty Village on October 3 for ${id}.`;
+  const scripted = (date) => {
+    let n = 0;
+    const seen = [];
+    return { count: () => n, seen, callModel: async (req) => {
+      n += 1;
+      seen.push(req.system || '');
+      if (req.maxTokens === 256) return { ok: true, text: '{"ok":true}' };
+      if (/Omit every civic/.test(req.system || '')) return { ok: true, text: JSON.stringify(draftFor(ids, bodyFor(date))) };
+      const text = req.userText || '';
+      if (text.includes('"units"') && !text.includes('"draft"') && !text.includes('"findings"'))
+        return { ok: true, text: JSON.stringify(draftFor(ids, bodyFor(date))) };
+      return { ok: true, text: '{"findings":[]}' };
+    } };
+  };
+  const env = { ANTHROPIC_API_KEY: 'test-only', DEEPSEEK_API_KEY: 'test-only' };
+  const resolved = { ok: true, provider: { id: 'anthropic' } };
+  // October 13 is Thanksgiving Monday 2025 (Oct 12 in 2026): pinned T_plan
+  // lint passes, so no retry is spent.
+  const good = scripted('13');
+  const out = await writeRoundup({ units, now: planNow }, { env, resolved, businesses: [], callModel: good.callModel });
+  assert.ok(!good.seen.some((system) => /Omit every civic/.test(system)), 'correct T_plan date needs no retry');
+  assert.ok(good.count() <= WRITER_MAX_CALLS, `calls=${good.count()}`);
+  assert.deepEqual(checkRoundupDraftCopy(out.draft), []);
+  // October 12 is wrong for 2025: the draft lint still flags it, spends the
+  // single retry, then holds.
+  const bad = scripted('12');
+  const error = await writeRoundup({ units, now: planNow }, { env, resolved, businesses: [], callModel: bad.callModel }).then(
+    () => { throw new Error('writer must hold'); }, (failure) => failure);
+  assert.match(error.message, /roundup_writer_failed:lint unsupported-date/);
+  assert.equal(bad.seen.filter((system) => /Omit every civic/.test(system)).length, 1, 'exactly one retry');
+});
+
+test('B3 private refusal discards the contaminated draft and regenerates from safe units only', async () => {
+  // Scripted 4-unit case: risk refuses one unit as private-individual and
+  // flags tone on another. The original intro carries the refused story; the
+  // regenerated draft is clean. Explicit reviewer (no probe) so regenerate +
+  // fresh fact/risk reviews fit the six-call ceiling.
   const personUnit = (id, person) => ({ ...wunit(id),
     people: person ? [{ name: person, role: 'private-person' }] : [],
     evidence: [{ url: `https://source.example/${encodeURIComponent(id)}`, recordId: 'r1',
       subject_quote: person ? `${person} hosts Subject ${id}` : `Subject ${id}`,
       place_quote: 'Liberty Village', date_quote: '2026-10-03' }] });
-  const units = [personUnit('occ:a', null), personUnit('occ:b', null), personUnit('occ:c', 'Alex Example')];
-  const cleanDraft = { intro: 'Three local plans for the week.', units: [
-    { unitId: 'occ:a', heading: 'Subject occ:a', body: 'In Liberty Village on October 3 for occ:a.' },
-    { unitId: 'occ:b', heading: 'Subject occ:b', body: 'In Liberty Village on October 3 for occ:b.' },
-    { unitId: 'occ:c', heading: 'Subject occ:c', body: 'In Liberty Village on October 3 for occ:c.' }] };
-  const bannedSafeDraft = { intro: 'Three local plans for the week.', units: [
-    { unitId: 'occ:a', heading: 'Subject occ:a', body: `In Liberty Village on October 3 for occ:a. ${SENTENCE}` },
-    { unitId: 'occ:b', heading: 'Subject occ:b', body: 'In Liberty Village on October 3 for occ:b.' }] };
-  const cleanSafe = { intro: 'Three local plans for the week.', units: [
-    { unitId: 'occ:a', heading: 'Subject occ:a', body: 'In Liberty Village on October 3 for occ:a.' },
-    { unitId: 'occ:b', heading: 'Subject occ:b', body: 'In Liberty Village on October 3 for occ:b.' }] };
-  let retryUserText = null;
+  const ids = ['occ:a', 'occ:b', 'occ:c', 'occ:d'];
+  const units = [personUnit('occ:a', null), personUnit('occ:b', null),
+    personUnit('occ:c', null), personUnit('occ:d', 'Alex Example')];
+  const contaminated = { intro: 'Four local plans. Alex Example shared a personal-finances story.',
+    units: ids.map((id) => ({ unitId: id, heading: `Subject ${id}`,
+      body: `In Liberty Village on October 3 for ${id}.` })) };
+  const regenerated = { intro: 'Three local plans for the week.',
+    units: ['occ:a', 'occ:b', 'occ:c'].map((id) => ({ unitId: id, heading: `Subject ${id}`,
+      body: `In Liberty Village on October 3 for ${id}.` })) };
+  const seen = [];
+  let unitsCalls = 0;
   const callModel = async (req) => {
-    if (req.maxTokens === 256) return { ok: true, text: '{"ok":true}' };
-    if (/Omit every civic/.test(req.system || '')) {
-      retryUserText = req.userText || '';
-      return { ok: true, text: JSON.stringify(cleanSafe) };
-    }
+    seen.push(req);
     const text = req.userText || '';
-    if (text.includes('"units"') && !text.includes('"draft"') && !text.includes('"findings"'))
-      return { ok: true, text: JSON.stringify(cleanDraft) };
+    if (text.includes('"units"') && !text.includes('"draft"') && !text.includes('"findings"')) {
+      unitsCalls += 1;
+      return { ok: true, text: JSON.stringify(unitsCalls === 1 ? contaminated : regenerated) };
+    }
     if (/fact reviewer/i.test(req.system || '')) return { ok: true, text: '{"findings":[]}' };
-    if (/Independent locality/i.test(req.system || ''))
-      return { ok: true, text: '{"findings":[{"unitId":"occ:c","person":"Alex Example","problem":"private-individual"},{"unitId":"occ:a","problem":"tone","fix":"remove hype"}]}' };
-    if (text.includes('"findings"')) return { ok: true, text: JSON.stringify(bannedSafeDraft) };
+    if (/Independent locality/i.test(req.system || '')) {
+      const rounds = seen.filter((r) => /Independent locality/i.test(r.system || '')).length;
+      if (rounds > 1) {
+        assert.ok((req.userText || '').includes('Three local plans for the week.'), 'second risk review sees the fresh draft');
+        assert.ok(!(req.userText || '').includes('Alex Example'), 'second risk review never sees the refused person');
+        return { ok: true, text: '{"findings":[]}' };
+      }
+      return { ok: true, text: '{"findings":[{"unitId":"occ:d","person":"Alex Example","problem":"private-individual"},{"unitId":"occ:a","problem":"tone","fix":"remove hype"}]}' };
+    }
     throw new Error(`unexpected model call: ${req.system}`);
   };
   const out = await writeRoundup({ units },
-    { env: { ANTHROPIC_API_KEY: 'test-only', DEEPSEEK_API_KEY: 'test-only' },
-      resolved: { ok: true, provider: { id: 'anthropic' } }, callModel });
-  assert.deepEqual(out.refused, ['occ:c']);
-  assert.ok(retryUserText, 'exactly one omission retry runs');
-  assert.ok(!retryUserText.includes('occ:c'), 'refused unit identity never reaches the retry');
-  assert.ok(!retryUserText.includes('Alex Example'), 'refused person never reaches the retry');
-  assert.ok(retryUserText.includes('occ:a') && retryUserText.includes('occ:b'), 'surviving units are retried');
+    { resolved: { ok: true, provider: { id: 'anthropic' } },
+      reviewer: { ok: true, provider: { id: 'deepseek' } }, callModel });
+  assert.deepEqual(out.refused, ['occ:d']);
+  assert.deepEqual(out.draft.units.map((e) => e.unitId), ['occ:a', 'occ:b', 'occ:c']);
+  assert.ok(!JSON.stringify(out.draft).includes('Alex Example'), 'refused story cannot persist in the final draft');
+  assert.equal(out.findings.length, 4, 'fresh fact AND risk reviews execute on the regenerated draft');
+  assert.ok(seen.length <= WRITER_MAX_CALLS, `calls=${seen.length}`);
+  // Every author-bound payload after the first risk review excludes the
+  // refused unit, the person, the original draft and the old findings.
+  const firstRisk = seen.findIndex((r) => /Independent locality/i.test(r.system || ''));
+  for (const req of seen.slice(firstRisk + 1)) {
+    if (/reviewer|locality/i.test(req.system || '')) continue;
+    const payload = req.userText || '';
+    assert.ok(!payload.includes('occ:d'), 'no refused ID in later author calls');
+    assert.ok(!payload.includes('Alex Example'), 'no refused person in later author calls');
+    assert.ok(!payload.includes('personal-finances'), 'no refused story in later author calls');
+    assert.ok(!payload.includes('"findings"'), 'no old findings in later author calls');
+  }
+  const regen = seen.find((r) => (r.userText || '').includes('"units"') && !(r.userText || '').includes('"draft"')
+    && seen.indexOf(r) > firstRisk);
+  assert.ok(regen, 'the author regenerates after the refusal');
+  assert.ok(!(regen.userText || '').includes('occ:d') && (regen.userText || '').includes('occ:a'), 'regenerate uses safe units only');
+});
+
+test('B3 private refusal with a tainted price retry holds when re-review cannot fit the budget', async () => {
+  // The malicious intro also carries a price: the shared omission retry fires
+  // first, so regenerate + fresh reviews no longer fit even without a probe.
+  const ids = ['occ:a', 'occ:b', 'occ:c', 'occ:d'];
+  const units = ids.map((id) => wunit(id));
+  const tainted = (story) => ({ intro: `Four local plans. Alex Example shared a personal-finances story. ${story}`,
+    units: ids.map((id) => ({ unitId: id, heading: `Subject ${id}`,
+      body: `In Liberty Village on October 3 for ${id}.` })) });
+  const cleanSafe = { intro: 'Three local plans for the week.',
+    units: ['occ:a', 'occ:b', 'occ:c'].map((id) => ({ unitId: id, heading: `Subject ${id}`,
+      body: `In Liberty Village on October 3 for ${id}.` })) };
+  let unitsCalls = 0;
+  const callModel = async (req) => {
+    if (/Omit every civic/.test(req.system || '')) return { ok: true, text: JSON.stringify(tainted('Cleaned.')) };
+    const text = req.userText || '';
+    if (text.includes('"units"') && !text.includes('"draft"') && !text.includes('"findings"')) {
+      unitsCalls += 1;
+      return { ok: true, text: JSON.stringify(unitsCalls === 1 ? tainted('Tickets are $50.') : cleanSafe) };
+    }
+    if (/fact reviewer/i.test(req.system || '')) return { ok: true, text: '{"findings":[]}' };
+    if (/Independent locality/i.test(req.system || ''))
+      return { ok: true, text: '{"findings":[{"unitId":"occ:d","person":"Alex Example","problem":"private-individual"}]}' };
+    throw new Error(`unexpected model call: ${req.system}`);
+  };
+  const error = await writeRoundup({ units },
+    { resolved: { ok: true, provider: { id: 'anthropic' } },
+      reviewer: { ok: true, provider: { id: 'deepseek' } }, callModel }).then(
+    () => { throw new Error('writer must hold'); }, (failure) => failure);
+  assert.match(error.message, /roundup_writer_failed:(writer-budget|all-units-refused|regenerated-)/, 'fail-closed HOLD');
 });
 
 test('F6 writer lint retry: business-attributed hours claim retries within budget, holds when exhausted', async () => {

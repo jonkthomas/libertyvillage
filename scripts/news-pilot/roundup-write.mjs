@@ -80,6 +80,9 @@ const validRiskFinding = (finding, known) => findingObject(finding) && known.has
 /** Writer budget (§9.2): reviewer probes count inside the six-call writer ceiling. */
 export const WRITER_MAX_CALLS = 6;
 
+const FACT_REVIEW_SYSTEM = 'Independent fact reviewer. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","sentence":"...","problem":"unsupported|wrong-date|wrong-place|overclaim|missing-attribution","fix":"..."}]}. An empty array is valid. Compare each statement against verified unit.when, unit.what, unit.subject and its evidence; feed dates and location are verified typed facts even if not literal quote text. No new sources.';
+const RISK_REVIEW_SYSTEM = 'Independent locality, private-person, impact and tone reviewer. Assess named people in EACH quoted record and draft; a private individual includes a resident’s home, finances, relationships, health, victimhood or opinions. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","person":"...","problem":"private-individual|wrong-place|unsupported-impact|wrong-date|tone","fix":"..."}]}. An empty array is valid. Flag crime/election and ungrounded impact too.';
+
 /** Model calls have no tools; only verified items enter the copywriter. Two separate review roles run before assembly. */
 export async function writeRoundup(pack, { env = process.env, resolved, reviewer, callModel = generateDraftWithModel,
   deadline = Date.now() + 600_000, businesses, lintPostFn = lintPost } = {}) {
@@ -109,15 +112,22 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   // writer-failed HOLD, never a silent pass. Lint diagnostics carry rule +
   // field + count only, never generated claim text.
   let omissionRetryUsed = false;
+  // Draft lint uses T_plan consistently with the final assembly lint
+  // (`roundup-v2-run.mjs` lints with `publishedAt` = T_plan date and
+  // `now` = T_plan): otherwise a historical replay or Dec 31/Jan 1 straddle
+  // flags a correct date with the wall-clock year, spends the single retry
+  // "fixing" it, and holds. Without a usable pack clock, keep wall-clock.
+  const planNow = Number.isNaN(Date.parse(pack?.now ?? '')) ? new Date() : new Date(pack.now);
   const draftLintCodes = (current) => {
     if (businesses === undefined) return [];
     if (!Array.isArray(businesses)) return ['lint-unavailable'];
     const bodies = (current?.units || []).map((entry) => `${entry?.heading || ''}\n\n${entry?.body || ''}`);
     const shaped = { title: 'Liberty Village + Exhibition Place this week: draft',
       description: current?.intro || '', answerBlock: current?.intro || '',
-      content: [current?.intro || '', ...bodies].join('\n\n') };
+      content: [current?.intro || '', ...bodies].join('\n\n'),
+      publishedAt: planNow.toISOString().slice(0, 10) };
     let lint;
-    try { lint = lintPostFn(shaped, { businesses, now: new Date() }); }
+    try { lint = lintPostFn(shaped, { businesses, now: planNow }); }
     catch { return ['lint-unavailable']; }
     if (lint?.ok) return [];
     const groups = new Map();
@@ -161,7 +171,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   }
   draft = await ensureCopyClean(draft, units);
   const fact = await jsonCall(cappedCall, critic.ok ? critic : author,
-    'Independent fact reviewer. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","sentence":"...","problem":"unsupported|wrong-date|wrong-place|overclaim|missing-attribution","fix":"..."}]}. An empty array is valid. Compare each statement against verified unit.when, unit.what, unit.subject and its evidence; feed dates and location are verified typed facts even if not literal quote text. No new sources.',
+    FACT_REVIEW_SYSTEM,
     { draft, units: material });
   if (!Array.isArray(fact?.findings) || !fact.findings.every((finding) => validFactFinding(finding, known)))
     throw new Error('roundup_fact_review_invalid');
@@ -171,7 +181,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
   draft = await ensureCopyClean(draft, units);
   const risk = await jsonCall(cappedCall, critic.ok ? critic : author,
-    'Independent locality, private-person, impact and tone reviewer. Assess named people in EACH quoted record and draft; a private individual includes a resident’s home, finances, relationships, health, victimhood or opinions. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","person":"...","problem":"private-individual|wrong-place|unsupported-impact|wrong-date|tone","fix":"..."}]}. An empty array is valid. Flag crime/election and ungrounded impact too.',
+    RISK_REVIEW_SYSTEM,
     { draft, units: material });
   if (!Array.isArray(risk?.findings)) throw new Error('roundup_risk_review_invalid');
   // Preserve the explicit unknown-private-person refusal; invalid or opaque
@@ -185,6 +195,45 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   findings.push({ round: 2, findings: risk.findings });
   const refused = new Set(risk.findings.filter((f) => f.problem === 'private-individual').map((f) => f.unitId));
   const safeUnits = units.filter((unit) => !refused.has(unit.identityKey));
+  if (refused.size > 0) {
+    // B3: a private-person refusal contaminates the whole draft — the intro
+    // and surviving entries may carry the refused story, and the old revision
+    // prompt would resend the original draft plus the refused person to the
+    // author. Discard the contaminated draft entirely and regenerate from the
+    // surviving verified safeUnits only: no original draft, no refused units,
+    // no person text, no old findings. The regenerated draft is then
+    // independently fact-reviewed AND risk-reviewed after all author edits; any
+    // finding, any invalid review, or an exhausted six-call budget is a
+    // writer-failed HOLD, never a silent pass. The shared single omission
+    // retry still bounds banned-copy/lint cleanup (and holds when it would
+    // exceed the remaining budget). A one-time risk review never vouches for
+    // text authored after it.
+    if (!safeUnits.length) throw new Error('roundup_writer_failed:all-units-refused');
+    const safeKnown = new Set(safeUnits.map((unit) => unit.identityKey));
+    const safeMaterial = () => safeUnits.map(compact);
+    draft = await jsonCall(cappedCall, author, instructions, { units: safeMaterial() }, 9000);
+    errors = checkRoundupDraft(draft, safeUnits);
+    if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
+    draft = await ensureCopyClean(draft, safeUnits);
+    const factAgain = await jsonCall(cappedCall, critic.ok ? critic : author,
+      FACT_REVIEW_SYSTEM, { draft, units: safeMaterial() });
+    if (!Array.isArray(factAgain?.findings) || !factAgain.findings.every((finding) => validFactFinding(finding, safeKnown)))
+      throw new Error('roundup_fact_review_invalid');
+    findings.push({ round: 3, findings: factAgain.findings });
+    if (factAgain.findings.length) throw new Error('roundup_writer_failed:regenerated-fact-findings');
+    const riskAgain = await jsonCall(cappedCall, critic.ok ? critic : author,
+      RISK_REVIEW_SYSTEM, { draft, units: safeMaterial() });
+    if (!Array.isArray(riskAgain?.findings)) throw new Error('roundup_risk_review_invalid');
+    for (const f of riskAgain.findings) {
+      if (f?.problem === 'private-individual' && !safeKnown.has(f?.unitId))
+        throw new Error('roundup_writer_failed:unknown-private-individual-unit');
+    }
+    if (!riskAgain.findings.every((finding) => validRiskFinding(finding, safeKnown)))
+      throw new Error('roundup_risk_review_invalid');
+    findings.push({ round: 4, findings: riskAgain.findings });
+    if (riskAgain.findings.length) throw new Error('roundup_writer_failed:regenerated-risk-findings');
+    return { draft, findings, refused: [...refused], units: safeUnits, modelCalls };
+  }
   if (risk.findings.some((f) => f?.problem !== 'private-individual')) {
     draft = await jsonCall(cappedCall, author, `Revise only flagged sentences; preserve surviving IDs. ${instructions}`,
       { draft, findings: risk.findings, units: safeUnits.map(compact) }, 9000);
