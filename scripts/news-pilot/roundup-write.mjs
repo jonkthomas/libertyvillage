@@ -3,6 +3,8 @@ import path from 'node:path';
 import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './draft-model.mjs';
 import { roundupCoverageFromPack } from './roundup-verify.mjs';
 import { roundupSlug } from './roundup.mjs';
+import { checkRoundupDraftCopy, checkRoundupVisibleCopy, draftBannedSamples, findRoundupBannedCopy } from './roundup-claims.mjs';
+import { registrableDomain } from './sources.mjs';
 
 const unsafeImpact = /\b(?:crowd(?:s|ing)?|congestion|detours?|traffic disruption|parking restrictions?|road closures?)\b/i;
 const unsafeCopy = /\b(?:crime|murder|stabbing|robbery|election|candidate|vote for)\b/i;
@@ -98,7 +100,26 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
     return countingCall({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
   };
-  const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
+  const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase. Omit exact civic street addresses and monetary prices entirely (including free-admission promises): never state, invent or substitute them.';
+  // Decision B: one shared targeted omission retry for banned civic/price copy,
+  // inside the six-call ceiling. A second failure — or an exhausted budget with
+  // no call left — is a writer-failed HOLD, never a silent pass.
+  let omissionRetryUsed = false;
+  const ensureCopyClean = async (current, shapeUnits) => {
+    let banned = checkRoundupDraftCopy(current);
+    if (!banned.length) return current;
+    if (omissionRetryUsed || modelCalls >= WRITER_MAX_CALLS) throw new Error(`roundup_writer_failed:${banned.join(',')}`);
+    omissionRetryUsed = true;
+    const flagged = draftBannedSamples(current).join(' | ');
+    const revised = await jsonCall(cappedCall, author,
+      `Omit every civic street address and monetary price (including free-admission promises): delete those specifics, do not replace them with other facts. Flagged: ${flagged}. ${instructions}`,
+      { draft: current, units: material }, 9000);
+    const shape = checkRoundupDraft(revised, shapeUnits);
+    if (shape.length) throw new Error(`roundup_writer_failed:${shape.join(',')}`);
+    banned = checkRoundupDraftCopy(revised);
+    if (banned.length) throw new Error(`roundup_writer_failed:${banned.join(',')}`);
+    return revised;
+  };
   let draft = await jsonCall(cappedCall, author, instructions, { units: material }, 9000);
   const findings = [];
   let errors = checkRoundupDraft(draft, units);
@@ -107,6 +128,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     errors = checkRoundupDraft(draft, units);
     if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
   }
+  draft = await ensureCopyClean(draft, units);
   const fact = await jsonCall(cappedCall, critic.ok ? critic : author,
     'Independent fact reviewer. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","sentence":"...","problem":"unsupported|wrong-date|wrong-place|overclaim|missing-attribution","fix":"..."}]}. An empty array is valid. Compare each statement against verified unit.when, unit.what, unit.subject and its evidence; feed dates and location are verified typed facts even if not literal quote text. No new sources.',
     { draft, units: material });
@@ -116,6 +138,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   if (fact.findings.length) draft = await jsonCall(cappedCall, author, `Revise only flagged sentences; keep IDs and all other text. ${instructions}`, { draft, findings: fact.findings, units: material }, 9000);
   errors = checkRoundupDraft(draft, units);
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
+  draft = await ensureCopyClean(draft, units);
   const risk = await jsonCall(cappedCall, critic.ok ? critic : author,
     'Independent locality, private-person, impact and tone reviewer. Assess named people in EACH quoted record and draft; a private individual includes a resident’s home, finances, relationships, health, victimhood or opinions. Return ONLY strict RFC 8259 JSON with double-quoted keys and strings: {"findings":[{"unitId":"...","person":"...","problem":"private-individual|wrong-place|unsupported-impact|wrong-date|tone","fix":"..."}]}. An empty array is valid. Flag crime/election and ungrounded impact too.',
     { draft, units: material });
@@ -138,6 +161,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   draft = { ...draft, units: (draft.units || []).filter((entry) => !refused.has(entry.unitId)) };
   errors = checkRoundupDraft(draft, safeUnits);
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
+  draft = await ensureCopyClean(draft, safeUnits);
   return { draft, findings, refused: [...refused], units: safeUnits, modelCalls };
 }
 
@@ -145,8 +169,20 @@ const escapeMarkdown = (value) => String(value || '').replace(/[\[\]()]/g, '');
 const citation = (source) => {
   const url = source.url || source.canonicalUrl;
   if (!/^https:\/\//.test(url || '')) throw new Error('roundup citation requires https URL');
-  const label = [source.publisher || source.sourceId || 'Source', source.recordId && (source.feed || source.listing) ? `record ${source.recordId}` : '']
-    .filter(Boolean).join(', ');
+  const record = source.recordId && (source.feed || source.listing) ? `record ${source.recordId}` : '';
+  let label = [source.publisher || source.sourceId || 'Source', record].filter(Boolean).join(', ');
+  if (findRoundupBannedCopy(label).length) {
+    // Decision B safe render for trusted citation identity: the link target
+    // and any record ID stay byte-identical, while the human display falls
+    // back to the cited host, which is faithful and address/price-free. A
+    // tainted record ID or an unparseable host has no safe render, so
+    // assembly holds instead of dropping the citation.
+    if (record && findRoundupBannedCopy(record).length) throw new Error('roundup_banned_copy:citation record identity has no address-free render');
+    let host = null;
+    try { host = registrableDomain(url); } catch { host = null; }
+    if (!host || findRoundupBannedCopy(host).length) throw new Error('roundup_banned_copy:citation label has no address-free render');
+    label = [host, record].filter(Boolean).join(', ');
+  }
   return `[${escapeMarkdown(label)}](${url})`;
 };
 
@@ -176,9 +212,15 @@ export function assembleRoundupPost({ pack, draft, image = '/images/og/og-home.j
     `- ${escapeMarkdown(u.subject)} (${u.date || u.when?.date}): ${(u.citations || []).map(citation).join('; ')}`).join('\n'));
   const date = new Date(pack.now).toISOString().slice(0, 10);
   const description = `Liberty Village + Exhibition Place this week. ${draft.intro}`;
-  return { slug: roundupSlug(isoWeek), title, description, content: `${draft.intro}\n\n${sections.join('\n\n')}`,
+  const post = { slug: roundupSlug(isoWeek), title, description, content: `${draft.intro}\n\n${sections.join('\n\n')}`,
     publishedAt: date, updatedAt: date, category: 'news', tags: ['liberty village', 'exhibition place', 'news'],
     answerBlock: draft.intro, faqs: [], keyTakeaways: units.map((u) => u.subject || u.identityKey),
     relatedServices: [], relatedTopics: [], relatedPosts: [], author: 'LibertyVillage.co', image,
     roundupCoverage: roundupCoverageFromPack(pack) };
+  // Decision B: derived labels and takeaways come from verified names, but the
+  // final assembly still holds when any of them carries banned specifics —
+  // required identity is never silently stripped, so there is no safe render.
+  const banned = checkRoundupVisibleCopy(post);
+  if (banned.length) throw new Error(`roundup_banned_copy:${banned.slice(0, 3).join('; ')}`);
+  return post;
 }
