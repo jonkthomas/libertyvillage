@@ -86,7 +86,10 @@ export async function runRoundupV2(args, deps = {}) {
   let draft = null, reviewFindings = [];
   if (decision === 'publish') {
     try {
-      const written = await (deps.write || writeRoundup)(pack, { deadline: modelDeadline });
+      // Fail-closed trusted business export for the §9.2 writer lint retry.
+      const writerBusinesses = deps.writerBusinesses !== undefined ? deps.writerBusinesses : readBusinesses(root);
+      if (!Array.isArray(writerBusinesses)) throw new Error('roundup_businesses_unavailable:business export must be an explicit array');
+      const written = await (deps.write || writeRoundup)(pack, { deadline: modelDeadline, businesses: writerBusinesses });
       draft = written.draft;
       reviewFindings = written.findings;
       if (written.refused?.length) {
@@ -202,13 +205,18 @@ function redactFindings(rounds, keys) {
 
 function readIf(file) { try { return read(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }
 
-// Trusted business export for the inherited lint post-check; a missing file
-// lints against no businesses (unattributed specifics still pass, as before).
+// Trusted business export for the inherited lint post-check; a missing file,
+// malformed JSON or a non-array export fails closed to HOLD (never silent []).
+// Probe only the authoritative business export.
 function readBusinesses(root) {
+  let records;
   try {
-    const records = JSON.parse(fs.readFileSync(path.join(root, 'data', 'businesses.json'), 'utf8'));
-    return Array.isArray(records) ? records : [];
-  } catch { return []; }
+    records = JSON.parse(fs.readFileSync(path.join(root, 'data', 'businesses.json'), 'utf8'));
+  } catch (error) {
+    throw new Error(`roundup_businesses_unavailable:business export unreadable (${error.code || 'parse failed'})`);
+  }
+  if (!Array.isArray(records)) throw new Error('roundup_businesses_unavailable:business export must be an explicit array');
+  return records;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

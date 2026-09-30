@@ -253,6 +253,154 @@ test('assembled post with banned derived takeaway holds instead of dropping iden
     /roundup_banned_copy/);
 });
 
+test('F1 civic-address precision: dates/transit/venue/year pass, real addresses refuse', () => {
+  for (const sentence of [
+    'The Home Show runs October 3 at Exhibition Place.',
+    'The 504 King streetcar diverts on October 2.',
+    'On Sep 30 Drake plays Budweiser Stage.',
+    'On October 2 players from both clubs visit.',
+    'Starting October 1 on Strachan Avenue, one lane is closed.',
+    'Final Burger Tour 2026 Stop',
+  ]) assert.deepEqual(findRoundupBannedCopy(sentence), [], sentence);
+  for (const address of ['999 Imaginary Street', '999 imaginary street', '40 Hanna Ave',
+    '171 East Liberty Street', '999 King St. W.', 'Unit 5, 999 Imaginary Street']) {
+    assert.ok(findRoundupBannedCopy(address).some((span) => span.kind === 'civic-address'), address);
+  }
+});
+
+test('F2 lexical price coverage: spoken/qualified/free/cent/trailing forms refuse', () => {
+  for (const sentence of ['Tickets cost twenty-five dollars.', 'Entry costs 25 Canadian dollars.',
+    'Pay twenty five bucks.', 'Tickets are free.', 'It is free to attend.', 'Coffee is 99¢.', 'Entrée 25 $.']) {
+    assert.ok(findRoundupBannedCopy(sentence).some((span) => span.kind === 'price'), sentence);
+  }
+});
+
+test('F3 default-ignorable invisibles refuse in scanner and writer guard', () => {
+  assert.ok(findRoundupBannedCopy('$⁠999').some((span) => span.kind === 'price'), 'U+2060 word joiner');
+  assert.ok(findRoundupBannedCopy('999 Imag­inary Street').some((span) => span.kind === 'civic-address'), 'U+00AD soft hyphen');
+  assert.ok(findRoundupBannedCopy('999᠎ Imaginary Street').some((span) => span.kind === 'civic-address'), 'U+180E mongolian vowel separator');
+});
+
+test('F4 post-refusal omission retry sends only surviving units, never the refused person', async () => {
+  const personUnit = (id, person) => ({ ...wunit(id),
+    people: person ? [{ name: person, role: 'private-person' }] : [],
+    evidence: [{ url: `https://source.example/${encodeURIComponent(id)}`, recordId: 'r1',
+      subject_quote: person ? `${person} hosts Subject ${id}` : `Subject ${id}`,
+      place_quote: 'Liberty Village', date_quote: '2026-10-03' }] });
+  const units = [personUnit('occ:a', null), personUnit('occ:b', null), personUnit('occ:c', 'Alex Example')];
+  const cleanDraft = { intro: 'Three local plans for the week.', units: [
+    { unitId: 'occ:a', heading: 'Subject occ:a', body: 'In Liberty Village on October 3 for occ:a.' },
+    { unitId: 'occ:b', heading: 'Subject occ:b', body: 'In Liberty Village on October 3 for occ:b.' },
+    { unitId: 'occ:c', heading: 'Subject occ:c', body: 'In Liberty Village on October 3 for occ:c.' }] };
+  const bannedSafeDraft = { intro: 'Three local plans for the week.', units: [
+    { unitId: 'occ:a', heading: 'Subject occ:a', body: `In Liberty Village on October 3 for occ:a. ${SENTENCE}` },
+    { unitId: 'occ:b', heading: 'Subject occ:b', body: 'In Liberty Village on October 3 for occ:b.' }] };
+  const cleanSafe = { intro: 'Three local plans for the week.', units: [
+    { unitId: 'occ:a', heading: 'Subject occ:a', body: 'In Liberty Village on October 3 for occ:a.' },
+    { unitId: 'occ:b', heading: 'Subject occ:b', body: 'In Liberty Village on October 3 for occ:b.' }] };
+  let retryUserText = null;
+  const callModel = async (req) => {
+    if (req.maxTokens === 256) return { ok: true, text: '{"ok":true}' };
+    if (/Omit every civic/.test(req.system || '')) {
+      retryUserText = req.userText || '';
+      return { ok: true, text: JSON.stringify(cleanSafe) };
+    }
+    const text = req.userText || '';
+    if (text.includes('"units"') && !text.includes('"draft"') && !text.includes('"findings"'))
+      return { ok: true, text: JSON.stringify(cleanDraft) };
+    if (/fact reviewer/i.test(req.system || '')) return { ok: true, text: '{"findings":[]}' };
+    if (/Independent locality/i.test(req.system || ''))
+      return { ok: true, text: '{"findings":[{"unitId":"occ:c","person":"Alex Example","problem":"private-individual"},{"unitId":"occ:a","problem":"tone","fix":"remove hype"}]}' };
+    if (text.includes('"findings"')) return { ok: true, text: JSON.stringify(bannedSafeDraft) };
+    throw new Error(`unexpected model call: ${req.system}`);
+  };
+  const out = await writeRoundup({ units },
+    { env: { ANTHROPIC_API_KEY: 'test-only', DEEPSEEK_API_KEY: 'test-only' },
+      resolved: { ok: true, provider: { id: 'anthropic' } }, callModel });
+  assert.deepEqual(out.refused, ['occ:c']);
+  assert.ok(retryUserText, 'exactly one omission retry runs');
+  assert.ok(!retryUserText.includes('occ:c'), 'refused unit identity never reaches the retry');
+  assert.ok(!retryUserText.includes('Alex Example'), 'refused person never reaches the retry');
+  assert.ok(retryUserText.includes('occ:a') && retryUserText.includes('occ:b'), 'surviving units are retried');
+});
+
+test('F6 writer lint retry: business-attributed hours claim retries within budget, holds when exhausted', async () => {
+  const businesses = [{ slug: 'left-field-brewery', name: 'Left Field Brewery' }];
+  const ids = ['occ:a', 'occ:b', 'occ:c'];
+  const units = ids.map((id) => wunit(id));
+  const lintBody = (id) => id === 'occ:a'
+    ? 'Left Field Brewery hosts it from 7 pm to 10 pm on October 1.'
+    : `In Liberty Village on October 3 for ${id}.`;
+  const cleanBody = (id) => `In Liberty Village on October 3 for ${id}.`;
+  const scripted = (retryText, { onRetry } = {}) => {
+    let n = 0;
+    const seen = [];
+    return { count: () => n, seen, callModel: async (req) => {
+      n += 1;
+      seen.push(req.system || '');
+      if (req.maxTokens === 256) return { ok: true, text: '{"ok":true}' };
+      if (/Omit every civic/.test(req.system || '')) {
+        onRetry?.(req);
+        return { ok: true, text: JSON.stringify(retryText) };
+      }
+      const text = req.userText || '';
+      if (text.includes('"units"') && !text.includes('"draft"') && !text.includes('"findings"'))
+        return { ok: true, text: JSON.stringify(draftFor(ids, lintBody)) };
+      return { ok: true, text: '{"findings":[]}' };
+    } };
+  };
+  const env = { ANTHROPIC_API_KEY: 'test-only', DEEPSEEK_API_KEY: 'test-only' };
+  const resolved = { ok: true, provider: { id: 'anthropic' } };
+  let retrySystem = null;
+  const first = scripted(draftFor(ids, cleanBody), { onRetry: (req) => { retrySystem = req.system || ''; } });
+  const out = await writeRoundup({ units }, { env, resolved, businesses, callModel: first.callModel });
+  assert.ok(retrySystem && /lint unsupported-hours/.test(retrySystem), `retry names the lint rule, got: ${retrySystem}`);
+  assert.ok(!/7 pm to 10 pm/.test(JSON.stringify(out.draft)), 'retried draft drops the unsupported claim');
+  assert.ok(first.count() <= WRITER_MAX_CALLS, `calls=${first.count()}`);
+  // Exhausted budget: fact + fact-revise + risk + risk-revise fill six calls, so a
+  // final lint violation holds without spending a second retry.
+  let m = 0;
+  const seen = [];
+  const exhausted = async (req) => {
+    m += 1;
+    seen.push(req.system || '');
+    if (req.maxTokens === 256) return { ok: true, text: '{"ok":true}' };
+    if (/Omit every civic/.test(req.system || '')) return { ok: true, text: JSON.stringify(draftFor(ids, cleanBody)) };
+    if (/fact reviewer/i.test(req.system || ''))
+      return { ok: true, text: '{"findings":[{"unitId":"occ:a","sentence":"s","problem":"unsupported","fix":"f"}]}' };
+    if (/Independent locality/i.test(req.system || ''))
+      return { ok: true, text: '{"findings":[{"unitId":"occ:a","problem":"tone","fix":"remove hype"}]}' };
+    if ((req.userText || '').includes('"findings"')) {
+      const tone = (req.userText || '').includes('"tone"');
+      return { ok: true, text: JSON.stringify(draftFor(ids, tone ? lintBody : undefined)) };
+    }
+    return { ok: true, text: JSON.stringify(draftFor(ids)) };
+  };
+  const error = await writeRoundup({ units }, { env, resolved, businesses, callModel: exhausted }).then(
+    () => { throw new Error('writer must hold'); }, (failure) => failure);
+  assert.match(error.message, /roundup_writer_failed:lint unsupported-hours/);
+  assert.equal(m, WRITER_MAX_CALLS, `calls=${m}`);
+  assert.ok(!seen.some((system) => /Omit every civic/.test(system)), 'no retry call is spent when exhausted');
+});
+
+test('price-bearing verified subject never bypasses the scanner; takeaway is the reviewed clean heading', () => {
+  const subject = '$6 Fried Onion Burgers by George Motz';
+  assert.ok(findRoundupBannedCopy(subject).some((span) => span.kind === 'price'), 'raw subject is refused');
+  const fixture = buildFixture({ now, units: threeUnits() });
+  const pack = { ...fixture.pack,
+    units: fixture.pack.units.map((entry, index) => index === 0 ? { ...entry, subject } : entry) };
+  const heading = 'Burger Drops anniversary special';
+  const draft = { intro: 'Three local plans for the week.',
+    units: pack.units.map((entry, index) => ({ unitId: entry.identityKey,
+      heading: index === 0 ? heading : entry.label,
+      body: `${entry.label} takes place ${entry.verdict === 'core' ? 'in' : 'near'} Liberty Village on ${entry.date}.` })) };
+  const post = assembleRoundupPost({ pack, draft, image: '/images/og/og-home.jpg', imageExists: () => true });
+  assert.equal(post.keyTakeaways[0], heading, 'takeaway is exactly the reviewed clean heading');
+  assert.ok(!post.keyTakeaways[0].includes('$6'), 'no raw price in the takeaway');
+  assert.equal(pack.units[0].subject, subject, 'pack identity and subject are unchanged');
+  assert.deepEqual(checkRoundupVisibleCopy(post), []);
+});
+
 test('trusted citation publisher with address renders a faithful host label, keeping URL and record', () => {
   const units = threeUnits().map((entry, index) => index === 0
     ? { ...entry, citations: [{ url: entry.citations[0].url, publisher: 'New park at 34 Hanna Avenue', recordId: 'rec-a', sourceId: 'rv2-city-projects' }] }

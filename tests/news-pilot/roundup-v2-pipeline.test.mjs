@@ -171,6 +171,7 @@ test('reasoner retries one timed-out core batch within six calls; exhaustion is 
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'data'));
   fs.writeFileSync(path.join(root, 'data/posts.json'), '[]\n');
+  fs.writeFileSync(path.join(root, 'data/businesses.json'), '[]\n');
   const { result } = await runRoundupV2({ run: root, out: path.join(root, 'out'), root,
     now: opts.now, dryRun: true }, { signals: [core], reasoned: failed,
     verify: async () => ({ items: [], excluded: [], verifyDigest: 'a'.repeat(64) }),
@@ -282,6 +283,7 @@ test('direct pipeline hold is read-only and has no DB URL requirement', async (t
   fs.mkdirSync(path.join(root, 'data'));
   const posts = '[{"slug":"existing"}]\n';
   fs.writeFileSync(path.join(root, 'data', 'posts.json'), posts);
+  fs.writeFileSync(path.join(root, 'data', 'businesses.json'), '[]\n');
   const args = { run: root, out: path.join(root, 'out'), root, now: '2026-09-29T15:00:00Z', dryRun: true };
   const { result } = await runRoundupV2(args, {
     signals: [signal], reasoned: { forms: [form], excluded: [] },
@@ -302,6 +304,7 @@ test('publish candidate passes real pre-attempt content policy without mutating 
   fs.writeFileSync(path.join(root, 'public/images/og/og-home.jpg'), 'fixture image');
   const before = '[]\n';
   fs.writeFileSync(path.join(root, 'data/posts.json'), before);
+  fs.writeFileSync(path.join(root, 'data/businesses.json'), '[]\n');
   const units = [
     { identityKey: 'occ:addr:75-fraser-ave:2026-10-03:15:00', verdict: 'core', itemType: 'sports', date: '2026-10-03', subject: 'Lamport match' },
     { identityKey: 'occ:addr:170-princes-blvd:2026-10-04:15:00', verdict: 'adjacent', itemType: 'event', date: '2026-10-04', subject: 'BMO event' },
@@ -323,6 +326,40 @@ test('publish candidate passes real pre-attempt content policy without mutating 
   assert.equal(result.published, false);
   assert.equal(post.roundupCoverage.keys.length, 3);
   assert.equal(fs.readFileSync(path.join(root, 'data/posts.json'), 'utf8'), before);
+});
+
+test('F5 missing/malformed/non-array business export fails closed to HOLD pre-submit', async (t) => {
+  const units = [
+    { identityKey: 'occ:addr:75-fraser-ave:2026-10-03:15:00', verdict: 'core', itemType: 'sports', date: '2026-10-03', subject: 'Lamport match' },
+    { identityKey: 'occ:addr:170-princes-blvd:2026-10-04:15:00', verdict: 'adjacent', itemType: 'event', date: '2026-10-04', subject: 'BMO event' },
+    { identityKey: 'occ:addr:171-east-liberty-st#113:2026-10-02:17:00', verdict: 'core', itemType: 'class', date: '2026-10-02', subject: 'NRG class' },
+  ].map((unit, i) => ({ ...unit, keys: [unit.identityKey], citations: [
+    { url: `https://source.example/${i}`, publisher: 'Official source', recordId: `r${i}`, sourceId: `s${i}` }],
+    evidence: [{ url: `https://source.example/${i}`, recordId: `r${i}`, subject_quote: unit.subject,
+      place_quote: unit.subject, date_quote: unit.date }] }));
+  const draft = { intro: 'Three local plans for the week.', units: units.map((unit, i) => ({ unitId: unit.identityKey,
+    heading: unit.subject, body: `${i === 1 ? 'Near' : 'In'} Liberty Village: ${unit.subject} on ${unit.date}.` })) };
+  const deps = {
+    signals: [], reasoned: { forms: [] },
+    verify: async () => ({ items: units, excluded: [], verifyDigest: 'a'.repeat(64) }),
+    plan: () => ({ decision: 'publish', countedItems: units, stillInEffect: [], units: 3, coreUnits: 2, coreAnchorUnits: 1, reasons: [] }),
+    write: async () => ({ draft, findings: [], refused: [], units }),
+  };
+  for (const [name, businesses] of [['missing', null], ['malformed', '{bad'], ['non-array', '{"records":[]}']]) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rv2-biz-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    fs.mkdirSync(path.join(root, 'data'));
+    fs.mkdirSync(path.join(root, 'public/images/og'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'public/images/og/og-home.jpg'), 'fixture image');
+    fs.writeFileSync(path.join(root, 'data/posts.json'), '[]\n');
+    if (businesses !== null) fs.writeFileSync(path.join(root, 'data/businesses.json'), businesses);
+    const { result } = await runRoundupV2({ run: root, out: path.join(root, 'out'), root,
+      now: '2026-09-29T15:00:00Z', dryRun: true }, deps);
+    assert.equal(result.decision, 'hold', name);
+    assert.ok(result.census.reasons.includes('writer-failed'), name);
+    assert.match(result.census.writerError || '', /roundup_businesses_unavailable/, name);
+    assert.equal(result.published, false, name);
+  }
 });
 
 test('CLI requires one phase and rejects runner-style dry-run during collection', () => {

@@ -12,24 +12,36 @@
 // unchanged and still runs separately; this module only ADDS the roundup ban.
 const STREET_TYPES = 'Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Drive|Dr|Crescent|Cres|Terrace|Trail|Parkway|Pkwy|Court|Ct|Place|Pl|Lane|Ln|Way';
 const DIRECTION = '(?:West|East|North|South|W|E|N|S)';
+const MONTHS = 'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
+const CONNECTOR = 'at|on|in|near|the|and|to|from|until|of|for|by';
 // Numbered civic address, case-insensitive so lower-case evasion still holds.
-// Conservative by design: ambiguous matches HOLD rather than pass.
+// Bounded precision: street type needs a word boundary (no streetcar/Stadium/
+// Stage/Drake/players prefix match); intermediate tokens cannot be connector
+// words; a month name before the number or a 19xx/20xx year number never matches.
 const CIVIC_ADDRESS = new RegExp(
-  String.raw`\b\d{1,5}[A-Za-z]?\s+(?:[\w.'’~-]+\s+){0,3}(?:${STREET_TYPES})\.?(?:\s+${DIRECTION}\b\.?)?(?:\s+(?:Unit|Suite|Ste|#)\s*[\w-]+)?`,
+  String.raw`(?<!\b(?:${MONTHS})\.?\s)\b(?!(?:19|20)\d{2}\b)\d{1,5}[A-Za-z]?\s+(?:(?!(?:${CONNECTOR})\b)[\w.'’~-]+\s+){0,3}(?:${STREET_TYPES})\b\.?(?:\s+${DIRECTION}\b\.?)?(?:\s+(?:Unit|Suite|Ste|#)\s*[\w-]+)?`,
   'gi',
 );
+const SPELLED_NUM = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand';
 const PRICE_PATTERNS = Object.freeze([
   /\$\s?\d[\d,]*(?:\.\d{1,2})?/g,
   /[€£¥]\s?\d[\d,]*(?:\.\d{1,2})?/g,
   /\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollars?|cents?|bucks?)\b/gi,
   /\b(?:CAD|USD)\s?\$?\s?\d[\d,]*(?:\.\d{1,2})?\b/gi,
   /\b\d[\d,]*(?:\.\d{1,2})?\s?(?:CAD|USD)\b/gi,
+  /\b\d[\d,]*(?:\.\d{1,2})?\s?(?:canadian|us|american)\s+dollars?\b/gi,
+  new RegExp(String.raw`\b(?:(?:${SPELLED_NUM})[\s-]*)+(?:(?:canadian|us|american)\s+)?(?:dollars?|bucks?|cents?|loonies|toonies)\b`, 'gi'),
+  /\b\d[\d,.]*\s?¢/g,
+  /¢\s?\d[\d,.]*/g,
+  /\b\d[\d,.]*\s?\$/g,
 ]);
 // A promised free admission is a $0 price claim.
 const FREE_ADMISSION = Object.freeze([
   /\bfree\s+(?:admission|entry|cover|tickets?)\b/gi,
   /\b(?:admission|entry|cover)(?:\s+is)?\s+free\b/gi,
   /\bno\s+cover(?:\s+charge)?\b/gi,
+  /\b(?:tickets?|entry|admission)\s+(?:are|is)\s+free\b/gi,
+  /\bfree\s+to\s+(?:attend|enter)\b/gi,
 ]);
 
 // Numeric/named HTML entities that render as visible characters. Decoded
@@ -61,7 +73,7 @@ const ENTITY_PATTERN = /&(?:#\d+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
 function foldVisible(text) {
   return decodeEntities(String(text ?? '').normalize('NFKC'))
     .replace(/\\/g, '')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\p{Default_Ignorable_Code_Point}/gu, '')
     .replace(/[*_~`|]/g, '')
     .replace(/\s+/g, ' ');
 }

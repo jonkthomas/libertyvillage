@@ -4,14 +4,16 @@ import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './
 import { roundupCoverageFromPack } from './roundup-verify.mjs';
 import { roundupSlug } from './roundup.mjs';
 import { checkRoundupDraftCopy, checkRoundupVisibleCopy, draftBannedSamples, findRoundupBannedCopy } from './roundup-claims.mjs';
+import { lintPost } from '../blog-lint.mjs';
 import { registrableDomain } from './sources.mjs';
 
 const unsafeImpact = /\b(?:crowd(?:s|ing)?|congestion|detours?|traffic disruption|parking restrictions?|road closures?)\b/i;
 const unsafeCopy = /\b(?:crime|murder|stabbing|robbery|election|candidate|vote for)\b/i;
-// Fail-closed copy guard (Fable L1): bidi overrides/isolates, zero-width and
-// C0/C1 controls must never reach public Markdown. Supported whitespace
-// (space, tab, newline) and ordinary glyphs are untouched; rejection, not mutation.
-const unsafeControls = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF\uFFF9-\uFFFB\uFFFE\uFFFF\u061C]/;
+// Fail-closed copy guard (Fable L1): bidi overrides/isolates, default-ignorable
+// invisibles and C0/C1 controls must never reach public Markdown. Supported
+// whitespace (space, tab, newline) and ordinary glyphs are untouched; rejection,
+// not mutation.
+const unsafeControls = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFE00-\uFE0F\uFEFF\uFFF9-\uFFFB\uFFFE\uFFFF\u061C]/;
 const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max;
 const compact = (unit) => ({ unitId: unit.identityKey, subject: unit.subject, what: unit.what,
   verdict: unit.verdict, when: unit.when, date: unit.date, itemType: unit.itemType,
@@ -80,7 +82,7 @@ export const WRITER_MAX_CALLS = 6;
 
 /** Model calls have no tools; only verified items enter the copywriter. Two separate review roles run before assembly. */
 export async function writeRoundup(pack, { env = process.env, resolved, reviewer, callModel = generateDraftWithModel,
-  deadline = Date.now() + 600_000 } = {}) {
+  deadline = Date.now() + 600_000, businesses, lintPostFn = lintPost } = {}) {
   const units = pack.units || [];
   if (!units.length) throw new Error('roundup_no_units');
   const author = resolved || await resolveModelProvider(env);
@@ -101,23 +103,52 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     return countingCall({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
   };
   const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase. Omit exact civic street addresses and monetary prices entirely (including free-admission promises): never state, invent or substitute them.';
-  // Decision B: one shared targeted omission retry for banned civic/price copy,
-  // inside the six-call ceiling. A second failure — or an exhausted budget with
-  // no call left — is a writer-failed HOLD, never a silent pass.
+  // Decision B: one shared targeted omission retry for banned civic/price copy
+  // plus the inherited lint on the draft (§9.2), inside the six-call ceiling.
+  // A second failure — or an exhausted budget with no call left — is a
+  // writer-failed HOLD, never a silent pass. Lint diagnostics carry rule +
+  // field + count only, never generated claim text.
   let omissionRetryUsed = false;
+  const draftLintCodes = (current) => {
+    if (businesses === undefined) return [];
+    if (!Array.isArray(businesses)) return ['lint-unavailable'];
+    const bodies = (current?.units || []).map((entry) => `${entry?.heading || ''}\n\n${entry?.body || ''}`);
+    const shaped = { title: 'Liberty Village + Exhibition Place this week: draft',
+      description: current?.intro || '', answerBlock: current?.intro || '',
+      content: [current?.intro || '', ...bodies].join('\n\n') };
+    let lint;
+    try { lint = lintPostFn(shaped, { businesses, now: new Date() }); }
+    catch { return ['lint-unavailable']; }
+    if (lint?.ok) return [];
+    const groups = new Map();
+    for (const finding of (lint?.findings || []).slice(0, 12)) {
+      const field = String(finding.detail || '').split(':')[0].trim() || 'post';
+      const key = `lint ${finding.rule} in ${field}`;
+      groups.set(key, (groups.get(key) || 0) + 1);
+    }
+    return [...groups].slice(0, 3).map(([key, count]) => `${key} (${count})`);
+  };
   const ensureCopyClean = async (current, shapeUnits) => {
     let banned = checkRoundupDraftCopy(current);
-    if (!banned.length) return current;
-    if (omissionRetryUsed || modelCalls >= WRITER_MAX_CALLS) throw new Error(`roundup_writer_failed:${banned.join(',')}`);
+    let lintCodes = draftLintCodes(current);
+    if (!banned.length && !lintCodes.length) return current;
+    const codes = [...banned, ...lintCodes];
+    if (omissionRetryUsed || modelCalls >= WRITER_MAX_CALLS) throw new Error(`roundup_writer_failed:${codes.join(',')}`);
     omissionRetryUsed = true;
     const flagged = draftBannedSamples(current).join(' | ');
+    const lintNote = lintCodes.length
+      ? ` Also resolve inherited lint (${lintCodes.join('; ')}): remove or rewrite the flagged business-attributed specifics using only the supplied verified evidence.`
+      : '';
+    // F4 privacy: the retry sees only the surviving units, never refused units.
+    const retryUnits = shapeUnits.map(compact);
     const revised = await jsonCall(cappedCall, author,
-      `Omit every civic street address and monetary price (including free-admission promises): delete those specifics, do not replace them with other facts. Flagged: ${flagged}. ${instructions}`,
-      { draft: current, units: material }, 9000);
+      `Omit every civic street address and monetary price (including free-admission promises): delete those specifics, do not replace them with other facts. Flagged: ${flagged}.${lintNote} ${instructions}`,
+      { draft: current, units: retryUnits }, 9000);
     const shape = checkRoundupDraft(revised, shapeUnits);
     if (shape.length) throw new Error(`roundup_writer_failed:${shape.join(',')}`);
     banned = checkRoundupDraftCopy(revised);
-    if (banned.length) throw new Error(`roundup_writer_failed:${banned.join(',')}`);
+    lintCodes = draftLintCodes(revised);
+    if (banned.length || lintCodes.length) throw new Error(`roundup_writer_failed:${[...banned, ...lintCodes].join(',')}`);
     return revised;
   };
   let draft = await jsonCall(cappedCall, author, instructions, { units: material }, 9000);
@@ -212,14 +243,26 @@ export function assembleRoundupPost({ pack, draft, image = '/images/og/og-home.j
     `- ${escapeMarkdown(u.subject)} (${u.date || u.when?.date}): ${(u.citations || []).map(citation).join('; ')}`).join('\n'));
   const date = new Date(pack.now).toISOString().slice(0, 10);
   const description = `Liberty Village + Exhibition Place this week. ${draft.intro}`;
+  // Optional takeaways reuse the already fact-reviewed same-unit clean heading
+  // (never the raw price-bearing subject); pack identity, subject/evidence,
+  // dates/citations and section headers are unchanged. No safe heading => HOLD.
+  const takeaways = units.map((unit) => {
+    const entry = draft.units.find((u) => u.unitId === unit.identityKey);
+    const heading = entry?.heading;
+    if (typeof heading !== 'string' || !heading.trim() || findRoundupBannedCopy(heading).length) {
+      throw new Error('roundup_banned_copy:takeaway has no address-free reviewed heading render');
+    }
+    return heading;
+  });
   const post = { slug: roundupSlug(isoWeek), title, description, content: `${draft.intro}\n\n${sections.join('\n\n')}`,
     publishedAt: date, updatedAt: date, category: 'news', tags: ['liberty village', 'exhibition place', 'news'],
-    answerBlock: draft.intro, faqs: [], keyTakeaways: units.map((u) => u.subject || u.identityKey),
+    answerBlock: draft.intro, faqs: [], keyTakeaways: takeaways,
     relatedServices: [], relatedTopics: [], relatedPosts: [], author: 'LibertyVillage.co', image,
     roundupCoverage: roundupCoverageFromPack(pack) };
-  // Decision B: derived labels and takeaways come from verified names, but the
-  // final assembly still holds when any of them carries banned specifics —
-  // required identity is never silently stripped, so there is no safe render.
+  // Decision B: the final assembly still holds when any visible field carries
+  // banned specifics — required identity is never silently stripped. Citation
+  // display may fall back to the cited host (URL + record ID byte-identical);
+  // takeaways reuse the reviewed clean heading above, else HOLD.
   const banned = checkRoundupVisibleCopy(post);
   if (banned.length) throw new Error(`roundup_banned_copy:${banned.slice(0, 3).join('; ')}`);
   return post;
