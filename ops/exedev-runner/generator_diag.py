@@ -2,6 +2,10 @@
 
 Only root may create/read these files. Generator stdout is consumed in memory, but
 candidate text, tool output, environment values and raw errors are never persisted.
+
+relay() is the helper's only stdout: one fixed-vocabulary line derived from exactly
+one EOF-finalized [outcome] that directly follows the single Success: line. Anything
+doubtful (duplicate, early/late, malformed, unknown enum, contradiction) is 'absent'.
 """
 import json
 import os
@@ -43,6 +47,12 @@ class GeneratorDiagnostic:
         self.dropping_line = False
         self.tool_counts = {}
         self.reason = None
+        self.finalized = False
+        self.relay_invalid = False
+        self.relay_outcome = None
+        self.relay_outcomes = 0
+        self.relay_successes = 0
+        self.relay_after_success = False
 
     def event(self, event, **fields):
         if self.truncated or self.failed:
@@ -62,8 +72,42 @@ class GeneratorDiagnostic:
             # Logging is best-effort: it must never bypass transient-unit cleanup.
             self.failed = True
 
+    def _relay_track(self, text):
+        after_success = self.relay_after_success
+        self.relay_after_success = False
+        if text.startswith('Fatal error:'):
+            self.relay_invalid = True
+        elif text.startswith('Success:'):
+            self.relay_successes += 1
+            self.relay_invalid |= self.relay_successes > 1
+            self.relay_after_success = text in ('Success: true', 'Success: false')
+        elif text.startswith('[outcome]'):
+            self.relay_outcomes += 1
+            parsed = _strict_outcome(text)
+            if self.relay_outcomes > 1 or not after_success or parsed is None:
+                self.relay_invalid = True
+            else:
+                self.relay_outcome = parsed
+
+    def _relay_skip(self, data, continuation):
+        # An oversized line is dropped unread; if it starts an outcome, fail closed.
+        self.relay_after_success = False
+        if not continuation and data.lstrip().startswith(b'[outcome]'):
+            self.relay_invalid = True
+
+    def relay(self, exit_code):
+        """Single bounded stdout line; the unit's exit code must agree with the outcome."""
+        outcome = self.relay_outcome
+        if not self.finalized or self.relay_invalid or self.relay_outcomes != 1 or outcome is None:
+            outcome = None
+        elif outcome[0] != (exit_code == 0):
+            outcome = None
+        posted, reason = outcome or (False, 'absent')
+        return (json.dumps({'postWritten': posted, 'stopReason': reason}, separators=(',', ':')) + '\n').encode()
+
     def line(self, raw):
         text = raw.decode('utf-8', 'replace').strip()
+        self._relay_track(text)
         if text.startswith('[agent]'):
             self.seen_agent = True
             return  # Neither candidate text nor assistant reasoning is persisted.
@@ -118,19 +162,27 @@ class GeneratorDiagnostic:
                 pass
 
     def feed_lines(self, chunk):
+        if self.finalized:
+            self.relay_invalid = True  # output after EOF finalization is never trusted
+            return
         parts = (self.pending + chunk).split(b'\n')
         self.pending = parts.pop()
         for part in parts:
             if not self.dropping_line and len(part) <= MAX_LINE_BYTES:
                 self.line(part)
+            else:
+                self._relay_skip(part, self.dropping_line)
             self.dropping_line = False
         if len(self.pending) > MAX_LINE_BYTES:
+            self._relay_skip(self.pending, self.dropping_line)
             self.pending = b''
             self.dropping_line = True
 
     def close(self):
         if self.pending and not self.dropping_line:
             self.line(self.pending)
+        self.pending = b''
+        self.finalized = True
         self.event('tools', counts=self.tool_counts)
         if self.reason:
             self.event('stop-reason', reason=self.reason)
@@ -138,6 +190,31 @@ class GeneratorDiagnostic:
             self.file.close()
         except OSError:
             self.failed = True
+
+
+def _reject_duplicate_keys(pairs):
+    keys = [key for key, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise ValueError('duplicate key')
+    return dict(pairs)
+
+
+def _strict_outcome(text):
+    """(postWritten, stopReason) for the agent's exact two-key outcome, else None."""
+    if not text.startswith('[outcome] '):
+        return None
+    try:
+        value = json.loads(text[len('[outcome] '):], object_pairs_hook=_reject_duplicate_keys)
+    except (ValueError, RecursionError):
+        return None
+    if type(value) is not dict or set(value) != {'postWritten', 'stopReason'}:
+        return None
+    posted, reason = value['postWritten'], value['stopReason']
+    if type(posted) is not bool or type(reason) is not str or reason not in STOP_REASONS:
+        return None
+    if posted != (reason == 'post-written'):
+        return None
+    return posted, reason
 
 
 def capture_generator(cmd, diagnostic, timeout):

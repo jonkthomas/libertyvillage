@@ -62,6 +62,10 @@ test('generator path persists only bounded root diagnostics and never raw model 
   assert.match(generatorBlock, /GeneratorDiagnostic\(f'\/var\/log\/lv-generator\/generator-/);
   assert.match(generatorBlock, /capture_generator\(cmd, diag, CLIENT_TIMEOUT\)/);
   assert.doesNotMatch(generatorBlock, /print\(env|print\(secrets|os\.environ/);
+  // The only stdout write is the validated relay, after cleanup in the outer finally.
+  assert.equal((generatorBlock.match(/os\.write\(|sys\.stdout/g) || []).length, 1);
+  assert.match(generatorBlock, /envfile\.unlink\(missing_ok=True\)\s+if relay is not None:\s+os\.write\(1, relay\)\s*$/);
+  assert.match(generatorBlock, /if result in \(0, 1\):\s+relay = diag\.relay\(result\)/);
   const sanitizer = fs.readFileSync(path.join(owned, 'generator_diag.py'), 'utf8');
   assert.match(sanitizer, /MAX_BYTES = 64 \* 1024/);
   assert.match(sanitizer, /O_NOFOLLOW, 0o600/);
