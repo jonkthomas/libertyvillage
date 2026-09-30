@@ -263,12 +263,10 @@ function discoverEvidence(evidence, category, target, log, allowSource = true) {
     found = find();
   }
   if (found.submissionId == null || found.kind !== 'business') throw new Error('discovery submission missing');
-  try { gate(found.submissionId, target, `runner:weekly-blog-evidence#${evidence.original_key.slice(-16)}`, log); }
-  catch (error) {
-    if (error.message === 'publish or propagation pending') return { state: 'pending' };
-    if (error.message === 'gate blocked or rejected') return { state: 'empty' };
-    throw error;
-  }
+  const gateResult = gateEvidenceSubmission(found.submissionId, target,
+    `runner:weekly-blog-evidence#${evidence.original_key.slice(-16)}`,
+    (args, allowExit) => cli(args, repo, allowExit), (event, details) => logLine(log, event, details));
+  if (gateResult.state !== 'smoked') return gateResult;
   const verifiedSlugs = liveBusinessSlugs(found.submissionId, target);
   return verifiedSlugs.length ? { state: 'smoked', submissionId: found.submissionId, verifiedSlugs } : { state: 'empty' };
 }
@@ -459,6 +457,17 @@ function gateState(deps, target, id, actor) {
   if (submission?.state === 'published') return submission.smoke_passed_at ? { state: 'smoked', smokedAt: submission.smoke_passed_at } : { state: 'published' };
   if (['rejected', 'blocked', 'error'].includes(submission?.state)) return { state: submission.state };
   if (result.code === 2) return { state: 'rejected' };
+  throw new Error('submission lacks smoke success');
+}
+
+// Business discovery shares the cadence gate's bounded terminal-error receipt.
+// A durable, notified `error` closes this evidence attempt so another topic can
+// proceed; an operational exit 1 remains an error, never fabricated evidence.
+export function gateEvidenceSubmission(id, target, actor, cliCall, log = () => {}) {
+  const result = gateState({ cli: cliCall, log }, target, id, actor);
+  if (result.state === 'smoked') return { state: 'smoked' };
+  if (result.state === 'published') return { state: 'pending' };
+  if (['rejected', 'blocked', 'error'].includes(result.state)) return { state: 'empty' };
   throw new Error('submission lacks smoke success');
 }
 

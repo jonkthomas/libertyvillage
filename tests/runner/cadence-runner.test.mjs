@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CADENCE, claimWeeklyInventoryDiscovery, dayPolicy, reservePack, runWeeklyBlog, parseGeneratorDiagnostic, parseDiscoveryOutcome, readGeneratorRelay, runScopedEvidenceSource, command } from '../../ops/exedev-runner/runner.mjs';
+import { CADENCE, claimWeeklyInventoryDiscovery, dayPolicy, reservePack, runWeeklyBlog, parseGeneratorDiagnostic, parseDiscoveryOutcome, readGeneratorRelay, runScopedEvidenceSource, gateEvidenceSubmission, command } from '../../ops/exedev-runner/runner.mjs';
 import { BUSINESSES, FRI, SUN, TOPICS, WED, attemptsOf, createWorld, modules, submitCalls, topic } from './fake-cadence.mjs';
 
 const run = (world, request = {}) => runWeeklyBlog({ target: 'staging', slot: '202609301100-testslot', request, deps: world.deps });
@@ -33,6 +33,34 @@ test('only one bounded helper diagnostic can authorize a refusal', () => {
     assert.equal(options.env.CONTENT_DATABASE_URL, undefined);
     return command(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({outcome:"maps-unavailable",category:"bars",mapsRequests:1})+"\\n");process.exitCode=3'], { allowExit: options.allowExit });
   }), /Maps discovery unavailable/);
+});
+
+test('business discovery terminal error closes evidence, but operational exit 1 stays pending', () => {
+  const id = 42;
+  const actor = 'runner:weekly-blog-evidence#test';
+  const calls = [];
+  const terminal = (args, allowExit) => {
+    calls.push(args[0]);
+    if (args[0] === 'gate') {
+      assert.deepEqual(allowExit, [1, 2, 3]);
+      return { code: 1, stdout: JSON.stringify({ submissionId: id, state: 'error', decision: 'error', notified: true }) };
+    }
+    if (args[0] === 'show') return { code: 0, stdout: JSON.stringify({ submission: { state: 'error' } }) };
+    throw new Error(`unexpected ${args[0]}`);
+  };
+  assert.deepEqual(gateEvidenceSubmission(id, 'staging', actor, terminal), { state: 'empty' });
+  assert.deepEqual(calls, ['gate', 'show'], 'only a durable, notified terminal receipt may end the entitlement');
+  for (const invalid of [
+    { submissionId: id, state: 'error', decision: 'error', notified: false },
+    { submissionId: id + 1, state: 'error', decision: 'error', notified: true },
+    { submissionId: id, state: 'error', decision: 'error', notified: true, error: 'transport failure' },
+  ]) {
+    const operational = () => ({ code: 1, stdout: JSON.stringify(invalid) });
+    assert.throws(() => gateEvidenceSubmission(id, 'staging', actor, operational), /content gate failed/);
+  }
+  assert.deepEqual(gateEvidenceSubmission(id, 'staging', actor, (args) => args[0] === 'gate'
+    ? { code: 2, stdout: '{}' }
+    : { code: 0, stdout: JSON.stringify({ submission: { state: 'compensated' } }) }), { state: 'empty' });
 });
 
 const bar = (slug) => ({ slug, name: slug, category: 'bars', description: 'A neighbourhood bar with a daily happy hour.', address: '10 Liberty Street, Toronto', hours: 'Mon-Sun 9am-9pm', phone: '416-555-0000', website: `https://${slug}.example` });
