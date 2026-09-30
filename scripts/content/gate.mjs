@@ -474,7 +474,8 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
       const references = grounded ? withPackReferences(agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []), fixEvidence, live.live.businesses) : [];
       const inventory = grounded ? await inventoryFor(live, candidates) : null;
       const lintFindings = KIND_RULES[kind].lint
-        ? candidates.flatMap((item) => lintPost(item.payload, { businesses: live.live.businesses ?? [], now: context.now ? new Date(context.now) : undefined }).findings)
+        ? candidates.flatMap((item) => lintPost(item.payload, { businesses: live.live.businesses ?? [], now: context.now ? new Date(context.now) : undefined,
+          roundup: item.dataset === 'posts' && Object.hasOwn(item.payload ?? {}, 'roundupCoverage') }).findings)
         : [];
       let repaired;
       try {

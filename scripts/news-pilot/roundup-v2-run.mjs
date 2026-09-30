@@ -124,13 +124,14 @@ export async function runRoundupV2(args, deps = {}) {
             now, units: pack.units, stillInEffect: pack.stillInEffect },
           news: { imageExists: (image) => fs.existsSync(path.join(root, 'public', image.slice(1))) } });
         if (errors.length) throw new Error(`roundup_post_policy:${errors.join('; ')}`);
-        // Unchanged inherited lint runs on the final assembly too; any failure
-        // is a writer-failed HOLD here (the writer's single omission retry is
-        // spent inside writeRoundup, and there is no second model budget).
-        // The retained message carries rule + field + count only, never the
-        // generated claim text.
+        // Inherited lint (minus the directory address/price comparisons, which
+        // are not event-fact grounding for a roundup) runs on the final
+        // assembly too; any failure is a writer-failed HOLD here (the writer's
+        // single lint retry is spent inside writeRoundup, and there is no
+        // second model budget). The retained message carries rule + field +
+        // count only, never the generated claim text.
         const { lintPost } = await import('../blog-lint.mjs');
-        const lint = lintPost(post, { businesses: readBusinesses(root), now: new Date(now) });
+        const lint = lintPost(post, { businesses: readBusinesses(root), now: new Date(now), roundup: true });
         if (!lint.ok) {
           const groups = new Map();
           for (const finding of lint.findings.slice(0, 12)) {
