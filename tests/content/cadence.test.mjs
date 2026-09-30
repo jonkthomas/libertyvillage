@@ -29,6 +29,56 @@ const aliasManifest = (entries = {}) => ({ schema: 1, snapshot_id: 'a'.repeat(40
 const fetched = (manifest, status = 200) => async () => new Response(JSON.stringify(manifest), { status,
   headers: { 'content-type': 'application/json' } });
 
+test('evidence entitlement is fenced under contention and links one immutable retry in a distinct unused slot', async () => {
+  const { db, close } = await testDb();
+  try {
+    const first = await cadence.reserveSlot(db, { ...ref(1), owner: 'first' });
+    const original = await cadence.recordAttempt(db, { slotRef: ref(1), token: first.token, intentFingerprint: 'bars', topicKey: 'bars-title', sourcePackDigest: 'old-pack' });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: original.idempotencyKey, token: first.token, outcome: 'failed-before-submit' });
+    await cadence.releaseSlot(db, ref(1), first.token);
+    const claims = await Promise.all(Array.from({ length: 4 }, () => cadence.claimEvidence(db, {
+      target: 'test', weekStart: week, intentFingerprint: 'bars', originalKey: original.idempotencyKey, originalTitle: 'Bars', category: 'bars',
+    })));
+    assert.equal(claims.filter((item) => item.claimed).length, 1);
+    const entitlement = claims[0].evidence;
+    assert.equal((await cadence.listEvidence(db, { target: 'test', weekStart: week })).length, 1);
+    await assert.rejects(cadence.setEvidenceState(db, { target: 'test', weekStart: week, intentFingerprint: 'bars', token: 'wrong', state: 'verified' }));
+    await cadence.setEvidenceState(db, { target: 'test', weekStart: week, intentFingerprint: 'bars', token: entitlement.claim_token, state: 'verified' });
+    const second = await cadence.reserveSlot(db, { ...ref(2), owner: 'retry' });
+    const retry = await cadence.recordEvidenceRetry(db, { slotRef: ref(2), token: second.token, intentFingerprint: 'bars', topicKey: 'bars-title', sourcePackDigest: 'new-pack', evidenceToken: entitlement.claim_token });
+    assert.notEqual(retry.idempotencyKey, original.idempotencyKey);
+    assert.equal((await cadence.getEvidence(db, { target: 'test', weekStart: week, intentFingerprint: 'bars' })).retry_key, retry.idempotencyKey);
+    await assert.rejects(cadence.recordEvidenceRetry(db, { slotRef: ref(2), token: second.token, intentFingerprint: 'bars', topicKey: 'bars-title', sourcePackDigest: 'third-pack', evidenceToken: entitlement.claim_token }));
+    await assert.rejects(db.query(`update content.cadence_evidence_retries set retry_digest='tampered' where target='test'`), /cadence-immutable/);
+    await cadence.releaseSlot(db, ref(2), second.token);
+  } finally { await close(); }
+});
+
+test('business evidence requires own passed item at the current alias revision', async () => {
+  const { db, close } = await testDb();
+  try {
+    const id = Number((await db.query(`insert into content.submissions(kind,target,actor,idempotency_key,request_sha256,state,smoke_passed_at)
+      values('business','test','fixture','evidence-business','sha','published',now()) returning id`)).rows[0].id);
+    await db.query("insert into content.entries(dataset,key,position,head_rev) values('businesses','new-bar',1,1)");
+    await db.query(`insert into content.revisions(dataset,key,rev,payload,payload_sha256,source,actor,submission_id)
+      values('businesses','new-bar',1,'{}'::json,$1,'writer','fixture',$2)`, ['a'.repeat(64), id]);
+    await db.query("update content.entries set live_rev=1 where dataset='businesses' and key='new-bar'");
+    await db.query(`insert into content.submission_items(submission_id,dataset,key,op,published_rev,smoke)
+      values($1,'businesses','new-bar','insert',1,'passed')`, [id]);
+    await db.query(`insert into content.gate_rounds(submission_id,round,candidate_digest,content_sha,overall,passed,blocking_count,decision)
+      values($1,1,'digest',$2,8.5,true,0,'go')`, [id, 'a'.repeat(40)]);
+    assert.deepEqual((await cadence.currentLiveBusinessItems(db, { target: 'test', submissionId: id,
+      observe: async () => ({ rev: 1, snapshotId: 'live' }) })).verifiedSlugs, ['new-bar']);
+    assert.deepEqual((await cadence.currentLiveBusinessItems(db, { target: 'test', submissionId: id,
+      observe: async () => ({ rev: 2, snapshotId: 'live' }) })).verifiedSlugs, []);
+    await db.query(`insert into content.revisions(dataset,key,rev,payload,payload_sha256,source,actor,submission_id)
+      values('businesses','new-bar',2,'{}'::json,$1,'writer','fixture',$2)`, ['b'.repeat(64), id]);
+    await db.query("update content.entries set head_rev=2,live_rev=2 where dataset='businesses' and key='new-bar'");
+    assert.deepEqual((await cadence.currentLiveBusinessItems(db, { target: 'test', submissionId: id,
+      observe: async () => ({ rev: 1, snapshotId: 'live' }) })).verifiedSlugs, []);
+  } finally { await close(); }
+});
+
 test('alias observer fetches once, matches revision and fails closed on invalid or unavailable manifest', async () => {
   const slug = 'first-guide';
   let calls = 0;

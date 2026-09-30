@@ -12,7 +12,7 @@ import * as cadence from './cadence.mjs';
 import { roundupPublicationMode } from './roundup-mode.mjs';
 import fs from 'node:fs';
 const migrationsDir = path.dirname(fileURLToPath(new URL('./migrations/0001_content.sql',import.meta.url)));
-const CADENCE_SCHEMA_GUIDANCE = 'cadence schema unavailable; apply content migrations 0002 through 0004 before installing the new runner';
+const CADENCE_SCHEMA_GUIDANCE = 'cadence schema unavailable; apply content migrations 0002 through 0005 before installing the new runner';
 export class CadenceSchemaError extends Error {
   constructor() { super(CADENCE_SCHEMA_GUIDANCE); this.code = 'CadenceSchemaError'; }
 }
@@ -21,10 +21,10 @@ export class CadenceSchemaError extends Error {
 export async function preflightCadenceSchema(db) {
   const ledger = (await db.query("select to_regclass('content.schema_migrations') as name")).rows[0].name;
   if (!ledger) throw new CadenceSchemaError();
-  const versions = new Set((await db.query("select version from content.schema_migrations where version in ('0002','0003','0004')")).rows.map((row) => row.version));
-  if (!['0002', '0003', '0004'].every((version) => versions.has(version))) throw new CadenceSchemaError();
-  const tables = (await db.query("select to_regclass('content.cadence_slots') as slots, to_regclass('content.cadence_attempts') as attempts, to_regclass('content.cadence_alerts') as alerts")).rows[0];
-  if (!tables.slots || !tables.attempts || !tables.alerts) throw new CadenceSchemaError();
+  const versions = new Set((await db.query("select version from content.schema_migrations where version in ('0002','0003','0004','0005')")).rows.map((row) => row.version));
+  if (!['0002', '0003', '0004', '0005'].every((version) => versions.has(version))) throw new CadenceSchemaError();
+  const tables = (await db.query("select to_regclass('content.cadence_slots') as slots, to_regclass('content.cadence_attempts') as attempts, to_regclass('content.cadence_alerts') as alerts, to_regclass('content.cadence_evidence_retries') as evidence")).rows[0];
+  if (!tables.slots || !tables.attempts || !tables.alerts || !tables.evidence) throw new CadenceSchemaError();
 }
 export function safeCliError(error) {
   const code = error?.code ?? 'Error';
@@ -108,7 +108,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
     return { result:await restoreSnapshot({from:required(opts.from,'--from'),root:required(opts.root,'--root')}),exitCode:0 };
   }
   const mutators = new Set(['migrate','seed','submit','gate','deploy','unpublish','rollback','gc-assets','reset']);
-  const cadenceMutators = new Set(['reserve','renew','release','attempt','attach','outcome','deadline','deliver-alerts']);
+  const cadenceMutators = new Set(['reserve','renew','release','attempt','attach','outcome','deadline','deliver-alerts','evidence-claim','evidence-state','evidence-retry']);
   if (command === 'cadence' && cadenceMutators.has(argv[1])) mutators.add('cadence');
   const expectDb = opts.expectDb ?? process.env.CONTENT_DB_NAME;
   const url = process.env[command === 'migrate' || command === 'reset' ? 'CONTENT_DATABASE_URL_UNPOOLED' : 'CONTENT_DATABASE_URL'];
@@ -141,9 +141,17 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
           case 'count': result = await cadence.countCurrentWeek(db, { target, weekStart, observe: await aliasObserver() }); break;
           // Read-only, target-scoped, all-time smoked/consumed intent fingerprints.
           case 'consumed': result = await cadence.consumedFingerprints(db, { target }); break;
-          case 'unresolved': result = await cadence.unresolvedAttempts(db, { target, lane: opts.lane ?? 'content' }); break;
+          case 'unresolved': result = await cadence.unresolvedAttempts(db, { target, lane: opts.lane ?? 'content', limit: opts.limit ? Number(opts.limit) : undefined }); break;
+          case 'evidence-claim': result = await cadence.claimEvidence(db, { target, weekStart, intentFingerprint: required(opts.intentFingerprint, '--intent-fingerprint'), originalKey: required(opts.originalKey, '--original-key'), originalTitle: required(opts.originalTitle, '--original-title'), category: opts.category }); break;
+          case 'evidence-get': result = await cadence.getEvidence(db, { target, weekStart, intentFingerprint: required(opts.intentFingerprint, '--intent-fingerprint') }); break;
+          case 'evidence-list': result = await cadence.listEvidence(db, { target, weekStart }); break;
+          case 'evidence-unresolved': result = await cadence.unresolvedEvidence(db, { target }); break;
+          case 'evidence-state': result = await cadence.setEvidenceState(db, { target, weekStart, intentFingerprint: required(opts.intentFingerprint, '--intent-fingerprint'), token: required(opts.token, '--token'), state: required(opts.state, '--state') }); break;
+          case 'evidence-retry': result = await cadence.recordEvidenceRetry(db, { slotRef, token: required(opts.token, '--token'), intentFingerprint: required(opts.intentFingerprint, '--intent-fingerprint'), topicKey: required(opts.topicKey, '--topic-key'), sourcePackDigest: required(opts.sourcePackDigest, '--source-pack-digest'), evidenceToken: required(opts.evidenceToken, '--evidence-token') }); break;
           // Read-only: is this submission's own posts insert current-live at the alias?
           case 'current-live': result = await cadence.currentLiveSubmission(db, { target, submissionId: Number(required(opts.submissionId, '--submission-id')), observe: await aliasObserver() }); break;
+          case 'evidence-live': result = await cadence.currentLiveBusinessItems(db, { target, submissionId: Number(required(opts.submissionId, '--submission-id')),
+            observe: await cadence.createAliasObserver({ siteUrl: process.env.CONTENT_SITE_URL, bypass: process.env.CONTENT_SITE_BYPASS, fetchImpl: delegates.fetchImpl, dataset: 'businesses' }) }); break;
           case 'deadline': result = await cadence.evaluateDeadline(db, { target, weekStart, now: opts.now ?? new Date(), observe: await aliasObserver() }); break;
           case 'deliver-alerts': {
             const webhook = required(process.env.SLACK_WEBHOOK_URL, 'SLACK_WEBHOOK_URL');

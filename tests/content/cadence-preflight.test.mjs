@@ -32,7 +32,7 @@ test('cadence preflight refuses a disposable 0001-only database before mutation'
     const child = spawnSync(process.execPath, ['scripts/content/cli.mjs', 'cadence', 'reserve', '--lane', 'content', '--slot-number', '1', '--owner', 'fixture', '--expect-db', name],
       { cwd: fileURLToPath(new URL('../../', import.meta.url)), env: { ...process.env, CONTENT_DATABASE_URL: url.href, CONTENT_SITE_URL: 'https://example.test' }, encoding: 'utf8' });
     assert.equal(child.status, 1);
-    assert.deepEqual(JSON.parse(child.stdout), { error: 'CadenceSchemaError', message: 'cadence schema unavailable; apply content migrations 0002 through 0004 before installing the new runner' });
+    assert.deepEqual(JSON.parse(child.stdout), { error: 'CadenceSchemaError', message: 'cadence schema unavailable; apply content migrations 0002 through 0005 before installing the new runner' });
     assert.doesNotMatch(child.stdout + child.stderr, /select |relation |postgresql:\/\//i);
     assert.equal((await client.query('select count(*)::int as n from content.submissions')).rows[0].n, 0);
     assert.equal((await client.query("select to_regclass('content.cadence_slots') as table_name")).rows[0].table_name, null);
@@ -66,6 +66,11 @@ test('complete schema passes; missing cadence table fails despite a complete led
     await db.query("delete from content.schema_migrations where version='0004'");
     await assert.rejects(runCli(['cadence', 'preflight', '--expect-db', name]), { code: 'CadenceSchemaError' });
     await db.query("insert into content.schema_migrations(version) values('0004')");
+    await db.query("delete from content.schema_migrations where version='0005'");
+    await assert.rejects(runCli(['cadence', 'preflight', '--expect-db', name]), { code: 'CadenceSchemaError' });
+    await db.query("insert into content.schema_migrations(version) values('0005')");
+    await db.query('drop table content.cadence_evidence_retries');
+    await assert.rejects(runCli(['cadence', 'preflight', '--expect-db', name]), { code: 'CadenceSchemaError' });
     await db.query('drop table content.cadence_alerts');
     await assert.rejects(runCli(['cadence', 'preflight', '--expect-db', name]), { code: 'CadenceSchemaError' });
     await db.query('drop table content.schema_migrations');

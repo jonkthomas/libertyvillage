@@ -34,7 +34,8 @@ export function roundupSlug(weekStart) {
   const { year, week } = isoWeek(weekStart);
   return `liberty-village-news-week-${year}-w${String(week).padStart(2, '0')}`;
 }
-export async function createAliasObserver({ siteUrl, bypass, fetchImpl } = {}) {
+export async function createAliasObserver({ siteUrl, bypass, fetchImpl, dataset = 'posts' } = {}) {
+  if (!['posts','businesses'].includes(dataset)) throw new ValidationError('invalid alias dataset');
   const http = createHttp({ siteUrl, bypass, fetchImpl });
   const response = await http.get(MANIFEST_PATH);
   // Preserve transport failures for the runner's bounded retry guidance. A
@@ -45,7 +46,7 @@ export async function createAliasObserver({ siteUrl, bypass, fetchImpl } = {}) {
   let manifest;
   try { manifest = JSON.parse(response.body.toString('utf8')); }
   catch { throw new StateError('invalid alias manifest'); }
-  const entries = manifest?.datasets?.posts?.entries;
+  const entries = manifest?.datasets?.[dataset]?.entries;
   if (manifest?.schema !== 1 || !/^[0-9a-f]{40}$/.test(manifest.snapshot_id ?? '')
     || typeof manifest.deployment_url !== 'string' || !manifest.deployment_url
     || !manifest.files || typeof manifest.files !== 'object' || Array.isArray(manifest.files)
@@ -58,6 +59,24 @@ export async function createAliasObserver({ siteUrl, bypass, fetchImpl } = {}) {
     const entry = entries[slug];
     return entry ? { rev: entry.rev, snapshotId: manifest.snapshot_id } : null;
   };
+}
+export async function currentLiveBusinessItems(db, { target, submissionId, observe }) {
+  checkTarget(db, target);
+  const id = number(submissionId);
+  if (!Number.isSafeInteger(id) || id < 1 || typeof observe !== 'function') throw new ValidationError('invalid business observation');
+  const items = (await db.query(`select i.key,i.published_rev from content.submissions s
+    join content.submission_items i on i.submission_id=s.id
+    join content.entries e on e.dataset=i.dataset and e.key=i.key and e.live_rev=i.published_rev
+    join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
+    where s.id=$1 and s.target=$2 and s.kind='business' and s.state='published' and s.smoke_passed_at is not null
+      and i.dataset='businesses' and i.op='insert' and i.smoke='passed' and i.published_rev is not null
+      and g.passed=true and g.overall>=8 and g.blocking_count=0 order by i.key`, [id, target])).rows;
+  const verifiedSlugs = [];
+  for (const item of items) {
+    const receipt = await observe(item.key);
+    if (receipt?.snapshotId && number(receipt.rev) === number(item.published_rev)) verifiedSlugs.push(item.key);
+  }
+  return { submissionId: id, verifiedSlugs };
 }
 function checkTarget(db, target) {
   if (target !== db.target) throw new ValidationError('target mismatch');
@@ -113,6 +132,82 @@ export async function releaseSlot(db, slotRef, token) {
 }
 function keyFor(ref, ordinal) {
   return `cadence:${createHash('sha256').update(`${slotValues(ref).join('|')}|${ordinal}`).digest('hex')}`;
+}
+const evidenceRef = ({ target, weekStart, intentFingerprint }) => [target, weekStart, intentFingerprint];
+export async function getEvidence(db, ref) {
+  checkTarget(db, ref.target);
+  return row(await db.query(`select *,week_start_utc::text as week_start_utc from content.cadence_evidence_retries
+    where target=$1 and week_start_utc=$2 and intent_fingerprint=$3`, evidenceRef(ref))) ?? null;
+}
+export async function listEvidence(db, { target, weekStart }) {
+  checkTarget(db, target);
+  return (await db.query(`select *,week_start_utc::text as week_start_utc from content.cadence_evidence_retries
+    where target=$1 and week_start_utc=$2 and state in ('claimed','pending','verified','retry') order by created_at`, [target, weekStart])).rows;
+}
+export async function unresolvedEvidence(db, { target, limit = 21 }) {
+  checkTarget(db, target);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 21) throw new ValidationError('invalid evidence limit');
+  return (await db.query(`select *,week_start_utc::text as week_start_utc from content.cadence_evidence_retries
+    where target=$1 and state in ('claimed','pending','verified') order by content.cadence_evidence_retries.week_start_utc,created_at limit $2`, [target, limit])).rows;
+}
+export async function claimEvidence(db, { target, weekStart, intentFingerprint, originalKey, originalTitle, category }) {
+  checkTarget(db, target);
+  if (weekStartUtc(weekStart) !== weekStart || !intentFingerprint || !originalKey || !originalTitle) throw new ValidationError('invalid evidence claim');
+  return db.tx(async (client) => {
+    const original = row(await client.query(`select * from content.cadence_attempts
+      where target=$1 and week_start_utc=$2 and lane='content' and intent_fingerprint=$3 and idempotency_key=$4
+      and outcome='failed-before-submit' and submission_id is null`, [target, weekStart, intentFingerprint, originalKey]));
+    if (!original) throw new StateError('original refusal missing');
+    const token = randomUUID();
+    const key = `evidence:${createHash('sha256').update(`${target}|${weekStart}|${intentFingerprint}`).digest('hex')}`;
+    const inserted = row(await client.query(`insert into content.cadence_evidence_retries
+      (target,week_start_utc,intent_fingerprint,original_key,original_digest,original_title,discovery_key,category,claim_token)
+      values($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict do nothing returning *,week_start_utc::text as week_start_utc`,
+    [target, weekStart, intentFingerprint, originalKey, original.source_pack_digest, originalTitle, key, category ?? null, token]));
+    const existing = inserted ?? row(await client.query(`select *,week_start_utc::text as week_start_utc from content.cadence_evidence_retries
+      where target=$1 and week_start_utc=$2 and intent_fingerprint=$3`, [target, weekStart, intentFingerprint]));
+    return { claimed: Boolean(inserted), evidence: existing };
+  });
+}
+export async function setEvidenceState(db, { target, weekStart, intentFingerprint, token, state }) {
+  checkTarget(db, target);
+  const allowed = { claimed: ['empty','pending','verified','closed'], pending: ['verified','closed'], verified: ['closed'], retry: ['closed'] };
+  if (!Object.values(allowed).some((values) => values.includes(state))) throw new ValidationError('invalid evidence state');
+  return db.tx(async (client) => {
+    const current = row(await client.query(`select *,week_start_utc::text as week_start_utc from content.cadence_evidence_retries
+      where target=$1 and week_start_utc=$2 and intent_fingerprint=$3 for update`, evidenceRef({ target, weekStart, intentFingerprint })));
+    if (!current || current.claim_token !== token || !allowed[current.state]?.includes(state)) throw new ClaimError();
+    return row(await client.query(`update content.cadence_evidence_retries set state=$4,updated_at=now()
+      where target=$1 and week_start_utc=$2 and intent_fingerprint=$3 returning *,week_start_utc::text as week_start_utc`,
+    [...evidenceRef({ target, weekStart, intentFingerprint }), state]));
+  });
+}
+export async function recordEvidenceRetry(db, { slotRef, token, intentFingerprint, topicKey, sourcePackDigest, evidenceToken }) {
+  if (slotRef.lane !== 'content' || slotRef.slotNumber < 1 || slotRef.slotNumber > 4 || !sourcePackDigest) throw new ValidationError('invalid retry slot');
+  return db.tx(async (client) => {
+    const evidence = row(await client.query(`select * from content.cadence_evidence_retries
+      where target=$1 and week_start_utc=$2 and intent_fingerprint=$3 for update`, evidenceRef({ target: slotRef.target, weekStart: slotRef.weekStart, intentFingerprint })));
+    if (!evidence || evidence.claim_token !== evidenceToken || evidence.state !== 'verified' || evidence.retry_key || evidence.original_digest === sourcePackDigest) throw new ClaimError();
+    const slot = await lockedSlot(client, db, slotRef, token);
+    if (slot.state === 'consumed') throw new StateError('slot consumed');
+    const occupied = row(await client.query(`select 1 from content.cadence_attempts where ${slotColumns} limit 1`, slotValues(slotRef)));
+    if (occupied) throw new StateError('retry slot not unused');
+    const duplicate = row(await client.query(`select 1 from content.cadence_attempts where target=$1 and week_start_utc=$2
+      and lane='content' and intent_fingerprint=$3 and idempotency_key<>$4 limit 1`,
+    [slotRef.target, slotRef.weekStart, intentFingerprint, evidence.original_key]));
+    if (duplicate) throw new StateError('retry already attempted');
+    const ordinal = slot.attempt_ordinal + 1;
+    const key = keyFor(slotRef, ordinal);
+    await client.query(`insert into content.cadence_attempts(target,week_start_utc,lane,slot_number,ordinal,
+      intent_fingerprint,topic_key,idempotency_key,source_pack_digest) values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [...slotValues(slotRef), ordinal, intentFingerprint, topicKey, key, sourcePackDigest]);
+    await client.query(`update content.cadence_slots set attempt_ordinal=$5,state='attempting' where ${slotColumns}`,
+    [...slotValues(slotRef), ordinal]);
+    await client.query(`update content.cadence_evidence_retries set state='retry',retry_slot=$4,retry_key=$5,retry_digest=$6,updated_at=now()
+      where target=$1 and week_start_utc=$2 and intent_fingerprint=$3`,
+    [...evidenceRef({ target: slotRef.target, weekStart: slotRef.weekStart, intentFingerprint }), slotRef.slotNumber, key, sourcePackDigest]);
+    return { ordinal, idempotencyKey: key, existing: false };
+  });
 }
 export async function recordAttempt(db, { slotRef, token, intentFingerprint, topicKey, sourcePackDigest }) {
   if (![intentFingerprint, topicKey, sourcePackDigest].every((v) => typeof v === 'string' && v.trim())) throw new ValidationError('attempt metadata required');
