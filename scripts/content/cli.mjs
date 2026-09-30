@@ -12,6 +12,28 @@ import * as cadence from './cadence.mjs';
 import { roundupPublicationMode } from './roundup-mode.mjs';
 import fs from 'node:fs';
 const migrationsDir = path.dirname(fileURLToPath(new URL('./migrations/0001_content.sql',import.meta.url)));
+const CADENCE_SCHEMA_GUIDANCE = 'cadence schema unavailable; apply content migrations 0002 through 0004 before installing the new runner';
+export class CadenceSchemaError extends Error {
+  constructor() { super(CADENCE_SCHEMA_GUIDANCE); this.code = 'CadenceSchemaError'; }
+}
+// A ledger entry alone is insufficient if a table was removed or a migration
+// was only partly applied. Both checks are read-only and precede all cadence work.
+export async function preflightCadenceSchema(db) {
+  const ledger = (await db.query("select to_regclass('content.schema_migrations') as name")).rows[0].name;
+  if (!ledger) throw new CadenceSchemaError();
+  const versions = new Set((await db.query("select version from content.schema_migrations where version in ('0002','0003','0004')")).rows.map((row) => row.version));
+  if (!['0002', '0003', '0004'].every((version) => versions.has(version))) throw new CadenceSchemaError();
+  const tables = (await db.query("select to_regclass('content.cadence_slots') as slots, to_regclass('content.cadence_attempts') as attempts, to_regclass('content.cadence_alerts') as alerts")).rows[0];
+  if (!tables.slots || !tables.attempts || !tables.alerts) throw new CadenceSchemaError();
+}
+export function safeCliError(error) {
+  const code = error?.code ?? 'Error';
+  if (code === 'CadenceSchemaError') return { error: code, message: CADENCE_SCHEMA_GUIDANCE };
+  if (code === '42P01') return { error: code, message: 'required database table unavailable; check content migrations' };
+  if (code === '3D000') return { error: code, message: 'database unavailable; check target binding' };
+  if (code === '42501') return { error: code, message: 'database permission denied; check content database role' };
+  return { error: code, message: error.message, conflicts: error.conflicts };
+}
 function parse(argv) {
   const [command,...rest] = argv;
   if (command === 'cadence' && rest[0] && !rest[0].startsWith('--')) rest.shift();
@@ -102,6 +124,8 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
     switch(command) {
       case 'cadence': {
         const sub = required(argv[1], 'cadence subcommand');
+        await preflightCadenceSchema(db);
+        if (sub === 'preflight') { result = { ready: true }; break; }
         if (opts.observations) throw new store.ValidationError('cadence observations must come from hosted alias');
         const weekStart = opts.weekStart ?? cadence.weekStartUtc(new Date());
         const slotRef = { target, weekStart, lane: opts.lane, slotNumber: Number(opts.slotNumber) };
@@ -197,7 +221,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   runCli().then(({result,exitCode}) => { console.log(JSON.stringify(result)); process.exitCode=exitCode; }).catch((error) => {
-    console.log(JSON.stringify({error:error.code ?? 'Error',message:error.message,conflicts:error.conflicts}));
+    console.log(JSON.stringify(safeCliError(error)));
     process.exitCode=['ConflictError','ValidationError'].includes(error.code) ? 2 : 1;
   });
 }

@@ -143,6 +143,10 @@ export function classifyCliFailure(binary, args, result) {
     ['ClaimError', ['cli-claim', 'retry-original-slot']], ['ECONNRESET', ['cli-network', 'retry-original-slot']],
     ['ETIMEDOUT', ['cli-network', 'retry-original-slot']], ['ENOTFOUND', ['cli-network', 'retry-original-slot']],
     ['EAI_AGAIN', ['cli-network', 'retry-original-slot']], ['57P01', ['cli-database', 'retry-original-slot']],
+    ['CadenceSchemaError', ['cli-schema', 'check-cadence-migrations']],
+    ['42P01', ['cli-schema', 'check-cadence-migrations']],
+    ['3D000', ['cli-database-target', 'check-binding']],
+    ['42501', ['cli-permission', 'check-database-role']],
   ]);
   let payload;
   const stdout = result.stdout;
@@ -1226,6 +1230,10 @@ async function cadenceDeps(job, target, slot, log) {
 }
 
 async function runJob(job, target, slot, request, log, notifications = {}) {
+  if (job === 'weekly-blog' || job === 'weekly-roundup') {
+    cli(['cadence', 'preflight', '--target', target]);
+    logLine(log, 'cadence-schema-ready');
+  }
   if (job === 'weekly-growth-report') {
     source('scripts/generate-weekly-growth-report.mjs', ['--out-dir', path.join(stateRoot, 'growth', slot)], job, log);
     return;
