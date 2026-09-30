@@ -180,7 +180,7 @@ test('0002 forward migration restores missing preflight indexes and stays idempo
     assert.deepEqual(migrated.result, { applied: ['0002'] });
     assert.deepEqual(await preflightIndexes(db), ['submissions_active_idx', 'submissions_pending_idx']);
     const versions = (await db.query('select version from content.schema_migrations order by version')).rows.map((r) => r.version);
-    assert.deepEqual(versions, ['0001', '0002', '0003', '0004']);
+    assert.deepEqual(versions, ['0001', '0002', '0003', '0004', '0005']);
 
     const again = await runCli(['migrate']);
     assert.deepEqual(again.result, { applied: [] }, 'migrate must not reapply recorded versions');
