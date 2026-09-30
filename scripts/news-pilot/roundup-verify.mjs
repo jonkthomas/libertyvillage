@@ -434,6 +434,18 @@ function identity(record, source, form, claim, geo) {
     venueId: result?.venueId || (source.identityKind === 'venue' ? source.identityId : undefined) };
 }
 
+// `when.kind` is a model label, but it selects the temporal contract (§6.5) and
+// the identity namespace (§6.6). Bind it to the trusted source and the fresh
+// record before either applies: only the transit feed carries active alerts,
+// only the road feed carries restrictions, and a structured event, listing or
+// Instagram record is always an event, whatever the reasoner called it.
+const feedKinds = { 'transit-feed': 'alert', 'road-feed': 'restriction' };
+function kindBound(kind, source, recordSource) {
+  if (source.parse === 'json-feed') return Boolean(feedKinds[source.identityKind]) && kind === feedKinds[source.identityKind];
+  if (kind === 'alert' || kind === 'restriction') return false;
+  return !['jsonld-event', 'html-listing', 'ig-post'].includes(recordSource.parse) || kind === 'event';
+}
+
 function itemKey(form, source, record, place, originalUrl) {
   const typed = record.typed || {};
   if (form.when.kind === 'restriction') return 'road:' + (typed.id || record.recordId);
@@ -555,6 +567,7 @@ export async function verifyRoundupForms({ signals = [], forms = [], now, posts 
             : recordProvesTime(record, form.when.endDate || form.when.date, torontoInstant(form.when.endDate || form.when.date, form.when.endTime)))) fail('undated');
           const place = identity(record, recordSource, form, claim, geo);
           if (place.locality === 'not-LV') fail('not-LV');
+          if (!kindBound(form.when?.kind, source, recordSource)) fail('undated');
           if (form.when?.kind === 'news-update') {
             const reason = newsDatelineReason(record, recordSource, source, form.when, claim, at, Boolean(original));
             if (reason) fail(reason);
