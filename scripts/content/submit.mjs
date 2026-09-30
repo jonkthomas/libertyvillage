@@ -15,7 +15,6 @@ import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
 import { canonicalJson, checkDraftAgainstPack, verifySourcePack } from '../automation/blog-source-pack.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
-import { checkRoundupVisibleCopy } from '../news-pilot/roundup-claims.mjs';
 import { roundupCoverageErrors, ROUNDUP_COVERAGE_MAX_KEYS, validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
 import { prepareImages } from './images.mjs';
@@ -101,7 +100,10 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
 
   if (rules.lint) {
     const mode = deps.lintMode || resolveLintMode(process.env);
-    const result = lintPost(record, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined });
+    // A roundup (trusted roundupCoverage marker, integrity-checked below) is
+    // source-grounded: directory address/price comparisons do not apply.
+    const result = lintPost(record, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
+      roundup: item.dataset === 'posts' && hasOwn(record, 'roundupCoverage') });
     if (!result.ok && mode === 'fail') lint.push(...result.findings.map((finding) => `[${finding.rule}] ${finding.claim} — ${finding.detail}`));
   }
   if (rules.submitted) {
@@ -116,7 +118,6 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
   if (rules.news) errors.push(...checkNewsRecord({ record, ctx, live, news: deps.news }));
   if (rules.roundup) errors.push(...checkRoundupRecordV2({ item, record, ctx, news: deps.news }));
   errors.push(...roundupCoverageIntegrityErrors({ kind, item, ctx, live }));
-  errors.push(...roundupEditCopyErrors({ kind, item, live }));
   if (rules.queue) {
     const queue = Array.isArray(live['topic-queue']) ? live['topic-queue'] : [];
     if (queue.some((entry) => entry?.key === item.key)) errors.push('duplicate topic key already in the live queue');
@@ -278,23 +279,6 @@ export function roundupCoverageIntegrityErrors({ kind, item, ctx = {}, live = {}
   return [];
 }
 
-// Decision B on later edits: an SEO/manual edit to a roundup keeps the
-// immutable slug and byte-identical roundupCoverage, so it is still a roundup
-// even when the declared kind is not. Recognize it by slug + coverage/live
-// identity and refuse the same visible specifics. Ordinary blog/news posts
-// never carry roundupCoverage, so they are byte-identical to before.
-function roundupEditCopyErrors({ kind, item, live = {} }) {
-  if (kind === 'roundup' || item?.dataset !== 'posts') return [];
-  const record = item.payload;
-  const slug = typeof record?.slug === 'string' ? record.slug : item.key;
-  if (!ROUNDUP_POST_SLUG.test(slug ?? '') && !ROUNDUP_POST_SLUG.test(item.key ?? '')) return [];
-  if (!hasOwn(record, 'roundupCoverage')) {
-    const current = list(live.posts).find((post) => post?.slug === item.key);
-    if (!current || !hasOwn(current, 'roundupCoverage')) return [];
-  }
-  return checkRoundupVisibleCopy(record);
-}
-
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 function dateForms(date) {
   if (!DATE.test(date ?? '')) return [];
@@ -398,12 +382,6 @@ export function checkRoundupRecordV2({ item, record, ctx = {}, news }) {
       }
     }
   });
-  // Decision B: roundup-only deterministic refusal of civic-address and
-  // monetary-price copy in every visible field (headings, bodies, aggregate
-  // lines, Still in effect, visible citation labels, takeaways, FAQs, author,
-  // tags, exploreCta label/description, cross-link labels).
-  // Attribution-independent and never LINT_MODE-bypassable: these are errors.
-  errors.push(...checkRoundupVisibleCopy(record));
   return [...new Set(errors)];
 }
 

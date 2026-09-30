@@ -393,19 +393,32 @@ const SPECIFIC_RULES = Object.freeze([
   { rule: 'unsupported-hours', pattern: HOURS_PATTERN, label: 'opening hours' },
 ]);
 
+// Editorial policy (John, 2026-09-30): a weekly roundup may state an event's
+// street address or price when its cited source says so. Roundup facts are
+// grounded by the verified source pack and judged by the fact/risk reviewers,
+// not by the business directory, so a directory record is not valid event-fact
+// grounding. Only these two directory comparisons are skipped for a roundup;
+// the geography/price patterns still blank their matches, so every other rule
+// (hours, dates, unrecorded businesses, operational premises) is unchanged.
+const ROUNDUP_SOURCE_GROUNDED_RULES = new Set(['unsupported-address', 'unsupported-price']);
+
 function blankOut(text, start, length) {
   return text.slice(0, start) + ' '.repeat(length) + text.slice(start + length);
 }
 
 /**
  * @param post   a post record as it would be appended to data/posts.json
- * @param opts   { businesses: businesses.json records, now?: clock for the date rule }
+ * @param opts   { businesses: businesses.json records, now?: clock for the date rule,
+ *                 roundup?: true for a weekly news roundup (see ROUNDUP_SOURCE_GROUNDED_RULES) }
  * @returns      { ok, findings: [{ rule, severity, claim, detail }] }
  */
-export function lintPost(post, { businesses = [], now } = {}) {
+export function lintPost(post, { businesses = [], now, roundup = false } = {}) {
   const index = indexBusinesses(businesses);
   const findings = [];
-  const add = (rule, claim, detail, field) => findings.push({ rule, severity: 'high', claim, detail: `${field}: ${detail}` });
+  const add = (rule, claim, detail, field) => {
+    if (roundup && ROUNDUP_SOURCE_GROUNDED_RULES.has(rule)) return;
+    findings.push({ rule, severity: 'high', claim, detail: `${field}: ${detail}` });
+  };
   const year = postYear(post, now);
 
   // Operational slug/title premises (pet-friendly, happy hour, accessibility,

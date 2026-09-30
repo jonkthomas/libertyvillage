@@ -3,9 +3,7 @@ import path from 'node:path';
 import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './draft-model.mjs';
 import { roundupCoverageFromPack } from './roundup-verify.mjs';
 import { roundupSlug } from './roundup.mjs';
-import { checkRoundupDraftCopy, checkRoundupVisibleCopy, draftBannedSamples, findRoundupBannedCopy } from './roundup-claims.mjs';
 import { lintPost } from '../blog-lint.mjs';
-import { registrableDomain } from './sources.mjs';
 
 const unsafeImpact = /\b(?:crowd(?:s|ing)?|congestion|detours?|traffic disruption|parking restrictions?|road closures?)\b/i;
 const unsafeCopy = /\b(?:crime|murder|stabbing|robbery|election|candidate|vote for)\b/i;
@@ -105,13 +103,15 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
     return countingCall({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
   };
-  const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase. Omit exact civic street addresses and monetary prices entirely (including free-admission promises): never state, invent or substitute them.';
-  // Decision B: one shared targeted omission retry for banned civic/price copy
-  // plus the inherited lint on the draft (§9.2), inside the six-call ceiling.
-  // A second failure — or an exhausted budget with no call left — is a
-  // writer-failed HOLD, never a silent pass. Lint diagnostics carry rule +
-  // field + count only, never generated claim text.
-  let omissionRetryUsed = false;
+  const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts in the supplied verified evidence. No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
+  // One shared targeted retry for the inherited lint on the draft (§9.2),
+  // inside the six-call ceiling. A second failure — or an exhausted budget
+  // with no call left — is a writer-failed HOLD, never a silent pass. Lint
+  // diagnostics carry rule + field + count only, never generated claim text.
+  // Editorial policy: a source-verified address or price is allowed roundup
+  // copy (lint runs with `roundup: true`); the fact reviewer judges it
+  // against the cited evidence.
+  let lintRetryUsed = false;
   // Draft lint uses T_plan consistently with the final assembly lint
   // (`roundup-v2-run.mjs` lints with `publishedAt` = T_plan date and
   // `now` = T_plan): otherwise a historical replay or Dec 31/Jan 1 straddle
@@ -127,7 +127,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
       content: [current?.intro || '', ...bodies].join('\n\n'),
       publishedAt: planNow.toISOString().slice(0, 10) };
     let lint;
-    try { lint = lintPostFn(shaped, { businesses, now: planNow }); }
+    try { lint = lintPostFn(shaped, { businesses, now: planNow, roundup: true }); }
     catch { return ['lint-unavailable']; }
     if (lint?.ok) return [];
     const groups = new Map();
@@ -138,27 +138,20 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     }
     return [...groups].slice(0, 3).map(([key, count]) => `${key} (${count})`);
   };
-  const ensureCopyClean = async (current, shapeUnits) => {
-    let banned = checkRoundupDraftCopy(current);
+  const ensureLintClean = async (current, shapeUnits) => {
     let lintCodes = draftLintCodes(current);
-    if (!banned.length && !lintCodes.length) return current;
-    const codes = [...banned, ...lintCodes];
-    if (omissionRetryUsed || modelCalls >= WRITER_MAX_CALLS) throw new Error(`roundup_writer_failed:${codes.join(',')}`);
-    omissionRetryUsed = true;
-    const flagged = draftBannedSamples(current).join(' | ');
-    const lintNote = lintCodes.length
-      ? ` Also resolve inherited lint (${lintCodes.join('; ')}): remove or rewrite the flagged business-attributed specifics using only the supplied verified evidence.`
-      : '';
+    if (!lintCodes.length) return current;
+    if (lintRetryUsed || modelCalls >= WRITER_MAX_CALLS) throw new Error(`roundup_writer_failed:${lintCodes.join(',')}`);
+    lintRetryUsed = true;
     // F4 privacy: the retry sees only the surviving units, never refused units.
     const retryUnits = shapeUnits.map(compact);
     const revised = await jsonCall(cappedCall, author,
-      `Omit every civic street address and monetary price (including free-admission promises): delete those specifics, do not replace them with other facts. Flagged: ${flagged}.${lintNote} ${instructions}`,
+      `Resolve inherited lint (${lintCodes.join('; ')}): remove or rewrite the flagged business-attributed specifics using only the supplied verified evidence. ${instructions}`,
       { draft: current, units: retryUnits }, 9000);
     const shape = checkRoundupDraft(revised, shapeUnits);
     if (shape.length) throw new Error(`roundup_writer_failed:${shape.join(',')}`);
-    banned = checkRoundupDraftCopy(revised);
     lintCodes = draftLintCodes(revised);
-    if (banned.length || lintCodes.length) throw new Error(`roundup_writer_failed:${[...banned, ...lintCodes].join(',')}`);
+    if (lintCodes.length) throw new Error(`roundup_writer_failed:${lintCodes.join(',')}`);
     return revised;
   };
   let draft = await jsonCall(cappedCall, author, instructions, { units: material }, 9000);
@@ -169,7 +162,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     errors = checkRoundupDraft(draft, units);
     if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
   }
-  draft = await ensureCopyClean(draft, units);
+  draft = await ensureLintClean(draft, units);
   const fact = await jsonCall(cappedCall, critic.ok ? critic : author,
     FACT_REVIEW_SYSTEM,
     { draft, units: material });
@@ -179,7 +172,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   if (fact.findings.length) draft = await jsonCall(cappedCall, author, `Revise only flagged sentences; keep IDs and all other text. ${instructions}`, { draft, findings: fact.findings, units: material }, 9000);
   errors = checkRoundupDraft(draft, units);
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
-  draft = await ensureCopyClean(draft, units);
+  draft = await ensureLintClean(draft, units);
   const risk = await jsonCall(cappedCall, critic.ok ? critic : author,
     RISK_REVIEW_SYSTEM,
     { draft, units: material });
@@ -204,17 +197,16 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     // no person text, no old findings. The regenerated draft is then
     // independently fact-reviewed AND risk-reviewed after all author edits; any
     // finding, any invalid review, or an exhausted six-call budget is a
-    // writer-failed HOLD, never a silent pass. The shared single omission
-    // retry still bounds banned-copy/lint cleanup (and holds when it would
-    // exceed the remaining budget). A one-time risk review never vouches for
-    // text authored after it.
+    // writer-failed HOLD, never a silent pass. The shared single lint retry
+    // still bounds lint cleanup (and holds when it would exceed the remaining
+    // budget). A one-time risk review never vouches for text authored after it.
     if (!safeUnits.length) throw new Error('roundup_writer_failed:all-units-refused');
     const safeKnown = new Set(safeUnits.map((unit) => unit.identityKey));
     const safeMaterial = () => safeUnits.map(compact);
     draft = await jsonCall(cappedCall, author, instructions, { units: safeMaterial() }, 9000);
     errors = checkRoundupDraft(draft, safeUnits);
     if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
-    draft = await ensureCopyClean(draft, safeUnits);
+    draft = await ensureLintClean(draft, safeUnits);
     const factAgain = await jsonCall(cappedCall, critic.ok ? critic : author,
       FACT_REVIEW_SYSTEM, { draft, units: safeMaterial() });
     if (!Array.isArray(factAgain?.findings) || !factAgain.findings.every((finding) => validFactFinding(finding, safeKnown)))
@@ -241,7 +233,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
   draft = { ...draft, units: (draft.units || []).filter((entry) => !refused.has(entry.unitId)) };
   errors = checkRoundupDraft(draft, safeUnits);
   if (errors.length) throw new Error(`roundup_writer_failed:${errors.join(',')}`);
-  draft = await ensureCopyClean(draft, safeUnits);
+  draft = await ensureLintClean(draft, safeUnits);
   return { draft, findings, refused: [...refused], units: safeUnits, modelCalls };
 }
 
@@ -249,20 +241,8 @@ const escapeMarkdown = (value) => String(value || '').replace(/[\[\]()]/g, '');
 const citation = (source) => {
   const url = source.url || source.canonicalUrl;
   if (!/^https:\/\//.test(url || '')) throw new Error('roundup citation requires https URL');
-  const record = source.recordId && (source.feed || source.listing) ? `record ${source.recordId}` : '';
-  let label = [source.publisher || source.sourceId || 'Source', record].filter(Boolean).join(', ');
-  if (findRoundupBannedCopy(label).length) {
-    // Decision B safe render for trusted citation identity: the link target
-    // and any record ID stay byte-identical, while the human display falls
-    // back to the cited host, which is faithful and address/price-free. A
-    // tainted record ID or an unparseable host has no safe render, so
-    // assembly holds instead of dropping the citation.
-    if (record && findRoundupBannedCopy(record).length) throw new Error('roundup_banned_copy:citation record identity has no address-free render');
-    let host = null;
-    try { host = registrableDomain(url); } catch { host = null; }
-    if (!host || findRoundupBannedCopy(host).length) throw new Error('roundup_banned_copy:citation label has no address-free render');
-    label = [host, record].filter(Boolean).join(', ');
-  }
+  const label = [source.publisher || source.sourceId || 'Source', source.recordId && (source.feed || source.listing) ? `record ${source.recordId}` : '']
+    .filter(Boolean).join(', ');
   return `[${escapeMarkdown(label)}](${url})`;
 };
 
@@ -292,27 +272,9 @@ export function assembleRoundupPost({ pack, draft, image = '/images/og/og-home.j
     `- ${escapeMarkdown(u.subject)} (${u.date || u.when?.date}): ${(u.citations || []).map(citation).join('; ')}`).join('\n'));
   const date = new Date(pack.now).toISOString().slice(0, 10);
   const description = `Liberty Village + Exhibition Place this week. ${draft.intro}`;
-  // Optional takeaways reuse the already fact-reviewed same-unit clean heading
-  // (never the raw price-bearing subject); pack identity, subject/evidence,
-  // dates/citations and section headers are unchanged. No safe heading => HOLD.
-  const takeaways = units.map((unit) => {
-    const entry = draft.units.find((u) => u.unitId === unit.identityKey);
-    const heading = entry?.heading;
-    if (typeof heading !== 'string' || !heading.trim() || findRoundupBannedCopy(heading).length) {
-      throw new Error('roundup_banned_copy:takeaway has no address-free reviewed heading render');
-    }
-    return heading;
-  });
-  const post = { slug: roundupSlug(isoWeek), title, description, content: `${draft.intro}\n\n${sections.join('\n\n')}`,
+  return { slug: roundupSlug(isoWeek), title, description, content: `${draft.intro}\n\n${sections.join('\n\n')}`,
     publishedAt: date, updatedAt: date, category: 'news', tags: ['liberty village', 'exhibition place', 'news'],
-    answerBlock: draft.intro, faqs: [], keyTakeaways: takeaways,
+    answerBlock: draft.intro, faqs: [], keyTakeaways: units.map((u) => u.subject || u.identityKey),
     relatedServices: [], relatedTopics: [], relatedPosts: [], author: 'LibertyVillage.co', image,
     roundupCoverage: roundupCoverageFromPack(pack) };
-  // Decision B: the final assembly still holds when any visible field carries
-  // banned specifics — required identity is never silently stripped. Citation
-  // display may fall back to the cited host (URL + record ID byte-identical);
-  // takeaways reuse the reviewed clean heading above, else HOLD.
-  const banned = checkRoundupVisibleCopy(post);
-  if (banned.length) throw new Error(`roundup_banned_copy:${banned.slice(0, 3).join('; ')}`);
-  return post;
 }

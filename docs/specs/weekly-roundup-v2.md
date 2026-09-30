@@ -753,6 +753,7 @@ These holds are the correct result of the settled rules, not a defect to enginee
   - no traffic or crowd predictions unless supported (§6.5).
 - It writes, for each unit, a heading and 1–3 sentences, plus a 1–2 sentence intro.
 - It may not add facts, numbers, quotes, businesses, people or links beyond the unit's own evidence.
+- **Addresses and prices (editorial decision, John, 2026-09-30).** A roundup may state an event's street address, price or free admission when the unit's cited source says so. There is no blanket address/price refusal in the writer, assembly, submit, gate or fixer. The fact reviewer (§9.2) and the content gate judge these like any other fact, against the cited evidence. The business directory (`data/businesses.json`) is not event-fact grounding, so the inherited `lintPost` rules `unsupported-address` and `unsupported-price` are skipped for roundups only (`lintPost(post, { roundup: true })`; submit and the fixer apply it to a post carrying the integrity-checked `roundupCoverage`). All other lint rules, and blog, blog-live and news lint, are unchanged.
 - It returns JSON: `{intro, units:[{unitId, heading, body}]}`. The deterministic assembler (§9.3) builds the Markdown and citations, so the model never writes URLs.
 
 ### 9.2 Two internal review rounds
@@ -769,7 +770,7 @@ These holds are the correct result of the settled rules, not a defect to enginee
 
   The writer revises.
 - **Model choice:** the reviewers use a different provider or model than the writer when `draft-model.mjs` resolves more than one credential. Otherwise they use the same provider with a distinct role prompt. These rounds are internal quality passes. The independent adversarial review is the unchanged content gate.
-- **Deterministic post-check after each revision:** `checkRoundupRecordV2` (§11) plus the existing `lintPost`. On failure, the writer gets one targeted retry. If it still fails, the run holds with `writer-failed`: no submit, and the slot is released.
+- **Deterministic post-check after each revision:** `checkRoundupRecordV2` (§11) plus the existing `lintPost` in roundup mode (§9.1). On failure, the writer gets one targeted retry. If it still fails, the run holds with `writer-failed`: no submit, and the slot is released.
 - **Budget:** at most 1 draft + 2 reviews + 2 revisions + 1 retry = **6 model calls**. Reasoning takes at most 6 batched calls. The total is 12 or fewer model calls per run. Time is capped at 10 minutes of model wall-clock per run.
 
 ### 9.3 Deterministic assembly
