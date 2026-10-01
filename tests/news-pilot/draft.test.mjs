@@ -1248,6 +1248,23 @@ test('finding8: OpenAI and Google adapters guard JSON parse and redact error pat
   assert.equal(String(googleHttp.detail || '').includes('sk-live-LEAKEDSECRET'), false);
 });
 
+test('DeepSeek critic requests provider JSON-object mode without changing other OpenAI-compatible calls', async () => {
+  const requests = [];
+  const fetchFn = async (_url, init) => {
+    requests.push(JSON.parse(init.body));
+    return { ok: true, status: 200,
+      text: async () => JSON.stringify({ model: 'deepseek-flash', choices: [{ message: { content: '{"ok":true}' } }] }) };
+  };
+  for (const id of ['deepseek', 'openai']) {
+    const provider = MODEL_PROVIDERS.find((entry) => entry.id === id);
+    const result = await generateDraftWithModel({ resolved: { provider, apiKey: 'synthetic-test-key' },
+      system: 'Return only JSON {"ok":true}.', userText: '{}', maxTokens: 256, fetchFn });
+    assert.equal(result.ok, true);
+  }
+  assert.deepEqual(requests[0].response_format, { type: 'json_object' });
+  assert.equal(Object.hasOwn(requests[1], 'response_format'), false);
+});
+
 test('finding9: per-source reservation prevents CKAN from exhausting shared budget', () => {
   const budget = createRequestBudget(20);
   const sources = [
@@ -1354,7 +1371,7 @@ test('finding10: private/loopback evidence URLs are blocked before fetchFn', asy
   assert.equal(mappedPack.sources[0].urlUsable, false);
 
   // Redirect onto private host is rejected when guardPublicHttp is on.
-  const redirectFetch = async (url, init = {}) => {
+  const redirectFetch = async (url) => {
     if (String(url).includes('example.com/start')) {
       return {
         ok: false,

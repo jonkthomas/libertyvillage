@@ -119,5 +119,115 @@ class GeneratorDiagnosticTest(unittest.TestCase):
             self.assertIn('post-written', path.read_text())
 
 
+
+TRAILER = ('\n=== Pipeline Complete ===\n'
+           'Success: true\n'
+           '[outcome] {"postWritten":false,"stopReason":"unsupported-grounding"}\n'
+           'Cost: $0.4100\nTurns: 7\nDuration: 42.3s\nLog saved: /x/2026-09-30.json\n')
+ABSENT = b'{"postWritten":false,"stopReason":"absent"}\n'
+
+
+class RelayTest(unittest.TestCase):
+    """The helper's single stdout line: exactly one EOF-finalized allowlisted outcome."""
+
+    def relay(self, content, exit_code=1, close=True, bytewise=False):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            log = diag.GeneratorDiagnostic(str(pathlib.Path(directory) / 'slot.jsonl'))
+            data = content.encode() if isinstance(content, str) else content
+            if bytewise:
+                for character in data:
+                    log.feed_lines(bytes([character]))
+            else:
+                log.feed_lines(data)
+            if close:
+                log.close()
+            line = log.relay(exit_code)
+            if not close:
+                log.close()
+            return line
+
+    def test_valid_refusal_and_post_are_relayed_once_after_eof(self):
+        prose = '[agent] Candidate Name at 1 Private Rd is pet-friendly sk-PRIVATE\n[tool_use] Bash\n'
+        self.assertEqual(self.relay(prose + TRAILER, 1, bytewise=True),
+                         b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n')
+        self.assertEqual(self.relay(prose + TRAILER.replace('unsupported-grounding', 'insufficient-sources'), 1),
+                         b'{"postWritten":false,"stopReason":"insufficient-sources"}\n')
+        posted = TRAILER.replace('{"postWritten":false,"stopReason":"unsupported-grounding"}',
+                                 '{"postWritten":true,"stopReason":"post-written"}')
+        self.assertEqual(self.relay(prose + posted, 0), b'{"postWritten":true,"stopReason":"post-written"}\n')
+        final = TRAILER.replace('\nCost: $0.4100\nTurns: 7\nDuration: 42.3s\nLog saved: /x/2026-09-30.json\n', '')
+        self.assertEqual(self.relay(final, 1), b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n',
+                         'an unterminated final outcome is finalized at EOF')
+
+    def test_unfinalized_or_late_after_eof_is_absent(self):
+        self.assertEqual(self.relay(TRAILER, 1, close=False), ABSENT)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            log = diag.GeneratorDiagnostic(str(pathlib.Path(directory) / 'slot.jsonl'))
+            log.feed_lines(TRAILER.encode())
+            log.close()
+            log.feed_lines(b'[outcome] {"postWritten":false,"stopReason":"insufficient-sources"}\n')
+            self.assertEqual(log.relay(1), ABSENT)
+
+    def test_duplicate_early_late_or_repeated_summary_invalidates(self):
+        dup = TRAILER + '[outcome] {"postWritten":false,"stopReason":"unsupported-grounding"}\n'
+        early = '[outcome] {"postWritten":false,"stopReason":"insufficient-sources"}\n' + TRAILER
+        late = TRAILER.replace('Success: true\n[outcome]', 'Success: true\nCost: $0\n[outcome]')
+        gap = TRAILER.replace('Success: true\n[outcome]', 'Success: true\n\n[outcome]')
+        repeat = 'Success: true\n' + TRAILER
+        spoof_first = ('Success: true\n[outcome] {"postWritten":false,"stopReason":"unsupported-grounding"}\n'
+                       + TRAILER.replace('unsupported-grounding', 'no-post-unspecified'))
+        for content in (dup, early, late, gap, repeat, spoof_first):
+            self.assertEqual(self.relay(content, 1), ABSENT, content)
+
+    def test_malformed_out_of_vocabulary_and_contradictory_outcomes_are_absent(self):
+        for payload in ('{"postWritten":false,"stopReason":"unsupported-grounding","extra":"Candidate"}',
+                        '{"postWritten":false,"postWritten":false,"stopReason":"unsupported-grounding"}',
+                        '{"postWritten":"false","stopReason":"unsupported-grounding"}',
+                        '{"postWritten":0,"stopReason":"unsupported-grounding"}',
+                        '{"postWritten":false,"stopReason":"pet-friendly"}',
+                        '{"postWritten":false,"stopReason":"absent"}',
+                        '{"postWritten":false}', '[false,"unsupported-grounding"]', '{"postWritten":false,',
+                        '{"postWritten":true,"stopReason":"unsupported-grounding"}',
+                        '{"postWritten":false,"stopReason":"post-written"}',
+                        '{"postWritten":false,"stopReason":"unsupported-grounding"} trailing'):
+            content = TRAILER.replace('{"postWritten":false,"stopReason":"unsupported-grounding"}', payload)
+            self.assertEqual(self.relay(content, 1), ABSENT, payload)
+        posted = TRAILER.replace('{"postWritten":false,"stopReason":"unsupported-grounding"}',
+                                 '{"postWritten":true,"stopReason":"post-written"}')
+        self.assertEqual(self.relay(posted, 1), ABSENT, 'post outcome contradicts a nonzero unit exit')
+        self.assertEqual(self.relay(TRAILER, 0), ABSENT, 'refusal contradicts a zero unit exit')
+        self.assertEqual(self.relay('[outcome] ' + '[' * 3000 + '\n' + TRAILER, 1), ABSENT)
+
+    def test_fatal_error_or_oversized_outcome_line_invalidates(self):
+        self.assertEqual(self.relay(TRAILER + 'Fatal error: Error: EACCES Candidate Name\n', 1), ABSENT)
+        oversized = '[outcome] {"postWritten":false,"stopReason":"unsupported-grounding","x":"' + 'A' * 5000 + '"}\n'
+        self.assertEqual(self.relay(TRAILER.replace('Cost:', oversized + 'Cost:'), 1), ABSENT)
+        self.assertEqual(self.relay('[agent] ' + 'B' * 9000 + '\n' + TRAILER, 1),
+                         b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n',
+                         'an oversized non-outcome line does not poison a valid relay')
+        self.assertEqual(self.relay('[agent] no outcome at all\n', 1), ABSENT)
+
+    def test_oversized_error_or_duplicate_summary_after_refusal_invalidates_relay(self):
+        for trailing in ('Fatal error: ' + 'X' * 5000,
+                         'Pipeline error: ' + 'X' * 5000,
+                         'Success: ' + 'X' * 5000):
+            payload = '[agent] example\n' + TRAILER + trailing + '\n'
+            self.assertEqual(self.relay(payload, 1, bytewise=True), ABSENT, trailing[:30])
+        self.assertEqual(self.relay(TRAILER + 'Pipeline error: late failure\n', 1), ABSENT)
+
+    def test_relay_line_is_fixed_vocabulary_and_never_carries_prose(self):
+        prose = ('[agent] Candidate Name sk-PRIVATE pet-friendly\n'
+                 'Pipeline error: https://serpapi.com/?api_key=sk-PRIVATE Candidate Name\n')
+        allowed = {(json.dumps({'postWritten': reason == 'post-written', 'stopReason': reason},
+                               separators=(',', ':')) + '\n').encode()
+                   for reason in diag.STOP_REASONS | {'absent'}}
+        for content, code in ((prose + TRAILER, 1), (prose, 1), (prose + TRAILER, 0), (b'\xff\xfe' + prose.encode(), 1)):
+            line = self.relay(content, code)
+            self.assertIn(line, allowed)
+            self.assertLessEqual(len(line), 80)
+            for secret in (b'Candidate', b'sk-PRIVATE', b'pet-friendly', b'serpapi'):
+                self.assertNotIn(secret, line)
+
+
 if __name__ == '__main__':
     unittest.main()

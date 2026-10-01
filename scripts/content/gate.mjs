@@ -12,7 +12,7 @@ import { buildReviewDocument, blobSha1 } from './review-document.mjs';
 import { lensesFor } from './lenses.mjs';
 import { makeRowRepairValidator } from './repair-adapter.mjs';
 import { describeRowContract } from './repair-rules.mjs';
-import { actorFor, checkKindPolicy, KIND_RULES, liveContext, policyDeps, recheckImages, sourceRefFor } from './submit.mjs';
+import { actorFor, blogDraftBindingErrors, checkKindPolicy, KIND_RULES, liveContext, policyDeps, recheckImages, sourceRefFor } from './submit.mjs';
 import { notifyFailure, propagate } from './deploy.mjs';
 import { postSlack } from './notify.mjs';
 import { lintPost } from '../blog-lint.mjs';
@@ -28,7 +28,7 @@ import { fileOf } from './repair-rules.mjs';
 
 // Automated kinds map to themselves; operator `manual` edits use the seo policy.
 export const POLICY_KIND = Object.freeze({
-  business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news',
+  business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news', roundup: 'roundup',
   'topic-discovery': 'topic-discovery', seo: 'seo', manual: 'seo',
 });
 
@@ -139,7 +139,65 @@ export function fixerPayload(items) {
 // ---------------------------------------------------------------------------
 // gateContent: g0-g8 driven only by DB state; every mutation carries the claim.
 // ---------------------------------------------------------------------------
-const GROUNDED = Object.freeze(['blog', 'blog-live', 'news']);
+const GROUNDED = Object.freeze(['blog', 'blog-live', 'news', 'roundup']);
+
+// Verified blog source-pack facts stored by trusted submit (submissions.context),
+// re-bounded here; a scratch sidecar never reaches the gate.
+export function blogPackEvidence(context) {
+  const pack = context?.sourcePack;
+  if (!pack || !Array.isArray(pack.sources)) return null;
+  const clip = (value, max) => String(value ?? '').slice(0, max);
+  const rows = (list) => (Array.isArray(list) ? list : []).slice(0, 12).map((claim) => ({ field: clip(claim?.field, 40), verbatim: clip(claim?.verbatim, 600) }));
+  return {
+    sourcePack: {
+      fingerprint: clip(pack.fingerprint, 64), topic: clip(pack.topic, 300), reserve: pack.reserve === true,
+      sources: pack.sources.slice(0, 12).map((source) => ({ id: clip(source?.id, 200), name: clip(source?.name, 200), claims: rows(source?.claims), premiseClaims: rows(source?.premiseClaims) })),
+    },
+  };
+}
+
+// Every round and every repair must stay bound to the verified pack stored at submit.
+// Fail closed: a blog that claims a pack (sourcePack facts or a cadence key) but has
+// no stored full pack cannot be checked, so it is refused rather than skipped.
+function packBindingErrors(kind, context, items, live, idempotencyKey) {
+  if (kind !== 'blog') return [];
+  const posts = items.filter((item) => item.dataset === 'posts');
+  const pack = context?.sourcePack?.pack;
+  if (!pack) {
+    if (!context?.sourcePack && !String(idempotencyKey ?? '').startsWith('cadence:')) return [];
+    return posts.map((item) => `data/posts.json: ${item.key}: blog draft is not bound to its source pack: missing-stored-pack`);
+  }
+  return posts.flatMap((item) => blogDraftBindingErrors(item.payload, pack, { live, now: new Date(), checkImage: false }).map((error) => `data/posts.json: ${item.key}: ${error}`));
+}
+
+// Roundup v2 gate/fixer evidence (docs/specs/weekly-roundup-v2.md §9.4): the
+// bounded per-unit projection submit stored at T_submit, never live re-fetches.
+// Temporal checks use temporalValidationNow, as before.
+export function roundupEvidence(context) {
+  const units = (list) => (Array.isArray(list) ? list : []).slice(0, 20).map((unit) => ({
+    identity: unit?.identityKey, label: unit?.label, verdict: unit?.verdict, itemType: unit?.itemType,
+    date: unit?.date, endDate: unit?.endDate, startTime: unit?.startTime, endTime: unit?.endTime,
+    members: unit?.members,
+    citations: (Array.isArray(unit?.citations) ? unit.citations : []).map((citation) => ({ url: citation?.url, publisher: citation?.publisher, recordId: citation?.recordId, tier: citation?.tier })),
+    evidence: (Array.isArray(unit?.evidence) ? unit.evidence : []).map((entry) => ({
+      url: entry?.url, recordId: entry?.recordId, tier: entry?.tier, typed: entry?.typed,
+      subject_quote: entry?.subject_quote, place_quote: entry?.place_quote, date_quote: entry?.date_quote,
+    })),
+  }));
+  return {
+    pipeline: context.pipeline ?? null, submittedAt: context.temporalValidationNow ?? context.now, planningNow: context.now,
+    isoWeek: context.isoWeek, weekStartUtc: context.weekStartUtc, counts: context.counts ?? null,
+    units: units(context.units), stillInEffect: units(context.stillInEffect),
+  };
+}
+
+function withPackReferences(references, evidence, businesses) {
+  const ids = new Set((evidence?.sourcePack?.sources ?? []).map((source) => source.id));
+  if (!ids.size) return references;
+  const seen = new Set(references.map((record) => record?.slug));
+  const cited = (businesses ?? []).filter((record) => ids.has(record?.slug) && !seen.has(record.slug)).slice(0, 12);
+  return [...references, ...cited];
+}
 const DECISION_STATE = { validation: 'rejected', lint: 'rejected', unrepairable: 'blocked', exhausted: 'blocked', 'not-converging': 'blocked', block: 'blocked' };
 
 export async function roundVector(db, id, round) {
@@ -200,11 +258,68 @@ function inventoryFromLive(agent, live, checkout, { verified, rejected }) {
   });
 }
 
+// #182: the 900 s claim must outlive a slow review or fixer call (four fixer attempts
+// ran 24 min). The SAME token is renewed once before `work` starts — the claim may be
+// nearly spent by the deterministic checks, live context and media evidence before
+// it — and then serially while `work` is pending: the next renewal is scheduled only
+// after the previous one settles. The timer is stopped and any in-flight renewal
+// drained before this returns, so no renewal can race a later write or the final
+// releaseClaim. A renewal failure (lost lease, network), up front or periodic, rejects
+// at once with that error, marked so the fixer's catch rethrows it instead of counting
+// a fixer failure; it wins over the work's own outcome. The work itself is not aborted.
+export const HEARTBEAT_MS = 300_000;
+const leaseFailures = new WeakSet();
+export const isLeaseFailure = (error) => typeof error === 'object' && error !== null && leaseFailures.has(error);
+const leaseFailure = (error) => {
+  const failure = typeof error === 'object' && error !== null ? error : new Error('claim renewal failed');
+  leaseFailures.add(failure);
+  return failure;
+};
+
+export async function withHeartbeat(work, { renew, intervalMs = HEARTBEAT_MS }) {
+  try {
+    await renew();
+  } catch (error) {
+    throw leaseFailure(error);
+  }
+  let timer = null;
+  let inflight = null;
+  let stopped = false;
+  let failure = null;
+  let signalFailure;
+  const failed = new Promise((_, reject) => { signalFailure = reject; });
+  failed.catch(() => {});
+  const schedule = () => { if (!stopped) timer = setTimeout(beat, intervalMs); };
+  function beat() {
+    timer = null;
+    inflight = Promise.resolve().then(renew).then(schedule, (error) => {
+      stopped = true;
+      failure = leaseFailure(error);
+      signalFailure(failure);
+    });
+  }
+  schedule();
+  const pending = Promise.resolve().then(work);
+  pending.catch(() => {});
+  let outcome;
+  try {
+    outcome = { value: await Promise.race([pending, failed]) };
+  } catch (error) {
+    outcome = { error };
+  }
+  stopped = true;
+  if (timer) clearTimeout(timer);
+  await inflight;
+  if (failure) throw failure;
+  if ('error' in outcome) throw outcome.error;
+  return outcome.value;
+}
+
 // review-agent pulls in the agent SDK; load it only when the gate really runs.
 const loadReviewAgent = () => import('../automation/review-agent.mjs');
 
 // opts: {submission, script, actor, owner}; runtime: {env, deps:{review, fix, fetchImpl, now, wait,
-// onPhase, smoke}, checkout}. Returns {result, exitCode}.
+// onPhase, smoke, renewClaim, heartbeatMs}, checkout}. Returns {result, exitCode}.
 export async function gateContent(db, opts, { env = process.env, deps = {}, checkout = process.cwd() } = {}) {
   const id = Number(opts.submission);
   if (!Number.isInteger(id) || id <= 0) throw new Error('--submission required');
@@ -241,6 +356,8 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
   const review = deps.review ?? agent.reviewRows;
   const fix = deps.fix ?? agent.planRecordRepair;
   const inventoryFor = async (live, candidates) => inventoryFromLive(agent, live, checkout, await currentSubmissionMediaPaths(db, candidates));
+  const renew = deps.renewClaim ?? renewClaim;
+  const leased = (work) => withHeartbeat(work, { renew: () => renew(db, id, token), intervalMs: deps.heartbeatMs });
   let fixerFailures = 0;
   const closed = ({ submission, rounds }, extra = {}) => {
     const last = rounds.at(-1);
@@ -275,7 +392,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         // g1 deterministic
         const policy = checkKindPolicy({ kind, items: candidates, ctx: context, live: live.live, deps: policyDeps({ kind, context: { root: live.root }, checkout }) });
         const imageErrors = await recheckImages({ db, kind, items: candidates, checkout, sourceRef: sourceRefFor(submission.target) });
-        const errors = [...policy.errors, ...imageErrors];
+        const errors = [...policy.errors, ...imageErrors, ...packBindingErrors(kind, context, candidates, live.live, submission.idempotency_key)];
         // g2 document
         const bases = await basePayloads(db, state.items);
         let doc;
@@ -302,11 +419,12 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         const lenses = lensesFor(kind, candidates[0].dataset);
         const references = grounded ? agent.selectReferenceRecords(doc.document, live.live.businesses ?? []) : [];
         const inventory = grounded ? await inventoryFor(live, candidates) : null;
-        const evidence = kind === 'news' ? trimEvidence(context.evidence) : null;
+        const evidence = kind === 'news' ? trimEvidence(context.evidence)
+          : kind === 'roundup' ? roundupEvidence(context) : kind === 'blog' ? blogPackEvidence(context) : null;
         rt.onPhase(`review:${n}`);
         const verdict = script
           ? scriptedVerdict(script, n, doc.contentSha)
-          : await review({ kind, lenses, document: doc.document, contentSha: doc.contentSha, references, inventory, evidence });
+          : await leased(() => review({ kind, lenses, document: doc.document, contentSha: doc.contentSha, references, inventory, evidence }));
         // g4 decision, persisted once
         const decided = decideRound({
           kind, verdict, contentSha: doc.contentSha, repairs: submission.repairs, round: n,
@@ -321,7 +439,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
         if (DECISION_STATE[decision]) continue;
         state = await getSubmission(db, id);
       }
-      await renewClaim(db, id, token);
+      await renew(db, id, token);
 
       if (decision === 'go') {
         try {
@@ -339,14 +457,25 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
       const roundRow = state.rounds.find((round) => round.round === n);
       const payload = fixerPayload(candidates);
       const files = payload.map((entry) => entry.file);
-      const validate = makeRowRepairValidator({
+      const validateRows = makeRowRepairValidator({
         kind, candidates, ctx: context, live: live.live,
         deps: policyDeps({ kind, context: { root: live.root }, checkout }),
       });
-      const references = grounded ? agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []) : [];
+      // A repaired blog draft must still be the post its source pack grounds.
+      const validate = (plan) => {
+        const check = validateRows(plan);
+        if (!check.ok) return check;
+        const unbound = packBindingErrors(kind, context, check.repaired, live.live, submission.idempotency_key);
+        return unbound.length ? { ok: false, errors: unbound, repaired: [] } : check;
+      };
+      // Pass the pack to the fixer and include its cited live business records
+      // in the ground-truth references rendered by the fixer prompt.
+      const fixEvidence = kind === 'blog' ? blogPackEvidence(context) : kind === 'roundup' ? roundupEvidence(context) : null;
+      const references = grounded ? withPackReferences(agent.selectReferenceRecords(JSON.stringify(payload), live.live.businesses ?? []), fixEvidence, live.live.businesses) : [];
       const inventory = grounded ? await inventoryFor(live, candidates) : null;
       const lintFindings = KIND_RULES[kind].lint
-        ? candidates.flatMap((item) => lintPost(item.payload, { businesses: live.live.businesses ?? [], now: context.now ? new Date(context.now) : undefined }).findings)
+        ? candidates.flatMap((item) => lintPost(item.payload, { businesses: live.live.businesses ?? [], now: context.now ? new Date(context.now) : undefined,
+          roundup: item.dataset === 'posts' && Object.hasOwn(item.payload ?? {}, 'roundupCoverage') }).findings)
         : [];
       let repaired;
       try {
@@ -356,13 +485,16 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
           if (!check.ok) throw new Error(`invalid repair plan: ${check.errors.join('; ')}`);
           repaired = check.repaired;
         } else {
-          const result = await fix({
-            kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings,
+          const result = await leased(() => fix({
+            kind: POLICY_KIND[kind], gateVerdict: roundRow?.verdict, payload, validate, references, inventory, lintFindings, evidence: fixEvidence,
             schema: agent.rowRepairSchema(files), describeContract: describeRowContract,
-          });
+            candidateKeys: candidates.map((item) => ({ file: fileOf(item.dataset), key: item.key })),
+          }));
           repaired = result.check.repaired;
         }
-      } catch {
+      } catch (error) {
+        // A lost lease or failed renewal is not a fixer failure: it ends this process.
+        if (isLeaseFailure(error)) throw error;
         // No rows written: the round stays `repair`, so the loop (or a rerun) retries the
         // fixer; a second consecutive failure in this process closes the submission.
         fixerFailures += 1;

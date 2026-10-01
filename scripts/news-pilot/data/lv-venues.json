@@ -1,0 +1,432 @@
+{
+  "provenance": {
+    "source": "Business and venue official pages; City Toronto address points for core business locations",
+    "coverage": "Reviewed named venues and watch account locations only; not exhaustive."
+  },
+  "venues": [
+    {
+      "canonicalVenueId": "addr:85-hanna-ave",
+      "name": "Mildred's Temple Kitchen",
+      "aliases": [
+        "Mildred's Temple Kitchen"
+      ],
+      "address": "85 Hanna Ave",
+      "locality": "core",
+      "verificationUrl": "https://www.mildreds.ca"
+    },
+    {
+      "canonicalVenueId": "addr:116-atlantic-ave",
+      "name": "Burger Drops",
+      "aliases": [
+        "Burger Drops"
+      ],
+      "address": "116 Atlantic Ave",
+      "locality": "core",
+      "verificationUrl": "https://www.burgerdrops.com/"
+    },
+    {
+      "canonicalVenueId": "addr:99-atlantic-ave",
+      "name": "Impact Kitchen",
+      "aliases": [
+        "Impact Kitchen"
+      ],
+      "address": "99 Atlantic Ave",
+      "locality": "core",
+      "verificationUrl": "https://www.impactkitchen.com/blog-liberty-village-opening"
+    },
+    {
+      "canonicalVenueId": "addr:43-hanna-ave#123",
+      "name": "Balzac's Coffee Roasters",
+      "aliases": [
+        "Balzac's Coffee Roasters"
+      ],
+      "address": "43 Hanna Ave #123",
+      "locality": "core",
+      "verificationUrl": "https://balzacs.com/pages/liberty-village"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st#124",
+      "name": "F45 Training Liberty Village",
+      "aliases": [
+        "F45 Training Liberty Village"
+      ],
+      "address": "171 East Liberty St #124",
+      "locality": "core",
+      "verificationUrl": "https://f45training.com/ca/studio/libertyvillage/"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st#100",
+      "name": "LOCAL Public Eatery Liberty Village",
+      "aliases": [
+        "LOCAL Public Eatery Liberty Village"
+      ],
+      "address": "171 East Liberty St #100",
+      "locality": "core",
+      "verificationUrl": "https://localpubliceatery.com/neighbourhoods/liberty-village/"
+    },
+    {
+      "canonicalVenueId": "addr:153-liberty-st",
+      "name": "Kinton Ramen Liberty Village",
+      "aliases": [
+        "Kinton Ramen Liberty Village"
+      ],
+      "address": "153 Liberty St",
+      "locality": "core",
+      "verificationUrl": "https://www.kintonramen.com/location/kinton-ramen-liberty-village/"
+    },
+    {
+      "canonicalVenueId": "addr:139-east-liberty-st",
+      "name": "Liberty Soho",
+      "aliases": [
+        "Liberty Soho"
+      ],
+      "address": "139 East Liberty St",
+      "locality": "core",
+      "verificationUrl": "http://liberty-soho.com/"
+    },
+    {
+      "canonicalVenueId": "addr:129-jefferson-ave",
+      "name": "Liberty Eats",
+      "aliases": [
+        "Liberty Eats"
+      ],
+      "address": "129 Jefferson Ave",
+      "locality": "core",
+      "verificationUrl": "http://libertyeats.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:107-jefferson-ave",
+      "name": "The Village Barbershop",
+      "aliases": [
+        "The Village Barbershop"
+      ],
+      "address": "107 Jefferson Ave",
+      "locality": "core",
+      "verificationUrl": "https://www.thevillagebarbershop.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:80-atlantic-ave",
+      "name": "Arvo Coffee & Wine",
+      "aliases": [
+        "Arvo Coffee & Wine"
+      ],
+      "address": "80 Atlantic Ave",
+      "locality": "core",
+      "verificationUrl": "https://www.arvocoffee.com/"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st#149",
+      "name": "RISE CYCLE - Liberty Village",
+      "aliases": [
+        "RISE CYCLE - Liberty Village"
+      ],
+      "address": "171 East Liberty St #149",
+      "locality": "core",
+      "verificationUrl": "http://www.risecycle.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:127-jefferson-ave",
+      "name": "Thai Barn Na Liberty",
+      "aliases": [
+        "Thai Barn Na Liberty"
+      ],
+      "address": "127 Jefferson Ave",
+      "locality": "core",
+      "verificationUrl": "https://www.thaibarnna.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:165-east-liberty-st#3",
+      "name": "Black Sheep",
+      "aliases": [
+        "Black Sheep"
+      ],
+      "address": "165 East Liberty St #3",
+      "locality": "core",
+      "verificationUrl": "https://fabrestaurants.ca/restaurant/black-sheep/"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st#113",
+      "name": "NRG Haus | Social Wellness Club",
+      "aliases": [
+        "NRG Haus | Social Wellness Club"
+      ],
+      "address": "171 East Liberty St #113",
+      "locality": "core",
+      "verificationUrl": "https://nrghaus.com/"
+    },
+    {
+      "canonicalVenueId": "addr:17-atlantic-ave",
+      "name": "More Studio",
+      "aliases": [
+        "More Studio"
+      ],
+      "address": "17 Atlantic Ave",
+      "locality": "core",
+      "verificationUrl": "http://www.morestudio.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st#126",
+      "name": "Oxygen Yoga and Fitness Liberty Village",
+      "aliases": [
+        "Oxygen Yoga and Fitness Liberty Village"
+      ],
+      "address": "171 East Liberty St #126",
+      "locality": "core",
+      "verificationUrl": "http://www.oxygenlv.com/"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st#101",
+      "name": "STRONG Pilates Liberty Village",
+      "aliases": [
+        "STRONG Pilates Liberty Village"
+      ],
+      "address": "171 East Liberty St #101",
+      "locality": "core",
+      "verificationUrl": "https://strongpilates.ca/liberty-village/"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st#125",
+      "name": "Sundays Pasta Lab",
+      "aliases": [
+        "Sundays Pasta Lab"
+      ],
+      "address": "171 East Liberty St #125",
+      "locality": "core",
+      "verificationUrl": "http://www.sundayspastalab.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:47-fraser-ave",
+      "name": "Framework Toronto",
+      "aliases": [
+        "Framework Toronto"
+      ],
+      "address": "47 Fraser Ave",
+      "locality": "core",
+      "verificationUrl": "https://frameworktoronto.com/"
+    },
+    {
+      "canonicalVenueId": "addr:1187-king-st-w",
+      "name": "Louie Coffee Shop",
+      "aliases": [
+        "Louie Coffee Shop"
+      ],
+      "address": "1187 King St W",
+      "locality": "core",
+      "verificationUrl": "https://louiecoffee.com/"
+    },
+    {
+      "canonicalVenueId": "addr:67-mowat-ave#104",
+      "name": "Liberty Village BIA",
+      "aliases": [
+        "Liberty Village BIA"
+      ],
+      "address": "67 Mowat Ave #104",
+      "locality": "core",
+      "verificationUrl": "https://www.libertyvillagebia.com/"
+    },
+    {
+      "canonicalVenueId": "addr:70-east-liberty-st",
+      "name": "Liberty Village Residents Association",
+      "aliases": [
+        "Liberty Village Residents Association"
+      ],
+      "address": "70 East Liberty St",
+      "locality": "core",
+      "verificationUrl": "https://www.lvra.to/"
+    },
+    {
+      "canonicalVenueId": "addr:70-east-liberty-st",
+      "name": "Green Liberty Village",
+      "aliases": [
+        "Green Liberty Village"
+      ],
+      "address": "70 East Liberty St",
+      "locality": "core",
+      "verificationUrl": "https://www.greenlibertyvillage.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:40-hanna-ave",
+      "name": "Left Field Brewery, Liberty Village",
+      "aliases": [
+        "Left Field Brewery, Liberty Village"
+      ],
+      "address": "40 Hanna Ave",
+      "locality": "core",
+      "verificationUrl": "https://www.leftfieldbrewery.ca/contact-us"
+    },
+    {
+      "canonicalVenueId": "addr:171-east-liberty-st",
+      "name": "Liberty Market Building",
+      "aliases": [
+        "Liberty Market Building"
+      ],
+      "address": "171 East Liberty St",
+      "locality": "core",
+      "verificationUrl": "https://libertymarket.ca/event/show-us-why-you-libertyto/"
+    },
+    {
+      "canonicalVenueId": "addr:25-liberty-st",
+      "name": "QUEST XO Creative Lab",
+      "aliases": [
+        "QUEST XO Creative Lab",
+        "QUEST XO Chocolate Creative Lab"
+      ],
+      "address": "25 Liberty St",
+      "locality": "core",
+      "verificationUrl": "https://questxo.com/pages/creativelab"
+    },
+    {
+      "canonicalVenueId": "addr:65-jefferson-ave#207",
+      "name": "Pink Floor Studios",
+      "aliases": [
+        "Pink Floor Studios"
+      ],
+      "address": "65 Jefferson Ave #207",
+      "locality": "core",
+      "verificationUrl": "https://studio207to.com"
+    },
+    {
+      "canonicalVenueId": "addr:165-east-liberty-st",
+      "name": "Brazen Head Irish Pub",
+      "aliases": [
+        "Brazen Head Irish Pub"
+      ],
+      "address": "165 East Liberty St",
+      "locality": "core",
+      "verificationUrl": "https://fabrestaurants.ca/restaurant/brazen-head/"
+    },
+    {
+      "canonicalVenueId": "addr:107-atlantic-ave#2",
+      "name": "OHA Wellness",
+      "aliases": [
+        "OHA Wellness"
+      ],
+      "address": "107 Atlantic Ave #2",
+      "locality": "core",
+      "verificationUrl": "https://ohawellness.com/contact-us/"
+    },
+    {
+      "canonicalVenueId": "addr:70-east-liberty-st",
+      "name": "Liberty Village Park",
+      "aliases": [
+        "Liberty Village Park"
+      ],
+      "address": "70 East Liberty St",
+      "locality": "core",
+      "verificationUrl": "https://www.toronto.ca/explore-enjoy/parks-recreation/places-spaces/parks-and-recreation-facilities/playground-listings/"
+    },
+    {
+      "canonicalVenueId": "addr:75-fraser-ave",
+      "name": "Lamport Stadium",
+      "aliases": [
+        "Lamport Stadium",
+        "Lamport Stadium Parking Lot",
+        "Lamport Stadium parking"
+      ],
+      "address": "75 Fraser Ave",
+      "locality": "core",
+      "registryVenueId": "venue:lamport-stadium",
+      "verificationUrl": "https://www.libertyvillagebia.com/events/give-me-liberty-street-party",
+      "note": "One canonical Lamport identity (approved spec: 75 Fraser Ave). The City extract has no 75 Fraser Ave point; its Allan A. Lamport Stadium Park point is 1155 King St W, which is not an alias of this venue."
+    },
+    {
+      "canonicalVenueId": "addr:170-princes-blvd",
+      "name": "BMO Field",
+      "aliases": [
+        "BMO Field"
+      ],
+      "address": "170 Princes Blvd",
+      "locality": "adjacent",
+      "registryVenueId": "venue:bmo-field",
+      "officialDomains": [
+        "bmofield.com"
+      ],
+      "verificationUrl": "https://www.bmofield.com/contact-us/"
+    },
+    {
+      "canonicalVenueId": "addr:45-manitoba-dr",
+      "name": "Coca-Cola Coliseum",
+      "aliases": [
+        "Coca-Cola Coliseum"
+      ],
+      "address": "45 Manitoba Dr",
+      "locality": "adjacent",
+      "registryVenueId": "venue:coca-cola-coliseum",
+      "officialDomains": [
+        "coca-colacoliseum.com"
+      ],
+      "verificationUrl": "https://www.coca-colacoliseum.com/"
+    },
+    {
+      "canonicalVenueId": "addr:100-princes-blvd",
+      "name": "Enercare Centre",
+      "aliases": [
+        "Enercare Centre"
+      ],
+      "address": "100 Princes Blvd",
+      "locality": "adjacent",
+      "registryVenueId": "venue:enercare-centre",
+      "officialDomains": [
+        "explace.on.ca"
+      ],
+      "verificationUrl": "https://www.explace.on.ca/venue/enercare-centre/"
+    },
+    {
+      "canonicalVenueId": "addr:105-princes-blvd",
+      "name": "Beanfield Centre",
+      "aliases": [
+        "Beanfield Centre"
+      ],
+      "address": "105 Princes Blvd",
+      "locality": "adjacent",
+      "registryVenueId": "venue:beanfield-centre",
+      "officialDomains": [
+        "explace.on.ca"
+      ],
+      "verificationUrl": "https://www.explace.on.ca/venue/beanfield-centre/"
+    },
+    {
+      "canonicalVenueId": "addr:180-princes-blvd",
+      "name": "Queen Elizabeth Building",
+      "aliases": [
+        "Queen Elizabeth Building"
+      ],
+      "address": "180 Princes Blvd",
+      "locality": "adjacent",
+      "registryVenueId": "venue:queen-elizabeth-building",
+      "officialDomains": [
+        "explace.on.ca"
+      ],
+      "verificationUrl": "https://www.explace.on.ca/"
+    },
+    {
+      "canonicalVenueId": "addr:909-lake-shore-blvd-w",
+      "name": "RBC Amphitheatre",
+      "aliases": [
+        "RBC Amphitheatre"
+      ],
+      "address": "909 Lake Shore Blvd W",
+      "locality": "adjacent",
+      "registryVenueId": "venue:rbc-amphitheatre",
+      "officialDomains": [
+        "rbcamphitheatre.com"
+      ],
+      "verificationUrl": "https://www.rbcamphitheatre.com/"
+    },
+    {
+      "canonicalVenueId": "grounds:exhibition-place",
+      "name": "Exhibition Place",
+      "aliases": [
+        "Exhibition Place"
+      ],
+      "address": null,
+      "locality": "adjacent",
+      "registryVenueId": "venue:exhibition-place",
+      "officialDomains": [
+        "explace.on.ca"
+      ],
+      "verificationUrl": "https://www.explace.on.ca/",
+      "note": "The grounds, not a building: distinct from Enercare Centre (100 Princes Blvd), so a grounds-wide listing never merges with an Enercare event by address."
+    }
+  ]
+}

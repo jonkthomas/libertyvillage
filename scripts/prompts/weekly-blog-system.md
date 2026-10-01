@@ -123,6 +123,7 @@ If the `TOPIC_OVERRIDE` environment variable is set (non-empty):
 
 - **Skip all analysis below**
 - Use the override value as the topic
+- If the runtime prompt includes a `SOURCE PACK`, use its bounded records and internal slugs as the evidence for this topic. Two supporting business records are enough for a narrow two-business article. Do not require a longer roundup or switch to another topic.
 - Generate a title, slug, keywords, and category from the override
 - Proceed directly to Step 3 (Blog Generation)
 
@@ -199,7 +200,7 @@ TOPIC SELECTED:
 - Topic: [selected topic]
 - Title: [proposed blog post title]
 - Slug: [kebab-case-slug]
-- Category: [one of: news, development, food-drink, events, transit, real-estate, lifestyle, community]
+- Category: [one of: development, food-drink, events, transit, real-estate, lifestyle, community]
 - Target Keywords: [comma-separated keywords]
 - Justification: [1-2 sentences on why this topic was selected]
 ```
@@ -226,7 +227,6 @@ export interface BlogPost {
   publishedAt: string;
   updatedAt: string;
   category:
-    | "news"
     | "development"
     | "food-drink"
     | "events"
@@ -248,24 +248,24 @@ export interface BlogPost {
 
 ### 3.2 Field Requirements
 
-| Field             | Type     | Constraints                                                                               |
-| ----------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `slug`            | string   | Kebab-case, unique, matches the proposed slug from Step 2                                 |
-| `title`           | string   | 50-70 characters, includes primary keyword                                                |
-| `description`     | string   | 120-160 characters, compelling for search results                                         |
-| `content`         | string   | 800-1200 words, markdown format                                                           |
-| `publishedAt`     | string   | Today's date in ISO format (YYYY-MM-DD)                                                   |
-| `updatedAt`       | string   | Same as publishedAt for new posts                                                         |
-| `category`        | enum     | One of: news, development, food-drink, events, transit, real-estate, lifestyle, community |
-| `tags`            | string[] | 4-6 relevant tags, lowercase                                                              |
-| `answerBlock`     | string   | 40-60 words, AEO-optimized direct answer                                                  |
-| `faqs`            | FAQ[]    | 4-5 questions with substantive answers (>20 words each)                                   |
-| `image`           | string   | `/images/blog/{slug}.jpg`                                                                 |
-| `relatedServices` | string[] | 2-4 real slugs from data/services.json                                                    |
-| `relatedTopics`   | string[] | 2-4 real slugs from data/topics.json                                                      |
-| `relatedPosts`    | string[] | 1-3 real slugs from data/posts.json                                                       |
-| `keyTakeaways`    | string[] | 4-6 concise bullet points                                                                 |
-| `author`          | string   | Always `"LibertyVillage.co"`                                                              |
+| Field             | Type     | Constraints                                                                         |
+| ----------------- | -------- | ----------------------------------------------------------------------------------- |
+| `slug`            | string   | Kebab-case, unique, matches the proposed slug from Step 2                           |
+| `title`           | string   | 50-70 characters, includes primary keyword                                          |
+| `description`     | string   | 120-160 characters, compelling for search results                                   |
+| `content`         | string   | 800-1200 words, markdown format                                                     |
+| `publishedAt`     | string   | Today's date in ISO format (YYYY-MM-DD)                                             |
+| `updatedAt`       | string   | Same as publishedAt for new posts                                                   |
+| `category`        | enum     | One of: development, food-drink, events, transit, real-estate, lifestyle, community |
+| `tags`            | string[] | 4-6 relevant tags, lowercase                                                        |
+| `answerBlock`     | string   | 40-60 words, AEO-optimized direct answer                                            |
+| `faqs`            | FAQ[]    | 4-5 questions with substantive answers (>20 words each)                             |
+| `image`           | string   | `/images/blog/{slug}.jpg`                                                           |
+| `relatedServices` | string[] | 2-4 real slugs from data/services.json                                              |
+| `relatedTopics`   | string[] | 2-4 real slugs from data/topics.json                                                |
+| `relatedPosts`    | string[] | 1-3 real slugs from data/posts.json                                                 |
+| `keyTakeaways`    | string[] | 4-6 concise bullet points                                                           |
+| `author`          | string   | Always `"LibertyVillage.co"`                                                        |
 
 ### 3.3 Content Guidelines
 
@@ -278,6 +278,7 @@ Write 800-1200 words in markdown format:
 - Mention **at least 2 real businesses** by bold name (e.g., **Mildred's Temple Kitchen**)
   - Business names MUST exist in `data/businesses.json` — do NOT fabricate
   - Bold business names are auto-linked by the site's rendering system
+  - For a `SOURCE PACK` with an ambiguous recorded name, use the specified exact directory link and short label instead of a bold full name.
 
 > **Grounding rule (non-negotiable).** Every named-business fact — address, cross
 > street, opening hours, price, phone, website, rating — must be copied **verbatim**
@@ -286,6 +287,17 @@ Write 800-1200 words in markdown format:
 > another business, and never write it from memory. A vaguer sentence is always
 > correct; an invented specific is a blocking finding and discards the whole draft
 > before a pull request is opened.
+>
+> When a `SOURCE PACK` is supplied, write local facts only from its claim-to-verbatim
+> spans. Its provenance describes a directory export, not independent confirmation
+> that hours, prices, offers, or policies are current. Attribute each business claim
+> in the same sentence to that business. A two-business happy-hour piece may discuss
+> the two recorded references without claiming either offer remains available today.
+> Do not pad the article with unsupported neighbourhood claims to reach a word target.
+> If the runtime prompt flags an ambiguous recorded name, use its exact directory
+> link and the specified short display label. A full shared name can accidentally
+> attribute the claim to a different directory record. That link counts as a real
+> business mention for a source-pack article.
 >
 > **Operational premises (non-negotiable).** Do not write a post whose slug or
 > title asserts pet-friendly / dog policy, happy hour, accessibility, or

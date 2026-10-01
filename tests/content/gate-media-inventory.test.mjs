@@ -72,7 +72,7 @@ const imageFinding = (key, image) => ({ severity: 'high', path: `data/posts.json
 // Run the gate with a review that records its inventory and blocks when the hero is
 // absent from it (the grounded reviewer's behaviour) or on the walking-route claim.
 async function gateOnce(db, id, checkout, { reviews, fix, onPhase }) {
-  const seen = { reviews: [], fixes: [] };
+  const seen = { reviews: [], fixes: [], candidateKeys: [] };
   const out = await gateContent(db, { submission: id, actor: 'uat:test' }, {
     env: { SLACK_WEBHOOK_URL: 'http://127.0.0.1:9/slack' }, checkout,
     deps: {
@@ -84,6 +84,7 @@ async function gateOnce(db, id, checkout, { reviews, fix, onPhase }) {
       },
       fix: async (args) => {
         seen.fixes.push(args.inventory);
+        seen.candidateKeys.push(args.candidateKeys);
         return { check: args.validate(fix(args)) };
       },
     },
@@ -147,6 +148,7 @@ test('GREEN: a newly submitted blog JPG (/media) is in review + fixer inventory 
     // The first fixer call is the resumed round-0 repair; the walking-route finding then
     // keeps repairing until the unchanged budget closes the submission.
     assert.ok(resumed.seen.fixes.length >= 1, 'fixer ran on resume');
+    for (const keys of resumed.seen.candidateKeys) assert.deepEqual(keys, [{ file: 'data/posts.json', key: post.key }], 'row fixer gets the trusted candidate identity');
     assert.equal(resumed.seen.reviews.length, resumed.seen.fixes.length);
     resumed.seen.fixes.forEach((inventory, i) => assertHeroFirst(inventory, image, `fixer call ${i}${i === 0 ? ' (resume)' : ''}`));
     resumed.seen.reviews.forEach((inventory, i) => assertHeroFirst(inventory, image, `review round ${i + 1}`));

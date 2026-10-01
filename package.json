@@ -17,7 +17,7 @@
     "test:supervisor": "node --test tests/supervisor/*.test.mjs",
     "test:supervisor:acceptance": "node tests/supervisor/local-acceptance.eval.mjs",
     "supervisor:smoke": "node scripts/supervisor/cli.mjs smoke",
-    "test:news-pilot": "node --import tsx --test tests/news-pilot/*.test.mjs",
+    "test:news-pilot": "node --import tsx --test tests/news-pilot/*.test.mjs tests/news-pilot/*.eval.mjs",
     "test:e2e": "playwright test",
     "report:growth": "node scripts/generate-weekly-growth-report.mjs"
   },

@@ -28,3 +28,25 @@ test('lone surrogates at any depth and blank smoke markers are refused before pe
     assert.equal((await db.query('select count(*)::int as count from content.submissions')).rows[0].count,0);
   }finally{await close();}
 });
+
+test('roundupCoverage is allowed (never required) only on a weekly roundup news post, well-formed and at most 64 keys', async () => {
+  const { validateRecord: validate } = await import('../../scripts/content/validate.mjs');
+  const base = JSON.parse(await readFile(new URL('../../data/posts.json', import.meta.url), 'utf8'))[0];
+  const slug = 'liberty-village-news-week-2026-w40';
+  const coverage = { version: 1, isoWeek: '2026-W40', planningCutoff: '2026-09-30T12:00:00.000Z', keys: ['road:Tor-1', 'occ:addr:40-hanna-ave:2026-10-03:15:00'] };
+  const roundup = { ...base, slug, category: 'news', roundupCoverage: coverage };
+  assert.deepEqual(validate('posts', slug, roundup).errors, []);
+  const withoutField = { ...roundup };
+  delete withoutField.roundupCoverage;
+  assert.deepEqual(validate('posts', slug, withoutField).errors, [], 'allowed, not required');
+  const errs = (record, key = slug) => validate('posts', key, record).errors.join('; ');
+  assert.match(errs({ ...roundup, slug: 'daily-news', roundupCoverage: coverage }, 'daily-news'), /only valid on a weekly roundup news post/);
+  assert.match(errs({ ...roundup, category: 'events' }), /only valid on a weekly roundup news post/);
+  assert.match(errs({ ...roundup, roundupCoverage: { ...coverage, version: 2 } }), /version must be 1/);
+  assert.match(errs({ ...roundup, roundupCoverage: { ...coverage, isoWeek: '2026-W41' } }), /isoWeek must match the slug/);
+  assert.match(errs({ ...roundup, roundupCoverage: { ...coverage, planningCutoff: '2026-09-30' } }), /planningCutoff must be an ISO instant/);
+  assert.match(errs({ ...roundup, roundupCoverage: { ...coverage, keys: ['x'.repeat(201)] } }), /at most 200 chars/);
+  assert.match(errs({ ...roundup, roundupCoverage: { ...coverage, keys: Array.from({ length: 65 }, (_, n) => `k${n}`) } }), /more than 64 keys/);
+  assert.match(errs({ ...roundup, roundupCoverage: { ...coverage, extra: true } }), /invalid roundupCoverage/);
+  assert.equal(validate('posts', slug, { ...roundup, roundupCoverage: { ...coverage, keys: Array.from({ length: 64 }, (_, n) => `k${n}`) } }).ok, true);
+});
