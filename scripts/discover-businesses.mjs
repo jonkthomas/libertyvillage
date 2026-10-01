@@ -13,6 +13,12 @@
  * Env: SERPAPI_API_KEY (required), PEXELS_API_KEY (optional - adds a
  *      category-matched stock hero image per new business).
  * Usage: node scripts/discover-businesses.mjs [--max=15] [--dry]
+ *        node scripts/discover-businesses.mjs --category=<slug> [--max=1..3]
+ *
+ * Scoped mode (the weekly-blog evidence pass) scans ONE allowlisted category
+ * with one Maps request under finite deadlines and prints exactly one JSON
+ * line on stdout: {outcome:'added'|'empty',category,mapsRequests} exit 0, or a
+ * typed outage/refusal with no candidate text, URL or key (exit 2 or 3).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -27,6 +33,9 @@ const UA =
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry");
 const MAX_NEW = Number((args.find((a) => a.startsWith("--max=")) || "--max=15").split("=")[1]);
+const SCOPED_MAX = 3;
+const REQUEST_TIMEOUT_MS = 20_000;
+const SCOPED_DEADLINE_MS = 60_000;
 
 // Liberty Village geo-box (generous; tightened by the LV-core check below).
 const BOX = { latMin: 43.63, latMax: 43.645, lngMin: -79.431, lngMax: -79.409 };
@@ -35,7 +44,7 @@ const MIN_RATING = 4.0;
 const MIN_REVIEWS = 50;
 
 // Maps a search query to an existing directory category slug.
-const CATEGORY_QUERIES = {
+export const CATEGORY_QUERIES = Object.freeze({
   restaurants: "restaurants",
   "coffee shops": "coffee-shops",
   bars: "bars",
@@ -61,7 +70,9 @@ const CATEGORY_QUERIES = {
   "dog groomers": "dog-groomers",
   florists: "florists",
   "tattoo shops": "tattoo-parlors",
-};
+});
+// Scoped callers name a slug; only these static queries ever reach SerpApi.
+const QUERY_BY_SLUG = new Map(Object.entries(CATEGORY_QUERIES).map(([query, slug]) => [slug, query]));
 
 const ROOT = process.cwd();
 const DATA = path.join(ROOT, "data", "businesses.json");
@@ -138,14 +149,70 @@ export function selectBatch(found, state, max) {
   return batch;
 }
 
-async function maps(query) {
+// AbortSignal.timeout is unref'd: a hung request would let the process exit
+// 0 with no outcome. A ref'd timer keeps the finite deadline authoritative.
+function deadline(ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new DOMException("deadline", "TimeoutError")), Math.max(1, ms));
+  return { signal: controller.signal, abort: () => controller.abort(), clear: () => clearTimeout(timer) };
+}
+
+// One Maps search. Returns {ok:true, results} for a real answer (including
+// Google's "no results"), else {ok:false, reason} from a fixed vocabulary; the
+// URL, key and upstream error text never leave this function.
+export async function mapsSearch(query, { fetchImpl = fetch, apiKey = API_KEY, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const url =
     `https://serpapi.com/search.json?engine=google_maps&type=search&ll=${encodeURIComponent(CENTER)}` +
-    `&q=${encodeURIComponent(query + " Liberty Village Toronto")}&api_key=${API_KEY}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`SerpApi ${res.status} for "${query}"`);
-  const json = await res.json();
-  return json.local_results || [];
+    `&q=${encodeURIComponent(query + " Liberty Village Toronto")}&api_key=${encodeURIComponent(apiKey || "")}`;
+  const { signal, abort, clear } = deadline(timeoutMs);
+  let json;
+  try {
+    const res = await fetchImpl(url, { signal });
+    // Reject by status without retaining an unread streaming body/socket.
+    if (res.status >= 500) { abort(); return { ok: false, reason: "http-5xx" }; }
+    if (res.status === 429) { abort(); return { ok: false, reason: "rate-limited" }; }
+    if (!res.ok) { abort(); return { ok: false, reason: "http-4xx" }; }
+    try {
+      json = JSON.parse(await res.text());
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return { ok: false, reason: "malformed" };
+    }
+  } catch (error) {
+    return { ok: false, reason: signal.aborted || error?.name === "TimeoutError" ? "timeout" : "network" };
+  } finally {
+    clear();
+  }
+  if (!json || typeof json !== "object" || Array.isArray(json)) return { ok: false, reason: "malformed" };
+  const status = json.search_metadata?.status;
+  if (typeof json.error === "string") {
+    return status !== "Error" && /hasn't returned any results/i.test(json.error) ? { ok: true, results: [] } : { ok: false, reason: "api-error" };
+  }
+  if (status === "Error") return { ok: false, reason: "api-error" };
+  if (Array.isArray(json.local_results)) return { ok: true, results: json.local_results };
+  if (json.local_results === undefined && status === "Success") return { ok: true, results: [] };
+  return { ok: false, reason: "malformed" };
+}
+
+async function maps(query) {
+  const searched = await mapsSearch(query);
+  if (!searched.ok) throw new Error(`SerpApi ${searched.reason} for "${query}"`);
+  return searched.results;
+}
+
+// LV geo-box + core + quality bar + dedupe, shared by weekly and scoped runs.
+export function filterCandidates(results, slug, state) {
+  const found = [];
+  for (const x of results) {
+    const gc = x.gps_coordinates || {};
+    if (!inLV(gc.latitude, gc.longitude)) continue;
+    if (!lvCore({ name: x.title, address: x.address })) continue;
+    if ((x.rating ?? 0) < MIN_RATING || (x.reviews ?? 0) < MIN_REVIEWS) continue;
+    if (isDuplicate(state, { name: x.title, address: x.address })) continue;
+    state.seen.add(norm(x.title));
+    found.push(toRecord(x, slug));
+  }
+  return found;
 }
 
 // Category slug -> Pexels search query for a representative stock hero.
@@ -167,22 +234,24 @@ const PEXELS_QUERY = {
 // Returns the public path, or "" on any failure (records stay blank-image, which renders fine).
 // An existing file already belongs to this slug; overwriting it would silently
 // re-skin a live directory record on every re-discovery.
-export async function fetchImage(slug, category, dir = IMAGE_DIR) {
+// One finite deadline covers the search, the download and the body read.
+export async function fetchImage(slug, category, dir = IMAGE_DIR, { fetchImpl = fetch, apiKey = PEXELS_KEY, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   if (fs.existsSync(path.join(dir, `${slug}.jpg`))) return `/images/businesses/${slug}.jpg`;
-  if (!PEXELS_KEY) return "";
+  if (!apiKey || timeoutMs <= 0) return "";
   const query = PEXELS_QUERY[category] || "toronto small business storefront";
+  const { signal, abort, clear } = deadline(timeoutMs);
   try {
-    const res = await fetch(
+    const res = await fetchImpl(
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=5&orientation=landscape`,
-      { headers: { Authorization: PEXELS_KEY, "User-Agent": UA } }
+      { headers: { Authorization: apiKey, "User-Agent": UA }, signal }
     );
-    if (!res.ok) return "";
+    if (!res.ok) { abort(); return ""; }
     const photos = (await res.json()).photos || [];
     if (!photos.length) return "";
     const src = photos[Math.floor(Math.random() * photos.length)].src.landscape.split("?")[0] +
       "?auto=compress&cs=tinysrgb&w=1280&h=720&fit=crop";
-    const img = await fetch(src, { headers: { "User-Agent": UA } });
-    if (!img.ok) return "";
+    const img = await fetchImpl(src, { headers: { "User-Agent": UA }, signal });
+    if (!img.ok) { abort(); return ""; }
     const buf = Buffer.from(await img.arrayBuffer());
     if (buf.length < 5000) return "";
     fs.mkdirSync(dir, { recursive: true });
@@ -190,6 +259,8 @@ export async function fetchImage(slug, category, dir = IMAGE_DIR) {
     return `/images/businesses/${slug}.jpg`;
   } catch {
     return "";
+  } finally {
+    clear();
   }
 }
 
@@ -235,6 +306,69 @@ export function toRecord(x, categorySlug) {
   };
 }
 
+// null = legacy weekly run. Scoped args are all-or-nothing: exactly one
+// allowlisted slug and an optional --max=1..3; anything else is refused whole.
+export function parseScopedArgs(argv) {
+  if (!argv.some((a) => a === "--category" || a.startsWith("--category="))) return null;
+  const refuse = { error: "invalid-arguments" };
+  const categories = argv.filter((a) => a.startsWith("--category="));
+  const maxes = argv.filter((a) => a.startsWith("--max="));
+  if (categories.length !== 1 || maxes.length > 1 || categories.length + maxes.length !== argv.length) return refuse;
+  const category = categories[0].slice("--category=".length);
+  if (!QUERY_BY_SLUG.has(category)) return refuse;
+  const max = maxes.length ? maxes[0].slice("--max=".length) : String(SCOPED_MAX);
+  if (!/^[1-9]$/.test(max) || Number(max) > SCOPED_MAX) return refuse;
+  return { category, query: QUERY_BY_SLUG.get(category), max: Number(max) };
+}
+
+// Scoped evidence pass: one Maps request for one allowlisted category, then at
+// most `max` additions. Returns {code, result}; result is the only thing printed.
+export async function runScoped({ category, query, max }, {
+  root = ROOT, env = process.env, fetchImpl = fetch, now = Date.now,
+  requestTimeoutMs = REQUEST_TIMEOUT_MS, deadlineMs = SCOPED_DEADLINE_MS,
+} = {}) {
+  if (!env.SERPAPI_API_KEY) return { code: 2, result: { outcome: "config-error", category, mapsRequests: 0 } };
+  const dataFile = path.join(root, "data", "businesses.json");
+  const seenFile = path.join(root, "data", "discovery-seen.json");
+  const existing = JSON.parse(fs.readFileSync(dataFile, "utf8"));
+  const state = buildDedupeState(existing, readSeenRegistry(seenFile));
+  const started = now();
+  const budget = () => Math.min(requestTimeoutMs, deadlineMs - (now() - started));
+
+  const searched = await mapsSearch(query, { fetchImpl, apiKey: env.SERPAPI_API_KEY, timeoutMs: budget() });
+  if (!searched.ok) return { code: 3, result: { outcome: "maps-unavailable", category, mapsRequests: 1, reason: searched.reason } };
+  const found = filterCandidates(searched.results, category, state);
+  found.sort((a, b) => b.reviewCount - a.reviewCount);
+  const batch = selectBatch(found, state, max);
+  if (!batch.length) return { code: 0, result: { outcome: "empty", category, mapsRequests: 1 } };
+
+  // Images are optional: a Pexels failure or a spent budget leaves image "".
+  for (const rec of batch) {
+    rec.image = await fetchImage(rec.slug, rec.category, path.join(root, "public", "images", "businesses"),
+      { fetchImpl, apiKey: env.PEXELS_API_KEY, timeoutMs: budget() });
+  }
+  fs.writeFileSync(dataFile, JSON.stringify([...existing, ...batch], null, 2) + "\n");
+  appendSeenRegistry(batch.map((b) => b.name), new Date().toISOString().slice(0, 10), seenFile);
+  return { code: 0, result: { outcome: "added", category, mapsRequests: 1 } };
+}
+
+// Stdout carries exactly one JSON line; errors are reduced to a fixed class.
+async function scopedMain(scoped) {
+  const emit = (code, result) => {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    process.exitCode = code;
+  };
+  if (scoped.error) return emit(2, { outcome: scoped.error, mapsRequests: 0 });
+  const override = Number(process.env.DISCOVERY_REQUEST_TIMEOUT_MS);
+  const requestTimeoutMs = Number.isSafeInteger(override) && override > 0 && override < REQUEST_TIMEOUT_MS ? override : REQUEST_TIMEOUT_MS;
+  try {
+    const { code, result } = await runScoped(scoped, { requestTimeoutMs });
+    emit(code, result);
+  } catch {
+    emit(1, { outcome: "error", category: scoped.category });
+  }
+}
+
 async function main() {
   if (!API_KEY) {
     console.error("ERROR: SERPAPI_API_KEY env var is required.");
@@ -254,15 +388,7 @@ async function main() {
       console.warn("skip", query, String(e.message));
       continue;
     }
-    for (const x of results) {
-      const gc = x.gps_coordinates || {};
-      if (!inLV(gc.latitude, gc.longitude)) continue;
-      if (!lvCore({ name: x.title, address: x.address })) continue;
-      if ((x.rating ?? 0) < MIN_RATING || (x.reviews ?? 0) < MIN_REVIEWS) continue;
-      if (isDuplicate(state, { name: x.title, address: x.address })) continue;
-      state.seen.add(norm(x.title));
-      found.push(toRecord(x, slug));
-    }
+    found.push(...filterCandidates(results, slug, state));
     await new Promise((r) => setTimeout(r, 300));
   }
 
@@ -312,7 +438,9 @@ function isEntrypoint() {
 }
 
 if (isEntrypoint()) {
-  main().catch((e) => {
+  const scoped = parseScopedArgs(args);
+  if (scoped) scopedMain(scoped);
+  else main().catch((e) => {
     console.error(e);
     process.exit(1);
   });

@@ -54,7 +54,7 @@ test('diagnostic IO failure cannot bypass transient-unit stop ordering', () => {
   assert.match(generatorBlock, /except subprocess\.TimeoutExpired:\s+stop_ok = _stop_unit\(unit\)\s+diag\.event\('unit-timeout'\)/);
   assert.match(generatorBlock, /except Exception:\s+stop_ok = _stop_unit\(unit\) if unit else True\s+diag\.event\('unit-error'\)/);
   assert.match(fs.readFileSync(path.join(owned, 'generator_diag.py'), 'utf8'), /except OSError:\s+# Logging is best-effort/);
-  assert.match(generatorBlock, /finally:\s+try:\s+diag\.close\(\)\s+except Exception:\s+# Diagnostics must not skip[\s\S]*?pass\s+if result != 0 and not _unit_inactive\(unit\):/);
+  assert.match(generatorBlock, /finally:\s+try:\s+diag\.close\(\)\s+except Exception:\s+# Diagnostics must not skip[\s\S]*?pass\s+[\s\S]*?if not _unit_inactive\(unit\):\s+stop_ok = _stop_unit\(unit\)/);
 });
 
 test('generator path persists only bounded root diagnostics and never raw model output', () => {
@@ -62,6 +62,10 @@ test('generator path persists only bounded root diagnostics and never raw model 
   assert.match(generatorBlock, /GeneratorDiagnostic\(f'\/var\/log\/lv-generator\/generator-/);
   assert.match(generatorBlock, /capture_generator\(cmd, diag, CLIENT_TIMEOUT\)/);
   assert.doesNotMatch(generatorBlock, /print\(env|print\(secrets|os\.environ/);
+  // The only stdout write is the validated relay, after cleanup in the outer finally.
+  assert.equal((generatorBlock.match(/os\.write\(|sys\.stdout/g) || []).length, 1);
+  assert.match(generatorBlock, /envfile\.unlink\(missing_ok=True\)\s+if relay is not None:\s+os\.write\(1, relay\)\s*$/);
+  assert.match(generatorBlock, /if result in \(0, 1\):\s+relay = diag\.relay\(result\)/);
   const sanitizer = fs.readFileSync(path.join(owned, 'generator_diag.py'), 'utf8');
   assert.match(sanitizer, /MAX_BYTES = 64 \* 1024/);
   assert.match(sanitizer, /O_NOFOLLOW, 0o600/);

@@ -143,6 +143,10 @@ export function classifyCliFailure(binary, args, result) {
     ['ClaimError', ['cli-claim', 'retry-original-slot']], ['ECONNRESET', ['cli-network', 'retry-original-slot']],
     ['ETIMEDOUT', ['cli-network', 'retry-original-slot']], ['ENOTFOUND', ['cli-network', 'retry-original-slot']],
     ['EAI_AGAIN', ['cli-network', 'retry-original-slot']], ['57P01', ['cli-database', 'retry-original-slot']],
+    ['CadenceSchemaError', ['cli-schema', 'check-cadence-migrations']],
+    ['42P01', ['cli-schema', 'check-cadence-migrations']],
+    ['3D000', ['cli-database-target', 'check-binding']],
+    ['42501', ['cli-permission', 'check-database-role']],
   ]);
   let payload;
   const stdout = result.stdout;
@@ -223,6 +227,54 @@ function source(script, args, job, log) {
   return result;
 }
 
+export function parseDiscoveryOutcome(stdout, category) {
+  if (typeof stdout !== 'string' || Buffer.byteLength(stdout) > 512 || !stdout.endsWith('\n')) throw new Error('invalid discovery outcome');
+  let value;
+  try { value = JSON.parse(stdout.trim()); } catch { throw new Error('invalid discovery outcome'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).sort().join(',') !== 'category,mapsRequests,outcome'
+    || value.category !== category || !['added','empty'].includes(value.outcome)
+    || !Number.isSafeInteger(value.mapsRequests) || value.mapsRequests < 0 || value.mapsRequests > 1) throw new Error('invalid discovery outcome');
+  return value;
+}
+
+export function runScopedEvidenceSource(category, log, execute = command) {
+  if (!DISCOVERY_CATEGORIES.has(category)) throw new Error('invalid evidence category');
+  const result = execute(node, ['scripts/discover-businesses.mjs', `--category=${category}`, '--max=3'],
+    { cwd: repo, env: sourceEnv(process.env, 'discover-businesses'), allowExit: [1, 2, 3] });
+  if (log) logLine(log, 'source-complete', { script: 'scripts/discover-businesses.mjs', exit: result.code });
+  if (result.code === 3) throw new Error('Maps discovery unavailable');
+  if (result.code !== 0) throw new Error('evidence discovery failed');
+  return parseDiscoveryOutcome(result.stdout, category);
+}
+
+function discoverEvidence(evidence, category, target, log, allowSource = true) {
+  const key = evidence.discovery_key;
+  const find = () => parseJson(cli(['lookup', '--idempotency-key', key, '--target', target]).stdout);
+  let found = find();
+  if (found.submissionId == null) {
+    if (evidence.state !== 'claimed' || !allowSource) return { state: 'empty' };
+    const outcome = runScopedEvidenceSource(category, log);
+    if (outcome.outcome === 'empty') return { state: 'empty' };
+    try { cli(['submit', '--dir', '.', '--kind', 'business', '--idempotency-key', key, '--actor', `runner:weekly-blog-evidence#${evidence.original_key.slice(-16)}`]); }
+    catch (error) {
+      found = find();
+      if (found.submissionId == null) throw error;
+    }
+    found = find();
+  }
+  if (found.submissionId == null || found.kind !== 'business') throw new Error('discovery submission missing');
+  const gateResult = gateEvidenceSubmission(found.submissionId, target,
+    `runner:weekly-blog-evidence#${evidence.original_key.slice(-16)}`,
+    (args, allowExit) => cli(args, repo, allowExit), (event, details) => logLine(log, event, details));
+  if (gateResult.state !== 'smoked') return gateResult;
+  const verifiedSlugs = liveBusinessSlugs(found.submissionId, target);
+  return verifiedSlugs.length ? { state: 'smoked', submissionId: found.submissionId, verifiedSlugs } : { state: 'empty' };
+}
+function liveBusinessSlugs(submissionId, target) {
+  const value = parseJson(cli(['cadence', 'evidence-live', '--submission-id', String(submissionId), '--target', target]).stdout);
+  return Array.isArray(value?.verifiedSlugs) && value.verifiedSlugs.every((slug) => typeof slug === 'string') ? value.verifiedSlugs : [];
+}
+
 // npm's relative .bin links must stay relative inside scratch. Without this,
 // fs.cpSync rewrites them to the trusted repo, loading two Next.js instances
 // during scratch builds and breaking its AsyncLocalStorage prerender context.
@@ -259,22 +311,47 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
   // The root-owned helper validates this path, changes ownership, and starts a
   // transient service as lv-generator with strict filesystem protection.
   const helper = '/usr/local/libexec/lv-runner-generator';
-  command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env) });
+  const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' ? [1] : [] });
+  const diagnostic = job === 'weekly-blog' ? readGeneratorRelay(helperResult) : null;
   const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
   if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
   const allPaths = changedPaths(scratch, repo);
   const paths = generatedPathsForTransfer(allPaths, job);
   const discarded = allPaths.filter((rel) => !allowedGeneratedPath(rel, job));
   if (discarded.length) logLine(log, 'generator-output-discarded', { paths: discarded.slice(0, 20).map((rel) => rel.slice(0, 160)), omitted: Math.max(0, discarded.length - 20) });
-  if (job === 'weekly-blog' && !paths.includes('data/posts.json')) throw new Error('blog generated no post');
+  if (job === 'weekly-blog' && !paths.includes('data/posts.json')) throw noPostError(diagnostic);
   if (job === 'seo-improvements' && discarded.some(seoCodeSuggestionPath)) {
     notifications.codeSuggestion = true;
     logLine(log, 'seo-code-suggestion', { paths: discarded.filter(seoCodeSuggestionPath).slice(0, 20).map((rel) => rel.slice(0, 160)) });
   }
-  const changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts);
+  let changed;
+  try { changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts); }
+  catch (error) { if (job === 'weekly-blog' && error.message === 'blog generated no post') throw noPostError(diagnostic); throw error; }
+  if (job === 'weekly-blog' && diagnostic?.postWritten === false) throw new Error('generator diagnostic contradicted post');
   logLine(log, 'generator-output-accepted', { paths: changed.length });
   fs.rmSync(scratch, { recursive: true, force: true });
   return changed;
+}
+
+const GENERATOR_REASONS = new Set(['post-written','unsupported-grounding','insufficient-sources','sdk-error','generator-error','no-post-unspecified','duplicate','absent']);
+export function parseGeneratorDiagnostic(stdout) {
+  if (typeof stdout !== 'string' || Buffer.byteLength(stdout) > 128) return null;
+  const match = /^\{"postWritten":(true|false),"stopReason":"([a-z-]+)"\}\n$/.exec(stdout);
+  if (!match || !GENERATOR_REASONS.has(match[2])) return null;
+  return { postWritten: match[1] === 'true', stopReason: match[2] };
+}
+export function readGeneratorRelay({ code, stdout }) {
+  const diagnostic = parseGeneratorDiagnostic(stdout);
+  if (!diagnostic || (code === 0) !== diagnostic.postWritten || (diagnostic.stopReason === 'post-written') !== diagnostic.postWritten
+    || ![0, 1].includes(code) || diagnostic.stopReason === 'absent') throw new Error('generator outcome unavailable');
+  if (['sdk-error','generator-error'].includes(diagnostic.stopReason)) throw new Error('generator technical failure');
+  return diagnostic;
+}
+function noPostError(diagnostic) {
+  if (diagnostic?.postWritten === true) return new Error('generator diagnostic contradicted post');
+  const error = new Error('blog generated no post');
+  if (diagnostic?.postWritten === false && ['unsupported-grounding','insufficient-sources'].includes(diagnostic.stopReason)) error.groundedRefusal = diagnostic.stopReason;
+  return error;
 }
 
 function submitAndGate(job, target, slot, log, extra = [], onSubmission = null) {
@@ -380,6 +457,17 @@ function gateState(deps, target, id, actor) {
   if (submission?.state === 'published') return submission.smoke_passed_at ? { state: 'smoked', smokedAt: submission.smoke_passed_at } : { state: 'published' };
   if (['rejected', 'blocked', 'error'].includes(submission?.state)) return { state: submission.state };
   if (result.code === 2) return { state: 'rejected' };
+  throw new Error('submission lacks smoke success');
+}
+
+// Business discovery shares the cadence gate's bounded terminal-error receipt.
+// A durable, notified `error` closes this evidence attempt so another topic can
+// proceed; an operational exit 1 remains an error, never fabricated evidence.
+export function gateEvidenceSubmission(id, target, actor, cliCall, log = () => {}) {
+  const result = gateState({ cli: cliCall, log }, target, id, actor);
+  if (result.state === 'smoked') return { state: 'smoked' };
+  if (result.state === 'published') return { state: 'pending' };
+  if (['rejected', 'blocked', 'error'].includes(result.state)) return { state: 'empty' };
   throw new Error('submission lacks smoke success');
 }
 
@@ -494,7 +582,7 @@ function resumeOpenAttempt(deps, ctx, attempt, token) {
 }
 
 function blogCandidate(run, entry, snapshot, { reserve = false, consumed = run.consumed } = {}) {
-  const { checkTopicGroundability, buildSourcePack, reserveGuideEligibility } = run.deps.modules;
+  const { checkTopicGroundability, buildSourcePack } = run.deps.modules;
   if (typeof entry?.title !== 'string' || !entry.title.trim() || typeof entry.key !== 'string' || !entry.key) return { skip: 'invalid-entry' };
   const ground = checkTopicGroundability({ title: entry.title, kind: 'blog', businesses: snapshot.businesses, livePosts: snapshot.posts, consumedFingerprints: [...consumed] });
   if (!ground.ok) return { skip: ground.reason };
@@ -518,6 +606,18 @@ function queueEntries(run, snapshot) {
 
 const humanize = (category) => category.split('-').filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
 const categoryOf = (record) => (typeof record?.category === 'string' ? record.category.trim().toLowerCase() : '');
+const DISCOVERY_CATEGORIES = new Set(['restaurants','coffee-shops','bars','wine-bars','breweries','gyms','pilates','yoga-studios','hair-salons','barbers','nail-salons','spas','dentists','physiotherapy','chiropractors','massage-therapy','optometrists','bakeries','pizza','sushi','brunch-spots','pet-stores','dog-groomers','florists','tattoo-parlors']);
+export function evidenceCategory(pack, snapshot) {
+  const categories = new Set();
+  for (const source of pack?.sources ?? []) {
+    if (source?.kind !== 'business' || typeof source.id !== 'string') return null;
+    const record = snapshot.businesses.find((item) => item.slug === source.id);
+    const category = categoryOf(record);
+    if (!DISCOVERY_CATEGORIES.has(category)) return null;
+    categories.add(category);
+  }
+  return categories.size === 1 ? [...categories][0] : null;
+}
 
 // A reserve guide pack is built ONLY from its category's live records, so every
 // source is in-category (categories partition the directory, so two reserve
@@ -639,11 +739,13 @@ function writeTrustedPack(run, key, pack) {
 
 // One intent in a reserved content slot: attempt -> generator -> sidecar check ->
 // submit (trusted pack) -> attach -> gate. `existing` retries the SAME key/intent.
-function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing = null) {
+function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing = null, evidence = null) {
   const { deps, call } = run;
   let key = existing?.idempotency_key;
   if (!key) {
-    const recorded = call('attempt', ['--lane', 'content', '--slot-number', slotNumber, '--token', token, '--intent-fingerprint', candidate.fingerprint, '--topic-key', candidate.topicKey, '--source-pack-digest', candidate.pack.fingerprint]);
+    const recorded = evidence
+      ? call('evidence-retry', ['--lane', 'content', '--slot-number', slotNumber, '--token', token, '--intent-fingerprint', candidate.fingerprint, '--topic-key', candidate.topicKey, '--source-pack-digest', candidate.pack.fingerprint, '--evidence-token', evidence.claim_token])
+      : call('attempt', ['--lane', 'content', '--slot-number', slotNumber, '--token', token, '--intent-fingerprint', candidate.fingerprint, '--topic-key', candidate.topicKey, '--source-pack-digest', candidate.pack.fingerprint]);
     if (recorded.existing) throw new Error('cadence attempt already open');
     key = recorded.idempotencyKey;
   }
@@ -658,7 +760,11 @@ function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing
   let changed;
   try { changed = deps.generate(candidate.title); }
   catch (error) {
-    if (error?.message === 'blog generated no post') return fail('no-post');
+    if (error?.message === 'blog generated no post') {
+      const result = fail('no-post');
+      if (error.groundedRefusal && !candidate.reserve && !existing && !evidence) return { ...result, refusal: { candidate, snapshot, key, reason: error.groundedRefusal } };
+      return result;
+    }
     fail('generator-error');
     throw error;
   }
@@ -700,7 +806,7 @@ function retryBlogAttempt(run, slotNumber, token, attempt) {
   return attemptBlogIntent(run, slotNumber, token, candidate, snapshot, attempt);
 }
 
-function processContentSlot(run, slotNumber) {
+function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
   const { deps, call } = run;
   const reservation = call('reserve', ['--lane', 'content', '--slot-number', slotNumber, '--owner', run.owner, '--lease-seconds', CADENCE.leaseSeconds]);
   if (!reservation.reserved) {
@@ -719,6 +825,7 @@ function processContentSlot(run, slotNumber) {
       if (resumed.state !== 'closed') return resumed;
       attempts = attemptsOf();
     }
+    if (resumeOnly) return { state: 'closed' };
     let normalLeft = CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length;
     while (run.budget > 0) {
       const snapshot = deps.exportSnapshot();
@@ -731,7 +838,7 @@ function processContentSlot(run, slotNumber) {
       } else normalLeft -= 1;
       run.budget -= 1;
       const result = attemptBlogIntent(run, slotNumber, token, candidate, snapshot);
-      if (result.state !== 'closed') return result;
+      if (result.refusal || result.state !== 'closed') return result;
     }
     deps.log('cadence-slot-exhausted', { slot: slotNumber, budget: run.budget, normalLeft: Math.max(0, normalLeft), reserveLeft: run.reserveLeft });
     return { state: 'exhausted' };
@@ -748,10 +855,10 @@ function processContentSlot(run, slotNumber) {
 // lookback. Inspect a bounded oldest-first page and never start new work while
 // an older publication is pending, held by another owner or beyond the cap.
 function recoverPriorContent(deps, target, slot, week) {
-  const attempts = cadenceCaller(deps, target, week)('unresolved', ['--lane', 'content']);
+  const attempts = cadenceCaller(deps, target, week)('unresolved', ['--limit', 21, '--lane', 'content']);
   const prior = attempts.filter((a) => a.week_start_utc < week);
   let budget = CADENCE.generationsPerRun;
-  for (const attempt of prior.slice(0, 2)) {
+  for (const attempt of prior.slice(0, CADENCE.maxContentSlot)) {
     const call = cadenceCaller(deps, target, attempt.week_start_utc);
     const owner = `runner:weekly-blog:${target}:${slot}`;
     const reserved = call('reserve', ['--lane', 'content', '--slot-number', attempt.slot_number,
@@ -772,8 +879,76 @@ function recoverPriorContent(deps, target, slot, week) {
     }
     if (!['closed','counted','late-smoke'].includes(result.state)) throw new Error('prior content publication pending');
   }
-  if (prior.length > 2) throw new Error('prior content backlog exceeds recovery budget');
+  if (prior.length > CADENCE.maxContentSlot) throw new Error('prior content backlog exceeds recovery budget');
   return budget;
+}
+
+function recoverPriorEvidence(deps, target, week) {
+  const old = cadenceCaller(deps, target, week)('evidence-unresolved').filter((item) => item.week_start_utc < week);
+  if (old.length >= 21) throw new Error('prior evidence backlog');
+  for (const evidence of old) {
+    const call = cadenceCaller(deps, target, evidence.week_start_utc);
+    const result = evidence.category && typeof deps.discoverEvidence === 'function'
+      ? deps.discoverEvidence(evidence, evidence.category, false) : { state: 'empty' };
+    if (result.state === 'pending') throw new Error('prior evidence publication pending');
+    call('evidence-state', ['--intent-fingerprint', evidence.intent_fingerprint, '--token', evidence.claim_token, '--state', 'closed']);
+  }
+}
+
+function continueEvidence(run, evidence, allowSource) {
+  const { deps, call } = run;
+  const fingerprint = evidence.intent_fingerprint;
+  const setState = (state) => call('evidence-state', ['--intent-fingerprint', fingerprint, '--token', evidence.claim_token, '--state', state]);
+  if (!evidence.category || typeof deps.discoverEvidence !== 'function') { setState('closed'); return { state: 'closed' }; }
+  let discovery;
+  try { discovery = deps.discoverEvidence(evidence, evidence.category, allowSource); }
+  catch (error) { if (evidence.state === 'claimed') setState('pending'); throw error; }
+  if (discovery?.state === 'pending') { if (evidence.state === 'claimed') setState('pending'); return { state: 'pending' }; }
+  if (discovery?.state !== 'smoked' || !Array.isArray(discovery.verifiedSlugs) || !discovery.verifiedSlugs.length) {
+    setState('closed'); return { state: 'closed' };
+  }
+  const fresh = deps.exportSnapshot();
+  const liveSlugs = discovery.submissionId != null && typeof deps.evidenceLive === 'function'
+    ? deps.evidenceLive(discovery.submissionId) : discovery.verifiedSlugs;
+  const original = call('status').attempts.find((item) => item.idempotency_key === evidence.original_key);
+  const entry = queueEntries(run, fresh).find((item) => item.key === original?.topic_key);
+  const consumed = new Set([...run.consumed].filter((item) => item !== fingerprint));
+  const rebuilt = entry ? blogCandidate(run, entry, fresh, { consumed }) : { skip: 'intent-missing' };
+  if (rebuilt.skip || rebuilt.title !== evidence.original_title || rebuilt.fingerprint !== fingerprint
+    || rebuilt.pack.fingerprint === evidence.original_digest
+    || !deps.modules.verifySourcePack(rebuilt.pack, { businesses: fresh.businesses, posts: fresh.posts, services: fresh.services, topics: fresh.topics, now: deps.now() }).ok
+    || !rebuilt.pack.sources.some((source) => discovery.verifiedSlugs.includes(source.id) && liveSlugs.includes(source.id))) {
+    setState('closed'); return { state: 'closed' };
+  }
+  if (call('count').contentCount >= CADENCE.contentGoal || run.budget < 1) { setState('closed'); return { state: 'closed' }; }
+  const status = call('status');
+  const used = new Set(status.attempts.filter((attempt) => attempt.lane === 'content').map((attempt) => Number(attempt.slot_number)));
+  const retrySlot = [1, 2, 3, 4].find((number) => !used.has(number));
+  if (!retrySlot) { setState('closed'); return { state: 'closed' }; }
+  if (evidence.state !== 'verified') setState('verified');
+  const reserved = call('reserve', ['--lane', 'content', '--slot-number', retrySlot, '--owner', run.owner, '--lease-seconds', CADENCE.leaseSeconds]);
+  if (!reserved.reserved) return { state: 'held' };
+  try {
+    run.budget -= 1;
+    const result = attemptBlogIntent(run, retrySlot, reserved.token, rebuilt, fresh, null, evidence);
+    if (result.state === 'closed') setState('closed');
+    return result;
+  } finally {
+    call('release', ['--lane', 'content', '--slot-number', retrySlot, '--token', reserved.token]);
+  }
+}
+
+function handleEvidenceRefusal(run, refusal) {
+  if (run.evidencePassUsed || run.call('count').contentCount >= CADENCE.contentGoal) return { state: 'closed' };
+  run.evidencePassUsed = true;
+  const { candidate, snapshot, key } = refusal;
+  if (!run.deps.modules.verifySourcePack(candidate.pack, { businesses: snapshot.businesses, posts: snapshot.posts,
+    services: snapshot.services, topics: snapshot.topics, now: run.deps.now() }).ok) return { state: 'closed' };
+  const category = evidenceCategory(candidate.pack, snapshot);
+  const claim = run.call('evidence-claim', ['--intent-fingerprint', candidate.fingerprint, '--original-key', key,
+    '--original-title', candidate.title, ...(category ? ['--category', category] : [])]);
+  if (!claim.claimed) return { state: 'closed' };
+  return continueEvidence(run, claim.evidence, true);
 }
 
 export function runWeeklyBlog({ target, slot, request = {}, deps }) {
@@ -781,6 +956,7 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
   const week = deps.modules.weekStartUtc(now);
   evaluatePriorWeek(deps, target, week, now);
   const remainingBudget = recoverPriorContent(deps, target, slot, week);
+  recoverPriorEvidence(deps, target, week);
   const call = cadenceCaller(deps, target, week);
   const count = call('count');
   deps.log('cadence-count', { week, contentCount: count.contentCount });
@@ -795,7 +971,14 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
     budget: remainingBudget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - content.filter((a) => String(a.topic_key).startsWith('reserve:')).length),
     reserveSourceIds: new Set(), skipped: new Set(),
     reservedCategories: new Set(content.map((a) => String(a.topic_key)).filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length))),
+    evidencePassUsed: false,
   };
+  for (const evidence of call('evidence-list')) {
+    if (evidence.state === 'retry') continue;
+    run.evidencePassUsed = true;
+    const resumed = continueEvidence(run, evidence, false);
+    if (['pending','held','uncounted','deferred'].includes(resumed.state)) throw new Error('evidence publication pending');
+  }
   // Inventory is eligibility, not queue length. Discover once per ISO week
   // when either floor is short; export again only after the trusted discovery
   // submission has passed its own gate/smoke. Empty discovery remains a deficit.
@@ -820,11 +1003,19 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
   let uncounted = false;
   let late = false;
   let lastId = null;
+  // Evidence retries can occupy slots beyond the goal-driven loop. Reconcile
+  // them first under their original key, including after a week rollover.
+  for (const attempt of content.filter((item) => Number(item.slot_number) > 2 && isOpen(item))) {
+    const result = processContentSlot(run, Number(attempt.slot_number), { resumeOnly: true });
+    if (result.state === 'pending' || result.state === 'deferred' || result.state === 'uncounted') pending = true;
+    if (result.state === 'late-smoke') late = true;
+  }
   // Slots 1..2; a consumed slot whose post left the live count (unpublish,
   // supersede) is final, so catch-up opens the next slot number instead.
   let consumedSlots = 0;
   for (let slotNumber = 1; slotNumber <= Math.min(CADENCE.maxContentSlot, CADENCE.contentGoal + consumedSlots) && have < CADENCE.contentGoal; slotNumber++) {
-    const result = processContentSlot(run, slotNumber);
+    let result = processContentSlot(run, slotNumber);
+    if (result.refusal) result = handleEvidenceRefusal(run, result.refusal);
     if (result.id != null) lastId = result.id;
     if (result.state === 'consumed' && !live.has(result.consumedId)) consumedSlots += 1;
     if (result.state === 'counted') {
@@ -1222,10 +1413,16 @@ async function cadenceDeps(job, target, slot, log) {
       source('scripts/automation/topic-queue.mjs', ['discover'], 'topic-discovery', log);
       return submitAndGate('topic-discovery', target, refillSlot, log);
     },
+    discoverEvidence: (evidence, category, allowSource) => discoverEvidence(evidence, category, target, log, allowSource),
+    evidenceLive: (submissionId) => liveBusinessSlugs(submissionId, target),
   };
 }
 
 async function runJob(job, target, slot, request, log, notifications = {}) {
+  if (job === 'weekly-blog' || job === 'weekly-roundup') {
+    cli(['cadence', 'preflight', '--target', target]);
+    logLine(log, 'cadence-schema-ready');
+  }
   if (job === 'weekly-growth-report') {
     source('scripts/generate-weekly-growth-report.mjs', ['--out-dir', path.join(stateRoot, 'growth', slot)], job, log);
     return;

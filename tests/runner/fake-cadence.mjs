@@ -70,7 +70,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
   const world = {
     repo, stateRoot, now, queue, posts, businesses, snapshotId: 'a'.repeat(40),
     cadenceStartWeek: '2026-09-21',
-    slots: new Map(), attempts: [], submissions: new Map(), nextId: 100, live: new Set(),
+    slots: new Map(), attempts: [], evidence: new Map(), submissions: new Map(), nextId: 100, live: new Set(),
     calls: [], logs: [], generated: [], sources: [],
     heldByOther: new Set(), gatePlan: [], deployCode: 0, submitPlan: [], generatorPlan: [], deadlineCalls: [], alerts: new Map(), deliverCalls: 0, deliverFails: false, deadlineFails: false, alertsEnabled: true, smokeAt: null,
     cleanup() { fs.rmSync(repo, { recursive: true, force: true }); fs.rmSync(stateRoot, { recursive: true, force: true }); },
@@ -105,9 +105,28 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     const target = f.target;
     const n = Number(f['slot-number']);
     switch (sub) {
+      case 'evidence-list': return [...world.evidence.values()].filter((item) => item.week_start_utc === week && !['closed','empty'].includes(item.state));
+      case 'evidence-unresolved': return [...world.evidence.values()].filter((item) => !['closed','empty','retry'].includes(item.state));
+      case 'evidence-claim': {
+        const id = `${target}|${week}|${f['intent-fingerprint']}`;
+        if (world.evidence.has(id)) return { claimed: false, evidence: world.evidence.get(id) };
+        const original = world.attempts.find((item) => item.idempotency_key === f['original-key'] && item.outcome === 'failed-before-submit' && item.submission_id == null);
+        if (!original) throw cliError('cli-state', 1);
+        const evidence = { target, week_start_utc: week, intent_fingerprint: f['intent-fingerprint'], original_key: original.idempotency_key,
+          original_digest: original.source_pack_digest, original_title: f['original-title'], category: f.category ?? null,
+          discovery_key: `evidence:${id}`, claim_token: randomUUID(), state: 'claimed', retry_key: null, retry_slot: null, retry_digest: null };
+        world.evidence.set(id, evidence);
+        return { claimed: true, evidence };
+      }
+      case 'evidence-state': {
+        const evidence = world.evidence.get(`${target}|${week}|${f['intent-fingerprint']}`);
+        if (!evidence || evidence.claim_token !== f.token) throw cliError('cli-claim', 1);
+        evidence.state = f.state;
+        return evidence;
+      }
       case 'count': return count(week);
       case 'unresolved': return world.attempts.filter((a) => a.target === target && a.lane === (f.lane ?? 'content') && [null,'published','smoked'].includes(a.outcome))
-        .sort((a, b) => a.week_start_utc.localeCompare(b.week_start_utc) || a.slot_number - b.slot_number || a.ordinal - b.ordinal).slice(0, 3).map((a) => ({ ...a }));
+        .sort((a, b) => a.week_start_utc.localeCompare(b.week_start_utc) || a.slot_number - b.slot_number || a.ordinal - b.ordinal).slice(0, Number(f.limit ?? 3)).map((a) => ({ ...a }));
       case 'current-live': {
         const sub = world.submissions.get(Number(f['submission-id']));
         return { submissionId: sub?.id ?? null, slug: sub?.slug ?? null, live: Boolean(sub && sub.smokedAt && world.live.has(sub.id)) };
@@ -125,9 +144,14 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
       }
       case 'renew': { const slot = slotFor(week, f.lane, n); if (slot.token !== f.token) throw cliError('cli-claim', 1); return publicSlot(slot); }
       case 'release': { const slot = slotFor(week, f.lane, n); if (slot.token !== f.token) throw cliError('cli-claim', 1); slot.token = null; slot.owner = null; return publicSlot(slot); }
+      case 'evidence-retry':
       case 'attempt': {
         const slot = slotFor(week, f.lane, n);
         if (slot.token !== f.token) throw cliError('cli-claim', 1);
+        const evidence = sub === 'evidence-retry' ? world.evidence.get(`${target}|${week}|${f['intent-fingerprint']}`) : null;
+        if (sub === 'evidence-retry' && (!evidence || evidence.claim_token !== f['evidence-token'] || evidence.state !== 'verified'
+          || evidence.retry_key || evidence.original_digest === f['source-pack-digest']
+          || world.attempts.some((a) => a.week_start_utc === week && a.lane === 'content' && a.slot_number === n))) throw cliError('cli-claim', 1);
         for (const name of ['intent-fingerprint', 'topic-key', 'source-pack-digest']) if (typeof f[name] !== 'string' || !f[name].trim()) throw cliError('cli-validation');
         const prior = world.attempts.filter((a) => a.week_start_utc === week && a.lane === f.lane && a.slot_number === slot.slot_number).sort((a, b) => b.ordinal - a.ordinal);
         const latest = prior[0];
@@ -137,6 +161,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         const ordinal = slot.attempt_ordinal + 1;
         const attempt = { target, week_start_utc: week, lane: f.lane, slot_number: slot.slot_number, ordinal, intent_fingerprint: f['intent-fingerprint'], topic_key: f['topic-key'], idempotency_key: keyFor(target, week, f.lane, slot.slot_number, ordinal), source_pack_digest: f['source-pack-digest'], submission_id: null, outcome: null };
         world.attempts.push(attempt);
+        if (evidence) { evidence.state = 'retry'; evidence.retry_slot = n; evidence.retry_key = attempt.idempotency_key; evidence.retry_digest = attempt.source_pack_digest; }
         slot.attempt_ordinal = ordinal;
         slot.state = 'attempting';
         return { ordinal, idempotencyKey: attempt.idempotency_key, existing: false };
@@ -265,7 +290,11 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     generate: (title) => {
       const plan = world.generatorPlan.shift() ?? 'ok';
       world.generated.push({ title, plan });
-      if (plan === 'no-post') throw new Error('blog generated no post');
+      if (plan === 'no-post' || plan === 'refusal') {
+        const error = new Error('blog generated no post');
+        if (plan === 'refusal') error.groundedRefusal = 'insufficient-sources';
+        throw error;
+      }
       const built = buildSourcePack({ topic: title, businesses: world.businesses, posts: world.posts, services: [], topics: [], now: world.now });
       const dir = path.join(repo, 'tasks', 'auto-blog-runs');
       fs.mkdirSync(dir, { recursive: true });

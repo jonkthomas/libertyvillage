@@ -211,6 +211,15 @@ test('trusted CLI errors preserve safe classes and guidance without raw candidat
   assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: 'Error', message: 'HTTP 503 unavailable' }) }).reason, 'cli-server');
   assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: 'Error', message: 'fetch failed' }) }).reason, 'cli-network');
   assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: '__proto__' }) }).reason, 'cli-operation');
+  for (const [code, reason, action] of [
+    ['CadenceSchemaError', 'cli-schema', 'check-cadence-migrations'],
+    ['42P01', 'cli-schema', 'check-cadence-migrations'],
+    ['3D000', 'cli-database-target', 'check-binding'],
+    ['42501', 'cli-permission', 'check-database-role'],
+  ]) {
+    assert.deepEqual(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: code, message: 'postgres://secret@host/db select private' }) }),
+      { reason, action, exit: 1 });
+  }
   assert.equal(classifyCliFailure('node', args, { status: 1, stdout: JSON.stringify({ error: 'Error', message: 'private'.repeat(3000) }) }).reason, 'cli-operation');
   assert.equal(classifyCliFailure('git', args, { status: 1, stdout: '{}' }), null);
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cli-error-'));

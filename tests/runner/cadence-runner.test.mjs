@@ -6,12 +6,206 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CADENCE, claimWeeklyInventoryDiscovery, dayPolicy, reservePack, runWeeklyBlog } from '../../ops/exedev-runner/runner.mjs';
+import { CADENCE, claimWeeklyInventoryDiscovery, dayPolicy, reservePack, runWeeklyBlog, parseGeneratorDiagnostic, parseDiscoveryOutcome, readGeneratorRelay, runScopedEvidenceSource, gateEvidenceSubmission, command } from '../../ops/exedev-runner/runner.mjs';
 import { BUSINESSES, FRI, SUN, TOPICS, WED, attemptsOf, createWorld, modules, submitCalls, topic } from './fake-cadence.mjs';
 
 const run = (world, request = {}) => runWeeklyBlog({ target: 'staging', slot: '202609301100-testslot', request, deps: world.deps });
 const withWorld = (t, options) => { const world = createWorld(options); t.after(() => world.cleanup()); return world; };
 const events = (world, name) => world.logs.filter((entry) => entry.event === name);
+
+test('only one bounded helper diagnostic can authorize a refusal', () => {
+  assert.deepEqual(parseGeneratorDiagnostic('{"postWritten":false,"stopReason":"insufficient-sources"}\n'), { postWritten: false, stopReason: 'insufficient-sources' });
+  assert.deepEqual(readGeneratorRelay({ code: 1, stdout: '{"postWritten":false,"stopReason":"insufficient-sources"}\n' }).stopReason, 'insufficient-sources');
+  const helperExit = command(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({postWritten:false,stopReason:"unsupported-grounding"})+"\\n");process.exitCode=1'], { allowExit: [1] });
+  assert.equal(helperExit.code, 1);
+  assert.equal(readGeneratorRelay(helperExit).stopReason, 'unsupported-grounding');
+  assert.deepEqual(readGeneratorRelay({ code: 0, stdout: '{"postWritten":true,"stopReason":"post-written"}\n' }).postWritten, true);
+  assert.throws(() => readGeneratorRelay({ code: 0, stdout: '{"postWritten":false,"stopReason":"insufficient-sources"}\n' }), /unavailable/);
+  assert.throws(() => readGeneratorRelay({ code: 1, stdout: '{"postWritten":false,"stopReason":"absent"}\n' }), /unavailable/);
+  assert.throws(() => readGeneratorRelay({ code: 1, stdout: '{"postWritten":false,"stopReason":"sdk-error"}\n' }), /technical failure/);
+  for (const value of ['', '{}\n', '{"postWritten":false,"stopReason":"sdk-error"}\nextra',
+    '{"postWritten":false,"stopReason":"insufficient-sources","extra":1}\n',
+    '{"postWritten":false,"stopReason":"insufficient-sources"}']) assert.equal(parseGeneratorDiagnostic(value), null);
+  assert.deepEqual(parseDiscoveryOutcome('{"outcome":"empty","category":"bars","mapsRequests":1}\n', 'bars').outcome, 'empty');
+  assert.throws(() => parseDiscoveryOutcome('{"outcome":"empty","category":"bars","mapsRequests":2}\n', 'bars'));
+  assert.throws(() => runScopedEvidenceSource('bars', null, (_binary, args, options) => {
+    assert.deepEqual(args, ['scripts/discover-businesses.mjs', '--category=bars', '--max=3']);
+    assert.equal(options.env.CONTENT_DATABASE_URL, undefined);
+    return command(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({outcome:"maps-unavailable",category:"bars",mapsRequests:1})+"\\n");process.exitCode=3'], { allowExit: options.allowExit });
+  }), /Maps discovery unavailable/);
+});
+
+test('business discovery terminal error closes evidence, but operational exit 1 stays pending', () => {
+  const id = 42;
+  const actor = 'runner:weekly-blog-evidence#test';
+  const calls = [];
+  const terminal = (args, allowExit) => {
+    calls.push(args[0]);
+    if (args[0] === 'gate') {
+      assert.deepEqual(allowExit, [1, 2, 3]);
+      return { code: 1, stdout: JSON.stringify({ submissionId: id, state: 'error', decision: 'error', notified: true }) };
+    }
+    if (args[0] === 'show') return { code: 0, stdout: JSON.stringify({ submission: { state: 'error' } }) };
+    throw new Error(`unexpected ${args[0]}`);
+  };
+  assert.deepEqual(gateEvidenceSubmission(id, 'staging', actor, terminal), { state: 'empty' });
+  assert.deepEqual(calls, ['gate', 'show'], 'only a durable, notified terminal receipt may end the entitlement');
+  for (const invalid of [
+    { submissionId: id, state: 'error', decision: 'error', notified: false },
+    { submissionId: id + 1, state: 'error', decision: 'error', notified: true },
+    { submissionId: id, state: 'error', decision: 'error', notified: true, error: 'transport failure' },
+  ]) {
+    const operational = () => ({ code: 1, stdout: JSON.stringify(invalid) });
+    assert.throws(() => gateEvidenceSubmission(id, 'staging', actor, operational), /content gate failed/);
+  }
+  assert.deepEqual(gateEvidenceSubmission(id, 'staging', actor, (args) => args[0] === 'gate'
+    ? { code: 2, stdout: '{}' }
+    : { code: 0, stdout: JSON.stringify({ submission: { state: 'compensated' } }) }), { state: 'empty' });
+});
+
+const bar = (slug) => ({ slug, name: slug, category: 'bars', description: 'A neighbourhood bar with a daily happy hour.', address: '10 Liberty Street, Toronto', hours: 'Mon-Sun 9am-9pm', phone: '416-555-0000', website: `https://${slug}.example` });
+
+test('grounded refusal spends one entitlement, releases old lease, retries same topic in unused slot with new digest', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+  world.generatorPlan = ['refusal', 'ok'];
+  let discoveryCalls = 0;
+  world.deps.discoverEvidence = (_evidence, category) => {
+    discoveryCalls++;
+    assert.equal(category, 'bars');
+    assert.equal([...world.slots.values()].every((slot) => slot.token == null), true);
+    world.businesses.push(bar('bar-c'));
+    return { state: 'smoked', verifiedSlugs: ['bar-c'] };
+  };
+  assert.throws(() => run(world), /cadence content deficit/);
+  const attempts = attemptsOf(world).filter((a) => a.intent_fingerprint === attemptsOf(world)[0].intent_fingerprint);
+  assert.equal(discoveryCalls, 1);
+  assert.deepEqual(attempts.map((a) => [a.slot_number, a.outcome]), [[1, 'failed-before-submit'], [2, 'consumed']]);
+  assert.notEqual(attempts[0].idempotency_key, attempts[1].idempotency_key);
+  assert.notEqual(attempts[0].source_pack_digest, attempts[1].source_pack_digest);
+  assert.equal(world.generated.length, 2);
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(discoveryCalls, 1);
+});
+
+test('empty evidence pass and second refusal close topic for this week', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+  world.generatorPlan = ['refusal', 'refusal'];
+  world.deps.discoverEvidence = () => { world.businesses.push(bar('bar-c')); return { state: 'smoked', verifiedSlugs: ['bar-c'] }; };
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.deepEqual(attemptsOf(world).map((a) => a.outcome), ['failed-before-submit', 'failed-before-submit']);
+  assert.equal(world.evidence.size, 1);
+  assert.equal([...world.evidence.values()][0].state, 'closed');
+  const generated = world.generated.length;
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(world.generated.length, generated);
+});
+
+test('empty or unchanged discovery never spends a second generation', (t) => {
+  for (const outcome of ['empty', 'unchanged']) {
+    const world = withWorld(t, { queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+    world.generatorPlan = ['refusal'];
+    world.deps.discoverEvidence = () => outcome === 'empty' ? { state: 'empty' } : { state: 'smoked', verifiedSlugs: ['bar-a'] };
+    assert.throws(() => run(world), /cadence content deficit/);
+    assert.equal(world.generated.length, 1);
+    assert.equal(attemptsOf(world).length, 1);
+    assert.equal([...world.evidence.values()][0].state, 'closed');
+  }
+});
+
+test('source outage stays operational and a restart does not repeat ambiguous discovery', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+  world.generatorPlan = ['refusal'];
+  let sourceCalls = 0;
+  world.deps.discoverEvidence = () => { sourceCalls++; throw new Error('Maps unavailable'); };
+  assert.throws(() => run(world), /Maps unavailable/);
+  assert.equal([...world.evidence.values()][0].state, 'pending');
+  world.deps.discoverEvidence = (_evidence, _category, allowSource) => { assert.equal(allowSource, false); return { state: 'empty' }; };
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(sourceCalls, 1);
+  assert.equal(world.generated.length, 1);
+});
+
+test('pending discovery resumes without a second source call and can use slot 3', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+  world.generatorPlan = ['refusal', 'ok'];
+  let discoveryCalls = 0;
+  world.deps.discoverEvidence = (_evidence, _category, allowSource) => {
+    discoveryCalls++;
+    if (allowSource) return { state: 'pending' };
+    world.businesses.push(bar('bar-c'));
+    return { state: 'smoked', verifiedSlugs: ['bar-c'] };
+  };
+  assert.throws(() => run(world), /publish or propagation pending/);
+  // A distinct intent already used slot 2 while the discovery was pending.
+  world.attempts.push({ target: 'staging', week_start_utc: '2026-09-28', lane: 'content', slot_number: 2,
+    ordinal: 1, intent_fingerprint: 'other-intent', topic_key: 'other', idempotency_key: 'other-key', source_pack_digest: 'other-pack', outcome: 'rejected', submission_id: null });
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(discoveryCalls, 2);
+  assert.deepEqual(attemptsOf(world).filter((a) => a.intent_fingerprint !== 'other-intent').map((a) => a.slot_number), [1, 3]);
+});
+
+test('prior-week pending evidence is looked up without source replay and does not ban the next ISO week', (t) => {
+  const world = withWorld(t, { now: SUN, queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+  world.generatorPlan = ['refusal'];
+  world.deps.discoverEvidence = (_evidence, _category, allowSource) => allowSource ? { state: 'pending' } : { state: 'pending' };
+  assert.throws(() => run(world), /publish or propagation pending/);
+  world.now = new Date('2026-10-05T12:30:00.000Z');
+  assert.throws(() => run(world), /prior evidence publication pending/);
+  world.deps.discoverEvidence = (_evidence, _category, allowSource) => { assert.equal(allowSource, false); return { state: 'empty' }; };
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal([...world.evidence.values()][0].state, 'closed');
+  assert.equal(attemptsOf(world).some((item) => item.week_start_utc === '2026-10-05' && item.intent_fingerprint === attemptsOf(world)[0].intent_fingerprint), true);
+});
+
+test('linked retry pending in slot 3 resumes its original key after restart', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+  world.generatorPlan = ['refusal', 'ok'];
+  world.gatePlan = ['pending'];
+  world.deployCode = 3;
+  world.deps.discoverEvidence = () => {
+    world.businesses.push(bar('bar-c'));
+    world.attempts.push({ target: 'staging', week_start_utc: '2026-09-28', lane: 'content', slot_number: 2,
+      ordinal: 1, intent_fingerprint: 'other-intent', topic_key: 'other', idempotency_key: 'other-key', source_pack_digest: 'other-pack', outcome: 'rejected', submission_id: null });
+    return { state: 'smoked', verifiedSlugs: ['bar-c'] };
+  };
+  assert.throws(() => run(world), /publish or propagation pending/);
+  const retry = attemptsOf(world).find((item) => item.slot_number === 3);
+  assert.equal(retry.outcome, 'published');
+  world.deployCode = 0;
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(retry.outcome, 'consumed');
+  assert.equal(world.generated.length, 2);
+  assert.equal(attemptsOf(world).filter((item) => item.idempotency_key === retry.idempotency_key).length, 1);
+});
+
+test('prior-week linked retry in slot 4 is reconciled under its old key', (t) => {
+  const world = withWorld(t, { now: new Date('2026-10-05T12:30:00.000Z'), queue: [] });
+  const old = { target: 'staging', week_start_utc: '2026-09-28', lane: 'content', slot_number: 4,
+    ordinal: 1, intent_fingerprint: 'old-bars', topic_key: 'bars-title', idempotency_key: 'old-retry-key',
+    source_pack_digest: 'new-pack', outcome: 'published', submission_id: 900 };
+  world.attempts.push(old);
+  world.submissions.set(900, { id: 900, kind: 'blog', key: old.idempotency_key, state: 'published', smokedAt: null, slug: 'old-bars-post' });
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(old.outcome, 'late-smoked');
+  assert.equal(world.generated.length, 0);
+  assert.ok(world.calls.some((args) => args[0] === 'lookup' && args.includes(old.idempotency_key)));
+});
+
+test('no unused slot expires retry without raising the slot or generation cap', (t) => {
+  const world = withWorld(t, { queue: [TOPICS.happy], businesses: [bar('bar-a'), bar('bar-b')] });
+  world.generatorPlan = ['refusal'];
+  world.deps.discoverEvidence = () => {
+    world.businesses.push(bar('bar-c'));
+    for (const n of [2, 3, 4]) world.attempts.push({ target: 'staging', week_start_utc: '2026-09-28', lane: 'content', slot_number: n,
+      ordinal: 1, intent_fingerprint: `other-${n}`, topic_key: `other-${n}`, idempotency_key: `other-key-${n}`,
+      source_pack_digest: 'other-pack', outcome: 'rejected', submission_id: null });
+    return { state: 'smoked', verifiedSlugs: ['bar-c'] };
+  };
+  assert.throws(() => run(world), /cadence content deficit/);
+  assert.equal(world.generated.length, 1);
+  assert.equal([...world.evidence.values()][0].state, 'closed');
+  assert.equal(attemptsOf(world).filter((item) => item.intent_fingerprint === attemptsOf(world)[0].intent_fingerprint).length, 1);
+});
 
 test('day policy: Wed primary, Fri recovery, Sun final with reserves only on Sunday', () => {
   assert.deepEqual(dayPolicy(WED), { phase: 'primary', reserveAllowed: false });
