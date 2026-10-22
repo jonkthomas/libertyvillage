@@ -1,0 +1,2 @@
+{"at":"2026-10-22T10:00:00.000Z","event":"start","job":"topic-discovery","target":"production","slot":"20261022T1000-scheduled"}
+{"at":"2026-10-22T10:09:41.220Z","event":"alert-failed","error":"slack webhook 503","gateRejection":"exit 2: no fresh topics"}

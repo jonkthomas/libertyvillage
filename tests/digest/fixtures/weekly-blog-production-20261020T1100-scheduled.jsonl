@@ -1,0 +1,6 @@
+{"at":"2026-10-20T11:00:03.120Z","event":"start","job":"weekly-blog","target":"production","slot":"20261020T1100-scheduled"}
+{"at":"2026-10-20T11:00:18.258Z","event":"code-pinned","sha":"f0b8cd5711ab40ee034bf517f2f720261d1edbf2d","ref":"staging"}
+{"at":"2026-10-20T11:00:19.203Z","event":"cadence-schema-ready"}
+{"at":"2026-10-20T11:21:44.001Z","event":"generator-output-discarded","reason":"strict bar refused every item"}
+not json at all
+{"at":"2026-10-20T11:22:01.871Z","event":"failure","error":"cli-validation exit 2","cliFailure":{"action":"validate","exit":2},"cliValidation":"gate rejected: missing evidence for address claim"}

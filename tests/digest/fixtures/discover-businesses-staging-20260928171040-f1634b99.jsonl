@@ -1,0 +1,2 @@
+{"at":"2026-09-28T17:10:40.100Z","event":"start","job":"discover-businesses","target":"staging","slot":"20260928171040-f1634b99"}
+{"at":"2026-09-28T17:40:02.918Z","event":"failure","error":"gate exit 2"}
