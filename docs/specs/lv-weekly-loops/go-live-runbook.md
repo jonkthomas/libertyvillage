@@ -1,9 +1,11 @@
 # Content loops: reviewed activation and October backfill
 
 Status: activation is **John's protected action**, after this fix PR merges into
-`staging` and the release PR from `staging` to `main` merges. In the
-protected window, staging acceptance must pass before production timers start. These commands have not been executed by the builder. Do not activate an
-unreviewed branch, remove the hold for UAT, run both writers, or start SEO (#182).
+`staging` and the release PR from `staging` to `main` merges. In the protected
+window, staging acceptance must pass before production timers start. The builder
+has not executed these commands and leaves the hold untouched. Only John's go
+authorizes Stage 1. Do not activate an unreviewed branch, run both writers, or
+start SEO (#182).
 
 ## What diagnosis established (2026-10-22, read-only)
 
@@ -86,47 +88,81 @@ ignored. Existing bounded catch-up checks up to four older row-bearing weeks.
 Do not change production DB/site bindings or staging bypass. Do not add secrets
 to the shared file or copy production credentials into staging.
 
-## John's explicit activation window
+## Stage 1 — John's go to lift the hold
 
-Only once John approves this exact removal/start action:
+Production timers and backfill must still be inactive. After John's explicit go
+for the hold-removal and staging-run window, on `lv-content-runner`:
 
 ```sh
+sudo test -e /etc/lv-runner.hold
+sudo systemctl list-timers --all 'lv-runner-*'
+sudo systemctl is-active 'lv-runner@*'
 sudo rm -- /etc/lv-runner.hold
 ```
 
-After the staging journeys below pass, start the five production timers:
+**Stop here** if any writer or production timer is unexpectedly active, bindings
+are uncertain, or the installed SHA differs from the approved release. Keep the
+hold in that case. If a problem appears after removal, immediately restore it;
+leave production timers/backfill inactive:
+
+```sh
+sudo install -o root -g root -m 0600 /dev/null /etc/lv-runner.hold
+```
+
+## Stage 2 — exactly one staging run of each loop
+
+With the hold lifted by John, run each command **once**, sequentially. Wait for
+its service to terminate and inspect its private JSONL before proceeding to the
+next command. Do not run this whole block unattended or retry a failed loop
+under a fresh slot. These commands use the runner global lock:
+
+```sh
+sudo lv-runner run topic-discovery --target staging
+# Check that slot's JSONL before the next command.
+sudo lv-runner run discover-businesses --target staging
+# Check that slot's JSONL before the next command.
+sudo lv-runner run news --target staging
+# Check that slot's JSONL before the next command.
+sudo lv-runner run weekly-growth-report --target staging
+# Check that slot's JSONL/report before the next command.
+sudo lv-runner run weekly-blog --target staging
+```
+
+For every content submission require its ID, passing real-model gate (score >=8,
+zero blocking findings), publication and smoke, plus the route on the staging
+alias. `code-pinned` must name the approved staging SHA. A legitimate empty
+news/discovery run must carry explained refusal counts; it does **not** prove
+publication. Record that distinction for John rather than weakening the gate.
+Growth requires new `.json`/`.md` artifacts and both source statuses, not a
+submission ID. If weekly blog reports an already-met quota, record the existing
+live IDs and smoke evidence rather than inventing a new post.
+
+**Stop before production** on a failed gate, missing smoke, incorrect target/SHA,
+unexplained no-change, unusable report or any uncertain result. Restore the hold
+with the Stage 1 command, inspect the exact failed run, and return evidence to
+John. Do not rerun loops or start production timers to find out what happens.
+The hold blocks new runs but does not cancel one already in flight; wait for it
+to terminate, or obtain separate authority for its exact service stop. Keep the
+old supervisor idle. The builder's local real-CLI tests are the pre-merge
+evidence; VM staging acceptance happens only in this protected window.
+
+## Stage 3 — start production timers and the optional backfill
+
+Only after all five Stage 2 outcomes are checked and John accepts any explicitly
+recorded publication-proof limitation, proceed under his production activation
+go. Start the five already-enabled non-SEO timers:
 
 ```sh
 sudo systemctl start lv-runner-topic-discovery.timer lv-runner-discover-businesses.timer lv-runner-news.timer lv-runner-weekly-growth-report.timer lv-runner-weekly-blog.timer
 sudo systemctl list-timers --all 'lv-runner-*'
 ```
 
-`Persistent=true` may immediately catch up overdue fires. The global flock
-serializes writers; exit 75 means overlap was skipped, not published. Observe
-initial catch-up before starting backfill, so a long generation does not hide an
-overlap. `start` activates the already-enabled five timers. Check their enabled
-state separately; do not assume `start` makes a disabled unit survive reboot.
-SEO must remain inactive and disabled.
-
-With the hold lifted by John, perform the pre-authorized staging journeys one
-at a time and wait for each to terminate; these still use the runner global lock:
-
-```sh
-sudo lv-runner run topic-discovery --target staging
-sudo lv-runner run discover-businesses --target staging
-sudo lv-runner run news --target staging
-sudo lv-runner run weekly-growth-report --target staging
-sudo lv-runner run weekly-blog --target staging
-```
-
-For every content submission require a `submission` ID, passing real-model gate,
-publication and smoke, plus a new route on the staging alias. A legitimate empty
-news/discovery result must carry an explained refusal; it does **not** prove that
-a submission published. Growth requires new report artifacts and source statuses,
-not a submission ID. Record the pinned SHA for every run. Staging UAT remains
-unverified until these journeys happen; the current hold was not bypassed.
-
-## Start the seven-entry backfill
+`Persistent=true` can immediately catch up overdue fires. The global flock
+serializes writers; exit 75 means overlap was skipped, not published. Inspect
+first catch-up services and wait until they terminate before the backfill start.
+Check that all five timers have a next elapse and the expected enabled state;
+`start` does not make a disabled timer survive reboot. SEO must remain inactive
+and disabled. Never start the old supervisor.
 
 After the separate backfill-start go, enable and start its opt-in daily timer:
 
@@ -135,11 +171,19 @@ sudo systemctl enable --now lv-runner-october-blog-backfill.timer
 sudo systemctl list-timers --all 'lv-runner-*'
 ```
 
+**Stop/rollback at this stage** if a timer has no next elapse, a first fire fails,
+a binding/SHA is wrong or live smoke fails: restore the hold, then use the six
+explicit timer-stop commands in the rollback section below. Inspect any service
+already running before restoring code. Do not leave the remaining timers running
+while investigating a publication error.
+
 It runs at 15:37 UTC, reserves ordinary content cadence slots 101–107 under the
 historical label's ISO week, and passes through the same trusted pack, submit,
 gate, deploy and smoke. Labels are the requested **Oct 1, 5, 8, 12, 15, 19, 22**;
 they are identifiers, not a derivation of the 2026 Wed/Sun calendar. At most one
-post per UTC date; retries preserve their original submission/key. Posts use the
+post per UTC date; retries preserve their original open submission/key. Each
+invocation has a bounded generation budget, and later distinct grounded topics
+remain eligible after earlier rejections. Posts use the
 actual date they are generated/published, never the historical label. A late
 smoke closes as `late-smoked` and never repairs an ended week's missed-cadence
 count. A lack of grounded inventory or a rejected draft fails visibly and retries

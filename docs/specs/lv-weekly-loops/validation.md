@@ -27,13 +27,13 @@ VM diagnosis used only read-only filesystem/journal checks and explicit
 production-target runs, deploys, production writes, merges, or hold removal.
 The legacy supervisor remained untouched.
 
-**Implemented but UNVERIFIED on staging:** all five new-code VM journeys. The
-installed runner checks the global hold before staging as well as production,
-and its launcher starts a systemd service. Both hold removal and runner unit
-starts were expressly prohibited in this task. The builder did not bypass those
-checks. John must approve the window in the runbook before those live journeys.
-News/discovery can legitimately publish nothing; acceptance requires a genuine
-qualified candidate, not a weakened rule or fabricated evidence. Growth report
+**Parent decision: no VM staging UAT before merge.** Local real-CLI/DB journeys
+are the authorized pre-merge evidence. All five new-code VM journeys remain
+UNVERIFIED; no hold bypass or unit start is required or allowed for this handoff.
+After John's go, the runbook requires hold removal, each loop once with
+`--target staging` plus checked results, then the five production timers and
+backfill. Each stage has a stop/rollback path. News/discovery can legitimately
+publish nothing; record that limit rather than weaken rules. Growth report
 success is an artifact outcome, not a submission.
 
 The exact September 30 blog CLI validation message is unavailable because the
@@ -47,12 +47,13 @@ operator can disable it once it logs completion. Subsequent fires are no-ops.
 Builder observations:
 
 - `npm run test:content`: 206 passed with the local PostgreSQL URL above.
-- `node --test tests/runner/*.test.mjs`: 145 passed before the added real-DB
-  backfill case; that additional case passed separately. No DB tests skipped.
-- Focused local acceptance above: 13 passed, including the real-CLI backfill case.
+- `node --test tests/runner/*.test.mjs`: 148 passed, including the real-DB
+  backfill case and both focused review regressions. No DB tests skipped.
+- Independent reviewer ran focused acceptance plus news publisher tests: 36
+  passed, including the real-CLI backfill case and both P1 rechecks.
 - `npm run test:automation`: 178 passed, including the explicit schema/date
   regression.
-- `npm run test:news-pilot`: 272 passed. `npm run test:supervisor`: 88 passed.
+- `npm run test:news-pilot`: 273 passed. `npm run test:supervisor`: 88 passed.
 - `npm run lint`: fails with 81 existing errors and 28 warnings across the repo;
   changed production files have zero lint errors. These existing errors are
   outside this fix's scope; explicit changed-file ESLint is reported separately (`lint:changed` sees only
@@ -61,3 +62,11 @@ Builder observations:
   (desktop 1440x900 and mobile 390x844); all twelve routes passed. The verify
   script now also runs the focused loop regressions (kept in the harness project
   store, not this product repository).
+
+The independent Astra review found and verified fixes for two P1s: historical
+backfill slots must accept later distinct topics after three rejections, and
+early draft schema rejection must retain its actionable explanation. Recheck
+at `bef819411556e686552e283c67bf5042d285a5ba`: 36 passed, zero failed/skipped.
+Final runbook changes implement the parent's staged-activation decision. The
+parent owns the additional non-GPT reviews, doomsday verification/John triage,
+and gate completion against the final candidate; no PR opens until it passes.
