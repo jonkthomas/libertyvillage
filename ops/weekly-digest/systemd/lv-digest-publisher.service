@@ -1,5 +1,5 @@
 [Unit]
-Description=Publish validated LV digest issues and draft PRs (no model)
+Description=Publish validated LV digest issues with optional patch text (no model)
 After=network-online.target lv-digest-agent.service
 Wants=network-online.target
 Conflicts=lv-digest-agent.service

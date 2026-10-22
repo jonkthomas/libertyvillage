@@ -51,7 +51,7 @@ The model writes `/var/lib/lv-digest/outbox/proposals.json`:
 ```json
 {"version":1,"actions":[
   {"type":"issue","title":"[digest] A failure","body":"P1: public-safe evidence"},
-  {"type":"pr","title":"Fix the failure","body":"P1: reason and checks","base":"staging","draft":true,"head":"lv-agent/2026-10-22-fix","patch":"diff --git ..."}
+  {"type":"issue","title":"Fix the failure","body":"P1: reason and checks","patch":"diff --git ..."}
 ]}
 ```
 
@@ -59,14 +59,16 @@ After the model unit exits successfully and its descendants are stopped,
 systemd starts **`lv-digest-publisher.service` as `lv-digest-publisher`**.
 Only this deterministic publisher receives the PAT through `LoadCredential`.
 It snapshots and validates the entire outbox before any write, rejects unknown
-operations/fields, caps issues/PRs at 3 each, redacts every public title/body
-again, and creates only labeled issues or **draft PRs targeting `staging`**.
-PR heads must match `lv-agent/<lowercase-alphanumeric-slug>`; patches are
-applied in fresh publisher-owned clones with hooks and inherited Git config
-disabled. It never executes repository scripts. Pushes use an exact non-forced
-`HEAD:refs/heads/lv-agent/...` refspec. There is no merge, ready, review,
-protected-branch push or arbitrary API/command operation in the publisher.
-Secret-shaped or binary patches are refused instead of rewritten.
+operations/fields, caps issues at 3, redacts every public title/body again,
+and creates **labeled issues only**. An issue's optional `patch` is attached
+to its body as fenced `diff` text for a human to review and apply. Patch text
+is capped at **30 KiB of UTF-8**, with a note when truncated; incomplete diffs
+must not be applied. The entire patch is checked before truncation, and
+secret-shaped or binary patches are refused instead of rewritten. The publisher
+never clones, applies, commits, pushes a branch, or creates a PR. This prevents
+model-proposed code from reaching credentialed Actions or Vercel previews before
+human review. Legacy PR proposals and all push/merge actions are refused before
+any operation; the model must regenerate them as issues with optional patches.
 
 The separate unit/user is necessary: removing a token from the child's env
 alone leaves it accessible through a same-uid parent's `/proc` or auth files.
@@ -83,8 +85,10 @@ a fresh sanitized digest before the next agent run. Do not restore the old
 full digest into the model user's home.
 
 **Token installation changed:** revoke the old agent PAT. Create a new
-fine-grained PAT for **jonkthomas/libertyvillage only**, with Contents, Issues
-and Pull requests **Read+Write**, no other permissions or repository access.
+fine-grained PAT for **jonkthomas/libertyvillage only**, with **Issues Read+Write
+only**. Read-only Metadata is implicit; grant no Contents or Pull requests
+permissions, other permissions, or access to other repositories. Revoke any old
+publisher PAT that granted Contents or Pull requests access too.
 As root, store the **raw token text**, without `GH_TOKEN=` or quotes, in
 `/etc/lv-digest-publisher.token`, owned by `root:root`, mode **0600**. Enter it
 through a private interactive input or root-only file, never a command-line
@@ -108,7 +112,8 @@ created artifacts before manually retrying; cross-run deduplication is deferred.
 `LC_ALL=C LANG=C ~/.pi/agent/bin/memguard -- npm run test:digest`
 (also part of the project `verify`): digest fixtures plus private-input
 exclusion, actual child env capture, rejected publisher operations, final
-publication redaction, and a local Git clone/apply/commit/push exercise.
+publication redaction, workflow patches published only as issue text, patch
+truncation and refusal, and CLI refusal of unsupported actions.
 `bash -n ops/weekly-digest/install-vm-agent.sh ops/weekly-digest/install-mac.sh`
 checks shell syntax. These local checks do not execute the Linux systemd
 units or install anything on the VM.

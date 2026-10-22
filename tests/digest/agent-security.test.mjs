@@ -21,7 +21,8 @@ const fixture = {
   gsc: { source: 'vm', topQueries: ['GSC_QUERY_MARKER'], topPages: ['GSC_PAGE_MARKER'], weeks: [{ topQueries: ['NESTED_QUERY_MARKER'] }], note: 'GSC_NOTE_MARKER', tregError: 'TREG_ERROR_MARKER' },
   notes: ['ROOT_VM_OUTPUT_MARKER GOOGLE_SERVICE_ACCOUNT_JSON=private'], links: { digestUrl: 'TAILNET_MARKER' },
 };
-const pr = (overrides = {}) => ({ type: 'pr', title: 'Fix timeout', body: 'P1: timeout', base: 'staging', draft: true, head: 'lv-agent/2026-10-22-timeout', patch: 'diff --git a/example.txt b/example.txt\n--- a/example.txt\n+++ b/example.txt\n@@ -1 +1 @@\n-before\n+after\n', ...overrides });
+const issue = (overrides = {}) => ({ type: 'issue', title: 'Fix timeout', body: 'P1: timeout', patch: 'diff --git a/example.txt b/example.txt\n--- a/example.txt\n+++ b/example.txt\n@@ -1 +1 @@\n-before\n+after\n', ...overrides });
+const workflowPatch = 'diff --git a/.github/workflows/x.yml b/.github/workflows/x.yml\nnew file mode 100644\n--- /dev/null\n+++ b/.github/workflows/x.yml\n@@ -0,0 +1,3 @@\n+on: push\n+jobs: {}\n+# human review required\n';
 const outbox = (...actions) => ({ version: 1, actions });
 const temp = (t) => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-agent-test-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); return dir; };
 
@@ -58,15 +59,13 @@ test('D1 model child environment has no GH_TOKEN or alternate GitHub/credential 
   assert.equal(child.HOME, dir);
 });
 
-for (const [name, action] of [
-  ['base main', pr({ base: 'main' })],
-  ['non-draft PR', pr({ draft: false })],
-  ['merge action', { type: 'merge', number: 202 }],
-  ['non-lv-agent head branch', pr({ head: 'main' })],
-]) {
-  test(`D1 publisher refuses ${name} before any operation`, async (t) => {
+for (const type of ['pr', 'push', 'merge']) {
+  test(`D1 issues-only publisher refuses ${type} before any operation`, async (t) => {
     const { publish } = await publisher();
     let operations = 0;
+    const action = type === 'pr'
+      ? { type, title: 'Old draft proposal', body: 'P1 issue', base: 'staging', draft: true, head: 'lv-agent/fixture', patch: workflowPatch }
+      : { type, number: 202 };
     assert.throws(() => publish(outbox({ type: 'issue', title: 'Earlier valid issue', body: 'P1 issue' }, action), {
       token: 'fake-pat', stateDir: temp(t), execute: () => { operations++; return { status: 0 }; },
     }));
@@ -74,12 +73,12 @@ for (const [name, action] of [
   });
 }
 
-test('D3 published issue and PR titles/bodies are redacted at the final boundary', async (t) => {
+test('D3 published issue titles and bodies are redacted at the final boundary', async (t) => {
   const { publish } = await publisher();
   const dir = temp(t);
   const privateText = 'github_pat_fixturevalue Bearer bearer-value https://u:p@db.local/private\nGH_TOKEN=short-value\n-----BEGIN PRIVATE KEY-----\nprivate\n-----END PRIVATE KEY-----\nactual-publisher-token';
   const calls = [];
-  publish(outbox({ type: 'issue', title: privateText, body: privateText }, pr({ title: privateText, body: privateText })), {
+  publish(outbox(issue({ title: privateText, body: privateText })), {
     token: 'actual-publisher-token', stateDir: dir,
     execute: (bin, args, opts) => {
       calls.push({ bin, args });
@@ -95,32 +94,56 @@ test('D3 published issue and PR titles/bodies are redacted at the final boundary
     },
   });
   const ghCalls = calls.filter((c) => c.bin.endsWith('/gh'));
-  assert.deepEqual(ghCalls.map((c) => c.args.slice(0, 2)), [['issue', 'create'], ['pr', 'create']]);
-  assert.ok(ghCalls[1].args.includes('--draft'));
-  assert.equal(ghCalls[1].args[ghCalls[1].args.indexOf('--base') + 1], 'staging');
-  const push = calls.find((c) => c.args.includes('push')).args;
-  assert.equal(push.at(-1), 'HEAD:refs/heads/lv-agent/2026-10-22-timeout');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(ghCalls.map((c) => c.args.slice(0, 2)), [['issue', 'create']]);
 });
 
-test('D1 publisher applies proposal in a fresh local git clone and only pushes its permitted head', async (t) => {
+test('D1 workflow patch is issue text with zero git push or PR operations', async (t) => {
   const { publish } = await publisher();
-  const dir = temp(t);
-  const source = path.join(dir, 'source'); fs.mkdirSync(source);
-  const git = (...args) => {
-    const result = spawnSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'user.name=Test', '-c', 'user.email=test@example.test', ...args], { cwd: source, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr); return result.stdout;
-  };
-  git('init', '-b', 'staging'); fs.writeFileSync(path.join(source, 'example.txt'), 'before\n'); git('add', '.'); git('commit', '-m', 'Fixture');
-  const remote = path.join(dir, 'remote.git'); git('clone', '--bare', source, remote);
-  const artifacts = [];
-  publish(outbox(pr()), { token: 'local-fixture-token', stateDir: path.join(dir, 'publisher'), execute: (bin, args, opts) => {
-    if (bin.endsWith('/gh')) { artifacts.push(args); return { status: 0, stdout: 'local://draft/1' }; }
-    const localArgs = args.map((arg) => arg === 'https://github.com/jonkthomas/libertyvillage.git' ? remote : arg);
-    return spawnSync(bin, localArgs, opts);
+  const calls = [];
+  const urls = publish(outbox(issue({ patch: workflowPatch })), {
+    token: 'local-fixture-token', stateDir: temp(t), execute: (bin, args, opts) => {
+      calls.push({ bin, args });
+      assert.equal(bin, '/usr/local/bin/gh');
+      assert.deepEqual(args.slice(0, 2), ['issue', 'create']);
+      assert.deepEqual(Object.keys(opts.env).filter((k) => k.startsWith('GIT_')), []);
+      const body = fs.readFileSync(args[args.indexOf('--body-file') + 1], 'utf8');
+      assert.ok(body.includes('```diff\n' + workflowPatch + '```'));
+      return { status: 0, stdout: 'local://issue/1' };
+    },
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(urls, ['local://issue/1']);
+});
+
+test('D1 publisher source has no git or PR execution path', () => {
+  const source = fs.readFileSync(new URL('../../ops/weekly-digest/agent/publisher.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /REPO_URL|GIT_|git-credential|\/usr\/bin\/git|\bgit\s*\(|['"](?:pr|push|merge|clone|apply|commit)['"]/);
+});
+
+test('D1 oversized patch is truncated to 30 KiB of UTF-8 with a human review note', async (t) => {
+  const { publish } = await publisher();
+  const patch = workflowPatch + '+éééééééééé\n'.repeat(5000);
+  let operations = 0;
+  publish(outbox(issue({ patch })), { token: 'fake-pat', stateDir: temp(t), execute: (bin, args) => {
+    operations++;
+    const body = fs.readFileSync(args[args.indexOf('--body-file') + 1], 'utf8');
+    const rendered = body.split('```diff\n')[1]?.split('\n```')[0];
+    assert.ok(rendered?.startsWith(workflowPatch));
+    assert.ok(Buffer.byteLength(rendered) <= 30 * 1024);
+    assert.ok(Buffer.byteLength(rendered) >= 30 * 1024 - 3);
+    assert.doesNotMatch(rendered, /\uFFFD/);
+    assert.match(body, /truncated/i);
+    return { status: 0, stdout: 'local://issue/1' };
   } });
-  assert.equal(git('--git-dir', remote, 'show', 'refs/heads/lv-agent/2026-10-22-timeout:example.txt'), 'after\n');
-  assert.equal(git('--git-dir', remote, 'show', 'refs/heads/staging:example.txt'), 'before\n');
-  assert.ok(artifacts[0].includes('--draft'));
+  assert.equal(operations, 1);
+});
+
+test('D1 patch fences preserve embedded Markdown as literal diff text', async () => {
+  const { publish } = await publisher();
+  const patch = workflowPatch + '+```\n+text\n+```\n';
+  const [preview] = publish(outbox(issue({ patch })), { dryRun: true });
+  assert.ok(preview.body.includes('````diff\n' + patch + '````'));
 });
 
 test('D1 deployment separates Unix users and loads the PAT only after the model exits', () => {
@@ -139,25 +162,50 @@ test('D1 deployment separates Unix users and loads the PAT only after the model 
   assert.match(installer, /rm -rf .*\.config\/gh/);
 });
 
-test('publisher rejects symlink outboxes and secret-bearing patches without publishing', async (t) => {
-  const { publish, readOutbox } = await publisher();
+test('publisher rejects symlink outboxes', async (t) => {
+  const { readOutbox } = await publisher();
   const dir = temp(t); fs.writeFileSync(path.join(dir, 'real'), JSON.stringify(outbox()));
   fs.symlinkSync(path.join(dir, 'real'), path.join(dir, 'link'));
   assert.throws(() => readOutbox(path.join(dir, 'link')));
-  assert.throws(() => publish(outbox(pr({ patch: pr().patch + '\n+GH_TOKEN=private\n' })), { dryRun: true }));
 });
 
-test('publisher CLI previews redacted artifacts locally and refuses a main-targeted proposal', (t) => {
+test('D1 issues-only publisher refuses secret-shaped binary and credential-bearing patches before any operation', async (t) => {
+  const { publish } = await publisher();
+  for (const suffix of ['+GH_TOKEN=private\n', '+github_pat_fixturevalue\n', 'GIT binary patch\n', 'Binary files a/x and b/x differ\n', '+actual-publisher-token\n', '+safe line\n'.repeat(4000) + '+GH_TOKEN=private\n']) {
+    let operations = 0;
+    assert.throws(() => publish(outbox({ type: 'issue', title: 'Earlier valid issue', body: 'P1' }, issue({ patch: workflowPatch + suffix })), {
+      token: 'actual-publisher-token', stateDir: temp(t), execute: () => { operations++; return { status: 0 }; },
+    }));
+    assert.equal(operations, 0);
+  }
+});
+
+test('publisher CLI previews redacted issues with optional patches locally', (t) => {
   const dir = temp(t), file = path.join(dir, 'proposals.json');
   const script = new URL('../../ops/weekly-digest/agent/publisher.mjs', import.meta.url);
-  fs.writeFileSync(file, JSON.stringify(outbox({ type: 'issue', title: 'Fixture issue', body: 'Bearer private-cli-value' }, pr())));
-  const run = () => spawnSync(process.execPath, [script.pathname, '--outbox', file], { encoding: 'utf8' });
-  let result = run();
+  fs.writeFileSync(file, JSON.stringify(outbox(issue({ body: 'Bearer private-cli-value', patch: workflowPatch }))));
+  const result = spawnSync(process.execPath, [script.pathname, '--outbox', file], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /private-cli-value/);
-  assert.equal(JSON.parse(result.stdout)[1].draft, true);
-  fs.writeFileSync(file, JSON.stringify(outbox(pr({ base: 'main' }))));
-  result = run();
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /publisher refused/);
+  const [preview] = JSON.parse(result.stdout);
+  assert.equal(preview.type, 'issue');
+  assert.ok(preview.body.includes(workflowPatch));
+});
+
+test('D1 publisher CLI refuses PR push merge proposals and action flags before any operation', (t) => {
+  const dir = temp(t), file = path.join(dir, 'proposals.json');
+  const script = new URL('../../ops/weekly-digest/agent/publisher.mjs', import.meta.url);
+  const run = (...args) => spawnSync(process.execPath, [script.pathname, '--outbox', file, ...args], { encoding: 'utf8' });
+  fs.writeFileSync(file, JSON.stringify(outbox()));
+  for (const flag of ['--pr', '--push', '--merge']) {
+    const result = run(flag);
+    assert.equal(result.status, 1, flag);
+    assert.match(result.stderr, /publisher refused/);
+  }
+  for (const type of ['pr', 'push', 'merge']) {
+    fs.writeFileSync(file, JSON.stringify(outbox({ type, title: 'Legacy action', body: 'P1', base: 'staging', draft: true, head: 'lv-agent/fixture', patch: workflowPatch })));
+    const result = run();
+    assert.equal(result.status, 1, type);
+    assert.match(result.stderr, /publisher refused/);
+  }
 });
