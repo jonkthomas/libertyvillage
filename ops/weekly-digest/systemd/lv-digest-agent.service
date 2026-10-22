@@ -1,0 +1,33 @@
+[Unit]
+Description=Liberty Village weekly digest fix-it agent (pi headless)
+Documentation=https://github.com/jonkthomas/libertyvillage/tree/staging/ops/weekly-digest
+# Runs AFTER the Monday 08:00 America/Toronto digest on the Mac has pushed
+# /var/lib/lv-digest/lv-digest-latest.json to this VM.
+After=network-online.target
+Wants=network-online.target
+OnSuccess=lv-digest-publisher.service
+Conflicts=lv-digest-publisher.service
+Before=lv-digest-publisher.service
+
+[Service]
+Type=oneshot
+User=lv-digest
+Group=lv-digest
+Environment=HOME=/var/lib/lv-digest
+Environment=PI_BIN=/usr/local/libexec/lv-digest-pi
+# No EnvironmentFile or credential is loaded into this user or its parent.
+UnsetEnvironment=GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN GH_CONFIG_DIR
+ExecStart=/usr/local/bin/node /opt/lv-digest-agent/agent/agent.mjs
+TimeoutStartSec=50min
+UMask=0027
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+# Defense in depth on top of file perms: the agent must never see runner
+# secrets, the runner checkout, or its runtime state.
+InaccessiblePaths=-/etc/lv-runner.env -/etc/lv-runner-staging.env -/etc/lv-runner-production.env -/etc/lv-runner.hold -/srv/lv-runner -/run/lv-runner -/var/log/lv-runner -/var/log/lv-generator -/etc/lv-digest-agent.env -/etc/lv-digest-publisher.token -/var/lib/lv-digest-publisher -/run/credentials/lv-digest-publisher.service
+ReadWritePaths=/var/lib/lv-digest
+ProtectHome=yes
+RestrictSUIDSGID=yes
+ProtectProc=invisible
+KillMode=control-group

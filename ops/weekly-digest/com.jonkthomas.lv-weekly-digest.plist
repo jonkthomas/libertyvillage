@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jonkthomas.lv-weekly-digest</string>
+  <key>Comment</key>
+  <string>Liberty Village weekly content digest: fetch VM loop logs + sitemap + GSC, publish HTML to the spec-deck tailnet server, post the link to Slack C0B6HEAHZT4, push digest JSON to the VM fix-it agent. Source: ops/weekly-digest in the repo; installed copy at __INSTALL_DIR__ (launchd cannot read ~/Desktop). Template — install-mac.sh substitutes __NODE__, __INSTALL_DIR__, __HOME__.</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__INSTALL_DIR__/run-digest.mjs</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/lv-weekly-digest.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/lv-weekly-digest.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__HOME__/.hermes/node/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+  </dict>
+</dict>
+</plist>

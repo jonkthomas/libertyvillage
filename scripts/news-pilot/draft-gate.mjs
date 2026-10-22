@@ -3,6 +3,8 @@
  * "Refused, here is why" is a successful outcome (exit 0).
  */
 
+import { independentReporting } from './independent-reporting.mjs';
+
 /** Risk flags that always require human handling before any draft generation. */
 export const HUMAN_RISK_FLAGS = Object.freeze([
   'crime',
@@ -102,22 +104,8 @@ export function evaluateEvidenceGate(evidencePack, config = GATE_CONFIG) {
     const substantiveTiers = substantive.map((s) =>
       String(s.sourceTier || 'lead').toLowerCase(),
     );
-    const distinctPublishers = new Set(
-      substantive.map((s) => s.publisherDomain || s.publisher).filter(Boolean),
-    );
-    const publisherCount =
-      Number(pack.independentPublisherCount) > 0
-        ? Number(pack.independentPublisherCount)
-        : distinctPublishers.size;
-
-    const hasStrongTier = substantiveTiers.some(
-      (t) => !config.weakSoloTiers.includes(t),
-    );
-    const onlyWeakTiers = substantiveTiers.every((t) =>
-      config.weakSoloTiers.includes(t),
-    );
-
-    if (onlyWeakTiers && publisherCount <= 1 && !hasStrongTier) {
+    const { publisherCount, hasStrong: hasStrongTier } = independentReporting(sources);
+    if (publisherCount < 2 && !hasStrongTier) {
       reasons.push(
         'Consequential claim is corroborated by only a single lead-tier source; needs official primary source or additional independent publishers before drafting.',
       );

@@ -1,5 +1,12 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+The [weekly digest agent](ops/weekly-digest/README.md) publishes issues only.
+Optional patches appear as fenced diff text (30 KiB cap) for a human to review
+and apply. It never pushes branches or creates PRs. Its separate publisher PAT
+needs Issues Read+Write only for this repository; read-only Metadata is implicit,
+and Contents/Pull requests permissions must not be granted. See the digest
+README for token replacement and installation instructions.
+
 ## Getting Started
 
 First, run the development server:

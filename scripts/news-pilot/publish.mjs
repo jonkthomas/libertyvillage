@@ -31,6 +31,10 @@ import {
   suggestInternalLinks,
 } from './draft-evidence.mjs';
 import { evaluateEvidenceGate } from './draft-gate.mjs';
+import { createRequestBudget, fetchSource } from './fetch.mjs';
+import { normalizeSourceResult } from './normalize.mjs';
+import { extractEntities, sameStory } from './dedupe.mjs';
+import { registrableDomain, roundupPublisherTier } from './sources.mjs';
 import {
   resolveModelProvider,
   buildDraftPrompt,
@@ -53,6 +57,7 @@ import {
   AUTO_PUBLISH_CONFIG,
   evaluateAutoPublishEligibility,
   evaluatePublishReadyDraft,
+  evaluateSourceQuality,
   prefilterAutoPublishCandidate,
   rankAutoPublishCandidates,
   readPostsJson,
@@ -60,8 +65,50 @@ import {
   countAutoPublishesOnRunDate,
 } from './publish-gate.mjs';
 
+import { isAggregatorUrl } from './independent-reporting.mjs';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
+
+// Search can surface unattributed rewrites with no detectable text overlap.
+// Only established newsrooms or registry-recognized official sources may add
+// corroboration. This admission rule does not promote the search source tier.
+const CORROBORATING_NEWSROOMS = new Set([
+  'cbc.ca', 'cp24.com', 'ctvnews.ca', 'citynews.ca', 'globalnews.ca',
+  'thestar.com', 'theglobeandmail.com', 'nationalpost.com', 'torontosun.com',
+  'blogto.com', 'urbantoronto.ca', 'torontolife.com', 'thecanadianpress.com',
+]);
+const BROAD_CORROBORATION_ENTITIES = new Set([
+  'liberty village', 'ttc', 'streetcar', 'development', 'construction',
+  'closure', 'tower', 'condo', 'brewery', 'theft-allegation', 'police-theft',
+]);
+
+// A ranked lead is not corroboration. Retrieve a bounded set of actual article
+// URLs when the original cluster is blocked by missing/solo evidence, then run
+// the SAME extraction, risk, source-quality and draft gates again. Search
+// snippets never count as substantive evidence and no source tier is raised.
+export async function findCorroboratingMembers(candidate, { budget, env = process.env, search = fetchSource } = {}) {
+  if (!env.SERPER_API_KEY || budget?.remaining < 1) return [];
+  const source = { id: 'daily-corroboration', type: 'serper', tier: 'lead', query: String(candidate.title ?? '').slice(0, 200), num: 10 };
+  const result = await search(source, { secrets: { SERPER_API_KEY: env.SERPER_API_KEY }, budget, maxRetries: 0 });
+  if (!result.ok) return [];
+  const anchors = extractEntities(`${candidate.title || ''} ${candidate.snippet || ''}`)
+    .filter((entity) => !BROAD_CORROBORATION_ENTITIES.has(entity));
+  return normalizeSourceResult(source, result).filter((member) => {
+    const url = member.canonicalUrl || member.url;
+    const trusted = CORROBORATING_NEWSROOMS.has(registrableDomain(url)) || roundupPublisherTier(url) === 'official';
+    // Headline overlap and a same-week publication date are insufficient:
+    // require a specific shared place/entity in the result's snippet as well.
+    // Missing anchors/snippets fail closed; snippets still never count as evidence.
+    const snippetEntities = new Set(extractEntities(member.snippet));
+    const sharedAnchor = anchors.some((entity) => snippetEntities.has(entity));
+    const a = Date.parse(candidate.publishedAt ?? '');
+    const b = Date.parse(member.publishedAt ?? '');
+    // Unknown dates cannot establish that a similar headline is the same event.
+    return trusted && sharedAnchor && !isAggregatorUrl(url) && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 7 * 86400000
+      && sameStory(candidate, member, { titleThreshold: 0.55 }).match;
+  }).slice(0, 3);
+}
 
 /**
  * @param {string[]} argv
@@ -369,6 +416,7 @@ export async function runPublish(args, deps = {}) {
 
   /** @type {object[]} */
   const evaluations = [];
+  const corroborationBudget = createRequestBudget(4);
   let selected = null;
   let selectedEvidence = null;
   let selectedEligibility = null;
@@ -398,7 +446,7 @@ export async function runPublish(args, deps = {}) {
     const members = (artifact.candidates || []).filter(
       (c) => c.clusterId === candidate.clusterId,
     );
-    const evidencePack = await (deps.buildEvidencePack || buildEvidencePack)({
+    let evidencePack = await (deps.buildEvidencePack || buildEvidencePack)({
       representative: candidate,
       members: members.length ? members : [candidate],
       clusterId: candidate.clusterId,
@@ -411,7 +459,15 @@ export async function runPublish(args, deps = {}) {
       evidencePack,
     );
 
-    const gate = (deps.evaluateEvidenceGate || evaluateEvidenceGate)(evidencePack);
+    let gate = (deps.evaluateEvidenceGate || evaluateEvidenceGate)(evidencePack);
+    if (['extraction_empty', 'single_lead_consequential'].includes(gate.code) || (gate.ok && evaluateSourceQuality(evidencePack, config).code === 'insufficient_source_quality')) {
+      const extra = await (deps.findCorroboratingMembers || findCorroboratingMembers)(candidate, { budget: corroborationBudget, env: deps.env ?? process.env });
+      if (extra.length) {
+        evidencePack = await (deps.buildEvidencePack || buildEvidencePack)({ representative: candidate, members: [...members, ...extra], clusterId: candidate.clusterId, rank: evaluations.length + 1, nowMs, fetchFn: deps.fetchFn });
+        writeJson(path.join(outDir, `evidence-${candidate.clusterId}.json`), evidencePack);
+        gate = (deps.evaluateEvidenceGate || evaluateEvidenceGate)(evidencePack);
+      }
+    }
     row.gate = { ok: gate.ok, code: gate.code, reasons: gate.reasons };
     if (!gate.ok) {
       row.eligibility = {

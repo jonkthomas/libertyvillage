@@ -1,0 +1,11 @@
+[Unit]
+Description=Run LV digest fix-it agent Monday 09:00 America/Toronto
+
+[Timer]
+# Digest lands on the Mac at 08:00 Toronto and pushes the JSON here; run an hour later.
+OnCalendar=Mon *-*-* 09:00:00 America/Toronto
+Persistent=true
+Unit=lv-digest-agent.service
+
+[Install]
+WantedBy=timers.target

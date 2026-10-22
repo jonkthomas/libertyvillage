@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { extractReferencedBusinesses, operationalPremisesIn, recordSupportsPremise } from '../lib/referenced-businesses.mjs';
 import { lintPost } from '../blog-lint.mjs';
+import { validateRecord } from '../content/validate.mjs';
 
 export const SOURCE_PACK_SCHEMA = Object.freeze({
   schemaVersion: 'cq-blog-source-pack/v2',
@@ -124,9 +125,14 @@ export function verifySourcePack(pack, { businesses, posts = [], services = [], 
   return { ok: errors.length === 0, errors };
 }
 
-export function checkDraftAgainstPack(post, pack, { businesses, posts = [], services = [], topics = [], imagePaths = [], now } = {}) {
+export function checkDraftAgainstPack(post, pack, { businesses, posts = [], services = [], topics = [], imagePaths = [], now, requireRealDate = false } = {}) {
   const errors = [...verifySourcePack(pack, { businesses, posts, services, topics, now }).errors];
   if (!post || typeof post !== 'object') return { ok: false, errors: [...errors, 'missing-draft'] };
+  errors.push(...validateRecord('posts', post.slug, post).errors.map((error) => `storage:${error}`));
+  if (requireRealDate && now) {
+    const day = new Date(now).toISOString().slice(0, 10);
+    if (post.publishedAt !== day || post.updatedAt !== day) errors.push('draft-must-use-real-publish-date');
+  }
   const packed = new Set(array(pack?.sources).map((source) => source.id));
   const referenced = extractReferencedBusinesses(post, businesses);
   if (!referenced.length) errors.push('no-attributed-business');

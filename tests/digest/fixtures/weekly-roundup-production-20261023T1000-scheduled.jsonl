@@ -1,0 +1,3 @@
+{"at":"2026-10-23T10:00:00.000Z","event":"start","job":"weekly-roundup","target":"production","slot":"20261023T1000-scheduled"}
+{"at":"2026-10-23T10:14:11.002Z","event":"roundup-hold-alerted","census":{"eligible":0}}
+{"at":"2026-10-23T10:14:11.540Z","event":"success","result":{"id":null,"dryRun":false,"noChanges":true,"cadenceMet":false}}

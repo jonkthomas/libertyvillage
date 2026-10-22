@@ -363,6 +363,7 @@ test('zero qualifying stories exits successfully (0 published is success)', asyn
       vault: '/dev/null',
     },
     {
+      env: {}, // Unit tests must never spend inherited source credentials.
       // Source quality is judged from the evidence pack, so building it is
       // expected. This lone lead-tier publisher must still fail that check.
       buildEvidencePack: async () => ({
@@ -386,6 +387,38 @@ test('zero qualifying stories exits successfully (0 published is success)', asyn
   assert.equal(result.published, 0);
   assert.equal(result.status, 'no_eligible_candidate');
   assert.ok(fs.existsSync(path.join(outDir, 'result.json')));
+});
+
+test('corroboration rebuilds actual evidence and repeats the unchanged gates', async (t) => {
+  for (const extracted of [false, true]) {
+    const root = makeTempRoot(true);
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const runDir = path.join(root, '.news-pilot/runs/t');
+    const candidate = baseCandidate({ sourceTier: 'lead' });
+    fs.writeFileSync(path.join(runDir, 'candidates.json'), JSON.stringify({ candidates: [candidate] }));
+    let builds = 0;
+    let searches = 0;
+    const first = evidencePack();
+    first.sources = [first.sources[1]];
+    first.independentPublisherCount = 1;
+    const result = await runPublish({ run: runDir, out: path.join(root, 'out'), root, now: '2026-08-10T18:00:00Z', dryRun: true, skipGenerate: true, vault: '/dev/null' }, {
+      env: {}, log: { log() {} },
+      findCorroboratingMembers: async () => { searches++; return [{ title: candidate.title, canonicalUrl: 'https://second.example/park', sourceTier: 'lead' }]; },
+      buildEvidencePack: async ({ members }) => {
+        builds++;
+        if (builds === 1) return first;
+        assert.equal(members.length, 2);
+        const extra = { ...first.sources[0], url: 'https://second.example/park', canonicalUrl: 'https://second.example/park', publisherDomain: 'second.example', extractionSubstantive: extracted, fetchOk: extracted,
+          bodyExcerpt: 'Our reporter visited the neighbourhood and spoke to the project manager about the park construction timeline. Neighbours described how they plan to use the paths once the work is complete. The team expects pedestrian access to improve after the new landscaping is finished.',
+          passages: ['Our reporter visited the neighbourhood and spoke to the project manager about the park construction timeline.'] };
+        return { ...first, sources: [...first.sources, extra], independentPublisherCount: extracted ? 2 : 1 };
+      },
+    });
+    assert.equal(searches, 1); assert.equal(builds, 2);
+    assert.equal(result.status, extracted ? 'eligible_skip_generate' : 'no_eligible_candidate');
+    assert.equal(result.published, 0);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'data/posts.json'), 'utf8')).length, 1);
+  }
 });
 
 test('score below the sanity floor is rejected even if discovery auto-eligible', () => {

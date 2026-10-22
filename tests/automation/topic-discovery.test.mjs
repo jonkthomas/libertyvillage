@@ -62,7 +62,7 @@ test('GSC-derived topics are geo-qualified without changing their source evidenc
   };
   const result = await appendDiscoveredTopics({ version: 1, topics: [] }, [discovery]);
   assert.equal(result.added.length, 1);
-  assert.equal(result.added[0].title, 'Best patios near the stadium Liberty Village Toronto');
+  assert.equal(result.added[0].title, 'Patio directory guide in Liberty Village, Toronto');
   assert.equal(result.added[0].source, discovery.source);
   assert.equal(result.added[0].rationale, discovery.rationale);
 });
@@ -80,13 +80,12 @@ test('PR #115 discovery titles are geo-qualified and deduplicated by stable inte
   const result = await appendDiscoveredTopics({ version: 1, topics: [] }, discoveries);
 
   assert.deepEqual(result.added.map((entry) => entry.title), [
-    'Liberty Village Happy Hour',
-    'Jukebox Printing Liberty Village Toronto',
+    'Happy hour directory guide in Liberty Village, Toronto',
     'Is Liberty Village, Toronto A Good Area?',
     'What Is Liberty Village, Toronto Known For?',
   ]);
   assert.deepEqual(result.added.map((entry) => entry.rationale), [
-    'higher priority', 'local business query', 'specific', 'valid PAA',
+    'higher priority', 'specific', 'valid PAA',
   ]);
 
   const replay = await appendDiscoveredTopics(result.queue, discoveries);
@@ -103,7 +102,7 @@ test('PR #115 discovery titles are geo-qualified and deduplicated by stable inte
   assert.deepEqual(crossRun.queue, priorRun.queue);
 });
 
-test('local GSC titles and PostHog titles remain unchanged', async () => {
+test('unsupported GSC themes stay out while PostHog titles retain their source', async () => {
   const discoveries = [
     { kind: 'blog', title: 'Liberty Village Farmers Market', source: 'gsc', rationale: 'GSC top query' },
     { kind: 'seo', title: 'Restaurants', source: 'implicit-discovery', rationale: 'PostHog landing' },
@@ -112,10 +111,9 @@ test('local GSC titles and PostHog titles remain unchanged', async () => {
   const result = await appendDiscoveredTopics({ version: 1, topics: [] }, discoveries);
 
   assert.deepEqual(result.added.map((entry) => entry.title), [
-    'Liberty Village Farmers Market',
     'Restaurants',
   ]);
-  assert.deepEqual(result.added.map((entry) => entry.rationale), ['GSC top query', 'PostHog landing']);
+  assert.deepEqual(result.added.map((entry) => entry.rationale), ['PostHog landing']);
 });
 
 test('topic-discovery is coordinator-gated but never a candidate-ladder kind', () => {
