@@ -45,3 +45,22 @@ test('D2: distinct reporting passes, forged publisher counts do not, and an offi
   const official = { ...solo, sources: [{ ...solo.sources[0], sourceTier: 'official' }] };
   assert.equal(evaluateEvidenceGate(official).ok, true); assert.equal(evaluateSourceQuality(official).ok, true);
 });
+
+test('D2 follow-up: UrbanToronto boilerplate is not article syndication', async () => {
+  const html = `<article>${original} This service provided by this web site includes neighbourhood reporting.</article><footer>First published terms: service provided by this web site.</footer><script>const terms = 'content provided by a third party';</script>`;
+  const pack = await packFor([['https://urbantoronto.ca/news/local', html], ['https://independent.example/report', `<article>${independent}</article>`]]);
+  assert.equal(pack.sources[0].syndicated, false);
+  assert.equal(pack.independentPublisherCount, 2);
+  assert.equal(evaluateEvidenceGate(pack).ok, true);
+  assert.equal(evaluateSourceQuality(pack).ok, true);
+});
+
+test('D2 follow-up: genuine story and content syndication attributions remain excluded', async () => {
+  for (const attribution of ['Story provided by The Canadian Press.', 'Content provided by Reuters.', 'Originally published by Origin News.']) {
+    const pack = await packFor([['https://origin.example/story', `<article>${original}</article>`], ['https://copy.example/report', `<article>${attribution} ${independent}</article>`]]);
+    assert.equal(pack.sources[1].syndicated, true);
+    assert.equal(pack.independentPublisherCount, 1);
+    assert.equal(evaluateEvidenceGate(pack).ok, false);
+    assert.equal(evaluateSourceQuality(pack).ok, false);
+  }
+});

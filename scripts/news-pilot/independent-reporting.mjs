@@ -2,7 +2,7 @@ import { registrableDomain } from './sources.mjs';
 
 const aggregators = ['msn.com', 'yahoo.com', 'news.google.com', 'newsbreak.com', 'flipboard.com', 'ground.news', 'inkl.com'];
 const strongTiers = ['official', 'primary', 'government'];
-const syndication = /originally published|first published|appeared originally|republished (?:with permission|from)|this article is from|provided by|©\s*Toronto Star/i;
+const syndication = /originally published|first published|appeared originally|republished (?:with permission|from)|this article is from|(?:content|story|article|report)\s+provided by\b|©\s*Toronto Star/i;
 
 export function isAggregatorUrl(url) {
   try {
@@ -11,13 +11,13 @@ export function isAggregatorUrl(url) {
   } catch { return false; }
 }
 
-// Use canonical-origin/attribution hints from the fetched HTML, never search
-// snippets. A republisher remains usable context but cannot be corroboration.
-export function reportingOrigin(html, url) {
+// Read canonical-origin hints from the page head and attribution only from the
+// extracted article text. Site terms/scripts cannot establish syndication.
+export function reportingOrigin(html, url, articleText) {
   const tag = String(html).match(/<link\b(?=[^>]*\brel=["']canonical["'])[^>]*\bhref=["']([^"']+)["']/i);
   let originUrl = url;
   try { if (tag) originUrl = new URL(tag[1], url).href; } catch { /* retain fetched URL */ }
-  return { originUrl, syndicated: syndication.test(String(html)) };
+  return { originUrl, syndicated: syndication.test(String(articleText || '')) };
 }
 
 function shingles(text) {

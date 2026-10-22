@@ -57,12 +57,12 @@ Builder observations:
 - `npm run test:content`: 208 passed with the local PostgreSQL URL above. The
   earlier 206-pass claim was stale: Fable reproduced 205 passed / 1 failed at
   `bd4ca13`; explicit generation-only date enforcement fixes that R4 failure.
-- `node --test --test-concurrency=1 tests/runner/*.test.mjs`: 157 passed, zero
+- `node --test --test-concurrency=1 tests/runner/*.test.mjs`: 161 passed, zero
   skipped, including real submit, scripted gate, deploy hook and hosted-alias
   smoke against the disposable PostgreSQL stack.
 - `npm run test:automation`: 178 passed, including the explicit schema/date
   regression.
-- `npm run test:news-pilot`: 276 passed. The prior candidate's unchanged
+- `npm run test:news-pilot`: 278 passed. The prior candidate's unchanged
   supervisor suite passed 88 tests.
 - Explicit ESLint over all 19 changed JS/MJS files: zero errors, one existing
   unused-import warning in `publish.mjs`.
@@ -71,13 +71,22 @@ Builder observations:
   outside this fix's scope; explicit changed-file ESLint is reported separately (`lint:changed` sees only
   committed differences).
 - Verify screenshots are under `$TMPDIR/pi-verify/gh-jonkthomas-libertyvillage/`
-  (desktop 1440x900 and mobile 390x844); all twelve routes passed. The verify
+  (desktop 1440x900 and mobile 390x844); all 14 checks passed (12 browser routes
+  plus two command checks). The verify
   script now also runs the focused loop regressions (kept in the harness project
   store, not this product repository).
 
 The parent-directed D4 fix supersedes the earlier Astra recommendation to allow
 fresh topics after three terminal rejections: the persisted three-attempt cap
 now wins. Early draft schema rejection still retains its actionable explanation.
+N1 follow-up: a label with three terminal normal attempts is skipped for ordering,
+with one persisted diagnostic/alert claim; the next label uses the same run's
+remaining generation budget. All three N1 regressions fail against the `11a0595`
+runner and pass now, including day-two/day-three progression after rejection and
+pre-submit failure. D4's original slot keys/caps remain intact. UrbanToronto site
+boilerplate is excluded from syndication detection; the cached reviewer probe now
+has two independent publishers and both gates pass. Real article syndication
+attributions, aggregator/same-origin/duplicate exclusions remain blocked.
 F1/F3 date enforcement is explicit only at generation/pre-submit; later binding
 rounds keep the original real dates. F7 is covered by D1: backfill cannot meet the
 live weekly goal or suppress that week's alert. D5/F9 isolates live recovery.

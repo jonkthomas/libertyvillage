@@ -27,7 +27,7 @@ start SEO (#182).
   Raptors practice facility was labelled a public gym with invented default
   `$$` pricing; M6K admitted Exhibition grounds as Liberty Village. Discovery
   now accepts reviewed core addresses or an address missing only from that table
-  with an M6K postal code, excludes private/team facilities,
+  with an M6K postal code outside Exhibition/Ontario Place streets, excludes private/team facilities,
   and leaves unknown prices empty. The gate remains unchanged in strictness.
 - News September 29 and 30: 25 evaluated each, seven reached evidence. Four
   failed extraction (403 responses included); three had only a single
@@ -190,8 +190,11 @@ post per UTC date; retries preserve their original open submission/key. Each
 invocation has a bounded generation budget. The ledger persists the three normal
 attempts per slot, two reserves per week, and used reserve categories across daily
 runs. Reserves also spend the real attempt week's allowance across historical
-labels. Exhaustion fails visibly and needs operator review; a new day cannot reset
-the cap. Posts use the
+labels. After three terminal normal attempts, a label is exhausted for ordering:
+log it once and attempt one alert, retain its ledger rows/caps, and continue to the
+next label in the same run within the shared generation budget. Later daily runs
+skip that label; review its diagnostic rather than deleting rows or resetting caps.
+Posts use the
 actual date they are generated/published, never the historical label. A late
 smoke closes as `late-smoked`; the current-live post counts only toward its own
 historical attempt week. It cannot satisfy the live weekly-blog quota or suppress

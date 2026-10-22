@@ -64,15 +64,15 @@ test('later-day grounded inventory cannot reset an exhausted backfill slot cap',
   const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), businesses, queue: entries.slice(0, 3) });
   t.after(() => world.cleanup());
   world.gatePlan = ['reject', 'reject', 'reject'];
-  assert.throws(() => backfill(world), /backfill publication incomplete/);
-  assert.equal(world.attempts.length, 3);
-  const oldKeys = world.attempts.map((a) => a.idempotency_key);
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  const oldKeys = world.attempts.filter((a) => a.slot_number === 101).map((a) => a.idempotency_key);
+  assert.equal(oldKeys.length, 3);
   world.now = new Date('2026-10-24T15:37:00Z');
   world.queue.push(entries[3]);
-  assert.throws(() => backfill(world), /backfill publication incomplete/);
-  assert.equal(world.attempts.length, 3);
-  assert.deepEqual(world.attempts.slice(0, 3).map((a) => a.idempotency_key), oldKeys);
-  assert.ok(world.attempts.every((a) => a.slot_number === 101));
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  assert.equal(world.attempts.length, 5);
+  assert.deepEqual(world.attempts.filter((a) => a.slot_number === 101).map((a) => a.idempotency_key), oldKeys);
+  assert.equal(world.attempts.at(-1).slot_number, 103);
 });
 
 test('CLI validation and gate rejection retain a bounded redacted explanation; news logs only counts', () => {

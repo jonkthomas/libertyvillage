@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { runOctoberBackfill, runWeeklyBlog, diagnosticMessage } from '../../ops/exedev-runner/runner.mjs';
+import { runOctoberBackfill, runWeeklyBlog, diagnosticMessage, OCTOBER_BACKFILL, alertFailure } from '../../ops/exedev-runner/runner.mjs';
 import { createWorld, groundedPost, TOPICS, topic } from './fake-cadence.mjs';
 import { buildSourcePack, checkDraftAgainstPack } from '../../scripts/automation/blog-source-pack.mjs';
 import { blogDraftBindingErrors } from '../../scripts/content/submit.mjs';
@@ -52,16 +52,82 @@ test('F6: diagnostics redact service-account JSON, analytics identity and login 
   for (const value of Object.values(env)) assert.equal(result.includes(value), false);
 });
 
+test('N1: capped first label is skipped once; days two and three publish the next historical labels', (t) => {
+  for (const failure of ['gate', 'pre-submit']) {
+    const categories = ['coffee-shops', 'gyms', 'dentists', 'florists', 'bakeries'];
+    const entries = categories.map((c) => topic(c, `${c.replaceAll('-', ' ')} in Liberty Village`));
+    const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), businesses: inventory(categories, 2), queue: entries.slice(0, 3) });
+    t.after(() => world.cleanup());
+    const notices = [];
+    world.deps.onBackfillExhausted = (label) => notices.push(label);
+    if (failure === 'gate') world.gatePlan = ['reject', 'reject', 'reject', 'reject'];
+    else world.generatorPlan = ['no-sidecar', 'no-sidecar', 'no-sidecar', 'no-sidecar'];
+    assert.throws(() => backfill(world), /backfill publication incomplete/);
+    const firstKeys = world.attempts.filter((a) => a.slot_number === 101).map((a) => a.idempotency_key);
+    assert.equal(firstKeys.length, 3);
+    assert.equal(world.generated.length, 4);
+    assert.equal(world.attempts.at(-1).slot_number, 102);
+    for (let day = 2; day <= 3; day++) {
+      world.now = new Date(`2026-10-${22 + day}T15:37:00Z`);
+      world.queue.push(entries[day + 1]);
+      assert.equal(backfill(world).reason, 'october-backfill-published');
+      assert.equal(world.attempts.at(-1).slot_number, 100 + day);
+    }
+    assert.deepEqual(world.attempts.filter((a) => a.slot_number === 101).map((a) => a.idempotency_key), firstKeys);
+    assert.deepEqual(notices, ['2026-10-01']);
+    assert.equal(world.logs.filter((row) => row.event === 'october-backfill-exhausted').length, 1);
+  }
+});
+
+test('N1: exhaustion continues in the same run within the shared generation budget', (t) => {
+  const categories = ['coffee-shops', 'gyms', 'dentists', 'florists'];
+  const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), businesses: inventory(categories, 2), queue: categories.map((c) => topic(c, `${c.replaceAll('-', ' ')} in Liberty Village`)) });
+  t.after(() => world.cleanup()); world.gatePlan = ['reject', 'reject', 'reject'];
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  assert.equal(world.generated.length, 4);
+  assert.deepEqual(world.attempts.map((a) => a.slot_number), [101, 101, 101, 102]);
+  assert.equal(backfill(world).reason, 'october-backfill-wait');
+});
+
+test('N1: all exhausted labels complete without new attempts or repeated diagnostics', async (t) => {
+  const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), queue: [] });
+  t.after(() => world.cleanup());
+  const notices = [];
+  world.deps.onBackfillExhausted = (label) => notices.push(label);
+  for (const [index, label] of OCTOBER_BACKFILL.entries()) {
+    for (let ordinal = 1; ordinal <= 3; ordinal++) world.attempts.push({ target: 'staging', week_start_utc: world.deps.modules.weekStartUtc(label), lane: 'content', slot_number: 101 + index, ordinal, topic_key: `spent-${ordinal}`, outcome: 'rejected' });
+  }
+  assert.equal(backfill(world).reason, 'october-backfill-complete');
+  assert.equal(backfill(world).reason, 'october-backfill-complete');
+  assert.equal(world.attempts.length, 21); assert.equal(world.generated.length, 0);
+  assert.deepEqual(notices, [...OCTOBER_BACKFILL]);
+  assert.equal(world.logs.filter((row) => row.event === 'october-backfill-exhausted').length, 7);
+  const sent = [];
+  assert.equal(await alertFailure({ webhook: 'https://slack.example/fixture', job: 'october-blog-backfill', target: 'staging', slot: 'fixture', exhaustedLabel: notices[0] }, async (_url, options) => { sent.push(JSON.parse(options.body).text); return { ok: true }; }), true);
+  assert.match(sent[0], /2026-10-01 exhausted.*attempt cap retained, later labels continue/);
+});
+
+test('F2 follow-up: M6K fallback excludes Exhibition and Ontario Place streets, retaining reviewed core frontage', () => {
+  const candidate = (address) => ({ title: address, address, rating: 4.8, reviews: 100, type: 'Coffee shop', gps_coordinates: { latitude: 43.638, longitude: -79.42 } });
+  for (const address of ["111 Princes' Blvd, Toronto, ON M6K 3C3", '10 Dufferin St, Toronto, ON M6K 3C3', '1 Manitoba Dr, Toronto, ON M6K 3C3', '955 Lake Shore Blvd W, Toronto, ON M6K 3B9']) {
+    assert.equal(filterCandidates([candidate(address)], 'coffee-shops', buildDedupeState([])).length, 0, address);
+  }
+  for (const address of ['1 East Liberty St, Toronto, ON M6K 3P4', '153 Dufferin St, Toronto, ON M6K 1Y6']) {
+    assert.equal(filterCandidates([candidate(address)], 'coffee-shops', buildDedupeState([])).length, 1, address);
+  }
+});
+
 test('D4 normal: terminal attempts persist the per-slot cap across daily backfill invocations', (t) => {
   const categories = ['coffee-shops', 'gyms', 'dentists', 'florists'];
   const entries = categories.map((c) => topic(c, `${c.replaceAll('-', ' ')} in Liberty Village`));
   const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), businesses: inventory(categories, 2), queue: entries.slice(0, 3) });
   t.after(() => world.cleanup()); world.gatePlan = ['reject', 'reject', 'reject'];
-  assert.throws(() => backfill(world), /backfill publication incomplete/);
-  const keys = world.attempts.map((a) => a.idempotency_key);
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  const keys = world.attempts.filter((a) => a.slot_number === 101).map((a) => a.idempotency_key);
   world.now = new Date('2026-10-24T15:37:00Z'); world.queue.push(entries[3]);
-  assert.throws(() => backfill(world), /backfill publication incomplete/);
-  assert.equal(world.generated.length, 3); assert.deepEqual(world.attempts.map((a) => a.idempotency_key), keys);
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  assert.equal(world.generated.length, 5); assert.deepEqual(world.attempts.filter((a) => a.slot_number === 101).map((a) => a.idempotency_key), keys);
+  assert.equal(world.attempts.at(-1).slot_number, 103);
 });
 
 test('D4 reserve: rejected reserve attempts and categories persist across daily invocations', (t) => {

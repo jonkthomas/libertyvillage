@@ -208,11 +208,12 @@ export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_EN
 // The root-owned generator helper's environment (it adds nothing secret itself).
 export const generatorEnv = (env) => childEnv(env, ['PATH', 'HOME', 'LANG', 'TZ']);
 
-export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null }, fetchImpl = fetch) {
+export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null, exhaustedLabel = null }, fetchImpl = fetch) {
   if (!webhook) return false;
   try {
     const week = typeof holdWeek === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(holdWeek) ? ` week ${holdWeek};` : '';
-    const text = holdCensus ? `⚠ ${job} publication held (${target});${week} lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
+    const text = exhaustedLabel ? `⚠ ${job} label ${exhaustedLabel} exhausted (${target}); attempt cap retained, later labels continue; lv-runner ${slot}` :
+      holdCensus ? `⚠ ${job} publication held (${target});${week} lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
       Number.isSafeInteger(stuckSubmissionId) && stuckSubmissionId > 0 ? `⚠ ${job} held (${target}); submission #${stuckSubmissionId} smoked but not current-live; lv-runner ${slot}; inspect original slot` :
         codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` :
           `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}`;
@@ -861,6 +862,7 @@ function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
     if (resumeOnly) return { state: 'closed' };
     let normalLeft = CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length;
     while (run.budget > 0) {
+      if (run.policy.phase === 'backfill' && normalLeft <= 0) break;
       const snapshot = deps.exportSnapshot();
       const candidate = nextCandidate(run, snapshot, { normal: normalLeft > 0, reserve: run.policy.reserveAllowed && run.reserveLeft > 0 });
       if (!candidate) break;
@@ -1085,6 +1087,25 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
 // for the historical attempt week, never toward the current weekly goal.
 const isBackfillSlot = (number) => Number(number) >= 101 && Number(number) <= 107;
 export const OCTOBER_BACKFILL = Object.freeze(['2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-19', '2026-10-22']);
+
+function backfillExhausted(attempts) {
+  return attempts.length > 0 && !isOpen(attempts.at(-1))
+    && attempts.filter((item) => !String(item.topic_key).startsWith('reserve:')).length >= CADENCE.normalPerSlot;
+}
+function noteBackfillExhausted(deps, target, row) {
+  // Ordering is derived from the durable attempt ledger. This private marker
+  // only dedupes the diagnostic/alert across scheduled runs and restarts.
+  const dir = path.join(deps.stateRoot, 'backfill-exhausted', target);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  let fd;
+  try { fd = fs.openSync(path.join(dir, `${row.label}.json`), 'wx', 0o600); }
+  catch (error) { if (error.code === 'EEXIST') return; throw error; }
+  try { fs.writeSync(fd, JSON.stringify({ label: row.label, slot: row.slotNumber }) + '\n'); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  deps.log('october-backfill-exhausted', { label: row.label, week: row.week, slot: row.slotNumber });
+  deps.onBackfillExhausted?.(row.label);
+}
+
 export function runOctoberBackfill({ target, slot, request = {}, deps }) {
   if (request.topic || request.dryRun) throw new Error('backfill options unsupported');
   const now = deps.now();
@@ -1104,28 +1125,44 @@ export function runOctoberBackfill({ target, slot, request = {}, deps }) {
       if (Number.isFinite(smoked)) lastSmoke = Math.max(lastSmoke, smoked);
     }
   }
-  const row = rows.find((entry) => !['consumed', 'late-smoked'].includes(entry.latest?.outcome));
-  if (!row) return { noChanges: true, reason: 'october-backfill-complete' };
-  // An unfinished publication always resumes its original key. Before starting
-  // another post, require a new UTC date after the last trusted smoke receipt.
-  if (lastSmoke && new Date(lastSmoke).toISOString().slice(0, 10) >= now.toISOString().slice(0, 10) && (!row.latest || !isOpen(row.latest))) return { noChanges: true, reason: 'october-backfill-wait' };
-  const consumed = new Set(row.call('consumed'));
-  // Charge both the historical ledger week and the real attempt-creation week.
-  // Rejected attempts still spend the cap; a new day does not reset it.
-  const historicalReserves = row.call('reserve-budget');
-  const actualReserves = cadenceCaller(deps, target, deps.modules.weekStartUtc(now))('reserve-budget');
-  const run = {
-    deps, ...row, target, slot, request, kind: 'blog', lane: 'content', policy: { phase: 'backfill', reserveAllowed: true },
-    actor: `runner:october-blog-backfill#${slot}`, owner: `runner:october-blog-backfill:${target}:${slot}`,
-    consumed, weekFingerprints: new Set(row.call('status').attempts.filter((item) => item.lane === 'content').map((item) => item.intent_fingerprint)),
-    budget: CADENCE.generationsPerRun, reserveLeft: Math.max(0, CADENCE.reservePerWeek - Math.max(historicalReserves.used, actualReserves.used)),
-    reserveSourceIds: new Set(), reservedCategories: new Set([...historicalReserves.categories, ...actualReserves.categories]), skipped: new Set(),
-  };
-  deps.log('october-backfill-slot', { label: row.label, week: row.week, slot: row.slotNumber });
-  const result = processContentSlot(run, row.slotNumber);
-  if (!['counted', 'late-smoke', 'consumed'].includes(result.state)) throw new Error('backfill publication incomplete');
-  deps.log('october-backfill-published', { label: row.label, id: result.id ?? result.consumedId, publishedDate: now.toISOString().slice(0, 10) });
-  return { id: result.id ?? result.consumedId, reason: 'october-backfill-published' };
+  let budget = CADENCE.generationsPerRun;
+  for (const row of rows) {
+    if (['consumed', 'late-smoked'].includes(row.latest?.outcome)) continue;
+    if (backfillExhausted(row.attempts)) {
+      noteBackfillExhausted(deps, target, row);
+      continue;
+    }
+    // An unfinished publication always resumes its original key. Before starting
+    // another post, require a new UTC date after the last trusted smoke receipt.
+    if (lastSmoke && new Date(lastSmoke).toISOString().slice(0, 10) >= now.toISOString().slice(0, 10) && (!row.latest || !isOpen(row.latest))) return { noChanges: true, reason: 'october-backfill-wait' };
+    if (budget < 1) return { noChanges: true, reason: 'october-backfill-deferred' };
+    const consumed = new Set(row.call('consumed'));
+    // Charge both the historical ledger week and the real attempt-creation week.
+    // Rejected attempts still spend the cap; a new day does not reset it.
+    const historicalReserves = row.call('reserve-budget');
+    const actualReserves = cadenceCaller(deps, target, deps.modules.weekStartUtc(now))('reserve-budget');
+    const run = {
+      deps, ...row, target, slot, request, kind: 'blog', lane: 'content', policy: { phase: 'backfill', reserveAllowed: true },
+      actor: `runner:october-blog-backfill#${slot}`, owner: `runner:october-blog-backfill:${target}:${slot}`,
+      consumed, weekFingerprints: new Set(row.call('status').attempts.filter((item) => item.lane === 'content').map((item) => item.intent_fingerprint)),
+      budget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - Math.max(historicalReserves.used, actualReserves.used)),
+      reserveSourceIds: new Set(), reservedCategories: new Set([...historicalReserves.categories, ...actualReserves.categories]), skipped: new Set(),
+    };
+    deps.log('october-backfill-slot', { label: row.label, week: row.week, slot: row.slotNumber });
+    const result = processContentSlot(run, row.slotNumber);
+    budget = run.budget;
+    if (result.state === 'exhausted') {
+      const attempts = row.call('status').attempts.filter((item) => item.lane === 'content' && Number(item.slot_number) === row.slotNumber).sort(byOrdinal);
+      if (backfillExhausted(attempts)) {
+        noteBackfillExhausted(deps, target, row);
+        continue;
+      }
+    }
+    if (!['counted', 'late-smoke', 'consumed'].includes(result.state)) throw new Error('backfill publication incomplete');
+    deps.log('october-backfill-published', { label: row.label, id: result.id ?? result.consumedId, publishedDate: now.toISOString().slice(0, 10) });
+    return { id: result.id ?? result.consumedId, reason: 'october-backfill-published' };
+  }
+  return { noChanges: true, reason: 'october-backfill-complete' };
 }
 
 // ---------------------------------------------------------------------------
@@ -1515,7 +1552,11 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
     return { report: true };
   }
   if (job === 'weekly-roundup') return runWeeklyRoundup({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
-  if (job === 'october-blog-backfill') return runOctoberBackfill({ target, slot, request, deps: await cadenceDeps('weekly-blog', target, slot, log) });
+  if (job === 'october-blog-backfill') {
+    const deps = await cadenceDeps('weekly-blog', target, slot, log);
+    deps.onBackfillExhausted = (label) => (notifications.backfillExhausted ??= []).push(label);
+    return runOctoberBackfill({ target, slot, request, deps });
+  }
   if (job === 'weekly-blog') {
     if (!request.dryRun) return runWeeklyBlog({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
     cli(['export', '--root', '.', '--target', target]);
@@ -1653,6 +1694,10 @@ export async function main(argv = process.argv.slice(2)) {
     if (!alerted) logLine(log, 'alert-failed');
     throw new Error(`runner failed: ${job}/${target}/${slot}`);
   } finally {
+    for (const exhaustedLabel of notifications.backfillExhausted ?? []) {
+      const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, exhaustedLabel });
+      logLine(log, alerted ? 'backfill-exhausted-alerted' : 'backfill-exhausted-alert-skipped', { label: exhaustedLabel });
+    }
     if (notifications.codeSuggestion) {
       const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: true });
       logLine(log, alerted ? 'seo-code-suggestion-notified' : 'seo-code-suggestion-alert-failed');

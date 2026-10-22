@@ -95,7 +95,8 @@ const inLV = (lat, lng) =>
   lat != null && lng != null && lat >= BOX.latMin && lat <= BOX.latMax && lng >= BOX.lngMin && lng <= BOX.lngMax;
 const lvCore = (b) => {
   const location = classifyAddress(b.address, { trustedToronto: true });
-  return location.verdict === "core" || (location.reason === "address-not-in-reviewed-table" && /\bM6K\b/i.test(b.address));
+  const exhibition = /\b(?:Exhibition Place|Ontario Place|Princes[’']?\s+(?:Blvd|Boulevard)|(?:Manitoba|Newfoundland|Ontario)\s+(?:Dr|Drive|Rd|Road)|(?:Saskatchewan|British Columbia|Nunavut)\s+(?:Rd|Road)|Dufferin\s+(?:St|Street)|Lake\s*Shore\s+(?:Blvd|Boulevard))\b/i.test(b.address);
+  return location.verdict === "core" || (location.reason === "address-not-in-reviewed-table" && /\bM6K\b/i.test(b.address) && !exhibition);
 };
 const priceRange = (p) => (typeof p === "string" && /^\${1,4}$/.test(p.trim()) ? p.trim() : "");
 

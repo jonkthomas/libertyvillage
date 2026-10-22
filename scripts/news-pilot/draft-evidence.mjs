@@ -299,9 +299,9 @@ export function buildSourceEvidence(member, fetchResult, config = EVIDENCE_CONFI
   }
 
   const html = fetchResult.rawText || '';
-  Object.assign(base, reportingOrigin(html, url));
   const mainHtml = extractMainHtml(html);
   const text = stripHtml(mainHtml);
+  Object.assign(base, reportingOrigin(html, url, text));
   const metaDate = extractMetaPublishDate(html);
   if (metaDate) base.publishDate = metaDate;
   const pub = extractMetaPublisher(html, url);
