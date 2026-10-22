@@ -50,7 +50,7 @@ function draft(root, address = '') {
     content: `**LOCAL Public Eatery** and [Cibo](/directory/cibo-liberty-village) have happy-hour references in their directory records. ${address}`,
     description: 'A narrow directory-backed look at two local happy-hour references.',
     answerBlock: 'The directory records mention happy hour for LOCAL Public Eatery and Cibo.',
-    category: 'food-drink', image, relatedBusinesses: ['local-public-eatery', 'cibo-liberty-village'],
+    category: 'food-drink', image,
     relatedPosts: [], relatedServices: [], relatedTopics: [], faqs: [], keyTakeaways: [],
     publishedAt: '2026-09-28', updatedAt: '2026-09-28', author: 'LibertyVillage.co', tags: ['happy-hour'],
   };
@@ -137,6 +137,17 @@ test('verification rejects forged IDs, altered digests, future and stale packs',
   assert.ok(verifySourcePack(altered, inputs).errors.includes('invalid-fingerprint'));
   assert.ok(verifySourcePack(pack, { ...inputs, now: new Date('2026-09-28T11:59:59.999Z') }).errors.includes('future-generated-at'));
   assert.ok(verifySourcePack(pack, { ...inputs, now: new Date('2026-09-29T12:00:00.000Z'), maxAgeMs: 60_000 }).errors.includes('stale-generated-at'));
+});
+
+test('storage-invalid or backdated drafts fail before the content submit handoff', (t) => {
+  const root = tempRoot(t);
+  const pack = buildSourcePack({ topic: 'Liberty Village Happy Hour', businesses, posts, services, topics, now }).pack;
+  const inputs = { businesses, posts, services, topics, imagePaths: [draft(root).image], now };
+  assert.equal(checkDraftAgainstPack(draft(root), pack, inputs).ok, true);
+  const unsupported = { ...draft(root), relatedBusinesses: ['local-public-eatery'] };
+  assert.ok(checkDraftAgainstPack(unsupported, pack, inputs).errors.includes('storage:unknown field: relatedBusinesses'));
+  const backdated = { ...draft(root), publishedAt: '2026-09-01' };
+  assert.ok(checkDraftAgainstPack(backdated, pack, inputs).errors.includes('draft-must-use-real-publish-date'));
 });
 
 test('imaginary directory and blog links are refused', (t) => {

@@ -1,0 +1,10 @@
+[Unit]
+Description=Liberty Village seven-post October backfill (opt-in)
+
+[Timer]
+OnCalendar=*-*-* 15:37:00 UTC
+Persistent=true
+Unit=lv-runner@october-blog-backfill:production:scheduled.service
+
+[Install]
+WantedBy=timers.target

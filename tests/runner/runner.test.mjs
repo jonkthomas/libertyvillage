@@ -11,7 +11,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 const owned = path.resolve(dirname, '../../ops/exedev-runner');
 const read = (name) => fs.readFileSync(path.join(owned, name), 'utf8');
 
-test('six UTC jobs have the approved schedule and weekly-roundup has no timer', () => {
+test('six regular UTC jobs plus opt-in backfill have approved schedules; roundup has no timer', () => {
   assert.equal(JOBS['weekly-roundup'].calendar, null);
   assert.equal(JOBS['weekly-roundup'].stagingOnly, true);
   assert.equal(fs.existsSync(path.join(owned, 'lv-runner-weekly-roundup.timer')), false, 'on-demand only: no timer unit');
@@ -23,6 +23,7 @@ test('six UTC jobs have the approved schedule and weekly-roundup has no timer', 
     news: '*-*-* 12:17:00 UTC',
     'weekly-growth-report': 'Thu *-*-* 10:37:00 UTC',
     'weekly-blog': 'Sun,Wed *-*-* 11:00:00 UTC',
+    'october-blog-backfill': '*-*-* 15:37:00 UTC',
   });
   for (const [job, spec] of timed) {
     const timer = read(`lv-runner-${job}.timer`);

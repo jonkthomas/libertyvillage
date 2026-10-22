@@ -11,6 +11,7 @@ export const JOBS = Object.freeze({
   news: { calendar: '*-*-* 12:17:00 UTC', kind: 'news' },
   'weekly-growth-report': { calendar: 'Thu *-*-* 10:37:00 UTC', kind: null },
   'weekly-blog': { calendar: 'Sun,Wed *-*-* 11:00:00 UTC', kind: 'blog' },
+  'october-blog-backfill': { calendar: '*-*-* 15:37:00 UTC', kind: 'blog' },
   // On-demand only (no timer): staging until John authorizes production.
   'weekly-roundup': { calendar: null, kind: 'roundup', stagingOnly: true },
 });
@@ -132,9 +133,19 @@ export function acceptGeneratedOutput(scratch, trusted, job, paths, exportedPost
   return changed;
 }
 
-// The trusted content CLI emits a JSON error envelope on stdout. Preserve only
-// stable classes and bounded operator guidance; never log its raw message,
-// conflicts, target, candidate bytes or URLs (they may carry private data).
+// Diagnostics stay in the private JSONL, never Slack. Preserve bounded
+// validation/rejection guidance, stripping credentials and URL query strings.
+export function diagnosticMessage(value, env = process.env) {
+  if (typeof value !== 'string') return undefined;
+  let text = value;
+  for (const [key, secret] of Object.entries(env)) {
+    if (/KEY|TOKEN|SECRET|PASSWORD|DATABASE_URL|WEBHOOK|BYPASS/i.test(key) && secret?.length >= 8) text = text.split(secret).join('[redacted]');
+  }
+  return text.replace(/(?:https?|postgres(?:ql)?):\/\/[^\s"'<>]+/gi, '[url]')
+    .replace(/\b(?:sk-[\w-]{12,}|gh[pousr]_[\w]{12,}|github_pat_[\w]+|xox[baprs]-[\w-]+)/g, '[redacted]')
+    .replace(/(?:Bearer\s+|(?:api[_-]?key|token|password|secret)\s*[:=]\s*)[^\s,;]+/gi, '[redacted]')
+    .replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 2048) || undefined;
+}
 export function classifyCliFailure(binary, args, result) {
   if (path.basename(binary) !== 'node' || args[0] !== 'scripts/content/cli.mjs') return null;
   const classes = new Map([
@@ -160,7 +171,8 @@ export function classifyCliFailure(binary, args, result) {
   }
   if (!classification && result.error?.code === 'ETIMEDOUT') classification = ['cli-timeout', 'retry-original-slot'];
   classification ??= ['cli-operation', 'inspect-run-slot'];
-  return { reason: classification[0], action: classification[1], exit: Number.isInteger(result.status) ? result.status : null };
+  return { reason: classification[0], action: classification[1], exit: Number.isInteger(result.status) ? result.status : null,
+    ...(payload?.error === 'ValidationError' && diagnosticMessage(payload.message) ? { message: diagnosticMessage(payload.message) } : {}) };
 }
 
 export function command(binary, args, { cwd, env, allowExit = [] } = {}) {
@@ -174,6 +186,23 @@ export function command(binary, args, { cwd, env, allowExit = [] } = {}) {
 }
 
 export function parseJson(text) { return JSON.parse(text.trim()); }
+export function gateDiagnostic(result) {
+  if (![1, 2].includes(result.code) || typeof result.stdout !== 'string' || Buffer.byteLength(result.stdout) > 32768) return {};
+  try {
+    const receipt = parseJson(result.stdout);
+    const message = diagnosticMessage(receipt.message);
+    return { ...(typeof receipt.decision === 'string' && /^[a-z-]{1,40}$/.test(receipt.decision) ? { decision: receipt.decision } : {}), ...(message ? { message } : {}) };
+  } catch { return {}; }
+}
+export function summarizeNewsDecision(result) {
+  const refusals = {};
+  for (const row of (Array.isArray(result.evaluations) ? result.evaluations : []).slice(0, 100)) {
+    const stage = [row.prefilter, row.gate, row.eligibility].find((item) => item?.ok === false);
+    const code = typeof stage?.code === 'string' && /^[a-z_]{1,64}$/.test(stage.code) ? stage.code : 'other';
+    refusals[code] = (refusals[code] ?? 0) + 1;
+  }
+  return { published: result.published === 1 ? 1 : 0, considered: Number(result.considered) || 0, refusals };
+}
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
 // The root-owned generator helper's environment (it adds nothing secret itself).
@@ -368,7 +397,7 @@ function submitAndGate(job, target, slot, log, extra = [], onSubmission = null) 
 
 function gate(id, target, actor, log) {
   const result = cli(['gate', '--submission', String(id), '--target', target, '--actor', actor], repo, [2, 3]);
-  logLine(log, 'gate', { id, exit: result.code });
+  logLine(log, 'gate', { id, exit: result.code, ...gateDiagnostic(result) });
   if (result.code === 2) throw new Error('gate blocked or rejected');
   if (result.code === 3) {
     const resume = cli(['deploy', '--target', target], repo, [3]);
@@ -434,7 +463,7 @@ function gateState(deps, target, id, actor) {
   // operational failures (e.g. a failed notification). Never let a later
   // `show` of the terminal state hide the original transport failure.
   const result = deps.cli(['gate', '--submission', String(id), '--target', target, '--actor', actor], [1, 2, 3]);
-  deps.log('gate', { id, exit: result.code });
+  deps.log('gate', { id, exit: result.code, ...gateDiagnostic(result) });
   if (result.code === 1) {
     let receipt;
     if (typeof result.stdout === 'string' && Buffer.byteLength(result.stdout) <= 8192) {
@@ -775,7 +804,10 @@ function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing
   let submitted;
   try { submitted = parseJson(deps.cli(['submit', '--dir', '.', '--kind', 'blog', '--idempotency-key', key, '--actor', run.actor, '--source-pack', packPath]).stdout); }
   catch (error) {
-    if (['cli-validation', 'cli-conflict'].includes(error?.cliFailure?.reason)) return fail('submit-refused');
+    if (['cli-validation', 'cli-conflict'].includes(error?.cliFailure?.reason)) {
+      deps.log('submit-refused', { ...error.cliFailure });
+      return fail('submit-refused');
+    }
     throw error;
   }
   if (submitted.submissionId == null) return fail('no-submission');
@@ -1043,6 +1075,49 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
   }
   deps.log('cadence-deficit', { week, contentCount: final.contentCount, phase: run.policy.phase });
   throw new Error('cadence content deficit');
+}
+
+// These are the seven explicitly requested historical labels, not publish
+// dates. High slot numbers share the existing fenced cadence ledger without
+// consuming the regular slot 1..4 attempt budget. Late smoke remains late:
+// backfill never claims to have fulfilled an ended week's cadence.
+export const OCTOBER_BACKFILL = Object.freeze(['2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-19', '2026-10-22']);
+export function runOctoberBackfill({ target, slot, request = {}, deps }) {
+  if (request.topic || request.dryRun) throw new Error('backfill options unsupported');
+  const now = deps.now();
+  if (now < new Date('2026-10-22T00:00:00Z')) throw new Error('backfill not due');
+  const rows = OCTOBER_BACKFILL.map((label, index) => {
+    const week = deps.modules.weekStartUtc(new Date(`${label}T00:00:00Z`));
+    const call = cadenceCaller(deps, target, week);
+    const slotNumber = 101 + index;
+    const attempts = call('status').attempts.filter((item) => item.lane === 'content' && Number(item.slot_number) === slotNumber).sort(byOrdinal);
+    return { label, week, call, slotNumber, attempts, latest: attempts.at(-1) };
+  });
+  let lastSmoke = 0;
+  for (const row of rows) {
+    for (const attempt of row.attempts.filter((item) => item.submission_id != null)) {
+      const submission = parseJson(deps.cli(['show', '--submission', String(attempt.submission_id), '--target', target]).stdout).submission;
+      const smoked = Date.parse(submission?.smoke_passed_at ?? '');
+      if (Number.isFinite(smoked)) lastSmoke = Math.max(lastSmoke, smoked);
+    }
+  }
+  const row = rows.find((entry) => !['consumed', 'late-smoked'].includes(entry.latest?.outcome));
+  if (!row) return { noChanges: true, reason: 'october-backfill-complete' };
+  // An unfinished publication always resumes its original key. Before starting
+  // another post, require a new UTC date after the last trusted smoke receipt.
+  if (lastSmoke && new Date(lastSmoke).toISOString().slice(0, 10) >= now.toISOString().slice(0, 10) && (!row.latest || !isOpen(row.latest))) return { noChanges: true, reason: 'october-backfill-wait' };
+  const consumed = new Set(row.call('consumed'));
+  const run = {
+    deps, ...row, target, slot, request, kind: 'blog', lane: 'content', policy: { phase: 'backfill', reserveAllowed: true },
+    actor: `runner:october-blog-backfill#${slot}`, owner: `runner:october-blog-backfill:${target}:${slot}`,
+    consumed, weekFingerprints: new Set(row.call('status').attempts.filter((item) => item.lane === 'content').map((item) => item.intent_fingerprint)),
+    budget: CADENCE.generationsPerRun, reserveLeft: 2, reserveSourceIds: new Set(), reservedCategories: new Set(), skipped: new Set(),
+  };
+  deps.log('october-backfill-slot', { label: row.label, week: row.week, slot: row.slotNumber });
+  const result = processContentSlot(run, row.slotNumber);
+  if (!['counted', 'late-smoke', 'consumed'].includes(result.state)) throw new Error('backfill publication incomplete');
+  deps.log('october-backfill-published', { label: row.label, id: result.id ?? result.consumedId, publishedDate: now.toISOString().slice(0, 10) });
+  return { id: result.id ?? result.consumedId, reason: 'october-backfill-published' };
 }
 
 // ---------------------------------------------------------------------------
@@ -1419,15 +1494,20 @@ async function cadenceDeps(job, target, slot, log) {
 }
 
 async function runJob(job, target, slot, request, log, notifications = {}) {
-  if (job === 'weekly-blog' || job === 'weekly-roundup') {
+  if (job === 'weekly-blog' || job === 'weekly-roundup' || job === 'october-blog-backfill') {
     cli(['cadence', 'preflight', '--target', target]);
     logLine(log, 'cadence-schema-ready');
   }
   if (job === 'weekly-growth-report') {
-    source('scripts/generate-weekly-growth-report.mjs', ['--out-dir', path.join(stateRoot, 'growth', slot)], job, log);
-    return;
+    const output = path.join(stateRoot, 'growth', slot);
+    source('scripts/generate-weekly-growth-report.mjs', ['--out-dir', output], job, log);
+    const report = readBoundedJson(path.join(output, 'weekly-growth.json'), CADENCE.artifactMaxBytes);
+    const sources = Object.fromEntries(['gsc', 'posthog'].map((name) => [name, ['ok', 'unavailable'].includes(report.sources?.[name]) ? report.sources[name] : 'unknown']));
+    logLine(log, 'growth-report', { sources, artifacts: ['weekly-growth.json', 'weekly-growth.md'] });
+    return { report: true };
   }
   if (job === 'weekly-roundup') return runWeeklyRoundup({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
+  if (job === 'october-blog-backfill') return runOctoberBackfill({ target, slot, request, deps: await cadenceDeps('weekly-blog', target, slot, log) });
   if (job === 'weekly-blog') {
     if (!request.dryRun) return runWeeklyBlog({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
     cli(['export', '--root', '.', '--target', target]);
@@ -1503,6 +1583,7 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
     if (generatedNow) fs.writeFileSync(publishStarted, '1', { mode: 0o600 });
     if (generatedNow) source('scripts/news-pilot/publish.mjs', [`--run=${discovery}`, `--out=${publish}`, '--vault=/dev/null', ...(request.dryRun ? ['--dry-run'] : [])], job, log);
     const published = readJson(path.join(publish, 'result.json'));
+    logLine(log, 'news-decision', summarizeNewsDecision(published));
     if (request.dryRun) return { dryRun: true };
     if (published.published !== 1) return { noChanges: true };
     if (!fs.existsSync(postsPath)) {
@@ -1530,6 +1611,7 @@ export const SAFE_FAILURES = Object.freeze(new Set([
   'prior content smoke not current-live',
   'prior roundup slot held', 'prior roundup publication pending', 'prior roundup backlog exceeds recovery budget',
   'prior roundup smoke not current-live',
+  'backfill options unsupported', 'backfill not due', 'backfill publication incomplete',
 ]));
 export function failureReason(error) {
   return error?.cliFailure?.reason ?? (error instanceof SyntaxError ? 'invalid-json' : SAFE_FAILURES.has(error?.message) ? error.message : 'operational-error');
@@ -1558,7 +1640,7 @@ export async function main(argv = process.argv.slice(2)) {
   } catch (error) {
     const reason = failureReason(error);
     const stuckSubmissionId = Number.isSafeInteger(error?.stuckSubmissionId) && error.stuckSubmissionId > 0 ? error.stuckSubmissionId : null;
-    logLine(log, 'failure', { error: reason, ...(stuckSubmissionId ? { submissionId: stuckSubmissionId } : {}), ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit } : {}) });
+    logLine(log, 'failure', { error: reason, ...(stuckSubmissionId ? { submissionId: stuckSubmissionId } : {}), ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit, ...(error.cliFailure.message ? { message: error.cliFailure.message } : {}) } : {}) });
     const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required', stuckSubmissionId });
     if (!alerted) logLine(log, 'alert-failed');
     throw new Error(`runner failed: ${job}/${target}/${slot}`);

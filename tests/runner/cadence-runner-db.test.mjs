@@ -12,7 +12,7 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import { classifyCliFailure, command, parseJson, runWeeklyBlog, runWeeklyRoundup } from '../../ops/exedev-runner/runner.mjs';
+import { classifyCliFailure, command, parseJson, runWeeklyBlog, runWeeklyRoundup, runOctoberBackfill } from '../../ops/exedev-runner/runner.mjs';
 import { spawnSync } from 'node:child_process';
 import { hasTestDb, publishDirect, seededDb } from '../content/fixtures/content-db.mjs';
 import { topicKey } from '../../scripts/automation/topic-queue.mjs';
@@ -309,4 +309,22 @@ test('E2E (g): a published prior-week roundup whose smoke lands next Monday is r
   const count = ctx.cliJson(['cadence', 'count', '--week-start', nextWeek, '--target', 'test']);
   assert.equal(count.roundupCount, 0, 'the old-week slug never counts for the new week');
   assert.deepEqual(ctx.cliJson(['cadence', 'unresolved', '--lane', 'roundup', '--week-start', nextWeek, '--target', 'test']), []);
+});
+
+
+test('E2E October backfill: real CLI publishes and smokes one current-dated post; ledger restart waits', { skip, timeout: 300_000 }, async (t) => {
+  const ctx = await stack(t);
+  await addQueue(ctx.db, ['Brunch Spots', 'Bars'], 'october-backfill');
+  const result = runOctoberBackfill({ target: 'test', slot: 'local-october-backfill', deps: ctx.deps });
+  assert.equal(result.reason, 'october-backfill-published');
+  const [attempt] = await ctx.attempts('content');
+  assert.equal(attempt.slot_number, 101);
+  assert.equal(attempt.outcome, 'late-smoked');
+  const state = ctx.cliJson(['show', '--submission', String(result.id), '--target', 'test']);
+  assert.equal(state.submission.state, 'published');
+  assert.ok(state.submission.smoke_passed_at);
+  const payload = (await ctx.db.query("select r.payload from content.entries e join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev where e.dataset='posts' and e.key=$1", [ctx.generated.length ? 'liberty-village-brunch-spots-notes' : 'missing'])).rows[0].payload;
+  assert.equal(payload.publishedAt, new Date().toISOString().slice(0, 10));
+  assert.equal(runOctoberBackfill({ target: 'test', slot: 'local-october-restart', deps: ctx.deps }).reason, 'october-backfill-wait');
+  assert.equal((await blogSubmissions(ctx.db)).length, 1);
 });

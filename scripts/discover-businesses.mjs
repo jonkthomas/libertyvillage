@@ -23,6 +23,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { classifyAddress } from "./news-pilot/roundup-geo.mjs";
 
 const API_KEY = process.env.SERPAPI_API_KEY;
 const PEXELS_KEY = process.env.PEXELS_API_KEY;
@@ -92,8 +93,16 @@ export const slugify = (s) =>
 
 const inLV = (lat, lng) =>
   lat != null && lng != null && lat >= BOX.latMin && lat <= BOX.latMax && lng >= BOX.lngMin && lng <= BOX.lngMax;
-const lvCore = (b) => /M6K/.test(b.address || "") || /liberty/i.test((b.address || "") + (b.name || ""));
-const priceRange = (p) => (typeof p === "string" && /\$/.test(p) ? p.match(/\$+/)[0] : "$$");
+const lvCore = (b) => classifyAddress(b.address, { trustedToronto: true }).verdict === "core";
+const priceRange = (p) => (typeof p === "string" && /^\${1,4}$/.test(p.trim()) ? p.trim() : "");
+
+// Search-query category is recall, not proof of public access. Private team
+// facilities can rank for "gyms"; do not send them through three futile repairs.
+export function isPublicBusiness(result) {
+  return !/\b(?:private|practice facility|team training|professional team|athletic centre)\b/i.test(
+    [result.title, result.type, result.description].filter(Boolean).join(" "),
+  );
+}
 
 // { <normalized business name>: <first-seen YYYY-MM-DD> }. Missing/corrupt file
 // degrades to an empty registry so a bad read can never crash the weekly run.
@@ -207,6 +216,7 @@ export function filterCandidates(results, slug, state) {
     const gc = x.gps_coordinates || {};
     if (!inLV(gc.latitude, gc.longitude)) continue;
     if (!lvCore({ name: x.title, address: x.address })) continue;
+    if (!isPublicBusiness(x)) continue;
     if ((x.rating ?? 0) < MIN_RATING || (x.reviews ?? 0) < MIN_REVIEWS) continue;
     if (isDuplicate(state, { name: x.title, address: x.address })) continue;
     state.seen.add(norm(x.title));

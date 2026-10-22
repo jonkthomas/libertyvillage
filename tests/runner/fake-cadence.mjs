@@ -48,7 +48,7 @@ export function groundedPost(pack, title, day) {
     content: `## Where to go\n\n${pack.sources.map((source) => `[${source.name}](/directory/${source.id}) is listed in the Liberty Village directory.`).join('\n\n')}\n`,
     publishedAt: day, updatedAt: day, category: 'lifestyle', tags: ['food', 'liberty village', 'guide', 'local'],
     answerBlock: 'Several places are listed in the Liberty Village directory.', faqs: [1, 2, 3, 4].map((n) => ({ question: `Question ${n}?`, answer: `Answer ${n}.` })),
-    image: `/images/blog/${slug}.jpg`, relatedServices: [], relatedTopics: [], relatedPosts: [], relatedBusinesses: pack.sources.map((source) => source.id),
+    image: `/images/blog/${slug}.jpg`, relatedServices: [], relatedTopics: [], relatedPosts: [],
     keyTakeaways: ['One', 'Two', 'Three', 'Four'], author: 'LibertyVillage.co',
   };
 }
