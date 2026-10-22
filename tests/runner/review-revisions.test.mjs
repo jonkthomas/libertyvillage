@@ -107,6 +107,19 @@ test('N1: all exhausted labels complete without new attempts or repeated diagnos
   assert.match(sent[0], /2026-10-01 exhausted.*attempt cap retained, later labels continue/);
 });
 
+test('D1/N1: accelerated current-week backfill completes its label but never replaces live weekly-blog posts', (t) => {
+  const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), queue: [TOPICS.happy, TOPICS.coffee, TOPICS.fitness] });
+  t.after(() => world.cleanup());
+  for (const [index, label] of OCTOBER_BACKFILL.slice(0, 5).entries()) world.attempts.push({ target: 'staging', week_start_utc: world.deps.modules.weekStartUtc(label), lane: 'content', slot_number: 101 + index, ordinal: 1, outcome: 'late-smoked' });
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  const early = world.attempts.find((a) => a.slot_number === 106);
+  assert.equal(early.outcome, 'consumed');
+  const result = runWeeklyBlog({ target: 'staging', slot: 'after-accelerated-backfill', deps: world.deps });
+  assert.equal(result.contentCount, 2);
+  assert.equal(world.generated.length, 3, 'one historical label plus two regular weekly posts');
+  assert.equal(world.attempts.filter((a) => a.slot_number < 101 && a.outcome === 'consumed').length, 2);
+});
+
 test('F2 follow-up: M6K fallback excludes Exhibition and Ontario Place streets, retaining reviewed core frontage', () => {
   const candidate = (address) => ({ title: address, address, rating: 4.8, reviews: 100, type: 'Coffee shop', gps_coordinates: { latitude: 43.638, longitude: -79.42 } });
   for (const address of ["111 Princes' Blvd, Toronto, ON M6K 3C3", '10 Dufferin St, Toronto, ON M6K 3C3', '1 Manitoba Dr, Toronto, ON M6K 3C3', '955 Lake Shore Blvd W, Toronto, ON M6K 3B9']) {

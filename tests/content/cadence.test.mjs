@@ -127,7 +127,7 @@ test('migration accepts roundup, ISO slug handles year boundary, immutable keys 
   } finally { await close(); }
 });
 
-test('D1/F7: backfill counts only for its historical attempt week and cannot suppress the live missed-week alert', async () => {
+test('D1/F7: backfill label receipts never count toward weekly cadence or missed-week alerts', async () => {
   const { db, close } = await testDb();
   try {
     for (const slotNumber of [101, 102]) {
@@ -140,11 +140,60 @@ test('D1/F7: backfill counts only for its historical attempt week and cannot sup
       await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe });
     }
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-19', observe })).contentCount, 0);
-    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).contentCount, 2);
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).contentCount, 0);
     const deadline = await cadence.evaluateDeadline(db, { target: 'test', weekStart: '2026-10-19', now: '2026-10-26T00:00:00Z', observe });
     assert.ok(deadline.alerts.some((item) => item.alert.alert_kind === 'WEEKLY_CONTENT_MISSED'));
     await fixture(db, { slug: 'ordinary-live-week', time: '2026-10-23T16:00:00Z' });
     assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-19', observe })).contentCount, 1);
+  } finally { await close(); }
+});
+
+test('D1 replay: slot 106 smoked October 27 cannot suppress the October 19 missed-week alert evaluated October 28', async () => {
+  const { db, close } = await testDb();
+  try {
+    const ledgerWeek = '2026-10-19';
+    await fixture(db, { slug: 'one-timely-ordinary-post', time: '2026-10-23T11:00:00Z' });
+    const slotRef = { target: 'test', weekStart: ledgerWeek, lane: 'content', slotNumber: 106 };
+    const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'october-backfill' });
+    const attempt = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: 'october-19-label', topicKey: 'october-19-label', sourcePackDigest: 'pack' });
+    const id = await fixture(db, { slug: 'late-october-19-backfill', time: '2026-10-27T15:37:00Z', idempotencyKey: attempt.idempotencyKey });
+    await cadence.attachSubmission(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, submissionId: id });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'smoked' });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe });
+    // No earlier deadline evaluation: reproduce the first Wednesday check.
+    const deadline = await cadence.evaluateDeadline(db, { target: 'test', weekStart: ledgerWeek, now: '2026-10-28T11:00:00Z', observe });
+    assert.equal(deadline.counts.contentCount, 1);
+    const missed = deadline.alerts.find((item) => item.alert.alert_kind === 'WEEKLY_CONTENT_MISSED');
+    assert.equal(missed?.created, true);
+    assert.equal(missed.alert.counts.content, 1);
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-26', observe })).contentCount, 0);
+    assert.equal((await cadence.currentLiveSubmission(db, { target: 'test', submissionId: id, observe })).live, true, 'label receipt retains its gate/revision/alias proof');
+    const retry = await cadence.evaluateDeadline(db, { target: 'test', weekStart: ledgerWeek, now: '2026-10-28T11:01:00Z', observe });
+    assert.equal(retry.alerts.find((item) => item.alert.alert_kind === 'WEEKLY_CONTENT_MISSED').created, false);
+    await fixture(db, { slug: 'ordinary-at-the-deadline', time: '2026-10-26T00:00:00Z' });
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: ledgerWeek, observe })).contentCount, 1, 'smoke exactly at the deadline is too late');
+  } finally { await close(); }
+});
+
+test('D1/D7: an early backfill has a strong terminal label receipt without crediting weekly cadence', async () => {
+  const { db, close } = await testDb();
+  try {
+    const slotRef = { target: 'test', weekStart: '2026-10-19', lane: 'content', slotNumber: 106 };
+    const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'early-backfill' });
+    const attempt = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: 'early-label', topicKey: 'early-label', sourcePackDigest: 'pack' });
+    const id = await fixture(db, { slug: 'early-backfill-label', time: '2026-10-23T15:37:00Z', idempotencyKey: attempt.idempotencyKey });
+    await cadence.attachSubmission(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, submissionId: id });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'smoked' });
+    await assert.rejects(cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'consumed', observe: async () => ({ rev: 2, snapshotId: 'stale' }) }), /not current-live/);
+    assert.equal((await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'consumed', observe })).outcome, 'consumed');
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: slotRef.weekStart, observe })).contentCount, 0);
+    const newsRef = { ...slotRef, slotNumber: 107 };
+    const newsClaim = await cadence.reserveSlot(db, { ...newsRef, owner: 'invalid-news-label' });
+    const newsAttempt = await cadence.recordAttempt(db, { slotRef: newsRef, token: newsClaim.token, intentFingerprint: 'news-label', topicKey: 'news-label', sourcePackDigest: 'pack' });
+    const newsId = await fixture(db, { slug: 'invalid-news-label', category: 'news', time: '2026-10-27T15:37:00Z', idempotencyKey: newsAttempt.idempotencyKey });
+    await cadence.attachSubmission(db, { idempotencyKey: newsAttempt.idempotencyKey, token: newsClaim.token, submissionId: newsId });
+    await cadence.recordAttemptOutcome(db, { idempotencyKey: newsAttempt.idempotencyKey, token: newsClaim.token, outcome: 'smoked' });
+    await assert.rejects(cadence.recordAttemptOutcome(db, { idempotencyKey: newsAttempt.idempotencyKey, token: newsClaim.token, outcome: 'late-smoked', observe }), /not current-live/, 'label proof retains the non-news category requirement');
   } finally { await close(); }
 });
 

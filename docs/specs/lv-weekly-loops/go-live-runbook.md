@@ -196,9 +196,12 @@ next label in the same run within the shared generation budget. Later daily runs
 skip that label; review its diagnostic rather than deleting rows or resetting caps.
 Posts use the
 actual date they are generated/published, never the historical label. A late
-smoke closes as `late-smoked`; the current-live post counts only toward its own
-historical attempt week. It cannot satisfy the live weekly-blog quota or suppress
-that week's missed-cadence alert. Existing missed-alert records remain historical
+smoke closes as `late-smoked`; its current-live receipt completes only its own
+historical label. Backfill never counts toward any weekly-blog quota or missed-week
+evaluation, even when N1 advances a label into the current week. Deadline counts
+include only regular posts smoked inside that week, before its deadline. Label
+completion still requires the same passing gate, published revision, smoke and
+hosted-alias proof. Existing missed-alert records remain historical
 evidence. A lack of grounded inventory or a rejected draft fails visibly; retries
 on a later day preserve the same caps and original open key.
 

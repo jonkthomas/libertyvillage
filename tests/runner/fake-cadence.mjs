@@ -97,7 +97,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
   const count = (week) => {
     const rows = [...world.submissions.values()].filter((sub) => {
       const backfill = world.attempts.find((a) => a.submission_id === sub.id && a.lane === 'content' && a.slot_number >= 101 && a.slot_number <= 107);
-      return world.live.has(sub.id) && sub.smokedAt && (backfill ? backfill.week_start_utc === week : inWeek(sub, week));
+      return !backfill && world.live.has(sub.id) && inWeek(sub, week);
     });
     const content = rows.filter((sub) => sub.kind === 'blog').map((sub) => ({ slug: sub.slug, submissionId: sub.id }));
     const roundup = rows.filter((sub) => sub.kind === 'roundup' && sub.slug === cadenceRoundupSlug(week)).map((sub) => ({ slug: sub.slug, submissionId: sub.id }));
@@ -194,7 +194,11 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         if (attempt.outcome && !['published', 'smoked'].includes(attempt.outcome)) throw cliError('cli-state', 1);
         if (attempt.outcome === 'smoked' && !['consumed','late-smoked'].includes(outcome)) throw cliError('cli-state', 1);
         // Like cadence.mjs: consumed only if current-live AND counted in the ATTEMPT's week.
-        if (outcome === 'consumed' && (attempt.outcome !== 'smoked' || !count(attempt.week_start_utc)[attempt.lane === 'roundup' ? 'roundup' : 'content'].some((item) => item.submissionId === attempt.submission_id))) throw cliError('cli-state', 1);
+        const backfill = attempt.lane === 'content' && attempt.slot_number >= 101 && attempt.slot_number <= 107;
+        const label = world.submissions.get(attempt.submission_id);
+        if (outcome === 'consumed' && (attempt.outcome !== 'smoked' || (backfill
+          ? !label || label.kind !== 'blog' || !world.live.has(label.id) || !inWeek(label, attempt.week_start_utc)
+          : !count(attempt.week_start_utc)[attempt.lane === 'roundup' ? 'roundup' : 'content'].some((item) => item.submissionId === attempt.submission_id)))) throw cliError('cli-state', 1);
         if (outcome === 'late-smoked' && (attempt.outcome !== 'smoked' || ![...world.submissions.values()].some((sub) => sub.id === attempt.submission_id && sub.smokedAt && weekStartUtc(sub.smokedAt) > attempt.week_start_utc
           && (attempt.lane === 'roundup'
             // Like cadence.mjs currentLiveSubmission: the OLD week's own slug, current-live.

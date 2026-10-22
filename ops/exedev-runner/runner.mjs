@@ -539,6 +539,12 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
     let counted = false;
     try { outcome('consumed'); consumed = true; }
     catch (error) { deps.log('cadence-consume-refused', { id, reason: error?.cliFailure?.reason ?? 'operational-error' }); }
+    if (ctx.policy?.phase === 'backfill') {
+      // The trusted consumed transition proves this label's gate/revision/smoke
+      // and hosted alias. Historical labels never credit weekly cadence.
+      if (consumed) { deps.log('october-backfill-consumed', { id, counted: false }); return 'consumed'; }
+      return 'uncounted';
+    }
     try {
       const count = ctx.call('count');
       counted = (ctx.lane === 'roundup' ? count.roundup : count.content).some((item) => Number(item.submissionId) === Number(id));
@@ -1084,7 +1090,7 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
 // These are the seven explicitly requested historical labels, not publish
 // dates. High slot numbers share the existing fenced cadence ledger without
 // consuming the regular slot 1..4 attempt budget. Their live posts count only
-// for the historical attempt week, never toward the current weekly goal.
+// as historical label receipts, never toward weekly cadence or missed alerts.
 const isBackfillSlot = (number) => Number(number) >= 101 && Number(number) <= 107;
 export const OCTOBER_BACKFILL = Object.freeze(['2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-19', '2026-10-22']);
 

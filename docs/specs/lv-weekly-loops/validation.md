@@ -27,8 +27,9 @@ targeted tests failed there, plus the real-Postgres D1 case observed two backfil
 posts wrongly counted in the live week. Current tests require date-agnostic
 submit/gate binding, the approved M6K fallback, persistent attempt/reserve caps,
 independent extracted reporting, and recovery isolated from backfill. The DB
-journey checks the live-week count is zero and historical count is one after a
-real-CLI backfill publication and smoke.
+journey checks both live-week and historical-week cadence counts remain zero
+after real-CLI backfill publication and smoke, while the current-live label
+receipt still passes the gate/revision/alias proof.
 
 VM diagnosis used only read-only filesystem/journal checks and explicit
 `BEGIN READ ONLY` database transactions. No `/etc` changes, unit starts/stops,
@@ -54,10 +55,10 @@ operator can disable it once it logs completion. Subsequent fires are no-ops.
 
 Builder observations:
 
-- `npm run test:content`: 208 passed with the local PostgreSQL URL above. The
+- `npm run test:content`: 210 passed with the local PostgreSQL URL above. The
   earlier 206-pass claim was stale: Fable reproduced 205 passed / 1 failed at
   `bd4ca13`; explicit generation-only date enforcement fixes that R4 failure.
-- `node --test --test-concurrency=1 tests/runner/*.test.mjs`: 161 passed, zero
+- `node --test --test-concurrency=1 tests/runner/*.test.mjs`: 162 passed, zero
   skipped, including real submit, scripted gate, deploy hook and hosted-alias
   smoke against the disposable PostgreSQL stack.
 - `npm run test:automation`: 178 passed, including the explicit schema/date
@@ -90,6 +91,13 @@ attributions, aggregator/same-origin/duplicate exclusions remain blocked.
 F1/F3 date enforcement is explicit only at generation/pre-submit; later binding
 rounds keep the original real dates. F7 is covered by D1: backfill cannot meet the
 live weekly goal or suppress that week's alert. D5/F9 isolates live recovery.
+The final D1 replay uses ledger week October 19, slot 106 smoked October 27,
+and the first deadline evaluation October 28 at 11:00 UTC: one timely ordinary
+post produces a missed-week alert with count one. Backfill label receipts never
+credit any weekly quota, including when N1 advances a label into the current
+week. Ordinary posts smoked exactly at a week's deadline cannot credit that
+ended week. Timely/late label completion keeps passing-gate, non-news revision,
+smoke and hosted-alias checks; stale aliases and a news-category label are refused.
 The parent owns non-GPT re-review, doomsday proof and gate completion against the
 new candidate; no PR opens until it passes. D6 (reboot during staging with enabled
 persistent production timers) and F8 (broad athletic-centre exclusion) remain

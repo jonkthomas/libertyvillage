@@ -276,9 +276,14 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
     if (outcome === 'consumed') {
       if (!attempt.submission_id) throw new StateError('submission missing');
       if (attempt.outcome !== 'smoked' || typeof observe !== 'function') throw new StateError('consumed requires smoke and observation');
-      const counted = await countCurrentWeek(db, { target: ref.target, weekStart: ref.weekStart, observe });
-      const laneItems = ref.lane === 'roundup' ? counted.roundup : counted.content;
-      if (!laneItems.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('submission is not current-live');
+      if (ref.lane === 'content' && ref.slotNumber >= 101 && ref.slotNumber <= 107) {
+        const live = await currentLiveSubmission(db, { target: ref.target, submissionId: attempt.submission_id, observe });
+        if (!live.live || live.kind !== 'blog' || weekStartUtc(live.smokePassedAt) !== ref.weekStart) throw new StateError('submission is not current-live for label week');
+      } else {
+        const counted = await countCurrentWeek(db, { target: ref.target, weekStart: ref.weekStart, observe });
+        const laneItems = ref.lane === 'roundup' ? counted.roundup : counted.content;
+        if (!laneItems.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('submission is not current-live');
+      }
     }
     const next = row(await client.query(`update content.cadence_attempts set outcome=$2,updated_at=now(),closed_at=now()
       where idempotency_key=$1 returning ${dateText}`, [idempotencyKey, outcome]));
@@ -323,9 +328,8 @@ export async function unresolvedAttempts(db, { target, lane, limit = 3 }) {
 
 // Whether one published submission's own posts insert is current-live: the DB
 // entry is still at its published_rev, its final gate round passed, and the
-// hosted alias serves that exact rev. Unlike countCurrentWeek this has no week
-// filter, so it can prove a late roundup's OLD-week slug without ever counting it
-// for a later week.
+// hosted alias serves that exact rev. This proves historical label receipts and
+// late roundup slugs independently of weekly cadence counts.
 export async function currentLiveSubmission(db, { target, submissionId, observe }) {
   checkTarget(db, target);
   const id = number(submissionId);
@@ -334,10 +338,12 @@ export async function currentLiveSubmission(db, { target, submissionId, observe 
   const found = row(await db.query(`select i.key as slug,s.id as submission_id,s.kind,i.published_rev,s.smoke_passed_at
     from content.submissions s join content.submission_items i on i.submission_id=s.id
     join content.entries e on e.dataset=i.dataset and e.key=i.key and e.live_rev=i.published_rev
+    join content.revisions r on r.dataset=i.dataset and r.key=i.key and r.rev=i.published_rev
     join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
     where s.id=$1 and s.target=$2 and s.state='published' and s.smoke_passed_at is not null and i.smoke='passed'
       and i.dataset='posts' and i.op='insert' and i.published_rev is not null
       and g.passed=true and g.overall>=8 and g.blocking_count=0
+      and (s.kind<>'blog' or r.payload->>'category' is distinct from 'news')
     order by i.key limit 1`, [id, target]));
   if (!found) return { submissionId: id, live: false };
   const receipt = await observe(found.slug);
@@ -345,6 +351,8 @@ export async function currentLiveSubmission(db, { target, submissionId, observe 
   return { submissionId: id, kind: found.kind, slug: found.slug, publishedRev: found.published_rev, smokePassedAt: found.smoke_passed_at, live };
 }
 
+// Cadence and missed-week monitoring credit only regular posts smoked within
+// the requested UTC week. A historical backfill receipt never changes a quota.
 export async function countCurrentWeek(db, { target, weekStart, observe }) {
   checkTarget(db, target);
   if (weekStartUtc(weekStart) !== weekStart) throw new ValidationError('invalid week start');
@@ -356,9 +364,9 @@ export async function countCurrentWeek(db, { target, weekStart, observe }) {
     join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
     left join content.cadence_attempts backfill on backfill.submission_id=s.id and backfill.target=s.target
       and backfill.lane='content' and backfill.slot_number between 101 and 107
-    where s.target=$1 and ((backfill.submission_id is not null and backfill.week_start_utc=$2::date)
-      or (backfill.submission_id is null and (s.smoke_passed_at at time zone 'UTC') >= $2::timestamp
-        and (s.smoke_passed_at at time zone 'UTC') < $2::timestamp + interval '7 days'))
+    where s.target=$1 and backfill.submission_id is null
+      and (s.smoke_passed_at at time zone 'UTC') >= $2::timestamp
+      and (s.smoke_passed_at at time zone 'UTC') < $2::timestamp + interval '7 days'
       and s.smoke_passed_at is not null
       and s.state='published' and i.smoke='passed' and i.dataset='posts' and i.op='insert'
       and i.published_rev is not null and g.passed=true and g.overall>=8 and g.blocking_count=0
