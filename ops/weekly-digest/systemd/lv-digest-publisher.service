@@ -1,0 +1,28 @@
+[Unit]
+Description=Publish validated LV digest issues with optional patch text (no model)
+After=network-online.target lv-digest-agent.service
+Wants=network-online.target
+Conflicts=lv-digest-agent.service
+ConditionPathExists=/etc/lv-digest-publisher.token
+
+[Service]
+Type=oneshot
+User=lv-digest-publisher
+Group=lv-digest-publisher
+SupplementaryGroups=lv-digest
+Environment=HOME=/var/lib/lv-digest-publisher
+# PID 1 reads the root-only file AFTER the model unit has exited. The model
+# cannot read this user's credential directory, files, or /proc environment.
+LoadCredential=github-token:/etc/lv-digest-publisher.token
+ExecStart=/usr/local/bin/node /opt/lv-digest-agent/agent/publisher.mjs --publish
+TimeoutStartSec=20min
+UMask=0077
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadOnlyPaths=/var/lib/lv-digest
+ReadWritePaths=/var/lib/lv-digest-publisher
+InaccessiblePaths=-/etc/lv-runner.env -/etc/lv-runner-staging.env -/etc/lv-runner-production.env -/etc/lv-digest-agent.env -/srv/lv-runner -/var/log/lv-runner -/var/log/lv-generator
+ProtectHome=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes

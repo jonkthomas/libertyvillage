@@ -24,7 +24,11 @@ spec-deck tailnet server at `127.0.0.1:8787` behind
 3. Publish to `~/.pi/agent/spec-decks/lv-digest/lv-digest-YYYY-MM-DD.html`
    → `https://ofia.tail97aece.ts.net/decks/lv-digest/…`.
 4. Post the link + 3-line summary to Slack `C0B6HEAHZT4` (`hermes send -t slack:C0B6HEAHZT4`).
-5. Push the JSON to the VM: `/var/lib/lv-digest/lv-digest-latest.json`.
+5. Push only an allowlisted, redacted projection to the VM:
+   `/var/lib/lv-digest/lv-digest-latest.json`. It contains failure/refusal job,
+   timestamp, code and short reason, queue state, public posted titles/URLs,
+   and GSC `ok`/`unavailable`. No queries, analytics pages, raw runs, notes,
+   VM diagnostics, private links or GSC error details go to the model.
 
 Install/update: `bash ops/weekly-digest/install-mac.sh` (from the repo copy on
 any branch — it installs a launchd-readable copy under
@@ -35,30 +39,81 @@ from the pi tool vault into `digest.env`, 0600; launchd cannot read
 
 ## 2. Fix-it agent (VM, `lv-digest-agent.timer`)
 
-Every **Monday 09:00 America/Toronto** (systemd 255 tz-aware calendar), after
-the digest pushes the JSON, `/opt/lv-digest-agent/agent.mjs` runs as the
-**non-root `lv-digest` user** — which cannot read `/etc/lv-runner*.env`
-(root:root 0600) and has no sudo. It feeds the digest JSON to a headless
-`pi -p` run that may ONLY:
+Every **Monday 09:00 America/Toronto**, `lv-digest-agent.service` runs the
+proposal model as **`lv-digest`**. It projects the input again before building
+the prompt and starts `pi -p` with a positive environment allowlist. Neither
+the model nor its parent unit loads GitHub credentials. The user has no sudo,
+cannot read the runner env files, publisher home or publisher credential,
+and cannot authenticate a protected-branch write or merge.
 
-- file GitHub issues on `jonkthomas/libertyvillage` labeled `lv-digest-agent`
-  (deduped against already-open labeled issues; ≤3 per run),
-- open **DRAFT** PRs, base `staging`, only for P0/P1 findings with a small
-  clear fix (≤3 per run).
+The model writes `/var/lib/lv-digest/outbox/proposals.json`:
 
-It never merges, deploys, pushes protected branches, re-runs loops or touches
-production data/credentials. Until `/etc/lv-digest-agent.env` (root:0600) sets
-`GH_TOKEN` to a fine-grained token scoped to **jonkthomas/libertyvillage only**
-(Contents: Read+Write, Issues: Read+Write, Pull requests: Read+Write — nothing
-else), the agent runs in dry-run mode and only prints what it would file.
+```json
+{"version":1,"actions":[
+  {"type":"issue","title":"[digest] A failure","body":"P1: public-safe evidence"},
+  {"type":"issue","title":"Fix the failure","body":"P1: reason and checks","patch":"diff --git ..."}
+]}
+```
 
-Install/update on the VM: `bash ops/weekly-digest/install-vm-agent.sh` (as root
-on the VM; touches only lv-digest assets). Dry run:
-`sudo -u lv-digest node /opt/lv-digest-agent/agent.mjs --dry-run`.
-Logs: `/var/lib/lv-digest/agent-logs/` + `journalctl -u lv-digest-agent`.
+After the model unit exits successfully and its descendants are stopped,
+systemd starts **`lv-digest-publisher.service` as `lv-digest-publisher`**.
+Only this deterministic publisher receives the PAT through `LoadCredential`.
+It snapshots and validates the entire outbox before any write, rejects unknown
+operations/fields, caps issues at 3, redacts every public title/body again,
+and creates **labeled issues only**. An issue's optional `patch` is attached
+to its body as fenced `diff` text for a human to review and apply. Patch text
+is capped at **30 KiB of UTF-8**, with a note when truncated; incomplete diffs
+must not be applied. The entire patch is checked before truncation, and
+secret-shaped or binary patches are refused instead of rewritten. The publisher
+never clones, applies, commits, pushes a branch, or creates a PR. This prevents
+model-proposed code from reaching credentialed Actions or Vercel previews before
+human review. Legacy PR proposals and all push/merge actions are refused before
+any operation; the model must regenerate them as issues with optional patches.
+
+The separate unit/user is necessary: removing a token from the child's env
+alone leaves it accessible through a same-uid parent's `/proc` or auth files.
+The two units conflict, and only the publisher's private credential directory
+ever contains the runtime PAT. With no installed PAT, publication is skipped;
+proposal generation still runs locally.
+
+Install/update on the VM, when explicitly authorized: run
+`bash ops/weekly-digest/install-vm-agent.sh` as root. It stops the old agent,
+removes its old auth/cache/scratch clone/logs and full digest, installs both
+units, and verifies that `lv-digest` cannot read runner or publisher secrets.
+Reinstall the Mac digest too (`bash ops/weekly-digest/install-mac.sh`) and send
+a fresh sanitized digest before the next agent run. Do not restore the old
+full digest into the model user's home.
+
+**Token installation changed:** revoke the old agent PAT. Create a new
+fine-grained PAT for **jonkthomas/libertyvillage only**, with **Issues Read+Write
+only**. Read-only Metadata is implicit; grant no Contents or Pull requests
+permissions, other permissions, or access to other repositories. Revoke any old
+publisher PAT that granted Contents or Pull requests access too.
+As root, store the **raw token text**, without `GH_TOKEN=` or quotes, in
+`/etc/lv-digest-publisher.token`, owned by `root:root`, mode **0600**. Enter it
+through a private interactive input or root-only file, never a command-line
+argument, shell history, `gh auth login`, or any model environment/config.
+Remove `/etc/lv-digest-agent.env` after migration. The publisher is the only
+holder; do not add an `EnvironmentFile` to the model unit. Rerunning the
+installer checks file isolation but cannot verify PAT scope; check the scope
+in GitHub before installing it.
+
+Dry-run the prompt (no model or GitHub calls):
+`sudo -u lv-digest node /opt/lv-digest-agent/agent/agent.mjs --dry-run`.
+Validate an outbox locally without a token or GitHub calls:
+`node ops/weekly-digest/agent/publisher.mjs --outbox /path/to/proposals.json`.
+Logs: private `/var/lib/lv-digest/agent.log` and
+`journalctl -u lv-digest-agent -u lv-digest-publisher`.
+Publication is not retried automatically. If a run partly succeeds, inspect
+created artifacts before manually retrying; cross-run deduplication is deferred.
 
 ## Tests
 
-`npm run test:digest` (also part of the project `verify`): fixture JSONL with
-failures, malformed lines, unknown sibling-added fields, window filtering, and
-an HTML-render assertion that failures stay visible.
+`LC_ALL=C LANG=C ~/.pi/agent/bin/memguard -- npm run test:digest`
+(also part of the project `verify`): digest fixtures plus private-input
+exclusion, actual child env capture, rejected publisher operations, final
+publication redaction, workflow patches published only as issue text, patch
+truncation and refusal, and CLI refusal of unsupported actions.
+`bash -n ops/weekly-digest/install-vm-agent.sh ops/weekly-digest/install-mac.sh`
+checks shell syntax. These local checks do not execute the Linux systemd
+units or install anything on the VM.

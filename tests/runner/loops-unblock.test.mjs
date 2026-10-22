@@ -116,14 +116,14 @@ test('discovery incident inputs are excluded while grounded category intent rema
 });
 
 test('news corroboration admits matching dated leads only and never promotes search tiers', async () => {
-  const candidate = { title: 'Liberty Village park design shortlist announced', publishedAt: '2026-10-22T00:00:00Z' };
+  const candidate = { title: 'Liberty Village park design shortlist announced at Hanna Avenue', publishedAt: '2026-10-22T00:00:00Z' };
   const budget = createRequestBudget(1);
   const members = await findCorroboratingMembers(candidate, { budget, env: { SERPER_API_KEY: 'fixture' }, search: async (_source, ctx) => {
     ctx.budget.take(1);
     return { ok: true, data: { kind: 'serper', news: [
-      { title: candidate.title, date: '2026-10-22', link: 'https://publisher.example/park' },
-      { title: candidate.title, date: '2025-10-22', link: 'https://publisher.example/old' },
-      { title: 'Unrelated Toronto launch', date: '2026-10-22', link: 'https://other.example/launch' },
+      { title: candidate.title, snippet: 'The Hanna Avenue park design shortlist.', date: '2026-10-22', link: 'https://www.cbc.ca/park' },
+      { title: candidate.title, snippet: 'The Hanna Avenue park design shortlist.', date: '2025-10-22', link: 'https://www.cbc.ca/old' },
+      { title: 'Unrelated Toronto launch', snippet: 'The Hanna Avenue park design shortlist.', date: '2026-10-22', link: 'https://www.cbc.ca/launch' },
     ] } };
   } });
   assert.equal(members.length, 1); assert.equal(members[0].sourceTier, 'lead');
