@@ -107,8 +107,10 @@ export function parseRun(fileName, text) {
         }
       }
     } else if (ev.event === 'roundup-hold-alerted') {
-      run.outcome = 'held';
-      run.reason = typeof ev.week === 'string' ? `roundup hold, week ${ev.week}` : 'roundup hold';
+      if (!run.outcome) {
+        run.outcome = 'held';
+        run.reason = typeof ev.week === 'string' ? `roundup hold, week ${ev.week}` : 'roundup hold';
+      }
     }
   }
   if (!run.startedAt && run.events === 0) return null;

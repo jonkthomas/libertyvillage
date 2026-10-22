@@ -20,6 +20,7 @@ fi
 # 2. pi config: reuse the VM's existing pi install + exe-dev provider config.
 # Copy ONLY the agent state (auth/model selection/extensions) — never session
 # history — and refresh it on every install so rotated auth propagates.
+mkdir -p "$HOME_DIR/.pi/agent"
 for f in auth.json models-store.json settings.json AGENTS.md; do
   [ -f "/home/exedev/.pi/$f" ] && install -m 0644 -o "$USER_NAME" -g "$USER_NAME" "/home/exedev/.pi/$f" "$HOME_DIR/.pi/$f" || true
 done

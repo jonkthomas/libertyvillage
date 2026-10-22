@@ -54,6 +54,11 @@ test('sticky outcomes: hold-then-success stays held; failure beats later success
     '{"at":"2026-10-21T01:05:00Z","event":"failure","error":"gate exit 2"}\n' +
     '{"at":"2026-10-21T01:06:00Z","event":"success","result":{"id":"n1"}}\n');
   assert.equal(failThenOk.outcome, 'failure');
+  const failThenHold = parseRun('y.jsonl',
+    '{"at":"2026-10-22T01:00:00Z","event":"start","job":"weekly-roundup","target":"production"}\n' +
+    '{"at":"2026-10-22T01:05:00Z","event":"failure","error":"gate exit 2"}\n' +
+    '{"at":"2026-10-22T01:06:00Z","event":"roundup-hold-alerted"}\n');
+  assert.equal(failThenHold.outcome, 'failure'); // hold alert never masks a failure
 });
 
 test('alert-failed marks a run failed with its error', () => {

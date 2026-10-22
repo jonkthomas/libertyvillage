@@ -20,6 +20,7 @@ NODE_BIN="$HOME/.hermes/node/bin/node"
 # 1. Stable, launchd-readable copy of the digest code (source of truth stays the repo).
 mkdir -p "$INSTALL_DIR"
 install -m 0644 "$SRC_DIR/run-digest.mjs" "$INSTALL_DIR/"
+rm -rf "$INSTALL_DIR/lib"
 cp -R "$SRC_DIR/lib" "$INSTALL_DIR/lib"
 
 # 2. Keys for the launchd context: pull the needed names from the vault into a
@@ -27,8 +28,7 @@ cp -R "$SRC_DIR/lib" "$INSTALL_DIR/lib"
 touch "$INSTALL_DIR/digest.env"
 chmod 600 "$INSTALL_DIR/digest.env"
 if [ -r "$VAULT" ]; then
-  for key in EXEDEV_API_KEY TREG_TOKEN; do
-    line="$(grep -m1 "^${key}=" "$VAULT" || true)"
+  for key in EXEDEV_API_KEY TREG_TOKEN; do    line="$(grep -m1 "^${key}=" "$VAULT" || true)"
     if [ -n "$line" ] && ! grep -q "^${key}=" "$INSTALL_DIR/digest.env"; then
       printf '%s\n' "$line" >> "$INSTALL_DIR/digest.env"
     elif [ -n "$line" ]; then
@@ -41,6 +41,8 @@ open(path, 'w').write('\n'.join(lines) + '\n')
 PY
     fi
   done
+  grep -q '^TREG_TOKEN=' "$INSTALL_DIR/digest.env" \
+    || echo "note: TREG_TOKEN not in vault; GSC will use the VM read-only fallback until a treg token is added"
 else
   echo "warning: vault unreadable from this shell; digest.env not synced"
 fi
