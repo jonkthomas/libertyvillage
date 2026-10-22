@@ -754,7 +754,8 @@ function checkDraftBinding(run, pack, snapshot) {
   catch { /* no blog images */ }
   const checked = run.deps.modules.checkDraftAgainstPack(added[0], pack, { businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, imagePaths, now: run.deps.now() });
   if (checked.ok) return null;
-  run.deps.log('draft-unbound', { errors: [...new Set(checked.errors.map((error) => String(error).split(':')[0].slice(0, 40)))].slice(0, 10) });
+  run.deps.log('draft-unbound', { errors: [...new Set(checked.errors.map((error) => String(error).split(':')[0].slice(0, 40)))].slice(0, 10),
+    message: diagnosticMessage(checked.errors.join('; ')) });
   return 'unbound';
 }
 
@@ -838,7 +839,7 @@ function retryBlogAttempt(run, slotNumber, token, attempt) {
   return attemptBlogIntent(run, slotNumber, token, candidate, snapshot, attempt);
 }
 
-function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
+function processContentSlot(run, slotNumber, { resumeOnly = false, normalPerRun = null } = {}) {
   const { deps, call } = run;
   const reservation = call('reserve', ['--lane', 'content', '--slot-number', slotNumber, '--owner', run.owner, '--lease-seconds', CADENCE.leaseSeconds]);
   if (!reservation.reserved) {
@@ -858,7 +859,7 @@ function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
       attempts = attemptsOf();
     }
     if (resumeOnly) return { state: 'closed' };
-    let normalLeft = CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length;
+    let normalLeft = normalPerRun ?? (CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length);
     while (run.budget > 0) {
       const snapshot = deps.exportSnapshot();
       const candidate = nextCandidate(run, snapshot, { normal: normalLeft > 0, reserve: run.policy.reserveAllowed && run.reserveLeft > 0 });
@@ -1114,7 +1115,10 @@ export function runOctoberBackfill({ target, slot, request = {}, deps }) {
     budget: CADENCE.generationsPerRun, reserveLeft: 2, reserveSourceIds: new Set(), reservedCategories: new Set(), skipped: new Set(),
   };
   deps.log('october-backfill-slot', { label: row.label, week: row.week, slot: row.slotNumber });
-  const result = processContentSlot(run, row.slotNumber);
+  // The fixed historical label outlives a weekly retry budget. Keep each run
+  // bounded, but let a later day try a new grounded intent after prior rejects.
+  // All failed fingerprints and any open original key remain in the DB.
+  const result = processContentSlot(run, row.slotNumber, { normalPerRun: CADENCE.normalPerSlot });
   if (!['counted', 'late-smoke', 'consumed'].includes(result.state)) throw new Error('backfill publication incomplete');
   deps.log('october-backfill-published', { label: row.label, id: result.id ?? result.consumedId, publishedDate: now.toISOString().slice(0, 10) });
   return { id: result.id ?? result.consumedId, reason: 'october-backfill-published' };

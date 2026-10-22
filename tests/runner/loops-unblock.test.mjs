@@ -53,6 +53,29 @@ test('pending backfill resumes the same submission; hold cannot advance the queu
   assert.equal(world.generated.length, 1);
 });
 
+test('later-day grounded inventory can recover a backfill label after three normal rejections', (t) => {
+  const categories = ['coffee-shops', 'gyms', 'dentists', 'florists'];
+  const businesses = categories.flatMap((category) => [1, 2].map((n) => ({
+    slug: `${category}-${n}`, name: `${category} ${n}`, category,
+    description: `${category} services in the neighbourhood.`, address: `${n} Liberty St, Toronto`,
+    hours: 'Mon-Fri 9am-5pm', phone: '416-555-0100', website: `https://${category}-${n}.example`,
+  })));
+  const entries = categories.map((c) => topic(c, `${c.replaceAll('-', ' ')} in Liberty Village`));
+  const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), businesses, queue: entries.slice(0, 3) });
+  t.after(() => world.cleanup());
+  world.gatePlan = ['reject', 'reject', 'reject'];
+  assert.throws(() => backfill(world), /backfill publication incomplete/);
+  assert.equal(world.attempts.length, 3);
+  const oldKeys = world.attempts.map((a) => a.idempotency_key);
+  world.now = new Date('2026-10-24T15:37:00Z');
+  world.queue.push(entries[3]);
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  assert.equal(world.attempts.length, 4);
+  assert.deepEqual(world.attempts.slice(0, 3).map((a) => a.idempotency_key), oldKeys);
+  assert.ok(world.attempts.every((a) => a.slot_number === 101));
+  assert.equal(world.attempts[3].outcome, 'late-smoked');
+});
+
 test('CLI validation and gate rejection retain a bounded redacted explanation; news logs only counts', () => {
   const message = diagnosticMessage('required: faqs https://example.com/?token=private-value sk-abcdefghijklmnop', { TEST_TOKEN: 'private-value' });
   assert.match(message, /required: faqs/); assert.doesNotMatch(message, /private-value|https:|sk-/);
@@ -61,6 +84,25 @@ test('CLI validation and gate rejection retain a bounded redacted explanation; n
   assert.equal(failure.message, 'unknown field: relatedBusinesses');
   assert.deepEqual(gateDiagnostic({ code: 2, stdout: JSON.stringify({ decision: 'unrepairable', message: 'malformed query' }) }), { decision: 'unrepairable', message: 'malformed query' });
   assert.deepEqual(summarizeNewsDecision({ published: 0, considered: 2, evaluations: [{ title: 'private title', prefilter: { ok: false, code: 'risk_flags' } }, { prefilter: { ok: true }, gate: { ok: false, code: 'extraction_empty' } }] }), { published: 0, considered: 2, refusals: { risk_flags: 1, extraction_empty: 1 } });
+});
+
+test('early draft schema rejection logs an actionable bounded message before submit', (t) => {
+  const world = createWorld({ now: new Date('2026-10-23T15:37:00Z'), queue: [TOPICS.coffee] });
+  t.after(() => world.cleanup());
+  const generate = world.deps.generate;
+  world.deps.generate = (title) => {
+    const changed = generate(title);
+    const file = path.join(world.repo, 'data/posts.json');
+    const posts = JSON.parse(fs.readFileSync(file, 'utf8'));
+    posts.at(-1).relatedBusinesses = ['cafe-one'];
+    fs.writeFileSync(file, JSON.stringify(posts));
+    return changed;
+  };
+  assert.throws(() => backfill(world), /backfill publication incomplete/);
+  const event = world.logs.find((item) => item.event === 'draft-unbound');
+  assert.ok(event.errors.includes('storage'));
+  assert.match(event.message, /storage:unknown field: relatedBusinesses/);
+  assert.equal(world.submissions.size, 0);
 });
 
 test('discovery incident inputs are excluded while grounded category intent remains', async () => {
