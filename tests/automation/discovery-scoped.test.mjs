@@ -17,7 +17,7 @@ const PEXELS_KEY = 'secret-pexels-key';
 function lv(title, extra = {}) {
   return {
     title, rating: 4.6, reviews: 120, type: 'Coffee shop',
-    address: `${title.length} Liberty St, Toronto, ON M6K 3G3, Canada`,
+    address: `${[5,9,25,31][title.length % 4]} East Liberty St, Toronto, ON M6K 3G3, Canada`,
     gps_coordinates: { latitude: 43.638, longitude: -79.42 }, ...extra,
   };
 }

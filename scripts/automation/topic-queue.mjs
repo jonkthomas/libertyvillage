@@ -352,14 +352,6 @@ function titleFromPath(pathValue) {
   return titleFromQuery(slug.replace(/[-_]+/g, ' '));
 }
 
-function appendTitleQualifier(title, qualifier) {
-  const cleaned = String(title ?? '').trim();
-  if (!cleaned) return '';
-  const match = cleaned.match(/([?!.,:;]+)$/);
-  if (!match) return `${cleaned} ${qualifier}`;
-  return `${cleaned.slice(0, -match[1].length).trimEnd()} ${qualifier}${match[1]}`;
-}
-
 function qualifyLibertyVillageToronto(title) {
   const cleaned = String(title ?? '').trim();
   if (!cleaned || /\btoronto\b/i.test(cleaned)) return cleaned;
@@ -369,13 +361,37 @@ function qualifyLibertyVillageToronto(title) {
 function normalizeDiscovery(discovery) {
   const title = String(discovery?.title ?? '').trim();
   if (!title) return discovery;
+  if (discovery.source === 'gsc') {
+    const editorial = gscEditorialTitle(title);
+    return editorial ? { ...discovery, title: editorial } : null;
+  }
   if (discovery.source === 'serpapi') {
     return { ...discovery, title: qualifyLibertyVillageToronto(title) };
   }
-  if (discovery.source === 'gsc' && !/\bliberty village\b/i.test(title)) {
-    return { ...discovery, title: appendTitleQualifier(title, 'Liberty Village Toronto') };
-  }
   return discovery;
+}
+
+// Analytics queries are intent signals, not ready-to-publish titles. Keep a
+// bounded set of useful directory-backed themes; brand/navigation lookups such
+// as "Jukebox Print Toronto" must not poison an entire discovery submission.
+export function gscEditorialTitle(query) {
+  const text = String(query ?? '').toLowerCase().replace(/\bliberty village\b|\btoronto\b/g, ' ').replace(/\s+/g, ' ').trim();
+  const themes = [
+    [/\bhappy hour\b/, 'Happy hour directory guide'],
+    [/\bpatios?\b/, 'Patio directory guide'],
+    [/\bbrunch\b/, 'Brunch directory guide'],
+    [/\b(?:coffee|cafes?)\b/, 'Coffee shop directory guide'],
+    [/\b(?:gyms?|fitness)\b/, 'Gym directory guide'],
+    [/\b(?:restaurants?|dining)\b/, 'Restaurant directory guide'],
+    [/\b(?:bakeries|bakery)\b/, 'Bakery directory guide'],
+    [/\b(?:hair salons?|haircuts?)\b/, 'Hair salon directory guide'],
+  ];
+  // A bare category or category question is useful; a brand + category is a
+  // navigational lookup and stays out. Never imply current prices or hours.
+  const residual = text.replace(/\b(?:best|good|cheap|near|me|in|the|a|an|what|where|are|is|can|i|find|which|open|now|for|with|and|to|of|happy|hour|patios?|brunch|coffee|shops?|cafes?|gyms?|fitness|restaurants?|dining|bakeries|bakery|hair|salons?|haircuts?|stadium)\b/g, '').replace(/[^a-z0-9]/g, '');
+  if (residual) return null;
+  const found = themes.find(([pattern]) => pattern.test(text));
+  return found ? `${found[1]} in Liberty Village, Toronto` : null;
 }
 
 export function intentFingerprint(title) {
@@ -585,6 +601,7 @@ export async function appendDiscoveredTopics(queue, discoveries) {
   )));
   for (const discovery of discoveries) {
     const normalized = normalizeDiscovery(discovery);
+    if (!normalized) continue;
     const fingerprint = `${normalized?.kind ?? ''}|${intentFingerprint(normalized?.title)}`;
     if (seenIntents.has(fingerprint)) continue;
     seenIntents.add(fingerprint);

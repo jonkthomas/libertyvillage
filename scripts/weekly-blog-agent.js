@@ -287,7 +287,7 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
       const currentBusinesses = readJson(path.join(root, "data", "businesses.json"));
       const currentServices = readJson(path.join(root, "data", "services.json"));
       const currentTopics = readJson(path.join(root, "data", "topics.json"));
-      const checked = checkDraftAgainstPack(newPosts[0], sourcePack, { businesses: currentBusinesses, posts: exportedPosts, services: currentServices, topics: currentTopics, imagePaths: listBlogImages(root), now });
+      const checked = checkDraftAgainstPack(newPosts[0], sourcePack, { businesses: currentBusinesses, posts: exportedPosts, services: currentServices, topics: currentTopics, imagePaths: listBlogImages(root), now, requireRealDate: true });
       if (!fs.existsSync(sourcePackPath) || fs.readFileSync(sourcePackPath, "utf8") !== `${canonicalJson(sourcePack)}\n`) {
         checked.errors.push("source-pack-sidecar-changed");
         fs.writeFileSync(sourcePackPath, `${canonicalJson(sourcePack)}\n`);

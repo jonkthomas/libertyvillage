@@ -132,6 +132,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
         const aliasObserver = () => cadence.createAliasObserver({ siteUrl: process.env.CONTENT_SITE_URL,
           bypass: process.env.CONTENT_SITE_BYPASS, fetchImpl: delegates.fetchImpl });
         switch (sub) {
+          case 'reserve-budget': result = await cadence.reserveBudget(db, { target, weekStart }); break;
           case 'reserve': result = await cadence.reserveSlot(db, { ...slotRef, owner: required(opts.owner, '--owner'), leaseSeconds: opts.leaseSeconds ? Number(opts.leaseSeconds) : undefined }); break;
           case 'renew': result = await cadence.renewSlot(db, slotRef, required(opts.token, '--token'), { leaseSeconds: opts.leaseSeconds ? Number(opts.leaseSeconds) : undefined }); break;
           case 'release': result = await cadence.releaseSlot(db, slotRef, required(opts.token, '--token')); break;

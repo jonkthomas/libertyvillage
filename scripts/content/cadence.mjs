@@ -263,11 +263,11 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
       if (!submission?.smoke_passed_at) throw new StateError('submission not smoked');
       const actualWeek = weekStartUtc(submission.smoke_passed_at);
       if (actualWeek <= ref.weekStart) throw new StateError('smoke not late');
-      if (ref.lane === 'roundup') {
-        // The old week's own slug must be current-live; countCurrentWeek never
-        // counts an old-week roundup slug in a later week, so it cannot prove this.
+      if (ref.lane === 'roundup' || (ref.lane === 'content' && ref.slotNumber >= 101 && ref.slotNumber <= 107)) {
+        // Roundup and backfill do not count in the actual smoke week, so prove
+        // their own current-live revision directly instead of using that count.
         const live = await currentLiveSubmission(db, { target: ref.target, submissionId: attempt.submission_id, observe });
-        if (submission.kind !== 'roundup' || !live.live || live.slug !== roundupSlug(ref.weekStart)) throw new StateError('late submission is not current-live');
+        if (!live.live || (ref.lane === 'roundup' ? submission.kind !== 'roundup' || live.slug !== roundupSlug(ref.weekStart) : submission.kind !== 'blog')) throw new StateError('late submission is not current-live');
       } else {
         const counted = await countCurrentWeek(db, { target: ref.target, weekStart: actualWeek, observe });
         if (!counted.content.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('late submission is not current-live');
@@ -276,9 +276,14 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
     if (outcome === 'consumed') {
       if (!attempt.submission_id) throw new StateError('submission missing');
       if (attempt.outcome !== 'smoked' || typeof observe !== 'function') throw new StateError('consumed requires smoke and observation');
-      const counted = await countCurrentWeek(db, { target: ref.target, weekStart: ref.weekStart, observe });
-      const laneItems = ref.lane === 'roundup' ? counted.roundup : counted.content;
-      if (!laneItems.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('submission is not current-live');
+      if (ref.lane === 'content' && ref.slotNumber >= 101 && ref.slotNumber <= 107) {
+        const live = await currentLiveSubmission(db, { target: ref.target, submissionId: attempt.submission_id, observe });
+        if (!live.live || live.kind !== 'blog' || weekStartUtc(live.smokePassedAt) !== ref.weekStart) throw new StateError('submission is not current-live for label week');
+      } else {
+        const counted = await countCurrentWeek(db, { target: ref.target, weekStart: ref.weekStart, observe });
+        const laneItems = ref.lane === 'roundup' ? counted.roundup : counted.content;
+        if (!laneItems.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('submission is not current-live');
+      }
     }
     const next = row(await client.query(`update content.cadence_attempts set outcome=$2,updated_at=now(),closed_at=now()
       where idempotency_key=$1 returning ${dateText}`, [idempotencyKey, outcome]));
@@ -296,6 +301,20 @@ export async function consumedFingerprints(db, { target }) {
     order by intent_fingerprint`, [target])).rows.map((r) => r.intent_fingerprint);
 }
 
+// Reserve attempts spend the cap even after rejection. Attribute them to both
+// their ledger week and their real creation week so historical backfill cannot
+// repeatedly reset the live week's shared reserve allowance.
+export async function reserveBudget(db, { target, weekStart }) {
+  checkTarget(db, target);
+  if (weekStartUtc(weekStart) !== weekStart) throw new ValidationError('invalid week start');
+  const attempts = (await db.query(`select topic_key from content.cadence_attempts
+    where target=$1 and lane='content' and topic_key like 'reserve:%'
+      and (week_start_utc=$2::date or ((created_at at time zone 'UTC') >= $2::timestamp
+        and (created_at at time zone 'UTC') < $2::timestamp + interval '7 days'))`, [target, weekStart])).rows;
+  return { used: attempts.length, categories: [...new Set(attempts.map((a) => a.topic_key)
+    .filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length)))].sort() };
+}
+
 // Open (unsettled) attempts of one lane, oldest first. The blog lane and the
 // roundup lane (docs/specs/weekly-roundup-v2.md §10.3.1) share the filter.
 export async function unresolvedAttempts(db, { target, lane, limit = 3 }) {
@@ -309,9 +328,8 @@ export async function unresolvedAttempts(db, { target, lane, limit = 3 }) {
 
 // Whether one published submission's own posts insert is current-live: the DB
 // entry is still at its published_rev, its final gate round passed, and the
-// hosted alias serves that exact rev. Unlike countCurrentWeek this has no week
-// filter, so it can prove a late roundup's OLD-week slug without ever counting it
-// for a later week.
+// hosted alias serves that exact rev. This proves historical label receipts and
+// late roundup slugs independently of weekly cadence counts.
 export async function currentLiveSubmission(db, { target, submissionId, observe }) {
   checkTarget(db, target);
   const id = number(submissionId);
@@ -320,10 +338,12 @@ export async function currentLiveSubmission(db, { target, submissionId, observe 
   const found = row(await db.query(`select i.key as slug,s.id as submission_id,s.kind,i.published_rev,s.smoke_passed_at
     from content.submissions s join content.submission_items i on i.submission_id=s.id
     join content.entries e on e.dataset=i.dataset and e.key=i.key and e.live_rev=i.published_rev
+    join content.revisions r on r.dataset=i.dataset and r.key=i.key and r.rev=i.published_rev
     join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
     where s.id=$1 and s.target=$2 and s.state='published' and s.smoke_passed_at is not null and i.smoke='passed'
       and i.dataset='posts' and i.op='insert' and i.published_rev is not null
       and g.passed=true and g.overall>=8 and g.blocking_count=0
+      and (s.kind<>'blog' or r.payload->>'category' is distinct from 'news')
     order by i.key limit 1`, [id, target]));
   if (!found) return { submissionId: id, live: false };
   const receipt = await observe(found.slug);
@@ -331,6 +351,8 @@ export async function currentLiveSubmission(db, { target, submissionId, observe 
   return { submissionId: id, kind: found.kind, slug: found.slug, publishedRev: found.published_rev, smokePassedAt: found.smoke_passed_at, live };
 }
 
+// Cadence and missed-week monitoring credit only regular posts smoked within
+// the requested UTC week. A historical backfill receipt never changes a quota.
 export async function countCurrentWeek(db, { target, weekStart, observe }) {
   checkTarget(db, target);
   if (weekStartUtc(weekStart) !== weekStart) throw new ValidationError('invalid week start');
@@ -340,8 +362,12 @@ export async function countCurrentWeek(db, { target, weekStart, observe }) {
     join content.entries e on e.dataset=i.dataset and e.key=i.key and e.live_rev=i.published_rev
     join content.revisions r on r.dataset=i.dataset and r.key=i.key and r.rev=i.published_rev
     join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
-    where s.target=$1 and (s.smoke_passed_at at time zone 'UTC') >= $2::timestamp
+    left join content.cadence_attempts backfill on backfill.submission_id=s.id and backfill.target=s.target
+      and backfill.lane='content' and backfill.slot_number between 101 and 107
+    where s.target=$1 and backfill.submission_id is null
+      and (s.smoke_passed_at at time zone 'UTC') >= $2::timestamp
       and (s.smoke_passed_at at time zone 'UTC') < $2::timestamp + interval '7 days'
+      and s.smoke_passed_at is not null
       and s.state='published' and i.smoke='passed' and i.dataset='posts' and i.op='insert'
       and i.published_rev is not null and g.passed=true and g.overall>=8 and g.blocking_count=0
       and ((s.kind='blog' and r.payload->>'category' is distinct from 'news')

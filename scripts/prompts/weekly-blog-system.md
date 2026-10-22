@@ -489,6 +489,16 @@ If any check fails: select the next-best topic and re-check. If 3 topics fail, u
 
 ### Post-Generation Checks (After generating content)
 
+Run the same storage validator used by `content submit` before handoff, and fix
+every reported error within the retry budget. Grounding and the blog linter do
+not check the storage schema. Do not add fields such as `relatedBusinesses`;
+attribute businesses through `/directory/<slug>` links in the article instead.
+Use today's actual UTC date for `publishedAt` and `updatedAt`, including backfill.
+
+```sh
+node --input-type=module -e 'import fs from "node:fs"; import {validateRecord} from "./scripts/content/validate.mjs"; const p=JSON.parse(fs.readFileSync("data/posts.json","utf8")).at(-1); const r=validateRecord("posts",p.slug,p); console.log(JSON.stringify(r)); process.exitCode=r.ok?0:1;'
+```
+
 - **Word count**: 800-1200 words (count by splitting on whitespace)
 - **Internal links**: At least 3, matching pattern `[text](/best/slug)` or `[text](/guide/slug)` or `[text](/blog/slug)`
 - **Business mentions**: At least 2 real businesses in bold (**Name**), verified against `data/businesses.json`
