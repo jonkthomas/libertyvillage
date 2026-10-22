@@ -1,0 +1,2 @@
+{"at":"2026-10-21T12:17:00.980Z","event":"start","job":"news","target":"production","slot":"20261021T1217-scheduled"}
+{"at":"2026-10-21T12:31:10.442Z","event":"success","result":{"id":"news-20261021","dryRun":false,"noChanges":true,"cadenceMet":false,"reason":"no items passed the evidence bar"}}

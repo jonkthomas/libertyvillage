@@ -1,0 +1,3 @@
+{"event":"start"}
+{"at":"2026-10-19T10:00:00.000Z","event":"start","job":"topic-discovery","target":"production","slot":"20261019T1000-scheduled"}
+{"at":"2026-10-19T10:09:41.220Z","event":"alert-failed","error":"slack webhook 503"}

@@ -1,0 +1,30 @@
+[Unit]
+Description=Liberty Village weekly digest fix-it agent (pi headless)
+Documentation=https://github.com/jonkthomas/libertyvillage/tree/staging/ops/weekly-digest
+# Runs AFTER the Monday 08:00 America/Toronto digest on the Mac has pushed
+# /var/lib/lv-digest/lv-digest-latest.json to this VM.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=lv-digest
+Group=lv-digest
+Environment=HOME=/var/lib/lv-digest
+Environment=GH_CONFIG_DIR=/var/lib/lv-digest/.config/gh
+Environment=PI_BIN=/usr/local/libexec/lv-digest-pi
+# GH_TOKEN lives here once John installs the repo-scoped fine-grained token
+# (root:root 0600; systemd reads it as root, exposes only to this service).
+EnvironmentFile=-/etc/lv-digest-agent.env
+ExecStart=/usr/local/bin/node /opt/lv-digest-agent/agent.mjs
+TimeoutStartSec=50min
+UMask=0077
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+# Defense in depth on top of file perms: the agent must never see runner
+# secrets, the runner checkout, or its runtime state.
+InaccessiblePaths=/etc/lv-runner.env /etc/lv-runner-staging.env /etc/lv-runner-production.env /etc/lv-runner.hold /srv/lv-runner /run/lv-runner /var/log/lv-runner /var/log/lv-generator
+ReadWritePaths=/var/lib/lv-digest
+ProtectHome=yes
+RestrictSUIDSGID=yes
