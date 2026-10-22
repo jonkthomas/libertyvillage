@@ -127,6 +127,44 @@ test('migration accepts roundup, ISO slug handles year boundary, immutable keys 
   } finally { await close(); }
 });
 
+test('D1/F7: backfill counts only for its historical attempt week and cannot suppress the live missed-week alert', async () => {
+  const { db, close } = await testDb();
+  try {
+    for (const slotNumber of [101, 102]) {
+      const slotRef = ref(slotNumber);
+      const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'backfill' });
+      const attempt = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: `backfill-${slotNumber}`, topicKey: `backfill-${slotNumber}`, sourcePackDigest: 'pack' });
+      const id = await fixture(db, { slug: `backfill-${slotNumber}`, time: '2026-10-23T15:37:00Z', idempotencyKey: attempt.idempotencyKey });
+      await cadence.attachSubmission(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, submissionId: id });
+      await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'smoked' });
+      await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'late-smoked', observe });
+    }
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-19', observe })).contentCount, 0);
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: week, observe })).contentCount, 2);
+    const deadline = await cadence.evaluateDeadline(db, { target: 'test', weekStart: '2026-10-19', now: '2026-10-26T00:00:00Z', observe });
+    assert.ok(deadline.alerts.some((item) => item.alert.alert_kind === 'WEEKLY_CONTENT_MISSED'));
+    await fixture(db, { slug: 'ordinary-live-week', time: '2026-10-23T16:00:00Z' });
+    assert.equal((await cadence.countCurrentWeek(db, { target: 'test', weekStart: '2026-10-19', observe })).contentCount, 1);
+  } finally { await close(); }
+});
+
+test('D4: DB reserve budget persists rejected historical attempts across ledger and real creation weeks', async () => {
+  const { db, close } = await testDb();
+  try {
+    for (const [index, historicalWeek, category] of [[1, '2026-09-28', 'bakeries'], [2, '2026-10-05', 'florists']]) {
+      const slotRef = { ...ref(100 + index), weekStart: historicalWeek };
+      const claim = await cadence.reserveSlot(db, { ...slotRef, owner: 'backfill' });
+      const attempt = await cadence.recordAttempt(db, { slotRef, token: claim.token, intentFingerprint: category, topicKey: `reserve:dir:${category}`, sourcePackDigest: 'pack' });
+      await cadence.recordAttemptOutcome(db, { idempotencyKey: attempt.idempotencyKey, token: claim.token, outcome: 'rejected' });
+    }
+    const actualWeek = cadence.weekStartUtc(new Date());
+    assert.deepEqual(await cadence.reserveBudget(db, { target: 'test', weekStart: actualWeek }), { used: 2, categories: ['bakeries', 'florists'] });
+    assert.deepEqual(await cadence.reserveBudget(db, { target: 'test', weekStart: '2026-09-28' }), { used: 1, categories: ['bakeries'] });
+    await db.query("set time zone 'America/Toronto'");
+    assert.equal((await cadence.reserveBudget(db, { target: 'test', weekStart: actualWeek })).used, 2);
+  } finally { await close(); }
+});
+
 test('prior-week pending intent is fenced, then late smoke settles terminal only after actual-week alias proof', async () => {
   const { db, close } = await testDb();
   try {

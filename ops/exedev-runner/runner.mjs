@@ -139,7 +139,7 @@ export function diagnosticMessage(value, env = process.env) {
   if (typeof value !== 'string') return undefined;
   let text = value;
   for (const [key, secret] of Object.entries(env)) {
-    if (/KEY|TOKEN|SECRET|PASSWORD|DATABASE_URL|WEBHOOK|BYPASS/i.test(key) && secret?.length >= 8) text = text.split(secret).join('[redacted]');
+    if (/KEY|TOKEN|SECRET|PASSWORD|DATABASE_URL|WEBHOOK|BYPASS|GOOGLE_SERVICE_ACCOUNT_JSON|DATAFORSEO_LOGIN|GA_PROPERTY_ID/i.test(key) && secret?.length) text = text.split(secret).join('[redacted]');
   }
   return text.replace(/(?:https?|postgres(?:ql)?):\/\/[^\s"'<>]+/gi, '[url]')
     .replace(/\b(?:sk-[\w-]{12,}|gh[pousr]_[\w]{12,}|github_pat_[\w]+|xox[baprs]-[\w-]+)/g, '[redacted]')
@@ -512,8 +512,8 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
     outcome('smoked');
     const late = typeof gate.smokedAt === 'string' && deps.modules.weekStartUtc(new Date(gate.smokedAt)) !== ctx.week;
     if (late) {
-      // The trusted CLI verifies current-live alias proof in the actual smoke
-      // week before making this original-week attempt terminal. If it refuses
+      // The trusted CLI verifies current-live alias proof before making this
+      // original-week attempt terminal. If it refuses
       // because the post is not live, hold the original key and name its ID for
       // the operator; never silently free the slot or invent a smoke receipt.
       try { outcome('late-smoked'); }
@@ -522,7 +522,7 @@ function settleAttempt(deps, ctx, key, token, id, gate) {
         const actualWeek = deps.modules.weekStartUtc(new Date(gate.smokedAt));
         // Roundup: the old week's own slug, proven by current-live (never by a
         // later week's count, which cannot include an old-week roundup slug).
-        const live = ctx.lane === 'roundup'
+        const live = ctx.lane === 'roundup' || ctx.policy?.phase === 'backfill'
           ? cadenceCaller(deps, ctx.target, ctx.week)('current-live', ['--submission-id', id]).live === true
           : cadenceCaller(deps, ctx.target, actualWeek)('count').content.some((item) => Number(item.submissionId) === Number(id));
         if (live) throw error;
@@ -752,7 +752,7 @@ function checkDraftBinding(run, pack, snapshot) {
   let imagePaths = [];
   try { imagePaths = fs.readdirSync(path.join(run.deps.repo, 'public', 'images', 'blog')).filter((name) => /^[a-z0-9-]+\.jpg$/.test(name)).slice(0, 5000).map((name) => `/images/blog/${name}`); }
   catch { /* no blog images */ }
-  const checked = run.deps.modules.checkDraftAgainstPack(added[0], pack, { businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, imagePaths, now: run.deps.now() });
+  const checked = run.deps.modules.checkDraftAgainstPack(added[0], pack, { businesses: snapshot.businesses, posts: snapshot.posts, services: snapshot.services, topics: snapshot.topics, imagePaths, now: run.deps.now(), requireRealDate: true });
   if (checked.ok) return null;
   run.deps.log('draft-unbound', { errors: [...new Set(checked.errors.map((error) => String(error).split(':')[0].slice(0, 40)))].slice(0, 10),
     message: diagnosticMessage(checked.errors.join('; ')) });
@@ -839,7 +839,7 @@ function retryBlogAttempt(run, slotNumber, token, attempt) {
   return attemptBlogIntent(run, slotNumber, token, candidate, snapshot, attempt);
 }
 
-function processContentSlot(run, slotNumber, { resumeOnly = false, normalPerRun = null } = {}) {
+function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
   const { deps, call } = run;
   const reservation = call('reserve', ['--lane', 'content', '--slot-number', slotNumber, '--owner', run.owner, '--lease-seconds', CADENCE.leaseSeconds]);
   if (!reservation.reserved) {
@@ -859,7 +859,7 @@ function processContentSlot(run, slotNumber, { resumeOnly = false, normalPerRun 
       attempts = attemptsOf();
     }
     if (resumeOnly) return { state: 'closed' };
-    let normalLeft = normalPerRun ?? (CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length);
+    let normalLeft = CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length;
     while (run.budget > 0) {
       const snapshot = deps.exportSnapshot();
       const candidate = nextCandidate(run, snapshot, { normal: normalLeft > 0, reserve: run.policy.reserveAllowed && run.reserveLeft > 0 });
@@ -889,7 +889,7 @@ function processContentSlot(run, slotNumber, { resumeOnly = false, normalPerRun 
 // an older publication is pending, held by another owner or beyond the cap.
 function recoverPriorContent(deps, target, slot, week) {
   const attempts = cadenceCaller(deps, target, week)('unresolved', ['--limit', 21, '--lane', 'content']);
-  const prior = attempts.filter((a) => a.week_start_utc < week);
+  const prior = attempts.filter((a) => a.week_start_utc < week && !isBackfillSlot(a.slot_number));
   let budget = CADENCE.generationsPerRun;
   for (const attempt of prior.slice(0, CADENCE.maxContentSlot)) {
     const call = cadenceCaller(deps, target, attempt.week_start_utc);
@@ -994,6 +994,7 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
   const count = call('count');
   deps.log('cadence-count', { week, contentCount: count.contentCount });
   const content = call('status').attempts.filter((attempt) => attempt.lane === 'content');
+  const reserves = call('reserve-budget');
   // All-time, target-scoped consumed intents from the DB (plus live-post duplicates
   // inside checkTopicGroundability); never local state.
   const consumed = new Set(call('consumed'));
@@ -1001,9 +1002,9 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
     deps, call, target, slot, week, request, kind: 'blog', lane: 'content', policy: dayPolicy(now),
     actor: `runner:weekly-blog#${slot}`, owner: `runner:weekly-blog:${target}:${slot}`,
     consumed, weekFingerprints: new Set(content.map((attempt) => attempt.intent_fingerprint)),
-    budget: remainingBudget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - content.filter((a) => String(a.topic_key).startsWith('reserve:')).length),
+    budget: remainingBudget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - reserves.used),
     reserveSourceIds: new Set(), skipped: new Set(),
-    reservedCategories: new Set(content.map((a) => String(a.topic_key)).filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length))),
+    reservedCategories: new Set(reserves.categories),
     evidencePassUsed: false,
   };
   for (const evidence of call('evidence-list')) {
@@ -1038,7 +1039,7 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
   let lastId = null;
   // Evidence retries can occupy slots beyond the goal-driven loop. Reconcile
   // them first under their original key, including after a week rollover.
-  for (const attempt of content.filter((item) => Number(item.slot_number) > 2 && isOpen(item))) {
+  for (const attempt of content.filter((item) => Number(item.slot_number) > 2 && !isBackfillSlot(item.slot_number) && isOpen(item))) {
     const result = processContentSlot(run, Number(attempt.slot_number), { resumeOnly: true });
     if (result.state === 'pending' || result.state === 'deferred' || result.state === 'uncounted') pending = true;
     if (result.state === 'late-smoke') late = true;
@@ -1080,8 +1081,9 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
 
 // These are the seven explicitly requested historical labels, not publish
 // dates. High slot numbers share the existing fenced cadence ledger without
-// consuming the regular slot 1..4 attempt budget. Late smoke remains late:
-// backfill never claims to have fulfilled an ended week's cadence.
+// consuming the regular slot 1..4 attempt budget. Their live posts count only
+// for the historical attempt week, never toward the current weekly goal.
+const isBackfillSlot = (number) => Number(number) >= 101 && Number(number) <= 107;
 export const OCTOBER_BACKFILL = Object.freeze(['2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-19', '2026-10-22']);
 export function runOctoberBackfill({ target, slot, request = {}, deps }) {
   if (request.topic || request.dryRun) throw new Error('backfill options unsupported');
@@ -1108,17 +1110,19 @@ export function runOctoberBackfill({ target, slot, request = {}, deps }) {
   // another post, require a new UTC date after the last trusted smoke receipt.
   if (lastSmoke && new Date(lastSmoke).toISOString().slice(0, 10) >= now.toISOString().slice(0, 10) && (!row.latest || !isOpen(row.latest))) return { noChanges: true, reason: 'october-backfill-wait' };
   const consumed = new Set(row.call('consumed'));
+  // Charge both the historical ledger week and the real attempt-creation week.
+  // Rejected attempts still spend the cap; a new day does not reset it.
+  const historicalReserves = row.call('reserve-budget');
+  const actualReserves = cadenceCaller(deps, target, deps.modules.weekStartUtc(now))('reserve-budget');
   const run = {
     deps, ...row, target, slot, request, kind: 'blog', lane: 'content', policy: { phase: 'backfill', reserveAllowed: true },
     actor: `runner:october-blog-backfill#${slot}`, owner: `runner:october-blog-backfill:${target}:${slot}`,
     consumed, weekFingerprints: new Set(row.call('status').attempts.filter((item) => item.lane === 'content').map((item) => item.intent_fingerprint)),
-    budget: CADENCE.generationsPerRun, reserveLeft: 2, reserveSourceIds: new Set(), reservedCategories: new Set(), skipped: new Set(),
+    budget: CADENCE.generationsPerRun, reserveLeft: Math.max(0, CADENCE.reservePerWeek - Math.max(historicalReserves.used, actualReserves.used)),
+    reserveSourceIds: new Set(), reservedCategories: new Set([...historicalReserves.categories, ...actualReserves.categories]), skipped: new Set(),
   };
   deps.log('october-backfill-slot', { label: row.label, week: row.week, slot: row.slotNumber });
-  // The fixed historical label outlives a weekly retry budget. Keep each run
-  // bounded, but let a later day try a new grounded intent after prior rejects.
-  // All failed fingerprints and any open original key remain in the DB.
-  const result = processContentSlot(run, row.slotNumber, { normalPerRun: CADENCE.normalPerSlot });
+  const result = processContentSlot(run, row.slotNumber);
   if (!['counted', 'late-smoke', 'consumed'].includes(result.state)) throw new Error('backfill publication incomplete');
   deps.log('october-backfill-published', { label: row.label, id: result.id ?? result.consumedId, publishedDate: now.toISOString().slice(0, 10) });
   return { id: result.id ?? result.consumedId, reason: 'october-backfill-published' };

@@ -95,7 +95,10 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
   };
   const inWeek = (sub, week) => sub.smokedAt && weekStartUtc(sub.smokedAt) === week;
   const count = (week) => {
-    const rows = [...world.submissions.values()].filter((sub) => world.live.has(sub.id) && inWeek(sub, week));
+    const rows = [...world.submissions.values()].filter((sub) => {
+      const backfill = world.attempts.find((a) => a.submission_id === sub.id && a.lane === 'content' && a.slot_number >= 101 && a.slot_number <= 107);
+      return world.live.has(sub.id) && sub.smokedAt && (backfill ? backfill.week_start_utc === week : inWeek(sub, week));
+    });
     const content = rows.filter((sub) => sub.kind === 'blog').map((sub) => ({ slug: sub.slug, submissionId: sub.id }));
     const roundup = rows.filter((sub) => sub.kind === 'roundup' && sub.slug === cadenceRoundupSlug(week)).map((sub) => ({ slug: sub.slug, submissionId: sub.id }));
     return { content, roundup, contentCount: content.length, roundupCount: roundup.length, met: content.length >= 2 && roundup.length >= 1, dbOnly: { contentCount: content.length, roundupCount: roundup.length } };
@@ -105,6 +108,11 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     const target = f.target;
     const n = Number(f['slot-number']);
     switch (sub) {
+      case 'reserve-budget': {
+        const attempts = world.attempts.filter((a) => a.target === target && a.lane === 'content' && String(a.topic_key).startsWith('reserve:')
+          && (a.week_start_utc === week || (a.created_at && weekStartUtc(a.created_at) === week)));
+        return { used: attempts.length, categories: [...new Set(attempts.map((a) => a.topic_key).filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length)))].sort() };
+      }
       case 'evidence-list': return [...world.evidence.values()].filter((item) => item.week_start_utc === week && !['closed','empty'].includes(item.state));
       case 'evidence-unresolved': return [...world.evidence.values()].filter((item) => !['closed','empty','retry'].includes(item.state));
       case 'evidence-claim': {
@@ -159,7 +167,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         if (latest?.outcome === 'consumed') throw cliError('cli-state', 1);
         if (prior.some((a) => a.intent_fingerprint === f['intent-fingerprint'])) throw cliError('cli-validation');
         const ordinal = slot.attempt_ordinal + 1;
-        const attempt = { target, week_start_utc: week, lane: f.lane, slot_number: slot.slot_number, ordinal, intent_fingerprint: f['intent-fingerprint'], topic_key: f['topic-key'], idempotency_key: keyFor(target, week, f.lane, slot.slot_number, ordinal), source_pack_digest: f['source-pack-digest'], submission_id: null, outcome: null };
+        const attempt = { target, week_start_utc: week, lane: f.lane, slot_number: slot.slot_number, ordinal, intent_fingerprint: f['intent-fingerprint'], topic_key: f['topic-key'], idempotency_key: keyFor(target, week, f.lane, slot.slot_number, ordinal), source_pack_digest: f['source-pack-digest'], submission_id: null, outcome: null, created_at: world.now.toISOString() };
         world.attempts.push(attempt);
         if (evidence) { evidence.state = 'retry'; evidence.retry_slot = n; evidence.retry_key = attempt.idempotency_key; evidence.retry_digest = attempt.source_pack_digest; }
         slot.attempt_ordinal = ordinal;
@@ -191,7 +199,8 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
           && (attempt.lane === 'roundup'
             // Like cadence.mjs currentLiveSubmission: the OLD week's own slug, current-live.
             ? sub.kind === 'roundup' && sub.slug === cadenceRoundupSlug(attempt.week_start_utc) && world.live.has(sub.id)
-            : count(weekStartUtc(sub.smokedAt)).content.some((item) => item.submissionId === sub.id))))) throw cliError('cli-state', 1);
+            : attempt.slot_number >= 101 && attempt.slot_number <= 107 ? sub.kind === 'blog' && world.live.has(sub.id)
+              : count(weekStartUtc(sub.smokedAt)).content.some((item) => item.submissionId === sub.id))))) throw cliError('cli-state', 1);
         attempt.outcome = outcome;
         slot.state = FAILED.has(outcome) ? 'ready' : outcome;
         return attempt;

@@ -125,11 +125,11 @@ export function verifySourcePack(pack, { businesses, posts = [], services = [], 
   return { ok: errors.length === 0, errors };
 }
 
-export function checkDraftAgainstPack(post, pack, { businesses, posts = [], services = [], topics = [], imagePaths = [], now } = {}) {
+export function checkDraftAgainstPack(post, pack, { businesses, posts = [], services = [], topics = [], imagePaths = [], now, requireRealDate = false } = {}) {
   const errors = [...verifySourcePack(pack, { businesses, posts, services, topics, now }).errors];
   if (!post || typeof post !== 'object') return { ok: false, errors: [...errors, 'missing-draft'] };
   errors.push(...validateRecord('posts', post.slug, post).errors.map((error) => `storage:${error}`));
-  if (now) {
+  if (requireRealDate && now) {
     const day = new Date(now).toISOString().slice(0, 10);
     if (post.publishedAt !== day || post.updatedAt !== day) errors.push('draft-must-use-real-publish-date');
   }

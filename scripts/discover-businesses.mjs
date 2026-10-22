@@ -93,7 +93,10 @@ export const slugify = (s) =>
 
 const inLV = (lat, lng) =>
   lat != null && lng != null && lat >= BOX.latMin && lat <= BOX.latMax && lng >= BOX.lngMin && lng <= BOX.lngMax;
-const lvCore = (b) => classifyAddress(b.address, { trustedToronto: true }).verdict === "core";
+const lvCore = (b) => {
+  const location = classifyAddress(b.address, { trustedToronto: true });
+  return location.verdict === "core" || (location.reason === "address-not-in-reviewed-table" && /\bM6K\b/i.test(b.address));
+};
 const priceRange = (p) => (typeof p === "string" && /^\${1,4}$/.test(p.trim()) ? p.trim() : "");
 
 // Search-query category is recall, not proof of public access. Private team

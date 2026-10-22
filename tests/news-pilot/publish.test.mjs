@@ -408,7 +408,9 @@ test('corroboration rebuilds actual evidence and repeats the unchanged gates', a
         builds++;
         if (builds === 1) return first;
         assert.equal(members.length, 2);
-        const extra = { ...first.sources[0], url: 'https://second.example/park', canonicalUrl: 'https://second.example/park', publisherDomain: 'second.example', extractionSubstantive: extracted, fetchOk: extracted };
+        const extra = { ...first.sources[0], url: 'https://second.example/park', canonicalUrl: 'https://second.example/park', publisherDomain: 'second.example', extractionSubstantive: extracted, fetchOk: extracted,
+          bodyExcerpt: 'Our reporter visited the neighbourhood and spoke to the project manager about the park construction timeline. Neighbours described how they plan to use the paths once the work is complete. The team expects pedestrian access to improve after the new landscaping is finished.',
+          passages: ['Our reporter visited the neighbourhood and spoke to the project manager about the park construction timeline.'] };
         return { ...first, sources: [...first.sources, extra], independentPublisherCount: extracted ? 2 : 1 };
       },
     });

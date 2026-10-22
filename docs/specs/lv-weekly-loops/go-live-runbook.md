@@ -26,7 +26,8 @@ start SEO (#182).
 - Business submission #3: `blocked` after three repairs, score 5.5. A private
   Raptors practice facility was labelled a public gym with invented default
   `$$` pricing; M6K admitted Exhibition grounds as Liberty Village. Discovery
-  now uses the reviewed core-address table, excludes private/team facilities,
+  now accepts reviewed core addresses or an address missing only from that table
+  with an M6K postal code, excludes private/team facilities,
   and leaves unknown prices empty. The gate remains unchanged in strictness.
 - News September 29 and 30: 25 evaluated each, seven reached evidence. Four
   failed extraction (403 responses included); three had only a single
@@ -126,6 +127,8 @@ sudo lv-runner run news --target staging
 sudo lv-runner run weekly-growth-report --target staging
 # Check that slot's JSONL/report before the next command.
 sudo lv-runner run weekly-blog --target staging
+# Check that slot's JSONL before the next command.
+sudo lv-runner run october-blog-backfill --target staging
 ```
 
 For every content submission require its ID, passing real-model gate (score >=8,
@@ -136,6 +139,8 @@ publication. Record that distinction for John rather than weakening the gate.
 Growth requires new `.json`/`.md` artifacts and both source statuses, not a
 submission ID. If weekly blog reports an already-met quota, record the existing
 live IDs and smoke evidence rather than inventing a new post.
+Backfill requires one real-date post under its historical slot, passing gate and
+smoke on the staging alias; it must not count toward the live weekly-blog quota.
 
 **Stop before production** on a failed gate, missing smoke, incorrect target/SHA,
 unexplained no-change, unusable report or any uncertain result. Restore the hold
@@ -148,7 +153,7 @@ evidence; VM staging acceptance happens only in this protected window.
 
 ## Stage 3 — start production timers and the optional backfill
 
-Only after all five Stage 2 outcomes are checked and John accepts any explicitly
+Only after all six Stage 2 outcomes are checked and John accepts any explicitly
 recorded publication-proof limitation, proceed under his production activation
 go. Start the five already-enabled non-SEO timers:
 
@@ -182,13 +187,17 @@ historical label's ISO week, and passes through the same trusted pack, submit,
 gate, deploy and smoke. Labels are the requested **Oct 1, 5, 8, 12, 15, 19, 22**;
 they are identifiers, not a derivation of the 2026 Wed/Sun calendar. At most one
 post per UTC date; retries preserve their original open submission/key. Each
-invocation has a bounded generation budget, and later distinct grounded topics
-remain eligible after earlier rejections. Posts use the
+invocation has a bounded generation budget. The ledger persists the three normal
+attempts per slot, two reserves per week, and used reserve categories across daily
+runs. Reserves also spend the real attempt week's allowance across historical
+labels. Exhaustion fails visibly and needs operator review; a new day cannot reset
+the cap. Posts use the
 actual date they are generated/published, never the historical label. A late
-smoke closes as `late-smoked` and never repairs an ended week's missed-cadence
-count. A lack of grounded inventory or a rejected draft fails visibly and retries
-on a later day; it cannot force seven junk posts through. Current-week quota can
-also count a current-live backfill post by its real smoke date.
+smoke closes as `late-smoked`; the current-live post counts only toward its own
+historical attempt week. It cannot satisfy the live weekly-blog quota or suppress
+that week's missed-cadence alert. Existing missed-alert records remain historical
+evidence. A lack of grounded inventory or a rejected draft fails visibly; retries
+on a later day preserve the same caps and original open key.
 
 For an immediate first attempt, **only with an explicit production-run go**:
 

@@ -53,7 +53,7 @@ test('pending backfill resumes the same submission; hold cannot advance the queu
   assert.equal(world.generated.length, 1);
 });
 
-test('later-day grounded inventory can recover a backfill label after three normal rejections', (t) => {
+test('later-day grounded inventory cannot reset an exhausted backfill slot cap', (t) => {
   const categories = ['coffee-shops', 'gyms', 'dentists', 'florists'];
   const businesses = categories.flatMap((category) => [1, 2].map((n) => ({
     slug: `${category}-${n}`, name: `${category} ${n}`, category,
@@ -69,11 +69,10 @@ test('later-day grounded inventory can recover a backfill label after three norm
   const oldKeys = world.attempts.map((a) => a.idempotency_key);
   world.now = new Date('2026-10-24T15:37:00Z');
   world.queue.push(entries[3]);
-  assert.equal(backfill(world).reason, 'october-backfill-published');
-  assert.equal(world.attempts.length, 4);
+  assert.throws(() => backfill(world), /backfill publication incomplete/);
+  assert.equal(world.attempts.length, 3);
   assert.deepEqual(world.attempts.slice(0, 3).map((a) => a.idempotency_key), oldKeys);
   assert.ok(world.attempts.every((a) => a.slot_number === 101));
-  assert.equal(world.attempts[3].outcome, 'late-smoked');
 });
 
 test('CLI validation and gate rejection retain a bounded redacted explanation; news logs only counts', () => {

@@ -263,11 +263,11 @@ export async function recordAttemptOutcome(db, { idempotencyKey, token, outcome,
       if (!submission?.smoke_passed_at) throw new StateError('submission not smoked');
       const actualWeek = weekStartUtc(submission.smoke_passed_at);
       if (actualWeek <= ref.weekStart) throw new StateError('smoke not late');
-      if (ref.lane === 'roundup') {
-        // The old week's own slug must be current-live; countCurrentWeek never
-        // counts an old-week roundup slug in a later week, so it cannot prove this.
+      if (ref.lane === 'roundup' || (ref.lane === 'content' && ref.slotNumber >= 101 && ref.slotNumber <= 107)) {
+        // Roundup and backfill do not count in the actual smoke week, so prove
+        // their own current-live revision directly instead of using that count.
         const live = await currentLiveSubmission(db, { target: ref.target, submissionId: attempt.submission_id, observe });
-        if (submission.kind !== 'roundup' || !live.live || live.slug !== roundupSlug(ref.weekStart)) throw new StateError('late submission is not current-live');
+        if (!live.live || (ref.lane === 'roundup' ? submission.kind !== 'roundup' || live.slug !== roundupSlug(ref.weekStart) : submission.kind !== 'blog')) throw new StateError('late submission is not current-live');
       } else {
         const counted = await countCurrentWeek(db, { target: ref.target, weekStart: actualWeek, observe });
         if (!counted.content.some((item) => item.submissionId === number(attempt.submission_id))) throw new StateError('late submission is not current-live');
@@ -294,6 +294,20 @@ export async function consumedFingerprints(db, { target }) {
   return (await db.query(`select distinct intent_fingerprint from content.cadence_attempts
     where target=$1 and lane='content' and (outcome is null or outcome in ('published','smoked','consumed','late-smoked'))
     order by intent_fingerprint`, [target])).rows.map((r) => r.intent_fingerprint);
+}
+
+// Reserve attempts spend the cap even after rejection. Attribute them to both
+// their ledger week and their real creation week so historical backfill cannot
+// repeatedly reset the live week's shared reserve allowance.
+export async function reserveBudget(db, { target, weekStart }) {
+  checkTarget(db, target);
+  if (weekStartUtc(weekStart) !== weekStart) throw new ValidationError('invalid week start');
+  const attempts = (await db.query(`select topic_key from content.cadence_attempts
+    where target=$1 and lane='content' and topic_key like 'reserve:%'
+      and (week_start_utc=$2::date or ((created_at at time zone 'UTC') >= $2::timestamp
+        and (created_at at time zone 'UTC') < $2::timestamp + interval '7 days'))`, [target, weekStart])).rows;
+  return { used: attempts.length, categories: [...new Set(attempts.map((a) => a.topic_key)
+    .filter((key) => key.startsWith('reserve:dir:')).map((key) => key.slice('reserve:dir:'.length)))].sort() };
 }
 
 // Open (unsettled) attempts of one lane, oldest first. The blog lane and the
@@ -340,8 +354,12 @@ export async function countCurrentWeek(db, { target, weekStart, observe }) {
     join content.entries e on e.dataset=i.dataset and e.key=i.key and e.live_rev=i.published_rev
     join content.revisions r on r.dataset=i.dataset and r.key=i.key and r.rev=i.published_rev
     join lateral (select g.* from content.gate_rounds g where g.submission_id=s.id order by g.round desc limit 1) g on true
-    where s.target=$1 and (s.smoke_passed_at at time zone 'UTC') >= $2::timestamp
-      and (s.smoke_passed_at at time zone 'UTC') < $2::timestamp + interval '7 days'
+    left join content.cadence_attempts backfill on backfill.submission_id=s.id and backfill.target=s.target
+      and backfill.lane='content' and backfill.slot_number between 101 and 107
+    where s.target=$1 and ((backfill.submission_id is not null and backfill.week_start_utc=$2::date)
+      or (backfill.submission_id is null and (s.smoke_passed_at at time zone 'UTC') >= $2::timestamp
+        and (s.smoke_passed_at at time zone 'UTC') < $2::timestamp + interval '7 days'))
+      and s.smoke_passed_at is not null
       and s.state='published' and i.smoke='passed' and i.dataset='posts' and i.op='insert'
       and i.published_rev is not null and g.passed=true and g.overall>=8 and g.blocking_count=0
       and ((s.kind='blog' and r.payload->>'category' is distinct from 'news')

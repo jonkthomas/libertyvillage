@@ -147,7 +147,7 @@ test('storage-invalid or backdated drafts fail before the content submit handoff
   const unsupported = { ...draft(root), relatedBusinesses: ['local-public-eatery'] };
   assert.ok(checkDraftAgainstPack(unsupported, pack, inputs).errors.includes('storage:unknown field: relatedBusinesses'));
   const backdated = { ...draft(root), publishedAt: '2026-09-01' };
-  assert.ok(checkDraftAgainstPack(backdated, pack, inputs).errors.includes('draft-must-use-real-publish-date'));
+  assert.ok(checkDraftAgainstPack(backdated, pack, { ...inputs, requireRealDate: true }).errors.includes('draft-must-use-real-publish-date'));
 });
 
 test('imaginary directory and blog links are refused', (t) => {

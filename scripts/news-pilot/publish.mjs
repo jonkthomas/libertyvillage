@@ -64,6 +64,8 @@ import {
   countAutoPublishesOnRunDate,
 } from './publish-gate.mjs';
 
+import { isAggregatorUrl } from './independent-reporting.mjs';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -80,7 +82,7 @@ export async function findCorroboratingMembers(candidate, { budget, env = proces
     const a = Date.parse(candidate.publishedAt ?? '');
     const b = Date.parse(member.publishedAt ?? '');
     // Unknown dates cannot establish that a similar headline is the same event.
-    return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 7 * 86400000
+    return !isAggregatorUrl(member.canonicalUrl || member.url) && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 7 * 86400000
       && sameStory(candidate, member, { titleThreshold: 0.55 }).match;
   }).slice(0, 3);
 }

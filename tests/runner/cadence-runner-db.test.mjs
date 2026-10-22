@@ -323,6 +323,8 @@ test('E2E October backfill: real CLI publishes and smokes one current-dated post
   const state = ctx.cliJson(['show', '--submission', String(result.id), '--target', 'test']);
   assert.equal(state.submission.state, 'published');
   assert.ok(state.submission.smoke_passed_at);
+  assert.equal(ctx.cliJson(['cadence', 'count', '--target', 'test', '--week-start', weekStartUtc(new Date())]).contentCount, 0, 'backfill cannot satisfy the live weekly goal');
+  assert.equal(ctx.cliJson(['cadence', 'count', '--target', 'test', '--week-start', weekStartUtc(attempt.week_start_utc)]).contentCount, 1, 'backfill counts only for its historical ledger week');
   const payload = (await ctx.db.query("select r.payload from content.entries e join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev where e.dataset='posts' and e.key=$1", [ctx.generated.length ? 'liberty-village-brunch-spots-notes' : 'missing'])).rows[0].payload;
   assert.equal(payload.publishedAt, new Date().toISOString().slice(0, 10));
   assert.equal(runOctoberBackfill({ target: 'test', slot: 'local-october-restart', deps: ctx.deps }).reason, 'october-backfill-wait');
