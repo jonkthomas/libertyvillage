@@ -363,7 +363,12 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
     const last = rounds.at(-1);
     return {
       submissionId: id, state: submission.state, decision: submission.decision,
-      overall: last?.overall == null ? null : Number(last.overall), repairs: submission.repairs, ...extra,
+      overall: last?.overall == null ? null : Number(last.overall), repairs: submission.repairs,
+      message: [
+        ...(Array.isArray(last?.lint?.errors) ? last.lint.errors : []),
+        ...(Array.isArray(last?.verdict?.findings) ? last.verdict.findings.filter((finding) => BLOCKING_SEVERITIES.includes(finding.severity)).map((finding) => finding.note) : []),
+      ].filter((value) => typeof value === 'string').slice(0, 5).join('; ').slice(0, 2048) || submission.decision,
+      ...extra,
     };
   };
 

@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { HUMAN_RISK_FLAGS } from './draft-gate.mjs';
+import { independentReporting } from './independent-reporting.mjs';
 import {
   createLocalImageExists,
   isPlausibleLocalImagePath,
@@ -114,15 +115,7 @@ export function evaluateSourceQuality(evidencePack, config = AUTO_PUBLISH_CONFIG
   }
 
   const tiers = substantive.map((s) => String(s.sourceTier || 'lead').toLowerCase());
-  const hasStrong = tiers.some((t) => config.strongSourceTiers.includes(t));
-
-  const publisherDomains = new Set(
-    substantive.map((s) => s.publisherDomain || s.publisher).filter(Boolean),
-  );
-  const publisherCount =
-    Number(pack.independentPublisherCount) > 0
-      ? Number(pack.independentPublisherCount)
-      : publisherDomains.size;
+  const { publisherCount, hasStrong } = independentReporting(sources, { primaryTiers: config.strongSourceTiers });
 
   if (hasStrong) {
     return {

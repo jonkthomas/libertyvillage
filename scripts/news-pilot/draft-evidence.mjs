@@ -17,6 +17,7 @@ import {
 } from './normalize.mjs';
 import { detectRiskFlags } from './score.mjs';
 import { isUnusableUrl } from './url-guard.mjs';
+import { independentReporting, reportingOrigin } from './independent-reporting.mjs';
 
 export { isUnusableUrl } from './url-guard.mjs';
 
@@ -300,6 +301,7 @@ export function buildSourceEvidence(member, fetchResult, config = EVIDENCE_CONFI
   const html = fetchResult.rawText || '';
   const mainHtml = extractMainHtml(html);
   const text = stripHtml(mainHtml);
+  Object.assign(base, reportingOrigin(html, url, text));
   const metaDate = extractMetaPublishDate(html);
   if (metaDate) base.publishDate = metaDate;
   const pub = extractMetaPublisher(html, url);
@@ -423,9 +425,7 @@ export async function buildEvidencePack({
   // Corroboration counts ONLY publishers that yielded substantive extracted evidence.
   // Failed fetches / empty extractions must not inflate independentPublisherCount
   // and defeat the single_lead_consequential gate.
-  const substantivePublisherCount = new Set(
-    substantiveSources.map((s) => s.publisherDomain).filter(Boolean),
-  ).size;
+  const substantivePublisherCount = independentReporting(sources).publisherCount;
 
   // Flatten claim→passage index for the generator (still evidence-only).
   const claimSupport = [];
