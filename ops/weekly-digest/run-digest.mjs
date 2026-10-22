@@ -17,6 +17,7 @@ import {
   trailingWindow, gscWeeks, parseRuns, postedFromSitemap, buildModel, slackMessage,
 } from './lib/digest.mjs';
 import { renderHtml } from './lib/render.mjs';
+import { agentInput } from './lib/agent-input.mjs';
 import {
   fetchVmLogs, fetchVmQueue, fetchSitemap, fetchTitles, fetchGsc, gscDelta, vmExec, VM_HOST,
 } from './lib/fetchers.mjs';
@@ -164,7 +165,9 @@ async function main() {
   let pushOk = true;
   if (!flag('--no-push')) {
     try {
-      const b64 = Buffer.from(json, 'utf8').toString('base64');
+      // Only the allowlisted public-safe projection crosses into the model's
+      // filesystem. Keep the full analytics/diagnostics on the private Mac.
+      const b64 = Buffer.from(JSON.stringify(agentInput(model)), 'utf8').toString('base64');
       await vmExec(`
 set -e
 if id lv-digest >/dev/null 2>&1; then
