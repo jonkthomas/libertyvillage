@@ -22,10 +22,12 @@ import {
 } from './lib/fetchers.mjs';
 
 const HOME = os.homedir();
+const INSTALL_DIR = path.join(HOME, '.local', 'share', 'lv-weekly-digest');
 const DEFAULT_OUT = path.join(HOME, '.pi', 'agent', 'spec-decks', 'lv-digest');
 const DEFAULT_BASE = 'https://ofia.tail97aece.ts.net/decks/lv-digest';
 const HERMES = path.join(HOME, '.local', 'bin', 'hermes');
 const VAULT = path.join(HOME, 'Desktop', 'important-coding-projects', 'claude-config', 'secrets', 'pi-tool-vault.env');
+const LOCAL_ENV = path.join(INSTALL_DIR, 'digest.env');
 const SLACK_TARGET = 'slack:C0B6HEAHZT4';
 const VM_JSON_DIR = '/var/lib/lv-digest';
 
@@ -38,15 +40,23 @@ const opt = (name, dflt) => {
 const dryRun = flag('--dry-run');
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
-// The launchd environment has no shell profile: pull missing creds from the
-// pi tool vault (values only ever land in process.env, never in output).
-function loadVault() {
-  try {
-    for (const line of fs.readFileSync(VAULT, 'utf8').split('\n')) {
-      const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+// The launchd environment has no shell profile — and ~/Desktop is TCC-blocked
+// for launchd — so keys come from a local 0600 env file first (synced from the
+// vault by install-mac.sh), then the vault itself when readable (interactive
+// runs). Values only ever land in process.env, never in output.
+function loadVault(notes) {
+  const sources = [LOCAL_ENV, VAULT];
+  for (const src of sources) {
+    try {
+      for (const line of fs.readFileSync(src, 'utf8').split('\n')) {
+        const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+        if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+      }
+    } catch (e) {
+      if (src === LOCAL_ENV) notes.push(`local env file missing or unreadable (${e.code ?? e.message}); run install-mac.sh`);
+      else notes.push(`vault unreadable from this context (${e.code ?? e.message}); expected under launchd unless ${LOCAL_ENV} exists`);
     }
-  } catch { /* vault optional when env already carries the keys */ }
+  }
 }
 
 function digestId(now) {
@@ -68,11 +78,11 @@ function renderIndex(existing) {
 }
 
 async function main() {
-  loadVault();
+  const notes = [];
+  loadVault(notes);
   const now = new Date(opt('--date', new Date().toISOString()));
   const outDir = opt('--out-dir', DEFAULT_OUT);
   const baseUrl = (opt('--base-url', DEFAULT_BASE)).replace(/\/$/, '');
-  const notes = [];
 
   const window = trailingWindow(now);
   const weeks = gscWeeks(now);
@@ -158,9 +168,7 @@ async function main() {
       await vmExec(`
 set -e
 if id lv-digest >/dev/null 2>&1; then
-  printf '%s' '${b64}' | base64 -d | sudo tee /tmp/lv-digest-incoming.json >/dev/null
-  sudo install -m 0644 -o lv-digest -g lv-digest /tmp/lv-digest-incoming.json ${VM_JSON_DIR}/lv-digest-latest.json
-  sudo rm -f /tmp/lv-digest-incoming.json
+  printf '%s' '${b64}' | base64 -d | sudo install -m 0644 -o lv-digest -g lv-digest /dev/stdin ${VM_JSON_DIR}/lv-digest-latest.json
 else
   echo 'lv-digest user missing (VM agent not installed)'
   exit 1

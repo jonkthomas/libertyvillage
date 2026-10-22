@@ -122,7 +122,7 @@ export async function fetchTitles(urls) {
 
 // ── GSC ──────────────────────────────────────────────────────────────────────
 // Order: treg (TREG_TOKEN, free catalog tool) -> VM read-only searchanalytics
-// query as root using the runner env's GOOGLE_APPLICATION_CREDENTIALS. The VM
+// query as root using the runner env's GOOGLE_SERVICE_ACCOUNT_JSON. The VM
 // path never prints or moves the credential; it prints aggregates only.
 
 function gscTotalsFromTreg(rows) {

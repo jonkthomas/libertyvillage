@@ -43,10 +43,11 @@ Your job: turn this week's failures and anomalies into (a) GitHub issues and (b)
 
 STRICT AUTHORITY RULES — violating any of these is a critical failure:
 - NEVER merge, close, deploy, push to protected branches (main/staging), or re-run any content loop.
-- NEVER touch lv-runner systemd units, /etc/lv-runner.hold, /etc/lv-runner*.env, production data or production databases.
+- NEVER touch lv-runner systemd units, the hold file, the root-only runner env files, production data or production databases.
 - NEVER write to production Neon or Vercel. This VM has NO production credentials for you — keep it that way.
 - ONLY: file NEW issues (label: ${LABEL}) and open DRAFT PRs (base: staging, draft: true) on ${REPO}.
 - Hard caps per run: at most ${MAX_ISSUES} issues and ${MAX_PRS} PRs. Quality over quantity; fewer is fine.
+- The repository is PUBLIC: issue and PR bodies may quote ONLY from failures[] and runs[] (job, target, slot, times, reasons). NEVER paste GSC queries/pages, fetch notes, Slack identifiers or credential names into anything public.
 - Dedupe: issues already open with label ${LABEL} are listed below — do NOT refile them; at most add a brief comment with new evidence if your finding materially extends one.
 
 WORKFLOW:
@@ -56,7 +57,7 @@ WORKFLOW:
 4. ONLY for P0/P1 findings whose fix is small and clear: clone ${REPO_URL} shallow into ${HOME_DIR}/repo (public, no token needed to clone), create branch digest/<yyyy-mm-dd>-<slug>, write the minimal fix, commit, push (credential helper is configured), and open a DRAFT PR (base staging). Keep diffs minimal. Run any cheap repo checks you can (read package.json scripts) but do NOT run next build or dev servers.
 5. P2 findings: mention them inside a single P2 round-up issue (or an existing one) — never open a PR for P2.
 
-${dryRun ? `DRY-RUN MODE (no GitHub token / --dry-run): DO NOT call any GitHub API, do NOT push, do NOT create issues/PRs. Instead print, for each planned action: ACTION: issue|pr | P-rating | title | body summary | evidence. End with a one-line summary count.` : `REAL MODE: use ${GH_BIN} (GH_TOKEN env is set) for issues/comments/PRs, and git with the configured credential helper for pushes. Print the URL of everything you created.`}
+${dryRun ? `DRY-RUN MODE (no GitHub token / --dry-run): DO NOT call any GitHub API, do NOT push, do NOT create issues/PRs. Instead print, for each planned action: ACTION: issue|pr | P-rating | title | body summary | evidence. End with a one-line summary count.` : `REAL MODE: use ${GH_BIN} (GH_TOKEN env is set; git credential helper is configured via gh) for issues/comments/PRs and for branch pushes. Print the URL of everything you created. AFTER creating PRs, verify each with: ${GH_BIN} pr view <number> -R ${REPO} --json isDraft,number and report isDraft for each — a non-draft PR is a critical failure; fix it with ${GH_BIN} pr ready --undo <number>.`}
 
 ALREADY-OPEN ${LABEL} ISSUES (do not refile):
 ${openIssues.length ? openIssues.map((i) => `- #${i.number} ${i.title}`).join('\n') : '- none'}
@@ -77,7 +78,15 @@ try {
 }
 const week = digest?.window?.to?.slice(0, 10) ?? 'unknown';
 
-// Dedupe list (real mode only; dry-run makes no GitHub calls).
+// Freshness guard: a stale digest (Mac job missed its Monday) is a no-op, not
+// a re-run of last week's findings.
+const generatedAt = Date.parse(digest?.generatedAt ?? '');
+if (Number.isFinite(generatedAt) && Date.now() - generatedAt > 36 * 3600_000) {
+  log(`digest is stale (generated ${digest.generatedAt}) — skipping run`);
+  process.exit(0);
+}
+
+// Dedupe list + git credential helper (real mode only; dry-run makes no GitHub calls).
 let openIssues = [];
 if (!dryRun) {
   const r = spawnSync(GH_BIN, ['issue', 'list', '-R', REPO, '--label', LABEL, '--state', 'open',
@@ -87,6 +96,9 @@ if (!dryRun) {
   } else {
     log(`warning: could not list open issues (${r.stderr?.slice(0, 120)}); proceeding without dedupe list`);
   }
+  // One-time (idempotent) git credential wiring so `git push` works with GH_TOKEN.
+  const g = spawnSync(GH_BIN, ['auth', 'setup-git'], { encoding: 'utf8', timeout: 60_000 });
+  if (g.status !== 0) log(`warning: gh auth setup-git failed (${g.stderr?.slice(0, 120)}); PR pushes may fail`);
 }
 
 const promptText = prompt(digest, openIssues);

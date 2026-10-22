@@ -33,8 +33,8 @@ test('parseRun tolerates malformed lines and missing fields', () => {
   assert.equal(run.outcome, 'failure');
   assert.equal(run.error, 'cli-validation exit 2');
   assert.equal(run.detail, 'cli: validate');
-  assert.equal(run.sha, 'f0b8cd57');
   assert.equal(run.badLines, 1); // the "not json at all" line is skipped, counted
+  assert.equal(run.sha, 'f0b8cd57');
   assert.ok(run.events >= 5);
 });
 
@@ -43,6 +43,17 @@ test('success with reason and noChanges is parsed, not a failure', () => {
     read('news-production-20261021T1217-scheduled.jsonl'));
   assert.equal(run.outcome, 'success');
   assert.equal(run.reason, 'no items passed the evidence bar');
+});
+
+test('sticky outcomes: hold-then-success stays held; failure beats later success', () => {
+  const held = parseRun('weekly-roundup-production-20261023T1000-scheduled.jsonl',
+    read('weekly-roundup-production-20261023T1000-scheduled.jsonl'));
+  assert.equal(held.outcome, 'held'); // the runner emits hold-alerted BEFORE success
+  const failThenOk = parseRun('x.jsonl',
+    '{"at":"2026-10-21T01:00:00Z","event":"start","job":"news","target":"production"}\n' +
+    '{"at":"2026-10-21T01:05:00Z","event":"failure","error":"gate exit 2"}\n' +
+    '{"at":"2026-10-21T01:06:00Z","event":"success","result":{"id":"n1"}}\n');
+  assert.equal(failThenOk.outcome, 'failure');
 });
 
 test('alert-failed marks a run failed with its error', () => {
@@ -65,20 +76,32 @@ test('parseRuns keeps only in-window runs and sorts by start time', () => {
   assert.ok(jobs.includes('topic-discovery'));
 });
 
-test('failures MUST surface: failureRows lists every failed run with a reason', () => {
+test('failures MUST surface: failureRows lists every failed run + stale incompletes', () => {
   const runs = parseRuns(fixtureFiles(), FROM, TO);
-  const failures = failureRows(runs);
-  assert.equal(failures.length, 2, `expected 2 failures, got ${failures.length}`);
+  const failures = failureRows(runs, TO);
+  assert.equal(failures.length, 3, `expected 3 failures (2 failures + 1 stale incomplete), got ${failures.length}`);
   const reasons = failures.map((f) => f.reason).sort();
-  assert.deepEqual(reasons, ['cli-validation exit 2', 'slack webhook 503']);
+  assert.deepEqual(reasons, [
+    'cli-validation exit 2',
+    'no terminal event (killed/timeout/reboot?)',
+    'slack webhook 503',
+  ]);
+});
+
+test('a recent incomplete run is not a failure yet', () => {
+  const runs = [parseRun('news.jsonl',
+    '{"at":"2026-10-26T20:00:00Z","event":"start","job":"news","target":"production"}')];
+  assert.deepEqual(failureRows(runs, '2026-10-26T22:00:00.000Z'), []); // started 2h ago
 });
 
 test('summarizeRuns counts outcomes per job', () => {
   const runs = parseRuns(fixtureFiles(), FROM, TO);
   const { summary, byJob } = summarizeRuns(runs);
-  assert.equal(summary.total, 3);
+  assert.equal(summary.total, 5);
   assert.equal(summary.success, 1);
   assert.equal(summary.failure, 2);
+  assert.equal(summary.held, 1);
+  assert.equal(summary.incomplete, 1);
   const blog = byJob.find((j) => j.job === 'weekly-blog');
   assert.equal(blog.failure, 1);
 });
@@ -117,6 +140,10 @@ test('renderHtml keeps failures and posted pages visible on the page', () => {
   // A regression that hides failures or posted pages must fail these asserts.
   assert.ok(html.includes('cli-validation exit 2'), 'failure reason missing from HTML');
   assert.ok(html.includes('slack webhook 503'), 'alert-failed reason missing from HTML');
+  // The Failures table itself must carry them (not just the runs table Note column).
+  const failuresSection = html.split('<h2>Failures')[1]?.split('<h2>')[0] ?? '';
+  assert.ok(failuresSection.includes('cli-validation exit 2'), 'Failures table empty or missing reason');
+  assert.ok(failuresSection.includes('slack webhook 503'), 'Failures table missing alert-failed row');
   assert.ok(html.includes('Parking in Liberty Village'), 'posted title missing from HTML');
   assert.ok(html.includes('blog/parking-guide'), 'posted link missing from HTML');
   assert.ok(html.includes('loops HELD'), 'held state missing from HTML');

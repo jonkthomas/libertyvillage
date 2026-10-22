@@ -18,8 +18,17 @@ if ! id "$USER_NAME" >/dev/null 2>&1; then
 fi
 
 # 2. pi config: reuse the VM's existing pi install + exe-dev provider config.
-if [ ! -d "$HOME_DIR/.pi" ]; then
-  cp -r /home/exedev/.pi "$HOME_DIR/.pi"
+# Copy ONLY the agent state (auth/model selection/extensions) — never session
+# history — and refresh it on every install so rotated auth propagates.
+for f in auth.json models-store.json settings.json AGENTS.md; do
+  [ -f "/home/exedev/.pi/$f" ] && install -m 0644 -o "$USER_NAME" -g "$USER_NAME" "/home/exedev/.pi/$f" "$HOME_DIR/.pi/$f" || true
+done
+if [ -d /home/exedev/.pi/agent ]; then
+  mkdir -p "$HOME_DIR/.pi/agent"
+  for f in auth.json models-store.json settings.json; do
+    [ -f "/home/exedev/.pi/agent/$f" ] && install -m 0644 -o "$USER_NAME" -g "$USER_NAME" "/home/exedev/.pi/agent/$f" "$HOME_DIR/.pi/agent/$f" || true
+  done
+  [ -d /home/exedev/.pi/agent/extensions ] && cp -r /home/exedev/.pi/agent/extensions "$HOME_DIR/.pi/agent/" || true
 fi
 mkdir -p "$HOME_DIR/agent-logs" "$HOME_DIR/.config/gh" "$HOME_DIR/repo"
 chown -R "$USER_NAME:$USER_NAME" "$HOME_DIR"
@@ -27,10 +36,8 @@ chmod 700 "$HOME_DIR"
 
 # 3. pi runtime: /usr/local/bin/pi symlinks into exedev's 0700 home. Install a
 # root-owned copy the lv-digest user can execute, plus the theme assets pi
-# resolves beside its binary (self-contained otherwise).
-if [ ! -x /usr/local/libexec/lv-digest-pi ]; then
-  install -m 0755 /home/exedev/.local/bin/pi /usr/local/libexec/lv-digest-pi
-fi
+# resolves beside its binary (refreshed every install so upgrades propagate).
+install -m 0755 /home/exedev/.local/bin/pi /usr/local/libexec/lv-digest-pi
 install -d -m 0755 /usr/local/libexec/theme
 install -m 0644 /home/exedev/.local/pi/theme/dark.json /home/exedev/.local/pi/theme/light.json /usr/local/libexec/theme/
 
@@ -45,12 +52,16 @@ systemctl daemon-reload
 systemctl enable --now lv-digest-agent.timer
 
 # 6. Verify isolation: the agent user must NOT read runner secrets.
-if sudo -u "$USER_NAME" test -r /etc/lv-runner.env 2>/dev/null; then
-  echo "FATAL: $USER_NAME can read /etc/lv-runner.env" >&2
-  exit 1
-fi
-echo "isolation OK: $USER_NAME cannot read /etc/lv-runner*.env"
+for envf in /etc/lv-runner.env /etc/lv-runner-staging.env /etc/lv-runner-production.env; do
+  if sudo -u "$USER_NAME" test -r "$envf" 2>/dev/null; then
+    echo "FATAL: $USER_NAME can read $envf" >&2
+    exit 1
+  fi
+done
+echo "isolation OK: $USER_NAME cannot read the root-only runner env files"
 systemctl list-timers lv-digest-agent.timer --no-pager | head -3
 echo "installed. Dry-run: sudo -u $USER_NAME node $AGENT_DIR/agent.mjs --dry-run"
-echo "Real runs need /etc/lv-digest-agent.env with GH_TOKEN (repo-scoped fine-grained token):"
-echo "  install -m 0600 -o root -g root /dev/null /etc/lv-digest-agent.env  # then edit: GH_TOKEN=github_pat_..."
+echo "Real runs need /etc/lv-digest-agent.env with GH_TOKEN (repo-scoped fine-grained"
+echo "token on jonkthomas/libertyvillage: Contents Read+Write, Issues Read+Write, Pull"
+echo "requests Read+Write — nothing else):"
+echo "  printf 'GH_TOKEN=github_pat_...' | sudo tee /etc/lv-digest-agent.env >/dev/null && sudo chmod 600 /etc/lv-digest-agent.env"

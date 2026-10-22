@@ -1,0 +1,2 @@
+{"at":"2026-10-21T03:00:00.000Z","event":"start","job":"news","target":"production","slot":"20261021T0300-scheduled"}
+{"at":"2026-10-21T03:00:12.480Z","event":"code-pinned","sha":"deadbeef11ab40ee034bf517f2f720261d1edbf2d","ref":"staging"}

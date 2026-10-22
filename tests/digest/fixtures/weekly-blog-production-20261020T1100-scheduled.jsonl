@@ -3,4 +3,4 @@
 {"at":"2026-10-20T11:00:19.203Z","event":"cadence-schema-ready"}
 {"at":"2026-10-20T11:21:44.001Z","event":"generator-output-discarded","reason":"strict bar refused every item"}
 not json at all
-{"at":"2026-10-20T11:22:01.871Z","event":"failure","error":"cli-validation exit 2","cliFailure":{"action":"validate","exit":2},"cliValidation":"gate rejected: missing evidence for address claim"}
+{"at":"2026-10-20T11:22:01.871Z","event":"failure","error":"cli-validation exit 2","action":"validate","exit":2,"cliValidation":"gate rejected: missing evidence for address claim"}

@@ -22,6 +22,9 @@ UMask=0077
 PrivateTmp=yes
 NoNewPrivileges=yes
 ProtectSystem=strict
+# Defense in depth on top of file perms: the agent must never see runner
+# secrets, the runner checkout, or its runtime state.
+InaccessiblePaths=/etc/lv-runner.env /etc/lv-runner-staging.env /etc/lv-runner-production.env /etc/lv-runner.hold /srv/lv-runner /run/lv-runner /var/log/lv-runner /var/log/lv-generator
 ReadWritePaths=/var/lib/lv-digest
 ProtectHome=yes
 RestrictSUIDSGID=yes

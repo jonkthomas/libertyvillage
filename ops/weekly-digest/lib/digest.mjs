@@ -74,27 +74,34 @@ export function parseRun(fileName, text) {
     } else if (ev.event === 'code-pinned' && typeof ev.sha === 'string') {
       run.sha = ev.sha.slice(0, 8);
     } else if (ev.event === 'success') {
-      run.outcome = 'success';
-      run.endedAt = typeof ev.at === 'string' ? ev.at : run.endedAt;
-      const r = ev.result;
-      if (r && typeof r === 'object') {
-        if (typeof r.reason === 'string') run.reason = r.reason;
-        if (r.noChanges === true && !run.reason) run.reason = 'no changes';
-        if (r.dryRun === true && !run.reason) run.reason = 'dry run';
+      // Sticky outcomes: a failure or hold earlier in the log is the truthful
+      // final state (the runner emits roundup-hold-alerted before success).
+      if (!run.outcome) {
+        run.outcome = 'success';
+        run.endedAt = typeof ev.at === 'string' ? ev.at : run.endedAt;
+        const r = ev.result;
+        if (r && typeof r === 'object') {
+          if (typeof r.reason === 'string') run.reason = r.reason;
+          if (r.noChanges === true && !run.reason) run.reason = 'no changes';
+          if (r.dryRun === true && !run.reason) run.reason = 'dry run';
+        }
       }
     } else if (ev.event === 'failure' || ev.event === 'alert-failed') {
-      // Only the first failure decides the outcome; later lines add detail.
+      // First failure decides; success never overrides it.
       if (run.outcome !== 'failure') {
         run.outcome = 'failure';
         run.endedAt = typeof ev.at === 'string' ? ev.at : run.endedAt;
         run.error = typeof ev.error === 'string' ? ev.error : null;
-        if (ev.cliFailure && typeof ev.cliFailure === 'object') {
-          run.detail = ev.cliFailure.action ? `cli: ${ev.cliFailure.action}` : 'cli failure';
+        // Real runner logs action/exit top-level; older/sibling builds may nest
+        // them in cliFailure. Accept both.
+        if (typeof ev.action === 'string') run.detail = `cli: ${ev.action}`;
+        else if (ev.cliFailure && typeof ev.cliFailure === 'object' && ev.cliFailure.action) {
+          run.detail = `cli: ${ev.cliFailure.action}`;
         }
         // Tolerate sibling-added fields: any other string prop on failure lines.
         if (!run.error) {
           const extra = Object.entries(ev).filter(([k, v]) =>
-            !['at', 'event', 'error', 'cliFailure', 'job', 'target', 'slot', 'submissionId'].includes(k) &&
+            !['at', 'event', 'error', 'cliFailure', 'action', 'exit', 'job', 'target', 'slot', 'submissionId'].includes(k) &&
             (typeof v === 'string' || typeof v === 'number')).map(([, v]) => String(v));
           run.error = extra[0] ?? null;
         }
@@ -145,13 +152,19 @@ export function summarizeRuns(runs) {
   return { summary, byJob: [...byJob.values()] };
 }
 
-/** Failures MUST surface: any failure outcome becomes an entry here. */
-export function failureRows(runs) {
+/** Failures MUST surface: every failed run becomes an entry here. A run that
+ * started long ago with no terminal event (timeout/OOM/reboot kills the
+ * runner before it can log) counts as failed too. */
+export function failureRows(runs, now) {
+  const staleMs = now != null ? Date.parse(now) : Date.now();
   return runs
-    .filter((r) => r.outcome === 'failure')
+    .filter((r) => r.outcome === 'failure' ||
+      (r.outcome === 'incomplete' && r.startedAt && staleMs - Date.parse(r.startedAt) > 4 * 3600_000))
     .map((r) => ({
       job: r.job, target: r.target, slot: r.slot, startedAt: r.startedAt,
-      reason: r.error ?? r.detail ?? r.reason ?? 'unknown',
+      reason: r.outcome === 'incomplete'
+        ? 'no terminal event (killed/timeout/reboot?)'
+        : (r.error ?? r.detail ?? r.reason ?? 'unknown'),
       file: r.file,
     }));
 }
@@ -190,7 +203,7 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     generatedAt,
     window,
     runs: { summary: runsView.summary, byJob: runsView.byJob, list: runs ?? [] },
-    failures: failureRows(runs ?? []),
+    failures: failureRows(runs ?? [], window.to),
     posted: { items: (posted ?? []).map((p) => ({ ...p, title: titles[p.url] ?? null })) },
     queue: queue ?? { held: null, timers: [], note: 'not fetched' },
     gsc: gsc ?? { source: 'unavailable', note: 'not fetched' },
