@@ -890,7 +890,7 @@ function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
       } else normalLeft -= 1;
       run.budget -= 1;
       const result = attemptBlogIntent(run, slotNumber, token, candidate, snapshot);
-      if (result.refusal || result.state !== 'closed') return result;
+      if ((result.refusal && !run.evidencePassUsed) || (!result.refusal && result.state !== 'closed')) return result;
     }
     deps.log('cadence-slot-exhausted', { slot: slotNumber, budget: run.budget, normalLeft: Math.max(0, normalLeft), reserveLeft: run.reserveLeft });
     return { state: 'exhausted' };
@@ -1164,6 +1164,7 @@ export function runOctoberBackfill({ target, slot, request = {}, deps }) {
       consumed, weekFingerprints: new Set(row.call('status').attempts.filter((item) => item.lane === 'content').map((item) => item.intent_fingerprint)),
       budget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - Math.max(historicalReserves.used, actualReserves.used)),
       reserveSourceIds: new Set(), reservedCategories: new Set([...historicalReserves.categories, ...actualReserves.categories]), skipped: new Set(),
+      evidencePassUsed: true, // Backfill has no evidence-retry handler; continue closed refusals.
     };
     deps.log('october-backfill-slot', { label: row.label, week: row.week, slot: row.slotNumber });
     const result = processContentSlot(run, row.slotNumber);
