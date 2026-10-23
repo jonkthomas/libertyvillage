@@ -157,7 +157,7 @@ async function main() {
   if (!flag('--no-slack')) {
     try {
       const msg = slackMessage({ ...model, links: { ...model.links, digestUrl: `${baseUrl}/lv-digest-${id}.html` } });
-      const out = execFileSync(HERMES, ['--profile', SLACK_PROFILE, 'send', '-t', SLACK_TARGET, '--json', '-'], { input: msg, encoding: 'utf8', timeout: 60_000 });
+      const out = execFileSync(HERMES, ['--profile', SLACK_PROFILE, 'send', '-t', SLACK_TARGET, '--json'], { input: msg, encoding: 'utf8', timeout: 60_000 });
       log(`slack: ${out.trim().slice(0, 200)}`);
     } catch (e) { slackOk = false; notes.push(`Slack post failed: ${String(e.message ?? e).slice(0, 200)}`); log(`slack FAILED: ${e.message}`); }
   }
