@@ -331,36 +331,47 @@ export function readScratchHead(scratch) {
 
 function generator(job, slot, topic, dryRun, log, notifications = {}) {
   const scratch = path.join(stateRoot, 'scratch', slot);
-  fs.rmSync(scratch, { recursive: true, force: true });
-  fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
-  copyScratchTree(repo, scratch);
-  const exportedPosts = job === 'weekly-blog' ? readJson(path.join(repo, 'data', 'posts.json')) : null;
-  const requestDir = path.join(stateRoot, 'generator-requests');
-  fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun })}\n`, { mode: 0o600 });
-  // The root-owned helper validates this path, changes ownership, and starts a
-  // transient service as lv-generator with strict filesystem protection.
-  const helper = '/usr/local/libexec/lv-runner-generator';
-  const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' ? [1] : [] });
-  const diagnostic = job === 'weekly-blog' ? readGeneratorRelay(helperResult) : null;
-  const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
-  if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
-  const allPaths = changedPaths(scratch, repo);
-  const paths = generatedPathsForTransfer(allPaths, job);
-  const discarded = allPaths.filter((rel) => !allowedGeneratedPath(rel, job));
-  if (discarded.length) logLine(log, 'generator-output-discarded', { paths: discarded.slice(0, 20).map((rel) => rel.slice(0, 160)), omitted: Math.max(0, discarded.length - 20) });
-  if (job === 'weekly-blog' && !paths.includes('data/posts.json')) throw noPostError(diagnostic);
-  if (job === 'seo-improvements' && discarded.some(seoCodeSuggestionPath)) {
-    notifications.codeSuggestion = true;
-    logLine(log, 'seo-code-suggestion', { paths: discarded.filter(seoCodeSuggestionPath).slice(0, 20).map((rel) => rel.slice(0, 160)) });
+  let failed = false;
+  try {
+    fs.rmSync(scratch, { recursive: true, force: true });
+    fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
+    copyScratchTree(repo, scratch);
+    const exportedPosts = job === 'weekly-blog' ? readJson(path.join(repo, 'data', 'posts.json')) : null;
+    const requestDir = path.join(stateRoot, 'generator-requests');
+    fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun })}\n`, { mode: 0o600 });
+    // The root-owned helper validates this path, changes ownership, and starts a
+    // transient service as lv-generator with strict filesystem protection.
+    const helper = '/usr/local/libexec/lv-runner-generator';
+    const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' ? [1] : [] });
+    const diagnostic = job === 'weekly-blog' ? readGeneratorRelay(helperResult) : null;
+    const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
+    if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
+    const allPaths = changedPaths(scratch, repo);
+    const paths = generatedPathsForTransfer(allPaths, job);
+    const discarded = allPaths.filter((rel) => !allowedGeneratedPath(rel, job));
+    if (discarded.length) logLine(log, 'generator-output-discarded', { paths: discarded.slice(0, 20).map((rel) => rel.slice(0, 160)), omitted: Math.max(0, discarded.length - 20) });
+    if (job === 'weekly-blog' && !paths.includes('data/posts.json')) throw noPostError(diagnostic);
+    if (job === 'seo-improvements' && discarded.some(seoCodeSuggestionPath)) {
+      notifications.codeSuggestion = true;
+      logLine(log, 'seo-code-suggestion', { paths: discarded.filter(seoCodeSuggestionPath).slice(0, 20).map((rel) => rel.slice(0, 160)) });
+    }
+    let changed;
+    try { changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts); }
+    catch (error) { if (job === 'weekly-blog' && error.message === 'blog generated no post') throw noPostError(diagnostic); throw error; }
+    if (job === 'weekly-blog' && diagnostic?.postWritten === false) throw new Error('generator diagnostic contradicted post');
+    logLine(log, 'generator-output-accepted', { paths: changed.length });
+    return changed;
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    try { fs.rmSync(scratch, { recursive: true, force: true }); }
+    catch (error) {
+      // Preserve the generator/copy/validation error if cleanup also fails.
+      if (!failed) throw error;
+    }
   }
-  let changed;
-  try { changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts); }
-  catch (error) { if (job === 'weekly-blog' && error.message === 'blog generated no post') throw noPostError(diagnostic); throw error; }
-  if (job === 'weekly-blog' && diagnostic?.postWritten === false) throw new Error('generator diagnostic contradicted post');
-  logLine(log, 'generator-output-accepted', { paths: changed.length });
-  fs.rmSync(scratch, { recursive: true, force: true });
-  return changed;
 }
 
 const GENERATOR_REASONS = new Set(['post-written','unsupported-grounding','insufficient-sources','sdk-error','generator-error','no-post-unspecified','duplicate','absent']);
