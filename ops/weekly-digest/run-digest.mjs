@@ -30,6 +30,7 @@ const HERMES = path.join(HOME, '.local', 'bin', 'hermes');
 const VAULT = path.join(HOME, 'Desktop', 'important-coding-projects', 'claude-config', 'secrets', 'pi-tool-vault.env');
 const LOCAL_ENV = path.join(INSTALL_DIR, 'digest.env');
 const SLACK_TARGET = 'slack:C0B6HEAHZT4';
+const SLACK_PROFILE = 'ofia';
 const VM_JSON_DIR = '/var/lib/lv-digest';
 
 const args = process.argv.slice(2);
@@ -156,7 +157,7 @@ async function main() {
   if (!flag('--no-slack')) {
     try {
       const msg = slackMessage({ ...model, links: { ...model.links, digestUrl: `${baseUrl}/lv-digest-${id}.html` } });
-      const out = execFileSync(HERMES, ['send', '-t', SLACK_TARGET, '--json', '-'], { input: msg, encoding: 'utf8', timeout: 60_000 });
+      const out = execFileSync(HERMES, ['--profile', SLACK_PROFILE, 'send', '-t', SLACK_TARGET, '--json', '-'], { input: msg, encoding: 'utf8', timeout: 60_000 });
       log(`slack: ${out.trim().slice(0, 200)}`);
     } catch (e) { slackOk = false; notes.push(`Slack post failed: ${String(e.message ?? e).slice(0, 200)}`); log(`slack FAILED: ${e.message}`); }
   }
