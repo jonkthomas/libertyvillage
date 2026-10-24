@@ -112,10 +112,9 @@ test('new agent refusal relays through the old installed helper and new helper k
   const root = tempRoot(t);
   const output = await captureOutcome(() => runPipeline({ query: () => { throw new Error('preflight must not invoke SDK'); }, root, now,
     env: { TOPIC_OVERRIDE: 'Pet-Friendly Restaurants in Liberty Village', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
-  const old = spawnSync('git', ['show', 'b4cd3aea425f0c1149486e79cbc77fac2953185c:ops/exedev-runner/generator_diag.py'], { cwd: repo, encoding: 'utf8' });
-  assert.equal(old.status, 0, old.stderr);
+  const old = fs.readFileSync(path.join(repo, 'tests/fixtures/generator_diag_b4cd3ae.py'), 'utf8');
   const expected = { postWritten: false, stopReason: 'unsupported-grounding' };
-  assert.deepEqual(replayHelper(old.stdout, output.stdout).relay, expected, 'old helper must not return absent');
+  assert.deepEqual(replayHelper(old, output.stdout).relay, expected, 'old helper must not return absent');
   assert.deepEqual(output.outcomes, [expected], 'authoritative outcome stays exactly two keys');
   const current = replayHelper(fs.readFileSync(path.join(repo, 'ops/exedev-runner/generator_diag.py'), 'utf8'), output.stdout);
   assert.deepEqual(current.relay, expected);
