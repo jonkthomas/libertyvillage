@@ -1164,7 +1164,7 @@ export function runOctoberBackfill({ target, slot, request = {}, deps }) {
       consumed, weekFingerprints: new Set(row.call('status').attempts.filter((item) => item.lane === 'content').map((item) => item.intent_fingerprint)),
       budget, reserveLeft: Math.max(0, CADENCE.reservePerWeek - Math.max(historicalReserves.used, actualReserves.used)),
       reserveSourceIds: new Set(), reservedCategories: new Set([...historicalReserves.categories, ...actualReserves.categories]), skipped: new Set(),
-      evidencePassUsed: true, // Backfill has no evidence-retry handler; continue closed refusals.
+      evidencePassUsed: false, // Return grounded refusals; backfill ends the run without evidence discovery.
     };
     deps.log('october-backfill-slot', { label: row.label, week: row.week, slot: row.slotNumber });
     const result = processContentSlot(run, row.slotNumber);
