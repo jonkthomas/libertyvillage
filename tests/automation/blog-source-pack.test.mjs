@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import { buildSourcePack, canonicalJson, checkDraftAgainstPack, verifySourcePack, SOURCE_PACK_SCHEMA } from '../../scripts/automation/blog-source-pack.mjs';
 
 const require = createRequire(import.meta.url);
@@ -73,19 +74,55 @@ function stubWriting(root, address = '') {
 }
 
 async function captureOutcome(run) {
-  const lines = [];
+  const lines = [], details = [], output = [];
   const original = console.log;
   console.log = (...parts) => {
     const line = parts.join(' ');
+    output.push(line);
     if (line.startsWith('[outcome] ')) lines.push(JSON.parse(line.slice('[outcome] '.length)));
+    if (line.startsWith('[outcome-detail] ')) details.push(JSON.parse(line.slice('[outcome-detail] '.length)));
     original(...parts);
   };
   try {
-    return { result: await run(), outcomes: lines };
+    return { result: await run(), outcomes: lines, details, stdout: output.join('\n') + '\n' };
   } finally {
     console.log = original;
   }
 }
+
+function replayHelper(source, stdout) {
+  const result = spawnSync('python3', ['-B', '-c', `
+import json, pathlib, sys, tempfile
+payload = json.load(sys.stdin)
+module = {'__name__': 'compat_helper'}
+exec(payload['source'], module)
+module['os'].geteuid = lambda: 0
+with tempfile.TemporaryDirectory() as directory:
+    path = pathlib.Path(directory) / 'slot.jsonl'
+    log = module['GeneratorDiagnostic'](str(path))
+    log.feed_lines(payload['stdout'].encode())
+    log.close()
+    print(json.dumps({'relay': json.loads(log.relay(1)), 'events': [json.loads(line) for line in path.read_text().splitlines()]}))
+`], { input: JSON.stringify({ source, stdout }), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('new agent refusal relays through the old installed helper and new helper keeps detail', async (t) => {
+  const root = tempRoot(t);
+  const output = await captureOutcome(() => runPipeline({ query: () => { throw new Error('preflight must not invoke SDK'); }, root, now,
+    env: { TOPIC_OVERRIDE: 'Pet-Friendly Restaurants in Liberty Village', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
+  const old = spawnSync('git', ['show', 'b4cd3aea425f0c1149486e79cbc77fac2953185c:ops/exedev-runner/generator_diag.py'], { cwd: repo, encoding: 'utf8' });
+  assert.equal(old.status, 0, old.stderr);
+  const expected = { postWritten: false, stopReason: 'unsupported-grounding' };
+  assert.deepEqual(replayHelper(old.stdout, output.stdout).relay, expected, 'old helper must not return absent');
+  assert.deepEqual(output.outcomes, [expected], 'authoritative outcome stays exactly two keys');
+  const current = replayHelper(fs.readFileSync(path.join(repo, 'ops/exedev-runner/generator_diag.py'), 'utf8'), output.stdout);
+  assert.deepEqual(current.relay, expected);
+  const detail = current.events.find((event) => event.event === 'outcome-detail');
+  assert.equal(detail.detailReason, 'unsupported-operational-premise');
+  assert.deepEqual(detail.validationCodes, []);
+});
 
 test('live operational facts: pet refuses and happy hour has exactly two supported sources', () => {
   const pet = buildSourcePack({ topic: 'Pet-Friendly Restaurants in Liberty Village', businesses, posts, services, topics, now });
@@ -164,11 +201,12 @@ test('pet premise spends zero SDK queries in a temporary live-data copy', async 
   const root = tempRoot(t);
   const original = fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8');
   let calls = 0;
-  const { result, outcomes } = await captureOutcome(() => runPipeline({ query: () => { calls++; throw new Error('should not run'); }, root, now, env: { TOPIC_OVERRIDE: 'Pet-Friendly Restaurants in Liberty Village', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
+  const { result, outcomes, details } = await captureOutcome(() => runPipeline({ query: () => { calls++; throw new Error('should not run'); }, root, now, env: { TOPIC_OVERRIDE: 'Pet-Friendly Restaurants in Liberty Village', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
   assert.equal(calls, 0);
   assert.equal(result.stopReason, 'unsupported-grounding');
   assert.equal(result.detailReason, 'unsupported-operational-premise');
-  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding', detailReason: 'unsupported-operational-premise', validationCodes: [] }]);
+  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding' }]);
+  assert.deepEqual(details, [{ detailReason: 'unsupported-operational-premise', validationCodes: [] }]);
   assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'tasks', 'auto-blog-runs', '2026-09-28.json'))).detailReason, 'unsupported-operational-premise');
   assert.equal(result.postWritten, false);
   assert.equal(fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8'), original);
@@ -200,17 +238,18 @@ test('unsupported address is refused before handoff and temp posts are restored'
   const original = fs.readFileSync(file, 'utf8');
   let calls = 0;
   const stub = stubWriting(root, 'LOCAL Public Eatery is at 999 Imaginary St.');
-  const { result, outcomes } = await captureOutcome(() => runPipeline({ query: () => { calls++; return stub(); }, root, now, env: { TOPIC_OVERRIDE: 'Liberty Village Happy Hour', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
+  const { result, outcomes, details } = await captureOutcome(() => runPipeline({ query: () => { calls++; return stub(); }, root, now, env: { TOPIC_OVERRIDE: 'Liberty Village Happy Hour', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
   assert.equal(calls, 1);
   assert.equal(result.postWritten, false);
   assert.equal(result.stopReason, 'unsupported-grounding');
   assert.equal(result.detailReason, 'pre-submit-refused');
-  assert.equal(outcomes.length, 1);
-  assert.equal(outcomes[0].detailReason, 'pre-submit-refused');
-  assert.ok(outcomes[0].validationCodes.includes('blog-lint:unsupported-address'));
-  assert.ok(outcomes[0].validationCodes.length <= 10);
-  assert.ok(outcomes[0].validationCodes.every((code) => code.length <= 40));
-  assert.doesNotMatch(JSON.stringify(outcomes), /999|Imaginary|LOCAL Public Eatery/);
+  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding' }]);
+  assert.equal(details.length, 1);
+  assert.equal(details[0].detailReason, 'pre-submit-refused');
+  assert.ok(details[0].validationCodes.includes('blog-lint:unsupported-address'));
+  assert.ok(details[0].validationCodes.length <= 10);
+  assert.ok(details[0].validationCodes.every((code) => code.length <= 64));
+  assert.doesNotMatch(JSON.stringify({ outcomes, details }), /999|Imaginary|LOCAL Public Eatery/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'tasks', 'auto-blog-runs', '2026-09-28.json'))).detailReason, 'pre-submit-refused');
   assert.ok(result.errors.some((error) => error.includes('blog-lint:unsupported-address')));
   assert.equal(fs.readFileSync(file, 'utf8'), original);

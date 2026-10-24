@@ -63,6 +63,7 @@ class GeneratorDiagnostic:
         self.seen_summary = False
         self.summary_fields = set()
         self.seen_outcome = False
+        self.seen_detail = False
         self.pending = b''
         self.dropping_line = False
         self.tool_counts = {}
@@ -180,6 +181,14 @@ class GeneratorDiagnostic:
                 if type(value.get('postWritten')) is bool and value.get('stopReason') in STOP_REASONS:
                     self.seen_outcome = True
                     self.reason = value['stopReason']
+                    self.event('outcome', postWritten=value['postWritten'], stopReason=self.reason)
+            except (ValueError, AttributeError, TypeError, RecursionError):
+                pass
+        if self.seen_outcome and not self.seen_detail and text.startswith('[outcome-detail] '):
+            try:
+                value = json.loads(text[len('[outcome-detail] '):], object_pairs_hook=_reject_duplicate_keys)
+                if type(value) is dict:
+                    self.seen_detail = True
                     detail = {}
                     if isinstance(value.get('detailReason'), str) and value['detailReason'] in DETAIL_REASONS:
                         detail['detailReason'] = value['detailReason']
@@ -188,7 +197,7 @@ class GeneratorDiagnostic:
                             code for code in value['validationCodes']
                             if isinstance(code, str) and len(code) <= 64 and code in VALIDATION_CODES
                         ))[:10]
-                    self.event('outcome', postWritten=value['postWritten'], stopReason=self.reason, **detail)
+                    self.event('outcome-detail', **detail)
             except (ValueError, AttributeError, TypeError, RecursionError):
                 pass
 

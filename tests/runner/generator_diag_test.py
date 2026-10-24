@@ -121,20 +121,20 @@ class GeneratorDiagnosticTest(unittest.TestCase):
                  'draft-changed-topic', 'invalid-internal-link', 'no-attributed-business',
                  'missing-or-invalid-hero-image', 'draft-must-use-real-publish-date',
                  'invalid-source', 'invalid-claims', 'invalid-source-inventory']
-        outcome = {'postWritten': False, 'stopReason': 'unsupported-grounding',
-                   'detailReason': 'pre-submit-refused',
+        outcome = {'detailReason': 'pre-submit-refused',
                    'validationCodes': ['PRIVATE ARTICLE TEXT', 'unknown-code', 'storage:private article', 'x' * 100] + codes * 3}
-        text = 'Success: false\n[outcome] ' + json.dumps(outcome) + '\nTurns: 24\nDuration: 350.1s\n'
+        authority = 'Success: false\n[outcome] {"postWritten":false,"stopReason":"unsupported-grounding"}\n'
+        text = authority + '[outcome-detail] ' + json.dumps(outcome) + '\nTurns: 24\nDuration: 350.1s\n'
         events = record(text)
-        recorded = next(event for event in events if event['event'] == 'outcome')
+        recorded = next(event for event in events if event['event'] == 'outcome-detail')
         self.assertEqual(recorded['detailReason'], 'pre-submit-refused')
         self.assertEqual(recorded['validationCodes'], codes[:10])
         self.assertTrue(all(len(code) <= 64 for code in recorded['validationCodes']))
         self.assertNotIn('PRIVATE', json.dumps(events))
         self.assertNotIn('private article', json.dumps(events))
         outcome.update(detailReason='pre-submit-refused PRIVATE', validationCodes=['unknown-code', 'storage:PRIVATE'])
-        events = record('Success: false\n[outcome] ' + json.dumps(outcome) + '\n')
-        recorded = next(event for event in events if event['event'] == 'outcome')
+        events = record(authority + '[outcome-detail] ' + json.dumps(outcome) + '\n')
+        recorded = next(event for event in events if event['event'] == 'outcome-detail')
         self.assertNotIn('detailReason', recorded)
         self.assertEqual(recorded['validationCodes'], [])
 
@@ -164,11 +164,11 @@ class GeneratorDiagnosticTest(unittest.TestCase):
                 with self.subTest(code=code, component='helper'):
                     path = pathlib.Path(directory) / f'{index}.jsonl'
                     log = diag.GeneratorDiagnostic(str(path))
-                    log.feed_lines(('Success: false\n[outcome] ' + json.dumps({'postWritten': False,
-                        'stopReason': 'unsupported-grounding', 'validationCodes': [code]}) + '\n').encode())
+                    log.feed_lines(('Success: false\n[outcome] {"postWritten":false,"stopReason":"unsupported-grounding"}\n'
+                        + '[outcome-detail] ' + json.dumps({'validationCodes': [code]}) + '\n').encode())
                     log.close()
                     recorded = [json.loads(line)['validationCodes'] for line in path.read_text().splitlines()
-                                if json.loads(line)['event'] == 'outcome']
+                                if json.loads(line)['event'] == 'outcome-detail']
                     self.assertEqual(recorded, [[code]])
 
     def test_capture_process_and_discard_raw_stderr(self):
@@ -224,9 +224,13 @@ class RelayTest(unittest.TestCase):
                          'an unterminated final outcome is finalized at EOF')
 
     def test_diagnostic_fields_do_not_expand_the_authoritative_relay(self):
-        payload = '{"postWritten":false,"stopReason":"unsupported-grounding","detailReason":"pre-submit-refused","validationCodes":["business-outside-pack"]}'
-        text = TRAILER.replace('{"postWritten":false,"stopReason":"unsupported-grounding"}', payload)
-        self.assertEqual(self.relay(text), b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n')
+        detail = '[outcome-detail] {"detailReason":"pre-submit-refused","validationCodes":["business-outside-pack"]}\n'
+        text = TRAILER.replace('Cost: ', detail + 'Cost: ')
+        expected = b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n'
+        self.assertEqual(self.relay(text), expected)
+        self.assertEqual(self.relay(detail + text + detail), expected)
+        hostile = '[outcome-detail] {"postWritten":true,"stopReason":"post-written","prompt":"PRIVATE"}\n'
+        self.assertEqual(self.relay(text + hostile), expected)
 
     def test_unfinalized_or_late_after_eof_is_absent(self):
         self.assertEqual(self.relay(TRAILER, 1, close=False), ABSENT)

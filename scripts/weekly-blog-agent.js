@@ -339,11 +339,11 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
     console.log("");
     console.log("=== Pipeline Complete ===");
     console.log(`Success: ${runLog.success}`);
-    // Fixed-vocabulary outcome: the root helper can persist this without candidate text.
-    console.log(
-      `[outcome] ${JSON.stringify({ postWritten: runLog.postWritten, stopReason: runLog.stopReason,
-        ...(runLog.detailReason ? { detailReason: runLog.detailReason, validationCodes: runLog.validationCodes || [] } : {}) })}`,
-    );
+    // Keep the authority line byte-compatible with older installed helpers.
+    console.log(`[outcome] ${JSON.stringify({ postWritten: runLog.postWritten, stopReason: runLog.stopReason })}`);
+    if (runLog.detailReason) {
+      console.log(`[outcome-detail] ${JSON.stringify({ detailReason: runLog.detailReason, validationCodes: runLog.validationCodes || [] })}`);
+    }
     console.log(`Cost: $${runLog.costUsd.toFixed(4)}`);
     console.log(`Turns: ${runLog.turnsUsed}`);
     console.log(`Duration: ${(runLog.durationMs / 1000).toFixed(1)}s`);
