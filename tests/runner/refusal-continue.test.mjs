@@ -49,25 +49,41 @@ test('weekly pre-submit pack refusal continues after the evidence pass closes', 
   assert.equal(submitCalls(world).length, 1);
 });
 
-test('backfill refusals continue to candidate 3, then wait for the next UTC date', (t) => {
+test('backfill grounded refusal ends the run; the next day can publish the same label', (t) => {
   const world = worldFor(t, { now: new Date('2026-10-23T15:37:00Z') });
-  world.generatorPlan = ['refusal', 'refusal', 'ok'];
+  world.generatorPlan = ['refusal', 'ok'];
+  world.deps.discoverEvidence = () => assert.fail('backfill must not enter weekly evidence discovery');
+  assert.throws(() => backfill(world), /backfill publication incomplete/);
+  assert.equal(world.generated.length, 1, 'a refusal ends the daily run before another candidate');
+  assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal, a.outcome]), [
+    [101, 1, 'failed-before-submit'],
+  ]);
+  assert.equal(submitCalls(world).length, 0);
+  assert.equal(world.logs.some((entry) => entry.event === 'october-backfill-exhausted'), false);
+  assert.equal(world.evidence.size, 0);
+
+  world.now = new Date('2026-10-24T15:37:00Z');
   assert.equal(backfill(world).reason, 'october-backfill-published');
   assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal, a.outcome]), [
-    [101, 1, 'failed-before-submit'], [101, 2, 'failed-before-submit'], [101, 3, 'late-smoked'],
+    [101, 1, 'failed-before-submit'], [101, 2, 'late-smoked'],
   ]);
-  assert.equal(world.generated.length, 3);
+  assert.equal(world.generated.length, 2, 'the historical label survived the transient refusal');
   assert.equal(world.evidence.size, 0, 'backfill has no evidence-retry path');
   assert.equal(backfill(world).reason, 'october-backfill-wait');
-  assert.equal(world.generated.length, 3, 'same UTC date cannot generate a second post');
+  assert.equal(world.generated.length, 2, 'same UTC date cannot generate a second post');
 });
 
-test('backfill all-refuse exhausts a label after three attempts and shares the remaining run budget', (t) => {
+test('backfill all-refuse spends one attempt per daily run without exhausting the label', (t) => {
   const world = worldFor(t, { now: new Date('2026-10-23T15:37:00Z') });
   world.generatorPlan = Array(queue().length).fill('refusal');
-  assert.throws(() => backfill(world), /backfill publication incomplete/);
-  assert.equal(world.generated.length, CADENCE.generationsPerRun);
-  assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal]), [[101, 1], [101, 2], [101, 3], [102, 1]]);
-  assert.ok(world.logs.some((entry) => entry.event === 'october-backfill-exhausted' && entry.label === '2026-10-01'));
+  for (const [index, day] of ['2026-10-23', '2026-10-24'].entries()) {
+    world.now = new Date(`${day}T15:37:00Z`);
+    assert.throws(() => backfill(world), /backfill publication incomplete/);
+    assert.equal(world.generated.length, index + 1, 'only one generation spent per scheduled day');
+    assert.ok(attemptsOf(world).every((a) => a.slot_number === 101 && a.outcome === 'failed-before-submit'));
+    assert.equal(world.logs.some((entry) => entry.event === 'october-backfill-exhausted'), false);
+  }
+  assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal]), [[101, 1], [101, 2]]);
+  assert.equal(world.evidence.size, 0);
   assert.equal(submitCalls(world).length, 0);
 });
