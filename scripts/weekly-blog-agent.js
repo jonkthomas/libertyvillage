@@ -299,6 +299,10 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
         runLog.success = false;
         runLog.stopReason = PREFLIGHT_STOP_REASONS["pre-submit-refused"];
         runLog.detailReason = "pre-submit-refused";
+        // Keep rule identifiers, never the claim/slug/prose following them.
+        runLog.validationCodes = [...new Set(checked.errors.map((error) =>
+          error.split(':').slice(0, error.startsWith('blog-lint:') ? 2 : 1).join(':')
+        ))].filter((code) => code.length <= 64).slice(0, 10);
         runLog.errors.push(...checked.errors.slice(0, 20));
       }
     }
@@ -335,10 +339,11 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
     console.log("");
     console.log("=== Pipeline Complete ===");
     console.log(`Success: ${runLog.success}`);
-    // Fixed-vocabulary outcome: the root helper can persist this without candidate text.
-    console.log(
-      `[outcome] ${JSON.stringify({ postWritten: runLog.postWritten, stopReason: runLog.stopReason })}`,
-    );
+    // Keep the authority line byte-compatible with older installed helpers.
+    console.log(`[outcome] ${JSON.stringify({ postWritten: runLog.postWritten, stopReason: runLog.stopReason })}`);
+    if (runLog.detailReason) {
+      console.log(`[outcome-detail] ${JSON.stringify({ detailReason: runLog.detailReason, validationCodes: runLog.validationCodes || [] })}`);
+    }
     console.log(`Cost: $${runLog.costUsd.toFixed(4)}`);
     console.log(`Turns: ${runLog.turnsUsed}`);
     console.log(`Duration: ${(runLog.durationMs / 1000).toFixed(1)}s`);
