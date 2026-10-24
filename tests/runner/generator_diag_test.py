@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -128,7 +129,7 @@ class GeneratorDiagnosticTest(unittest.TestCase):
         recorded = next(event for event in events if event['event'] == 'outcome')
         self.assertEqual(recorded['detailReason'], 'pre-submit-refused')
         self.assertEqual(recorded['validationCodes'], codes[:10])
-        self.assertTrue(all(len(code) <= 40 for code in recorded['validationCodes']))
+        self.assertTrue(all(len(code) <= 64 for code in recorded['validationCodes']))
         self.assertNotIn('PRIVATE', json.dumps(events))
         self.assertNotIn('private article', json.dumps(events))
         outcome.update(detailReason='pre-submit-refused PRIVATE', validationCodes=['unknown-code', 'storage:PRIVATE'])
@@ -136,6 +137,39 @@ class GeneratorDiagnosticTest(unittest.TestCase):
         recorded = next(event for event in events if event['event'] == 'outcome')
         self.assertNotIn('detailReason', recorded)
         self.assertEqual(recorded['validationCodes'], [])
+
+    def test_every_emitted_validation_code_survives_sanitizing(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        pack = (root / 'scripts/automation/blog-source-pack.mjs').read_text()
+        agent = (root / 'scripts/weekly-blog-agent.js').read_text()
+        lint = (root / 'scripts/blog-lint.mjs').read_text()
+        # Inventory actual error literals, dynamic related-field codes and lint rule IDs.
+        pre_submit = agent.split('const checked = checkDraftAgainstPack', 1)[1].split('runLog.errors.push', 1)[0]
+        literals = re.findall(r'''errors\.push\(\s*['"`]([^'"`]+)''', pack + pre_submit)
+        codes = set()
+        for literal in literals:
+            code = ':'.join(literal.split(':')[:2]) if literal.startswith('blog-lint:') else literal.split(':')[0]
+            if re.fullmatch(r'[a-zA-Z-]+(?::[a-z-]+)?', code):
+                codes.add(code)
+        codes.update('invalid-' + field for field in re.findall(r'''\[['"](related[A-Za-z]+)['"],''', pack))
+        codes.update('blog-lint:' + rule for rule in re.findall(r'''(?:\brule:\s*|\badd\(\s*)['"]([a-z-]+)['"]''', lint))
+        self.assertIn('blog-lint:unsupported-operational-premise', codes)
+        self.assertIn('source-pack-sidecar-changed', codes)
+        self.assertTrue({'invalid-relatedPosts', 'invalid-relatedBusinesses'} <= codes)
+        agent_limit = int(re.search(r'code\.length <= (\d+)', agent).group(1))
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            for index, code in enumerate(sorted(codes)):
+                with self.subTest(code=code, component='agent'):
+                    self.assertLessEqual(len(code), agent_limit, 'agent must emit this rule ID')
+                with self.subTest(code=code, component='helper'):
+                    path = pathlib.Path(directory) / f'{index}.jsonl'
+                    log = diag.GeneratorDiagnostic(str(path))
+                    log.feed_lines(('Success: false\n[outcome] ' + json.dumps({'postWritten': False,
+                        'stopReason': 'unsupported-grounding', 'validationCodes': [code]}) + '\n').encode())
+                    log.close()
+                    recorded = [json.loads(line)['validationCodes'] for line in path.read_text().splitlines()
+                                if json.loads(line)['event'] == 'outcome']
+                    self.assertEqual(recorded, [[code]])
 
     def test_capture_process_and_discard_raw_stderr(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):

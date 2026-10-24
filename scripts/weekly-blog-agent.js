@@ -302,7 +302,7 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
         // Keep rule identifiers, never the claim/slug/prose following them.
         runLog.validationCodes = [...new Set(checked.errors.map((error) =>
           error.split(':').slice(0, error.startsWith('blog-lint:') ? 2 : 1).join(':')
-        ))].filter((code) => code.length <= 40).slice(0, 10);
+        ))].filter((code) => code.length <= 64).slice(0, 10);
         runLog.errors.push(...checked.errors.slice(0, 20));
       }
     }

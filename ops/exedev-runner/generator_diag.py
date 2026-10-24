@@ -38,12 +38,12 @@ VALIDATION_CODES = frozenset({
     'invalid-max-age', 'stale-generated-at', 'missing-businesses', 'invalid-source-count',
     'invalid-source-inventory', 'invalid-source', 'invalid-claims', 'invalid-premise-claims',
     'stale-internal-inventory', 'invalid-image-inventory', 'unsupported-premise',
-    'reserve-fact-floor', 'source-pack-size-limit', 'missing-draft', 'storage',
+    'reserve-fact-floor', 'source-pack-size-limit', 'source-pack-sidecar-changed', 'missing-draft', 'storage',
     'draft-must-use-real-publish-date', 'no-attributed-business', 'business-outside-pack',
     'draft-changed-topic', 'draft-dropped-premise', 'invalid-relatedPosts',
     'invalid-relatedServices', 'invalid-relatedTopics', 'invalid-relatedBusinesses',
     'invalid-internal-link', 'missing-or-invalid-hero-image',
-    'blog-lint:unrecorded-business', 'blog-lint:unsupported-address',
+    'blog-lint:unrecorded-business', 'blog-lint:unsupported-address', 'blog-lint:unsupported-operational-premise',
     'blog-lint:unsupported-date', 'blog-lint:unsupported-hours', 'blog-lint:unsupported-price',
 })
 
@@ -186,7 +186,7 @@ class GeneratorDiagnostic:
                     if isinstance(value.get('validationCodes'), list):
                         detail['validationCodes'] = list(dict.fromkeys(
                             code for code in value['validationCodes']
-                            if isinstance(code, str) and len(code) <= 40 and code in VALIDATION_CODES
+                            if isinstance(code, str) and len(code) <= 64 and code in VALIDATION_CODES
                         ))[:10]
                     self.event('outcome', postWritten=value['postWritten'], stopReason=self.reason, **detail)
             except (ValueError, AttributeError, TypeError, RecursionError):
