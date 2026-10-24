@@ -23,12 +23,14 @@ spec-deck tailnet server at `127.0.0.1:8787` behind
 2. Build a dense single-page HTML audit + machine JSON (`ops/weekly-digest/lib/`).
 3. Publish to `~/.pi/agent/spec-decks/lv-digest/lv-digest-YYYY-MM-DD.html`
    → `https://ofia.tail97aece.ts.net/decks/lv-digest/…`.
-4. Post the link + 3-line summary to Slack `C0B6HEAHZT4` (`hermes send -t slack:C0B6HEAHZT4`).
+4. Post the link + 3-line summary to Slack `C0B6HEAHZT4` (`hermes --profile ofia send -t slack:C0B6HEAHZT4`).
 5. Push only an allowlisted, redacted projection to the VM:
    `/var/lib/lv-digest/lv-digest-latest.json`. It contains failure/refusal job,
    timestamp, code and short reason, queue state, public posted titles/URLs,
    and GSC `ok`/`unavailable`. No queries, analytics pages, raw runs, notes,
    VM diagnostics, private links or GSC error details go to the model.
+
+Slack uses the Ofia Hermes profile (`~/.hermes/profiles/ofia`), whose bot belongs to the private `#libvillage` channel.
 
 Install/update: `bash ops/weekly-digest/install-mac.sh` (from the repo copy on
 any branch — it installs a launchd-readable copy under

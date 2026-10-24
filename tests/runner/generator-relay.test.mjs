@@ -28,7 +28,15 @@ function sandbox(t) {
   fs.writeFileSync(path.join(dirs.bin, 'systemd-run'), '#!/usr/bin/env bash\n[[ "${FAKE_HANG:-}" == 1 ]] && exec sleep 30\ncat "$FAKE_OUT"\nexit "${FAKE_CODE:-0}"\n', { mode: 0o755 });
   fs.writeFileSync(path.join(dirs.bin, 'systemctl'), '#!/usr/bin/env bash\nif [[ "$1" == stop ]]; then touch "$FAKE_STATE.stopped"; exit 0; fi\nif [[ "$1" == show ]]; then\n  if [[ "${FAKE_ACTIVE:-}" == 1 && ! -e "$FAKE_STATE.stopped" ]]; then echo active; else echo inactive; fi\n  exit 0\nfi\nexit 0\n', { mode: 0o755 });
   // Root/identity and fixed VM paths are the only substitutions; the helper logic runs unmodified.
-  const prelude = 'import os as _os, pwd as _pwd\n_os.geteuid = lambda: 0\n_pwd.getpwnam = lambda _name: _pwd.getpwuid(_os.getuid())\n';
+  const prelude = `import os as _os, pwd as _pwd, types as _types
+_os.geteuid = lambda: 0
+_pwd.getpwnam = lambda name: _types.SimpleNamespace(pw_uid=101 if name == 'lv-generator' else 102, pw_gid=101)
+def fake_chown(file, uid, gid, **kwargs):
+    with open(_os.environ['FAKE_OWNERSHIP'], 'a') as trace: trace.write(str(uid) + '\\n')
+    if uid == 101 and _os.environ.get('FAKE_CHOWN_FAIL') == '1': raise OSError('chown failed')
+_os.chown = fake_chown
+`;
+
   const script = prelude + block
     .replace("sys.path.insert(0, '/usr/local/libexec')", `sys.path.insert(0, ${JSON.stringify(owned)})`)
     .replaceAll('/var/lib/lv-runner', dirs.varlib).replaceAll('/run/lv-runner', dirs.run).replaceAll('/var/log/lv-generator', dirs.log)
@@ -38,13 +46,15 @@ function sandbox(t) {
     const out = path.join(temp, 'unit-output');
     fs.writeFileSync(out, output);
     fs.rmSync(path.join(temp, 'state.stopped'), { force: true });
+    const ownership = path.join(temp, 'ownership');
+    fs.writeFileSync(ownership, '');
     const run = spawnSync('python3', ['-B', '-', 'weekly-blog', SLOT], {
       input: script, encoding: 'utf8', timeout: 30_000,
-      env: { PATH: `${dirs.bin}:${process.env.PATH}`, FAKE_OUT: out, FAKE_STATE: path.join(temp, 'state'), ...env },
+      env: { PATH: `${dirs.bin}:${process.env.PATH}`, FAKE_OUT: out, FAKE_STATE: path.join(temp, 'state'), FAKE_OWNERSHIP: ownership, ...env },
     });
     const logs = fs.readdirSync(dirs.log).map((name) => fs.readFileSync(path.join(dirs.log, name), 'utf8')).join('');
     for (const name of fs.readdirSync(dirs.log)) fs.rmSync(path.join(dirs.log, name));
-    return { status: run.status, stdout: run.stdout, stderr: run.stderr, logs, envLeft: fs.existsSync(path.join(dirs.run, `generator-${SLOT}.env`)) };
+    return { ownership: fs.readFileSync(ownership, 'utf8').trim().split('\n'), status: run.status, stdout: run.stdout, stderr: run.stderr, logs, envLeft: fs.existsSync(path.join(dirs.run, `generator-${SLOT}.env`)) };
   };
 }
 
@@ -54,6 +64,7 @@ test('validated refusal after normal completion: one relay line, unit exit code 
   assert.equal(refused.status, 1, refused.stderr);
   assert.equal(refused.stdout, `${REFUSAL}\n`);
   assert.equal(refused.envLeft, false);
+  assert.equal(refused.ownership.at(-1), '102', 'worker owns scratch after generator failure');
   const posted = helper(PROSE + TRAILER('{"postWritten":true,"stopReason":"post-written"}'), { FAKE_CODE: '0' });
   assert.equal(posted.status, 0, posted.stderr);
   assert.equal(posted.stdout, '{"postWritten":true,"stopReason":"post-written"}\n');
@@ -81,6 +92,7 @@ test('timeout, abnormal exit or a unit still active after exit emit nothing on s
   const helper = sandbox(t);
   const timedOut = helper(TRAILER(REFUSAL), { FAKE_HANG: '1' });
   assert.equal(timedOut.status, 124, timedOut.stderr);
+  assert.equal(timedOut.ownership.at(-1), '102', 'worker owns scratch after timeout');
   assert.equal(timedOut.stdout, '');
   assert.match(timedOut.logs, /"event":"unit-timeout"/);
   const killed = helper(TRAILER(REFUSAL), { FAKE_CODE: '137' });
@@ -113,4 +125,12 @@ test('helper stdout and diagnostics never carry prose, secrets, topic or URLs', 
       assert.doesNotMatch(run.stdout + run.stderr + run.logs, new RegExp(secret));
     }
   }
+});
+
+test('partial ownership-transfer exception still restores worker ownership and removes env file', (t) => {
+  const run = sandbox(t)('', { FAKE_CHOWN_FAIL: '1' });
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+  assert.deepEqual(run.ownership, ['101', '102']);
+  assert.equal(run.envLeft, false);
 });

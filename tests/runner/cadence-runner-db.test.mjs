@@ -12,7 +12,7 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import { classifyCliFailure, command, parseJson, runWeeklyBlog, runWeeklyRoundup, runOctoberBackfill } from '../../ops/exedev-runner/runner.mjs';
+import { CADENCE, classifyCliFailure, command, parseJson, runWeeklyBlog, runWeeklyRoundup, runOctoberBackfill } from '../../ops/exedev-runner/runner.mjs';
 import { spawnSync } from 'node:child_process';
 import { hasTestDb, publishDirect, seededDb } from '../content/fixtures/content-db.mjs';
 import { topicKey } from '../../scripts/automation/topic-queue.mjs';
@@ -139,6 +139,31 @@ const blog = (ctx, slot) => runWeeklyBlog({ target: 'test', slot, request: {}, d
 // The local test target has no compiled mode; inject staging's structured-v2.
 const roundup = (ctx, slot) => runWeeklyRoundup({ target: 'test', slot, request: {}, deps: { ...ctx.deps, roundupPublicationMode: 'structured-v2' } });
 const blogSubmissions = async (db) => (await db.query("select id,idempotency_key,state,context from content.submissions where kind='blog' order by id")).rows;
+
+test('E2E refusal continuation: two grounded refusals close before candidate 3 publishes through the real CLI', { skip, timeout: 300_000 }, async (t) => {
+  const ctx = await stack(t);
+  const titles = ['Brunch Spots', 'Bars', 'Lunch Spots'];
+  await addQueue(ctx.db, titles, 'refusal-continue');
+  const generate = ctx.deps.generate;
+  const tried = [];
+  ctx.deps.generate = (title) => {
+    tried.push(title);
+    if (tried.length <= 2) throw Object.assign(new Error('blog generated no post'), { groundedRefusal: 'unsupported-grounding' });
+    return generate(title);
+  };
+  assert.throws(() => blog(ctx, 'local-refusal-continue'), /cadence content deficit|weekly content missed/);
+  assert.equal(tried.length, 3);
+  assert.deepEqual(new Set(tried), new Set(titles), 'all three distinct candidates tried in exported queue order');
+  assert.ok(tried.length <= CADENCE.generationsPerRun);
+  const attempts = await ctx.attempts('content');
+  assert.deepEqual(attempts.map((a) => [a.slot_number, a.ordinal, a.outcome]), [
+    [1, 1, 'failed-before-submit'], [2, 1, 'failed-before-submit'], [2, 2, 'consumed'],
+  ]);
+  const submissions = await blogSubmissions(ctx.db);
+  assert.equal(submissions.length, 1);
+  assert.equal(submissions[0].state, 'published');
+  assert.equal(ctx.count().contentCount, 1, 'candidate 3 passed gate, smoke and hosted alias observation');
+});
 
 test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count increments via the hosted alias', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);

@@ -38,7 +38,6 @@ def ownership(uid, gid):
     for base, dirs, files in os.walk(scratch):
         os.chown(base, uid, gid)
         for name in dirs + files: os.chown(os.path.join(base, name), uid, gid, follow_symlinks=False)
-ownership(generator.pw_uid, generator.pw_gid)
 CLIENT_TIMEOUT = 45 * 60
 def _quiet(*args):
     try:
@@ -66,6 +65,7 @@ unit = None
 stop_ok = True
 relay = None
 try:
+    ownership(generator.pw_uid, generator.pw_gid)
     unit = f'lv-generator-{slot}-{os.urandom(4).hex()}'
     cmd = ['systemd-run', '--wait', '--pipe', '--collect', '--quiet', f'--unit={unit}', '-p', 'User=lv-generator', '-p', 'NoNewPrivileges=yes', '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes', '-p', 'PrivateTmp=yes', '-p', 'CapabilityBoundingSet=', '-p', 'RestrictSUIDSGID=yes', '-p', 'RuntimeMaxSec=40min', '-p', f'WorkingDirectory={scratch}', '-p', f'ReadWritePaths={scratch} /var/cache/lv-generator', '-p', f'EnvironmentFile={envfile}', 'node', script]
     diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl')
@@ -99,9 +99,11 @@ try:
         relay = diag.relay(result)
     sys.exit(result)
 finally:
-    if stop_ok:
-        ownership(worker.pw_uid, worker.pw_gid)
-    envfile.unlink(missing_ok=True)
+    try:
+        if stop_ok:
+            ownership(worker.pw_uid, worker.pw_gid)
+    finally:
+        envfile.unlink(missing_ok=True)
     if relay is not None:
         os.write(1, relay)
 PY
@@ -135,6 +137,45 @@ if [[ "$mode" == lv-runner-service ]]; then
   flock -n 9 || { echo "lv-runner overlap ${job}/${target}/${slot}" >&2; exit 75; }
   for stale in "/run/lv-runner/agent-secrets/${slot}.json" "/run/lv-runner/gsa-runner-${slot}.json" "/run/lv-runner/gsa-generator-${slot}.json" "/run/lv-runner/generator-${slot}.env"; do unlink "$stale" 2>/dev/null || true; done
   export LV_RUNNER_SLOT="$slot"
+  # Root reclaims abandoned slots before dropping privileges; global.lock is held.
+  python3 - <<'PY_SCRATCH_SWEEP'
+import os, pathlib, re, shutil, subprocess, time
+scratch_root = pathlib.Path('/var/lib/lv-runner/scratch')
+secrets_root = pathlib.Path('/run/lv-runner/agent-secrets')
+current = os.environ['LV_RUNNER_SLOT']
+cutoff = time.time() - 2 * 24 * 60 * 60
+try:
+    probe = subprocess.run(['systemctl', 'list-units', '--all', '--plain', '--no-legend', '--no-pager', '--state=active,activating,deactivating,reloading'], capture_output=True, text=True, check=True, timeout=30)
+except (OSError, subprocess.SubprocessError):
+    print('lv-runner scratch sweep skipped: unit status unavailable', flush=True)
+else:
+    units = [line.split()[0] for line in probe.stdout.splitlines() if line.strip()]
+    def protected(slot):
+        return slot == current or any(
+            (unit.startswith('lv-runner@') and unit.endswith(f':{slot}.service')) or
+            (unit.startswith(f'lv-generator-{slot}-') and unit.endswith('.service'))
+            for unit in units)
+    for root in (scratch_root, secrets_root):
+        # lstat and rmtree/unlink never follow a symlink, including a slot link.
+        for entry in root.iterdir():
+            slot = entry.stem if root == secrets_root else entry.name
+            if root == secrets_root and entry.suffix != '.json':
+                continue
+            if not re.fullmatch(r'[a-zA-Z0-9_-]{8,80}', slot) or protected(slot):
+                continue
+            try:
+                if entry.lstat().st_mtime >= cutoff:
+                    continue
+                if not entry.is_symlink() and entry.is_dir():
+                    if root == secrets_root:
+                        continue
+                    shutil.rmtree(entry)
+                else:
+                    entry.unlink()
+                print(f'lv-runner scratch sweep removed {entry}', flush=True)
+            except OSError:
+                print(f'lv-runner scratch sweep failed {entry}', flush=True)
+PY_SCRATCH_SWEEP
   python3 - <<'PY'
 import json, os, grp, pwd
 slot = os.environ['LV_RUNNER_SLOT']
