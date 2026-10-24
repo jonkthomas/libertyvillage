@@ -168,7 +168,7 @@ test('pet premise spends zero SDK queries in a temporary live-data copy', async 
   assert.equal(calls, 0);
   assert.equal(result.stopReason, 'unsupported-grounding');
   assert.equal(result.detailReason, 'unsupported-operational-premise');
-  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding' }]);
+  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding', detailReason: 'unsupported-operational-premise', validationCodes: [] }]);
   assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'tasks', 'auto-blog-runs', '2026-09-28.json'))).detailReason, 'unsupported-operational-premise');
   assert.equal(result.postWritten, false);
   assert.equal(fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8'), original);
@@ -205,7 +205,12 @@ test('unsupported address is refused before handoff and temp posts are restored'
   assert.equal(result.postWritten, false);
   assert.equal(result.stopReason, 'unsupported-grounding');
   assert.equal(result.detailReason, 'pre-submit-refused');
-  assert.deepEqual(outcomes, [{ postWritten: false, stopReason: 'unsupported-grounding' }]);
+  assert.equal(outcomes.length, 1);
+  assert.equal(outcomes[0].detailReason, 'pre-submit-refused');
+  assert.ok(outcomes[0].validationCodes.includes('blog-lint:unsupported-address'));
+  assert.ok(outcomes[0].validationCodes.length <= 10);
+  assert.ok(outcomes[0].validationCodes.every((code) => code.length <= 40));
+  assert.doesNotMatch(JSON.stringify(outcomes), /999|Imaginary|LOCAL Public Eatery/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'tasks', 'auto-blog-runs', '2026-09-28.json'))).detailReason, 'pre-submit-refused');
   assert.ok(result.errors.some((error) => error.includes('blog-lint:unsupported-address')));
   assert.equal(fs.readFileSync(file, 'utf8'), original);

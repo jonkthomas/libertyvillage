@@ -60,9 +60,15 @@ _os.chown = fake_chown
 
 test('validated refusal after normal completion: one relay line, unit exit code preserved', (t) => {
   const helper = sandbox(t);
-  const refused = helper(PROSE + TRAILER(REFUSAL), { FAKE_CODE: '1' });
+  const refusal = JSON.stringify({ ...JSON.parse(REFUSAL), detailReason: 'pre-submit-refused',
+    validationCodes: ['blog-lint:unsupported-address', 'PRIVATE ARTICLE TEXT'] });
+  const refused = helper(PROSE + TRAILER(refusal), { FAKE_CODE: '1' });
   assert.equal(refused.status, 1, refused.stderr);
   assert.equal(refused.stdout, `${REFUSAL}\n`);
+  const outcome = refused.logs.split('\n').filter(Boolean).map((row) => JSON.parse(row)).find((row) => row.event === 'outcome');
+  assert.equal(outcome.detailReason, 'pre-submit-refused');
+  assert.deepEqual(outcome.validationCodes, ['blog-lint:unsupported-address']);
+  assert.doesNotMatch(refused.logs, /PRIVATE|Candidate Name|Private Rd/);
   assert.equal(refused.envLeft, false);
   assert.equal(refused.ownership.at(-1), '102', 'worker owns scratch after generator failure');
   const posted = helper(PROSE + TRAILER('{"postWritten":true,"stopReason":"post-written"}'), { FAKE_CODE: '0' });

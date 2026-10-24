@@ -1068,7 +1068,11 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
   let consumedSlots = 0;
   for (let slotNumber = 1; slotNumber <= Math.min(CADENCE.maxContentSlot, CADENCE.contentGoal + consumedSlots) && have < CADENCE.contentGoal; slotNumber++) {
     let result = processContentSlot(run, slotNumber);
-    if (result.refusal) result = handleEvidenceRefusal(run, result.refusal);
+    if (result.refusal) {
+      result = handleEvidenceRefusal(run, result.refusal);
+      // Closing/declining evidence does not consume the remaining candidate budget.
+      if (result.state === 'closed') result = processContentSlot(run, slotNumber);
+    }
     if (result.id != null) lastId = result.id;
     if (result.state === 'consumed' && !live.has(result.consumedId)) consumedSlots += 1;
     if (result.state === 'counted') {

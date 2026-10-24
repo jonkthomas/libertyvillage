@@ -13,17 +13,41 @@ const worldFor = (t, options = {}) => {
 const weekly = (world) => runWeeklyBlog({ target: 'staging', slot: 'local-refusal-continue', deps: world.deps });
 const backfill = (world) => runOctoberBackfill({ target: 'staging', slot: 'local-refusal-backfill', deps: world.deps });
 
+test('weekly slot 2 refusal continues after a declined evidence claim on an on-demand run', (t) => {
+  const world = worldFor(t, { now: new Date('2026-10-24T02:03:00Z') });
+  world.generatorPlan = ['ok', 'refusal', 'ok'];
+  const cli = world.deps.cli;
+  world.deps.cli = (args, ...rest) => args[0] === 'cadence' && args[1] === 'evidence-claim'
+    ? { code: 0, stdout: JSON.stringify({ claimed: false }) } : cli(args, ...rest);
+  assert.equal(weekly(world).cadenceMet, true);
+  assert.equal(world.generated.length, 3);
+  assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal, a.outcome]), [
+    [1, 1, 'consumed'], [2, 1, 'failed-before-submit'], [2, 2, 'consumed'],
+  ]);
+  assert.equal(world.live.size, 2);
+});
+
+test('weekly slot 2 refusal continues when the evidence pass closes without discovery', (t) => {
+  const world = worldFor(t);
+  world.generatorPlan = ['ok', 'refusal', 'ok'];
+  world.deps.discoverEvidence = () => ({ state: 'empty' });
+  assert.equal(weekly(world).cadenceMet, true);
+  assert.equal(world.generated.length, 3);
+  assert.equal(world.live.size, 2);
+  assert.ok([...world.evidence.values()].every((item) => item.state === 'closed'));
+});
+
 test('weekly refusals continue to candidate 3 and charge every generation to the run budget', (t) => {
   const world = worldFor(t);
   world.generatorPlan = ['refusal', 'refusal', 'ok'];
-  assert.throws(() => weekly(world), /cadence content deficit/);
-  assert.deepEqual(world.generated.map((item) => item.title), queue().slice(0, 3).map((item) => item.title));
+  assert.equal(weekly(world).cadenceMet, true);
+  assert.deepEqual(world.generated.map((item) => item.title), queue().slice(0, 4).map((item) => item.title));
   assert.ok(world.generated.length <= CADENCE.generationsPerRun);
   assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal, a.outcome]), [
-    [1, 1, 'failed-before-submit'], [2, 1, 'failed-before-submit'], [2, 2, 'consumed'],
+    [1, 1, 'failed-before-submit'], [1, 2, 'failed-before-submit'], [1, 3, 'consumed'], [2, 1, 'consumed'],
   ]);
-  assert.equal(submitCalls(world).length, 1, 'only candidate 3 writes and submits a grounded post');
-  assert.equal(world.live.size, 1);
+  assert.equal(submitCalls(world).length, 2, 'only grounded candidates 3 and 4 are submitted');
+  assert.equal(world.live.size, 2);
   assert.equal(world.evidence.size, 1, 'no second evidence entitlement after the first closes');
 });
 
@@ -32,7 +56,7 @@ test('weekly all-refuse exhausts the run budget and the three-normal-attempt slo
   world.generatorPlan = Array(queue().length).fill('refusal');
   assert.throws(() => weekly(world), /cadence content deficit/);
   assert.equal(world.generated.length, CADENCE.generationsPerRun);
-  assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal]), [[1, 1], [2, 1], [2, 2], [2, 3]]);
+  assert.deepEqual(attemptsOf(world).map((a) => [a.slot_number, a.ordinal]), [[1, 1], [1, 2], [1, 3], [2, 1]]);
   assert.ok(attemptsOf(world).every((a) => a.outcome === 'failed-before-submit'));
   assert.equal(submitCalls(world).length, 0);
   assert.equal(world.evidence.size, 1);

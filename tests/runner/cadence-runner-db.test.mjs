@@ -157,12 +157,30 @@ test('E2E refusal continuation: two grounded refusals close before candidate 3 p
   assert.ok(tried.length <= CADENCE.generationsPerRun);
   const attempts = await ctx.attempts('content');
   assert.deepEqual(attempts.map((a) => [a.slot_number, a.ordinal, a.outcome]), [
-    [1, 1, 'failed-before-submit'], [2, 1, 'failed-before-submit'], [2, 2, 'consumed'],
+    [1, 1, 'failed-before-submit'], [1, 2, 'failed-before-submit'], [1, 3, 'consumed'],
   ]);
   const submissions = await blogSubmissions(ctx.db);
   assert.equal(submissions.length, 1);
   assert.equal(submissions[0].state, 'published');
   assert.equal(ctx.count().contentCount, 1, 'candidate 3 passed gate, smoke and hosted alias observation');
+});
+
+test('E2E slot 2 refusal: closed evidence continues through the real CLI to the next candidate', { skip, timeout: 300_000 }, async (t) => {
+  const ctx = await stack(t);
+  await addQueue(ctx.db, ['Brunch Spots', 'Bars', 'Lunch Spots'], 'slot2-refusal');
+  const generate = ctx.deps.generate;
+  let generations = 0;
+  ctx.deps.generate = (title) => {
+    if (++generations === 2) throw Object.assign(new Error('blog generated no post'), { groundedRefusal: 'unsupported-grounding' });
+    return generate(title);
+  };
+  assert.equal(blog(ctx, 'local-slot2-refusal').cadenceMet, true);
+  assert.equal(generations, 3);
+  assert.deepEqual((await ctx.attempts('content')).map((a) => [a.slot_number, a.ordinal, a.outcome]), [
+    [1, 1, 'consumed'], [2, 1, 'failed-before-submit'], [2, 2, 'consumed'],
+  ]);
+  assert.equal((await blogSubmissions(ctx.db)).length, 2);
+  assert.equal(ctx.count().contentCount, 2, 'both posts observed through the real hosted alias');
 });
 
 test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count increments via the hosted alias', { skip, timeout: 300_000 }, async (t) => {

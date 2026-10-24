@@ -28,6 +28,26 @@ STOP_REASONS = frozenset(('post-written', 'unsupported-grounding', 'duplicate',
                           'sdk-error', 'generator-error'))
 
 
+DETAIL_REASONS = frozenset({
+    'unsupported-operational-premise', 'pre-submit-refused', 'duplicate-topic',
+    'insufficient-directory-evidence', 'source-pack-size-limit', 'missing-topic-or-businesses',
+})
+# Fixed vocabulary: even a code-looking article fragment cannot enter diagnostics.
+VALIDATION_CODES = frozenset({
+    'invalid-pack-header', 'invalid-fingerprint', 'invalid-check-time', 'future-generated-at',
+    'invalid-max-age', 'stale-generated-at', 'missing-businesses', 'invalid-source-count',
+    'invalid-source-inventory', 'invalid-source', 'invalid-claims', 'invalid-premise-claims',
+    'stale-internal-inventory', 'invalid-image-inventory', 'unsupported-premise',
+    'reserve-fact-floor', 'source-pack-size-limit', 'missing-draft', 'storage',
+    'draft-must-use-real-publish-date', 'no-attributed-business', 'business-outside-pack',
+    'draft-changed-topic', 'draft-dropped-premise', 'invalid-relatedPosts',
+    'invalid-relatedServices', 'invalid-relatedTopics', 'invalid-relatedBusinesses',
+    'invalid-internal-link', 'missing-or-invalid-hero-image',
+    'blog-lint:unrecorded-business', 'blog-lint:unsupported-address',
+    'blog-lint:unsupported-date', 'blog-lint:unsupported-hours', 'blog-lint:unsupported-price',
+})
+
+
 class GeneratorDiagnostic:
     def __init__(self, path):
         if os.geteuid() != 0:
@@ -160,7 +180,15 @@ class GeneratorDiagnostic:
                 if type(value.get('postWritten')) is bool and value.get('stopReason') in STOP_REASONS:
                     self.seen_outcome = True
                     self.reason = value['stopReason']
-                    self.event('outcome', postWritten=value['postWritten'], stopReason=self.reason)
+                    detail = {}
+                    if isinstance(value.get('detailReason'), str) and value['detailReason'] in DETAIL_REASONS:
+                        detail['detailReason'] = value['detailReason']
+                    if isinstance(value.get('validationCodes'), list):
+                        detail['validationCodes'] = list(dict.fromkeys(
+                            code for code in value['validationCodes']
+                            if isinstance(code, str) and len(code) <= 40 and code in VALIDATION_CODES
+                        ))[:10]
+                    self.event('outcome', postWritten=value['postWritten'], stopReason=self.reason, **detail)
             except (ValueError, AttributeError, TypeError, RecursionError):
                 pass
 
@@ -203,14 +231,16 @@ def _reject_duplicate_keys(pairs):
 
 
 def _strict_outcome(text):
-    """(postWritten, stopReason) for the agent's exact two-key outcome, else None."""
+    """Two-key authority only; optional diagnostics never change the relay."""
     if not text.startswith('[outcome] '):
         return None
     try:
         value = json.loads(text[len('[outcome] '):], object_pairs_hook=_reject_duplicate_keys)
     except (ValueError, RecursionError):
         return None
-    if type(value) is not dict or set(value) != {'postWritten', 'stopReason'}:
+    if type(value) is not dict or not {'postWritten', 'stopReason'} <= set(value):
+        return None
+    if set(value) - {'postWritten', 'stopReason', 'detailReason', 'validationCodes'}:
         return None
     posted, reason = value['postWritten'], value['stopReason']
     if type(posted) is not bool or type(reason) is not str or reason not in STOP_REASONS:

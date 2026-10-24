@@ -107,6 +107,36 @@ class GeneratorDiagnosticTest(unittest.TestCase):
             self.assertLessEqual(path.stat().st_size, 64 * 1024)
             self.assertIn('"event":"truncated"', path.read_text())
 
+    def test_grounding_diagnostics_keep_only_bounded_known_codes(self):
+        def record(text):
+            with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+                path = pathlib.Path(directory) / 'slot.jsonl'
+                log = diag.GeneratorDiagnostic(str(path))
+                log.feed_lines(text.encode())
+                log.close()
+                return [json.loads(row) for row in path.read_text().splitlines()]
+
+        codes = ['business-outside-pack', 'blog-lint:unsupported-address', 'storage',
+                 'draft-changed-topic', 'invalid-internal-link', 'no-attributed-business',
+                 'missing-or-invalid-hero-image', 'draft-must-use-real-publish-date',
+                 'invalid-source', 'invalid-claims', 'invalid-source-inventory']
+        outcome = {'postWritten': False, 'stopReason': 'unsupported-grounding',
+                   'detailReason': 'pre-submit-refused',
+                   'validationCodes': ['PRIVATE ARTICLE TEXT', 'unknown-code', 'storage:private article', 'x' * 100] + codes * 3}
+        text = 'Success: false\n[outcome] ' + json.dumps(outcome) + '\nTurns: 24\nDuration: 350.1s\n'
+        events = record(text)
+        recorded = next(event for event in events if event['event'] == 'outcome')
+        self.assertEqual(recorded['detailReason'], 'pre-submit-refused')
+        self.assertEqual(recorded['validationCodes'], codes[:10])
+        self.assertTrue(all(len(code) <= 40 for code in recorded['validationCodes']))
+        self.assertNotIn('PRIVATE', json.dumps(events))
+        self.assertNotIn('private article', json.dumps(events))
+        outcome.update(detailReason='pre-submit-refused PRIVATE', validationCodes=['unknown-code', 'storage:PRIVATE'])
+        events = record('Success: false\n[outcome] ' + json.dumps(outcome) + '\n')
+        recorded = next(event for event in events if event['event'] == 'outcome')
+        self.assertNotIn('detailReason', recorded)
+        self.assertEqual(recorded['validationCodes'], [])
+
     def test_capture_process_and_discard_raw_stderr(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
             path = pathlib.Path(directory) / 'slot.jsonl'
@@ -158,6 +188,11 @@ class RelayTest(unittest.TestCase):
         final = TRAILER.replace('\nCost: $0.4100\nTurns: 7\nDuration: 42.3s\nLog saved: /x/2026-09-30.json\n', '')
         self.assertEqual(self.relay(final, 1), b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n',
                          'an unterminated final outcome is finalized at EOF')
+
+    def test_diagnostic_fields_do_not_expand_the_authoritative_relay(self):
+        payload = '{"postWritten":false,"stopReason":"unsupported-grounding","detailReason":"pre-submit-refused","validationCodes":["business-outside-pack"]}'
+        text = TRAILER.replace('{"postWritten":false,"stopReason":"unsupported-grounding"}', payload)
+        self.assertEqual(self.relay(text), b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n')
 
     def test_unfinalized_or_late_after_eof_is_absent(self):
         self.assertEqual(self.relay(TRAILER, 1, close=False), ABSENT)
