@@ -253,3 +253,49 @@ test('unsupported address is refused before handoff and temp posts are restored'
   assert.ok(result.errors.some((error) => error.includes('blog-lint:unsupported-address')));
   assert.equal(fs.readFileSync(file, 'utf8'), original);
 });
+
+const outsidePack = (result) => result.errors.filter((error) => error.startsWith('business-outside-pack'));
+
+test('a full packed name does not also reference a shorter recorded name inside it', (t) => {
+  // Retained VM pack for "What Is The Best Place To Eat?" holds only the longer Kitchen Hub record.
+  const { pack } = buildSourcePack({ topic: 'What Is The Best Place To Eat?', businesses, posts, services, topics, now });
+  assert.ok(pack.sources.some((source) => source.id === 'kitchen-hub-food-hall-liberty-village-2'));
+  assert.ok(!pack.sources.some((source) => source.id === 'kitchen-hub-food-hall-liberty-village'));
+  const root = tempRoot(t);
+  const check = (content) => checkDraftAgainstPack({ ...draft(root), title: 'What Is The Best Place To Eat in Liberty Village', answerBlock: 'A directory-backed look.', content }, pack, { businesses, posts, services, topics, now });
+  assert.deepEqual(outsidePack(check('**Kitchen Hub Food Hall Liberty Village** and **OEB Breakfast Co.** are in the directory.')), []);
+  assert.deepEqual(outsidePack(check('**Kitchen Hub Food Hall** and **OEB Breakfast Co.** are in the directory.')), ['business-outside-pack:kitchen-hub-food-hall-liberty-village']);
+  assert.deepEqual(outsidePack(check('**Kitchen Hub Food Hall Liberty Village** beats **Altea Active**.')), ['business-outside-pack:altea-active']);
+});
+
+test('goodlife prompt lists allowed businesses, names leaked outside names, and asks for a self-check', async (t) => {
+  const root = tempRoot(t);
+  let suppliedPrompt = '';
+  await captureOutcome(() => runPipeline({ query: (args) => { suppliedPrompt = args.prompt; return { async next() { return { done: true }; } }; }, root, now, env: { TOPIC_OVERRIDE: 'Goodlife Liberty Village', GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') } }));
+  assert.match(suppliedPrompt, /ALLOWED BUSINESSES \(the only businesses this post may name, bold, or link\): GoodLife Fitness Liberty Village \(\/directory\/goodlife-fitness-liberty-village\); Movati Athletic \(\/directory\/movati-athletic-liberty-village\)\. Never name any other business/);
+  assert.match(suppliedPrompt, /OUTSIDE-PACK NAMES IN THE EVIDENCE: "Altea Active" appear/);
+  assert.match(suppliedPrompt, /node scripts\/automation\/check-blog-draft\.mjs tasks\/auto-blog-runs\/2026-09-28-goodlife-liberty-village-source-pack\.json/);
+  // The rule stays strict: copying Movati's span that names Altea Active is still refused.
+  const pack = JSON.parse(fs.readFileSync(path.join(root, 'tasks', 'auto-blog-runs', '2026-09-28-goodlife-liberty-village-source-pack.json'), 'utf8'));
+  const movati = businesses.find((record) => record.slug === 'movati-athletic-liberty-village');
+  const copied = { ...draft(root), title: 'GoodLife Liberty Village and Movati', answerBlock: 'A directory-backed look.', content: `**GoodLife Fitness Liberty Village** is a gym. ${movati.description}` };
+  assert.deepEqual(outsidePack(checkDraftAgainstPack(copied, pack, { businesses, posts, services, topics, now })), ['business-outside-pack:altea-active']);
+});
+
+test('writer self-check CLI runs the pre-submit pack check on the appended post', (t) => {
+  const root = tempRoot(t);
+  const today = new Date();
+  const day = today.toISOString().slice(0, 10);
+  const { pack } = buildSourcePack({ topic: 'Liberty Village Happy Hour', businesses, posts, services, topics, images: [draft(root).image], now: today });
+  fs.writeFileSync(path.join(root, 'pack.json'), `${canonicalJson(pack)}\n`);
+  const run = (post) => {
+    fs.writeFileSync(path.join(root, 'data', 'posts.json'), JSON.stringify([...posts, { ...post, publishedAt: day, updatedAt: day }]));
+    return spawnSync(process.execPath, [path.join(repo, 'scripts', 'automation', 'check-blog-draft.mjs'), 'pack.json'], { cwd: root, encoding: 'utf8' });
+  };
+  const clean = run(draft(root));
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  assert.deepEqual(JSON.parse(clean.stdout), { ok: true, errors: [] });
+  const outside = run({ ...draft(root), content: `${draft(root).content} **Altea Active** is nearby.` });
+  assert.equal(outside.status, 1);
+  assert.ok(JSON.parse(outside.stdout).errors.includes('business-outside-pack:altea-active'));
+});

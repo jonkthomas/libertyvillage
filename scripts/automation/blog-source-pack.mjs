@@ -125,6 +125,16 @@ export function verifySourcePack(pack, { businesses, posts = [], services = [], 
   return { ok: errors.length === 0, errors };
 }
 
+// Recorded names a writer could copy from the pack's own evidence (topic, source
+// names, verbatim spans) that the draft check attributes to a record outside it.
+export function outsideNamesInPack(pack, businesses) {
+  const packed = new Set(array(pack?.sources).map((source) => source.id));
+  const packedNames = new Set(array(pack?.sources).map((source) => source.name));
+  const evidence = [pack?.topic, ...array(pack?.sources).flatMap((source) => [source.name, ...array(source.claims).map((claim) => claim.verbatim)])].join('\n');
+  return [...new Set(extractReferencedBusinesses(evidence, businesses)
+    .filter((record) => !packed.has(record.slug) && !packedNames.has(record.name)).map((record) => record.name))];
+}
+
 export function checkDraftAgainstPack(post, pack, { businesses, posts = [], services = [], topics = [], imagePaths = [], now, requireRealDate = false } = {}) {
   const errors = [...verifySourcePack(pack, { businesses, posts, services, topics, now }).errors];
   if (!post || typeof post !== 'object') return { ok: false, errors: [...errors, 'missing-draft'] };

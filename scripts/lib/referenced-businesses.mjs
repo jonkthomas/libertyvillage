@@ -104,11 +104,30 @@ function relatedBusinessSlugs(source) {
   }
 }
 
-function nameAppears(text, name) {
+function namePattern(name, flags) {
+  const escaped = escapeRegExp(String(name).trim()).replace(/['’]/g, "['’]");
+  return new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, flags);
+}
+
+const nameKey = (name) => String(name ?? '').trim().toLowerCase().replace(/’/g, "'");
+
+// Longest match wins: "Kitchen Hub Food Hall Liberty Village" names that record,
+// not also the shorter recorded "Kitchen Hub Food Hall". Identical names stay
+// ambiguous and still reference every record that carries them.
+function nameAppears(text, name, longerNames = []) {
   const trimmed = String(name ?? '').trim();
   if (trimmed.length < 4) return false;
-  const escaped = escapeRegExp(trimmed).replace(/['’]/g, "['’]");
-  return new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, 'i').test(text);
+  let haystack = text;
+  for (const longer of longerNames) haystack = haystack.replace(namePattern(longer, 'gi'), ' ');
+  return namePattern(trimmed, 'i').test(haystack);
+}
+
+function longerNamesContaining(name, businesses) {
+  const key = nameKey(name);
+  if (key.length < 4) return [];
+  return [...new Set(businesses.map((record) => String(record?.name ?? '').trim())
+    .filter((other) => nameKey(other) !== key && nameKey(other).includes(key)))]
+    .sort((left, right) => right.length - left.length);
 }
 
 function directoryLinkFor(text, slug) {
@@ -135,11 +154,11 @@ function recordSupportText(record) {
   return parts.join(' | ');
 }
 
-function isRecordReferenced(text, record, declaredSlugs) {
+function isRecordReferenced(text, record, declaredSlugs, businesses) {
   const slug = typeof record?.slug === 'string' ? record.slug.trim() : '';
   if (slug && declaredSlugs.has(slug)) return true;
   if (slug && directoryLinkFor(text, slug)) return true;
-  if (nameAppears(text, record?.name)) return true;
+  if (nameAppears(text, record?.name, longerNamesContaining(record?.name, businesses))) return true;
   return false;
 }
 
@@ -161,7 +180,7 @@ export function extractReferencedBusinesses(source, businesses) {
       ? record.slug.trim()
       : String(record.name ?? '').trim().toLowerCase();
     if (!key || seen.has(key)) continue;
-    if (!isRecordReferenced(text, record, declaredSlugs)) continue;
+    if (!isRecordReferenced(text, record, declaredSlugs, businesses)) continue;
     seen.add(key);
     selected.push(record);
   }
