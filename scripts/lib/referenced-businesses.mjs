@@ -111,15 +111,29 @@ function namePattern(name, flags) {
 
 const nameKey = (name) => String(name ?? '').trim().toLowerCase().replace(/’/g, "'");
 
+// Names are matched on JSON-decoded text: a serialized "\n" would otherwise glue
+// the letter n onto a name that starts a line and hide it from the boundary check.
+const JSON_ESCAPES = { n: '\n', r: '\r', t: '\t', b: ' ', f: ' ' };
+function decodeJsonEscapes(text) {
+  return text.replace(/\\(u[0-9a-fA-F]{4}|.)/g, (whole, code) => code.length === 5
+    ? String.fromCharCode(parseInt(code.slice(1), 16)) : JSON_ESCAPES[code] ?? code);
+}
+
 // Longest match wins: "Kitchen Hub Food Hall Liberty Village" names that record,
-// not also the shorter recorded "Kitchen Hub Food Hall". Identical names stay
-// ambiguous and still reference every record that carries them.
+// not also the shorter recorded "Kitchen Hub Food Hall". Only an occurrence lying
+// inside a longer-name match is skipped; any standalone occurrence still counts.
+// Identical names stay ambiguous and reference every record that carries them.
 function nameAppears(text, name, longerNames = []) {
   const trimmed = String(name ?? '').trim();
   if (trimmed.length < 4) return false;
-  let haystack = text;
-  for (const longer of longerNames) haystack = haystack.replace(namePattern(longer, 'gi'), ' ');
-  return namePattern(trimmed, 'i').test(haystack);
+  const covered = longerNames.flatMap((longer) => [...text.matchAll(namePattern(longer, 'gi'))]
+    .map((match) => [match.index, match.index + match[0].length]));
+  for (const match of text.matchAll(namePattern(trimmed, 'gi'))) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (!covered.some(([from, to]) => from <= start && end <= to)) return true;
+  }
+  return false;
 }
 
 function longerNamesContaining(name, businesses) {
@@ -154,11 +168,11 @@ function recordSupportText(record) {
   return parts.join(' | ');
 }
 
-function isRecordReferenced(text, record, declaredSlugs, businesses) {
+function isRecordReferenced(text, nameText, record, declaredSlugs, businesses) {
   const slug = typeof record?.slug === 'string' ? record.slug.trim() : '';
   if (slug && declaredSlugs.has(slug)) return true;
   if (slug && directoryLinkFor(text, slug)) return true;
-  if (nameAppears(text, record?.name, longerNamesContaining(record?.name, businesses))) return true;
+  if (nameAppears(nameText, record?.name, longerNamesContaining(record?.name, businesses))) return true;
   return false;
 }
 
@@ -171,6 +185,7 @@ function isRecordReferenced(text, record, declaredSlugs, businesses) {
 export function extractReferencedBusinesses(source, businesses) {
   if (!Array.isArray(businesses)) return [];
   const text = sourceToText(source);
+  const nameText = decodeJsonEscapes(text);
   const declaredSlugs = relatedBusinessSlugs(source);
   const selected = [];
   const seen = new Set();
@@ -180,7 +195,7 @@ export function extractReferencedBusinesses(source, businesses) {
       ? record.slug.trim()
       : String(record.name ?? '').trim().toLowerCase();
     if (!key || seen.has(key)) continue;
-    if (!isRecordReferenced(text, record, declaredSlugs, businesses)) continue;
+    if (!isRecordReferenced(text, nameText, record, declaredSlugs, businesses)) continue;
     seen.add(key);
     selected.push(record);
   }

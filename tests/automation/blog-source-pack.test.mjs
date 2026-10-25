@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { buildSourcePack, canonicalJson, checkDraftAgainstPack, verifySourcePack, SOURCE_PACK_SCHEMA } from '../../scripts/automation/blog-source-pack.mjs';
+import { extractReferencedBusinesses } from '../../scripts/lib/referenced-businesses.mjs';
 
 const require = createRequire(import.meta.url);
 const { runPipeline } = require('../../scripts/weekly-blog-agent.js');
@@ -266,6 +267,30 @@ test('a full packed name does not also reference a shorter recorded name inside 
   assert.deepEqual(outsidePack(check('**Kitchen Hub Food Hall Liberty Village** and **OEB Breakfast Co.** are in the directory.')), []);
   assert.deepEqual(outsidePack(check('**Kitchen Hub Food Hall** and **OEB Breakfast Co.** are in the directory.')), ['business-outside-pack:kitchen-hub-food-hall-liberty-village']);
   assert.deepEqual(outsidePack(check('**Kitchen Hub Food Hall Liberty Village** beats **Altea Active**.')), ['business-outside-pack:altea-active']);
+});
+
+test('a standalone shorter name is still referenced next to its longer packed name', (t) => {
+  const records = [{ name: 'Kitchen Hub Food Hall', slug: 'short' }, { name: 'Kitchen Hub Food Hall Liberty Village', slug: 'long' }];
+  const long = 'Kitchen Hub Food Hall Liberty Village';
+  const variants = {
+    paragraph: `${long} is listed.\n\nKitchen Hub Food Hall is another option.`,
+    line: `${long} is listed.\nKitchen Hub Food Hall is another option.`,
+    tab: `${long} is listed.\tKitchen Hub Food Hall is another option.`,
+    quoted: `${long} is listed. "Kitchen Hub Food Hall" is another option.`,
+    start: `Kitchen Hub Food Hall is another option to ${long}.`,
+    end: `${long} is listed, as is Kitchen Hub Food Hall`,
+  };
+  for (const [label, content] of Object.entries(variants)) {
+    for (const source of [{ content }, JSON.stringify({ content }), content]) {
+      assert.deepEqual(extractReferencedBusinesses(source, records).map((record) => record.slug), ['short', 'long'], `${label} ${typeof source}`);
+    }
+  }
+  assert.deepEqual(extractReferencedBusinesses({ content: `**${long}**` }, records).map((record) => record.slug), ['long']);
+  // Sol's live-data reproduction: an unbolded outside mention starting a paragraph.
+  const { pack } = buildSourcePack({ topic: 'What Is The Best Place To Eat?', businesses, posts, services, topics, now });
+  const root = tempRoot(t);
+  const post = { ...draft(root), title: 'What Is The Best Place To Eat in Liberty Village', answerBlock: 'A directory-backed look.', content: `${long} is in the directory.\n\nKitchen Hub Food Hall is another option.` };
+  assert.deepEqual(outsidePack(checkDraftAgainstPack(post, pack, { businesses, posts, services, topics, now })), ['business-outside-pack:kitchen-hub-food-hall-liberty-village']);
 });
 
 test('goodlife prompt lists allowed businesses, names leaked outside names, and asks for a self-check', async (t) => {
