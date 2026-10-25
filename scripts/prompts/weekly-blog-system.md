@@ -279,6 +279,7 @@ Write 800-1200 words in markdown format:
   - Business names MUST exist in `data/businesses.json` — do NOT fabricate
   - Bold business names are auto-linked by the site's rendering system
   - For a `SOURCE PACK` with an ambiguous recorded name, use the specified exact directory link and short label instead of a bold full name.
+  - With a `SOURCE PACK`, name only its ALLOWED BUSINESSES. Any other directory name in the post (even a comparison or a name copied from a verbatim span) discards the draft; run the runtime prompt's SELF-CHECK command before handoff.
 
 > **Grounding rule (non-negotiable).** Every named-business fact — address, cross
 > street, opening hours, price, phone, website, rating — must be copied **verbatim**

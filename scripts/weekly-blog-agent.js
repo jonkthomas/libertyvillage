@@ -58,7 +58,7 @@ const PREFLIGHT_STOP_REASONS = Object.freeze({
 
 async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now = new Date() }) {
   // The source-pack module is ESM; this entrypoint remains CommonJS for the runner.
-  const { buildSourcePack, canonicalJson, checkDraftAgainstPack } = await import("./automation/blog-source-pack.mjs");
+  const { buildSourcePack, canonicalJson, checkDraftAgainstPack, outsideNamesInPack } = await import("./automation/blog-source-pack.mjs");
   const startTime = Date.now();
   const systemPromptPath = path.join(root, "scripts", "prompts", "weekly-blog-system.md");
   const runLogDir = path.join(root, "tasks", "auto-blog-runs");
@@ -173,6 +173,10 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
         prompt += `\n\nSOURCE PACK (first-party directory export; use only these records for local facts):\n${canonicalJson(pack)}\n\nA two-business article is allowed when exactly two records support the topic. Keep the article narrow. Attribute each business fact in the same sentence with its exact name or /directory/<slug> link. Verbatim spans are evidence of what the record says, not proof that an offer, hours, or policy remains current. Do not claim current availability, pricing, or policies. Do not add any local fact outside this pack. Use only listed internal slugs. Write the selected topic only; never switch topics. Run the existing blog linter before handoff. If this pack is insufficient, refuse the draft.`;
         const ambiguous = pack.sources.filter((source) => businesses.filter((record) => record.name === source.name).length > 1);
         if (ambiguous.length) prompt += `\n\nAMBIGUOUS DIRECTORY NAMES: ${ambiguous.map((source) => `${source.name} must be attributed as [${source.name.split(/\s+/)[0]}](/directory/${source.id}); avoid its full recorded name anywhere in the post because another record shares it but does not support this topic`).join(' ')}. The exact directory slug disambiguates the evidence.`;
+        prompt += `\n\nALLOWED BUSINESSES (the only businesses this post may name, bold, or link): ${pack.sources.map((source) => ambiguous.includes(source) ? `[${source.name.split(/\s+/)[0]}](/directory/${source.id}) (link form only)` : `${source.name} (/directory/${source.id})`).join('; ')}. Never name any other business, chain, venue, or brand, not even as a comparison, alternative, or neighbour.`;
+        const outside = outsideNamesInPack(pack, businesses);
+        if (outside.length) prompt += `\n\nOUTSIDE-PACK NAMES IN THE EVIDENCE: ${outside.map((name) => JSON.stringify(name)).join(', ')} appear inside the pack's verbatim spans but are separate directory records outside this pack. Never write these names on their own; paraphrase (for example "a pricier gym nearby") or drop that clause. An ALLOWED BUSINESSES name that contains one of them, written in full, is fine.`;
+        prompt += `\n\nSELF-CHECK BEFORE HANDOFF: after appending the post to data/posts.json, run \`node scripts/automation/check-blog-draft.mjs ${path.relative(root, sidecar)}\`. It runs the same pack check as the pre-submit gate. Fix every error it prints and rerun until it prints "ok":true; business-outside-pack:<slug> means the draft names a business outside ALLOWED BUSINESSES. If an error cannot be cleared, refuse the draft.`;
       }
     }
     if (runLog.stopReason !== "pending") return finish();
@@ -377,7 +381,7 @@ async function main() {
   process.exit(result.postWritten && result.stopReason === "post-written" ? 0 : 1);
 }
 
-module.exports = { classifyStopReason, runPipeline };
+module.exports = { classifyStopReason, listBlogImages, runPipeline };
 if (require.main === module)
   main().catch((err) => {
     console.error("Fatal error:", err);

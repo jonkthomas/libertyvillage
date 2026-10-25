@@ -75,3 +75,6 @@ data/topics-part*.json
 
 # local news discovery pilot artifacts (shadow-mode only)
 .news-pilot/
+
+# python bytecode caches
+__pycache__/
