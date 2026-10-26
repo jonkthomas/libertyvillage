@@ -518,6 +518,10 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
 async function publishTail({ db, id, token, actor, env, deps }) {
   const propagation = await propagate(db, { submissionId: id, token, actor, env, deps });
   const refreshed = await getSubmission(db, id);
+  if (refreshed.submission.state === 'published') {
+    const { recordPublishedPosts } = await import('./submit.mjs');
+    await recordPublishedPosts(db, id, deps);
+  }
   const last = refreshed.rounds.at(-1);
   const base = String(env.CONTENT_SITE_URL || '').replace(/\/+$/, '');
   const published = refreshed.items.map((item) => {

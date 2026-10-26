@@ -19,7 +19,7 @@ export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
 const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
 const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DB_NAME', 'CONTENT_TARGET', 'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'CONTENT_DEPLOY_HOOK_URL', 'SLACK_WEBHOOK_URL'];
 const SOURCE_ENV = {
-  'topic-discovery': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE', 'SERPAPI_API_KEY'],
+  'topic-discovery': ['CONTENT_DATABASE_URL', 'CONTENT_DB_NAME', 'GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE', 'SERPAPI_API_KEY'],
   'discover-businesses': ['SERPAPI_API_KEY', 'PEXELS_API_KEY'],
   news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY', 'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY'],
   'weekly-growth-report': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE'],
@@ -710,7 +710,8 @@ function blogCandidate(run, entry, snapshot, { reserve = false, consumed = run.c
 
 function queueEntries(run, snapshot) {
   if (run.request.topic) return [{ title: run.request.topic, key: `manual:${createHash('sha256').update(run.request.topic).digest('hex').slice(0, 32)}` }];
-  return (Array.isArray(snapshot.queue?.topics) ? snapshot.queue.topics : []).filter((entry) => entry?.kind === 'blog');
+  const entries = (Array.isArray(snapshot.queue?.topics) ? snapshot.queue.topics : []).filter((entry) => entry?.kind === 'blog');
+  return run.deps.modules.rankQueuedTopics?.(entries) ?? entries;
 }
 
 const humanize = (category) => category.split('-').filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
@@ -1564,6 +1565,7 @@ async function trustedModules(root) {
     load('scripts/content/roundup-mode.mjs'), load('scripts/content/validate.mjs'),
   ]);
   return {
+    rankQueuedTopics: (entries) => [...entries].sort((a, b) => (Number(queue.growthHints(b).score) || 0) - (Number(queue.growthHints(a).score) || 0)),
     weekStartUtc: cadence.weekStartUtc, checkTopicGroundability: queue.checkTopicGroundability, reserveGuideEligibility: queue.reserveGuideEligibility,
     buildSourcePack: pack.buildSourcePack, verifySourcePack: pack.verifySourcePack, canonicalJson: pack.canonicalJson, checkDraftAgainstPack: pack.checkDraftAgainstPack,
     roundupPackDigest: evidence.roundupPackDigest, isoWeekOf: roundup.isoWeekOf, roundupSlug: roundup.roundupSlug,
@@ -1647,6 +1649,13 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
     logLine(log, 'export');
     const changed = generator(job, slot, request.topic ? { title: request.topic } : null, true, log, notifications);
     return { dryRun: true, paths: changed.length };
+  }
+  if (job === 'topic-discovery' && !request.dryRun) {
+    try {
+      command(node, ['scripts/content/ledger.mjs', 'weekly'], { cwd: repo,
+        env: { ...trustedEnv(process.env), ...childEnv(process.env, ['GOOGLE_APPLICATION_CREDENTIALS']) } });
+      logLine(log, 'growth-ledger-updated');
+    } catch { logLine(log, 'growth-ledger-failed', { reason: 'measurement unavailable; discovery continues' }); }
   }
   const previous = job === 'news' && request.dryRun ? null : lookup(job, target, slot, log);
   if (previous) return previous;

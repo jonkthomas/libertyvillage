@@ -227,7 +227,7 @@ export function decodeEntities(s) {
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
-export function buildModel({ generatedAt, window, runs, posted, titles = {}, queue, gsc, notes = [], links = {} }) {
+export function buildModel({ generatedAt, window, runs, posted, titles = {}, queue, gsc, actions = [], notes = [], links = {} }) {
   const runsView = summarizeRuns(runs ?? []);
   return {
     generatedAt,
@@ -237,6 +237,7 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     posted: { items: (posted ?? []).map((p) => ({ ...p, title: titles[p.url] ? decodeEntities(titles[p.url]) : null })) },
     queue: queue ?? { held: null, timers: [], note: 'not fetched' },
     gsc: gsc ?? { source: 'unavailable', note: 'not fetched' },
+    actions,
     notes,
     links,
   };
@@ -433,6 +434,19 @@ export function execSummary(model) {
   };
 }
 
+export function searchClicksLead(gsc = {}) {
+  const weeks = gsc.weeks ?? [];
+  const latest = weeks.at(-1), previous = weeks.at(-2);
+  if (!latest || !previous) return 'Search clicks this week: unavailable (WoW unavailable)';
+  const pct = previous.clicks > 0 ? Math.round((latest.clicks - previous.clicks) / previous.clicks * 1000) / 10 : null;
+  return `Search clicks this week: ${latest.clicks} (${pct == null ? 'WoW unavailable; zero prior clicks' : `${pct >= 0 ? '+' : ''}${pct}% WoW`}); last week: ${previous.clicks}`;
+}
+
+export function actionMovementLines(actions = []) {
+  const point = (metrics) => !metrics ? 'pending' : `${metrics.clicks ?? 'unknown'} clicks, ${metrics.impressions ?? 'unknown'} impressions, CTR ${metrics.ctr == null ? 'unknown' : `${(metrics.ctr * 100).toFixed(1)}%`}, position ${metrics.position == null ? 'unknown' : Number(metrics.position).toFixed(1)}`;
+  return actions.map((action) => `${action.action_kind === 'refresh' ? 'Refreshed' : 'Published'} ${action.slug} (${action.target_query}): T0 ${point(action.baseline)} → +2w ${point(action.outcome_2w)} → +4w ${point(action.outcome_4w)}`);
+}
+
 export function slackMessage(model) {
   const x = execSummary(model);
   const day = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d ?? '') ? shortDay(`${d}T12:00:00Z`) : d ? shortDay(d) : '');
@@ -440,9 +454,12 @@ export function slackMessage(model) {
     ? `Published: ${x.shipped.map((p) => `"${p.title}"${p.date ? ` (${day(p.date)})` : ''}`).join('; ')}.`
     : 'Published: nothing this week.';
   const lines = [
+    searchClicksLead(model.gsc),
     `Liberty Village content report, week of ${x.weekShort}`,
     x.headline,
     shipped,
+    'What we did → what it moved',
+    ...(model.actions?.length ? actionMovementLines(model.actions) : ['No measured actions yet; outcomes appear after 2 and 4 weeks.']),
     `Problems: ${x.problems}${x.progressNote ? ` ${x.progressNote}` : ''}`,
     `What you need to do: ${x.ask}`,
     model.links?.digestUrl ? `Full report: ${model.links.digestUrl}` : '',

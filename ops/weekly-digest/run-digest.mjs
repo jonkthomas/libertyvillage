@@ -19,7 +19,7 @@ import {
 import { renderHtml } from './lib/render.mjs';
 import { agentInput } from './lib/agent-input.mjs';
 import {
-  fetchVmLogs, fetchVmQueue, fetchSitemap, fetchTitles, fetchGsc, gscDelta, vmExec, VM_HOST,
+  fetchLedgerOnVm, fetchVmLogs, fetchVmQueue, fetchSitemap, fetchTitles, fetchGsc, gscDelta, vmExec, VM_HOST,
 } from './lib/fetchers.mjs';
 
 const HOME = os.homedir();
@@ -123,11 +123,16 @@ async function main() {
   gsc.delta = gscDelta(gsc.weeks ?? []);
   log(`gsc source: ${gsc.source}`);
 
+  // Include five weeks so +4w observations remain visible, even with no action this week.
+  let actions = [];
+  try { actions = await fetchLedgerOnVm({ since: new Date(now.getTime() - 35 * 86400000).toISOString() }); }
+  catch { notes.push('Growth ledger unavailable this week.'); }
+
   // 5. Build + render
   const digestUrl = dryRun ? `${baseUrl}/lv-digest-${id}.html (dry run, not published)` : `${baseUrl}/lv-digest-${id}.html`;
   const model = buildModel({
     generatedAt: new Date().toISOString(),
-    window, runs, posted, titles, queue, gsc, notes,
+    window, runs, posted, titles, queue, gsc, actions, notes,
     links: { digestUrl, repo: 'https://github.com/jonkthomas/libertyvillage' },
   });
   const html = renderHtml(model);

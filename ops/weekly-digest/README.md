@@ -119,3 +119,27 @@ truncation and refusal, and CLI refusal of unsupported actions.
 `bash -n ops/weekly-digest/install-vm-agent.sh ops/weekly-digest/install-mac.sh`
 checks shell syntax. These local checks do not execute the Linux systemd
 units or install anything on the VM.
+
+## Growth learning ledger
+
+The first Slack line reports Search clicks this week: N (±X% WoW), before the
+existing executive report. The existing complete Mon–Sun windows and
+treg → VM googleapis fallback remain the search source. Missing search data or
+zero prior clicks produces an explicit unavailable comparison.
+
+The Mac reads five weeks of ledger rows using its existing root VM transport:
+source `/etc/lv-runner.env`, then run
+`node scripts/content/ledger.mjs list <since>`. Database credentials stay on the
+VM; no second summary file can become stale or point at a different target.
+The existing fix-it JSON projection and push stay unchanged. A ledger fetch
+failure adds a fetch note without preventing the report.
+
+“What we did → what it moved” shows T0 and +2w/+4w clicks, impressions, CTR and
+position. Missing baselines say unknown; outcomes not yet due say pending.
+These are observations, not causal attribution.
+
+After the parent applies migration 0006 and reinstalls the runner, the existing
+Monday 10:00 UTC topic-discovery job snapshots the previous calendar week and
+fills due outcomes before discovery. The 08:00 Toronto digest runs afterward.
+No new timer is added or enabled. The parent also reinstalls the Mac digest.
+Recent GSC days can still be preliminary, as in the existing VM fallback.

@@ -820,6 +820,31 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
   } finally {
     liveCtx.cleanup();
   }
+  // Freeze T0 with the submitted request; failed measurement never blocks content.
+  if (['blog', 'blog-live'].includes(kind)) {
+    try {
+      const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+      if (prior) context = prior.context;
+      else {
+        const { baselineFor } = await import('./ledger.mjs');
+        const { growthHints, gscEditorialTitle } = await import('../automation/topic-queue.mjs');
+        const live = await readLive(db);
+        const queue = live.datasets['topic-queue']?.records ?? [];
+        const topic = context.sourcePack?.topic ?? context.sourcePack?.pack?.topic;
+        const entry = queue.find((item) => item.key === opts.topicKey || (topic && (
+          item.title === topic || gscEditorialTitle(item.title) === `${topic} in Liberty Village, Toronto` ||
+          item.title.replace(/ in Liberty Village, Toronto$/, '') === topic)));
+        const hints = growthHints(entry);
+        context.growthActions = [];
+        for (const item of images.items.filter((item) => item.dataset === 'posts' && item.op === 'insert')) {
+          const url = `${String(env.CONTENT_SITE_URL || 'https://libertyvillage.co').replace(/\/+$/, '')}/blog/${item.key}`;
+          const targetQuery = hints.targetQuery ?? topic ?? item.payload.title;
+          context.growthActions.push({ slug: item.key, url, pageType: 'blog', targetQuery,
+            queryType: hints.queryType ?? 'local-intent', baseline: await baselineFor(db, { url, targetQuery, now: context.now }) });
+        }
+      }
+    } catch { console.warn('growth ledger: T0 capture failed; publish will continue'); }
+  }
   const created = await createSubmission(db, {
     kind, target: db.target, actor, idempotencyKey, baseSnapshotId: manifest.snapshot_id ?? null, context,
     items: images.items.map(({ dataset, key, op, payload, expectedLiveRev }) => ({ dataset, key, op, payload, expectedLiveRev })),
@@ -839,4 +864,21 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
     },
     exitCode: 0,
   };
+}
+
+// Called by the publish tail, including retries. Publication timestamp keeps the UTC-day key stable.
+export async function recordPublishedPosts(db, submissionId, { recordAction: record, warn = console.warn } = {}) {
+  try {
+    const { submission, items } = await getSubmission(db, submissionId);
+    if (submission.state !== 'published' || !['blog', 'blog-live'].includes(submission.kind)) return;
+    const { recordAction } = await import('./ledger.mjs');
+    for (const item of items.filter((item) => item.dataset === 'posts' && item.op === 'insert')) {
+      const row = (await db.query('select payload,published_at from content.revisions where dataset=$1 and key=$2 and rev=$3', [item.dataset, item.key, item.published_rev])).rows[0];
+      const saved = submission.context?.growthActions?.find((action) => action.slug === item.key);
+      await (record ?? recordAction)(db, { actionKind: 'new_post', slug: item.key,
+        url: `https://libertyvillage.co/blog/${item.key}`, pageType: 'blog',
+        targetQuery: row.payload.title, queryType: 'local-intent', baseline: {}, ...saved,
+        actedAt: row.published_at, details: { submissionId } });
+    }
+  } catch { warn('growth ledger: new_post recording failed; publication continues'); }
 }
