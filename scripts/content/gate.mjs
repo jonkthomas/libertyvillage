@@ -14,7 +14,7 @@ import { makeRowRepairValidator } from './repair-adapter.mjs';
 import { describeRowContract } from './repair-rules.mjs';
 import { actorFor, blogDraftBindingErrors, checkKindPolicy, KIND_RULES, liveContext, policyDeps, recheckImages, sourceRefFor } from './submit.mjs';
 import { notifyFailure, propagate } from './deploy.mjs';
-import { postSlack } from './notify.mjs';
+import { formatGateError, postSlack } from './notify.mjs';
 import { lintPost } from '../blog-lint.mjs';
 import { trimEvidence } from '../automation/news-preflight.mjs';
 
@@ -342,7 +342,7 @@ export async function gateContent(db, opts, { env = process.env, deps = {}, chec
   } catch (error) {
     if (!(error instanceof ClaimError)) {
       const reason = error?.name === 'TimeoutError' ? 'timeout' : error instanceof StateError ? 'state-error' : 'operational-error';
-      try { await slack(`#${id} gate error: ${reason} — rerun: content gate --submission ${id}`); }
+      try { await slack(formatGateError({ id, reason })); }
       catch { /* Preserve the original gate error and exit 1 when Slack is down. */ }
     }
     throw error;
