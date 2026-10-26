@@ -120,6 +120,39 @@ test('postedFromSitemap: only lastmod inside the window; missing lastmod skipped
   assert.ok(!urls.includes('https://libertyvillage.co/news/index')); // no lastmod
 });
 
+// Real-shaped live sitemap (2026-10-26): 40 pages stamped with the #213 deploy
+// time (app/sitemap.ts `now`) plus blog posts carrying their own dates.
+const DIGEST_1026 = trailingWindow('2026-10-26T12:00:00Z');
+
+test('postedFromSitemap ignores a shared deploy lastmod and reports only real posts', () => {
+  const items = postedFromSitemap(read('sitemap-deploy-stamp.xml'), DIGEST_1026.from, DIGEST_1026.to);
+  assert.deepEqual(items.map((i) => i.url), [
+    'https://libertyvillage.co/blog/jukebox-print-liberty-village-printing-guide-2026',
+    'https://libertyvillage.co/blog/dentists-liberty-village-2026',
+  ]);
+});
+
+test('postedFromSitemap: a new blog post in the window appears beside the deploy stamp', () => {
+  const xml = read('sitemap-deploy-stamp.xml').replace('</urlset>',
+    '<url><loc>https://libertyvillage.co/blog/king-street-closure-news</loc><lastmod>2026-10-22</lastmod></url>\n</urlset>');
+  const urls = postedFromSitemap(xml, DIGEST_1026.from, DIGEST_1026.to).map((i) => i.url);
+  assert.ok(urls.includes('https://libertyvillage.co/blog/king-street-closure-news'), urls.join(' '));
+  assert.equal(urls.length, 3);
+});
+
+test('renderHtml escapes a fetched title exactly once', () => {
+  const url = 'https://libertyvillage.co/blog/dentists-liberty-village-2026';
+  const model = buildModel({
+    generatedAt: '2026-10-26T12:00:00.000Z', window: DIGEST_1026, runs: [],
+    posted: [{ url, lastmod: '2026-10-25', section: 'blog' }],
+    titles: { [url]: 'Dentists &amp; Clinics &#8212; Liberty Village' },
+  });
+  const html = renderHtml(model);
+  assert.ok(html.includes('Dentists &amp; Clinics — Liberty Village'), 'title not decoded then escaped once');
+  assert.ok(!html.includes('&amp;amp;'), 'title double-escaped');
+  assert.ok(html.includes('<time>2026-10-25</time>'), 'date-only lastmod not shown as a date');
+});
+
 test('renderHtml keeps failures and posted pages visible on the page', () => {
   const runs = parseRuns(fixtureFiles(), FROM, TO);
   const posted = postedFromSitemap(read('sitemap.xml'), FROM, TO);

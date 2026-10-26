@@ -36,7 +36,7 @@ export function renderHtml(model) {
   const postedRows = model.posted.items.map((p) => [
     esc(p.section),
     p.title ? link(p.url, p.title) : link(p.url, p.url),
-    `<time>${esc(new Date(p.lastmod).toISOString().slice(0, 16).replace('T', ' '))}</time>`,
+    `<time>${esc(/^\d{4}-\d{2}-\d{2}$/.test(p.lastmod) ? p.lastmod : new Date(p.lastmod).toISOString().slice(0, 16).replace('T', ' '))}</time>`,
   ]);
 
   const runRows = model.runs.list.map((r) => [
@@ -115,7 +115,7 @@ footer{margin-top:28px;color:#999;font-size:11px}
 <div class="head">${heads.join('\n')}</div>
 
 <h2>Posted this week (live site)</h2>
-${table(['Section', 'Page', 'Last mod'], postedRows, { empty: 'nothing posted in the window (loops held since Oct 1)' })}
+${table(['Section', 'Page', 'Last mod'], postedRows, { empty: 'nothing posted in the window' })}
 
 <h2>Loop runs</h2>
 ${table(['Job', 'Target', 'Slot', 'Started', 'Outcome', 'Note', 'SHA'], runRows, { empty: 'no runs recorded in the window' })}
