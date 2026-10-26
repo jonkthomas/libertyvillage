@@ -73,7 +73,10 @@ Parent sequence, staging first:
    query intent; record the metrics in the data file.
 3. Flip `confirmed: true` in a small follow-up PR, rerun tests, then deploy the
    redirects while all originals are still live. Check each confirmed source is
-   a 301 and its primary is a 200.
+   a 301 and its primary is a 200. If confirming fitness retires
+   `/guide/fitness-guide`, re-point the existing running-routes blog redirect to
+   the confirmed fitness primary in that same follow-up PR to avoid a chain.
+   Until then its target stays `/guide/fitness-guide`, which has running routes.
 4. Pause automated content writers/reconcilers, inspect dry-run candidates and
    run the tool on staging. Rebuild/export with redirects deployed and verify
    retained content, exports and sitemap. Reconcile propagation-pending

@@ -39,6 +39,7 @@ test('unconfirmed clusters produce no redirects in either the tool or Next confi
   const members = new Set(plan.clusters.flatMap(c => c.members.map(m => m.url)));
   assert.ok(!all.some(r => members.has(r.source)));
   assert.ok(!all.some(r => r.statusCode === 301));
+  assert.equal(all.find(r => r.source === '/blog/liberty-village-running-routes-martin-goodman-trail')?.destination, '/guide/fitness-guide');
 });
 
 test('confirming one cluster yields exactly its single-hop 301s', () => {
@@ -54,7 +55,7 @@ test('confirming one cluster yields exactly its single-hop 301s', () => {
   assert.ok(expected.every(r => !all.some(other => other.source === r.destination)));
 });
 
-test('every cluster source has an exact 301; destinations exist and no redirect chains', () => {
+test('confirmed cluster sources have exact 301s, existing primaries and no chains', () => {
   const confirmed = structuredClone(plan);
   confirmed.clusters.forEach(c => { c.confirmed = true; });
   const all = configuredRedirects(confirmed);
