@@ -101,6 +101,52 @@ test('page absent (unpublish / compensated insert): 404 and no sitemap <loc> pas
   assert.match(bad.failures[0].reason, /returned 200, expected 404/);
 });
 
+// A confirmed consolidation source is unpublished behind a next.config.ts redirect to its primary.
+const CLUSTER = new Map([['/blog/old-guide', '/guide/primary']]);
+function clusterSite(redirects) {
+  const live = fakeLive();
+  live.set('topics', 'primary', 1, { slug: 'primary', title: 'Primary' });
+  live.set('posts', 'old-guide', 1, { slug: 'old-guide', title: 'Old' });
+  live.set('posts', 'old-guide', null);
+  const alias = fakeAlias(buildDeployment({ live, liveSeq: 40, url: 'https://dep-40', registry, redirects }));
+  const run = (items, consolidation = CLUSTER) => smoke({ alias, live, clock: virtualClock(), liveSeq: 40, items, consolidation });
+  return { alias, run };
+}
+const OLD_GUIDE = [{ dataset: 'posts', key: 'old-guide', publishedRev: null }];
+
+test('confirmed consolidation source unpublish: a single 301 or 308 to its 200 primary passes', async () => {
+  for (const status of [301, 308]) {
+    const { alias, run } = clusterSite({ '/blog/old-guide': [status, '/guide/primary'] });
+    const result = await run(OLD_GUIDE);
+    assert.deepEqual([result.status, result.results[0]?.smoke], ['passed', 'passed'], JSON.stringify(result.failures));
+    assert.ok(alias.state.requests.includes('/guide/primary'));
+  }
+});
+
+test('confirmed consolidation source unpublish: wrong target, chain, non-200 primary, plain 200 or 404 is a bad render', async () => {
+  const cases = [
+    [{ '/blog/old-guide': [301, '/guide/elsewhere'], '/guide/elsewhere': [200, null] }, /returned 301 to \/guide\/elsewhere, expected a single 301\/308 to \/guide\/primary/],
+    [{ '/blog/old-guide': [301, '/blog/middle'], '/blog/middle': [301, '/guide/primary'] }, /returned 301 to \/blog\/middle, expected a single 301/],
+    [{ '/blog/old-guide': [301, '/guide/primary'], '/guide/primary': [301, '/guide/next'], '/guide/next': [200, null] }, /\/guide\/primary, which returned 301, expected 200/],
+    [{ '/blog/old-guide': [301, '/guide/primary'], '/guide/primary': [404, null] }, /\/guide\/primary, which returned 404, expected 200/],
+    [{ '/blog/old-guide': [200, null] }, /returned 200, expected a single 301/],
+    [{}, /returned 404, expected a single 301/],
+  ];
+  for (const [redirects, reason] of cases) {
+    const { run } = clusterSite(redirects);
+    const result = await run(OLD_GUIDE);
+    assert.equal(result.status, 'bad-render', JSON.stringify(redirects));
+    assert.match(result.failures[0].reason, reason);
+  }
+});
+
+test('a non-consolidation unpublish still requires 404, even behind a redirect', async () => {
+  const { run } = clusterSite({ '/blog/old-guide': [301, '/guide/primary'] });
+  const result = await run(OLD_GUIDE, new Map());
+  assert.equal(result.status, 'bad-render');
+  assert.match(result.failures[0].reason, /\/blog\/old-guide returned 200, expected 404/);
+});
+
 test('deployment identity change mid-check discards the pass and repeats', async () => {
   const live = fakeLive();
   live.set('businesses', 'k', 1, business('k', 'K'));
@@ -178,6 +224,22 @@ test('createHttp sends the protection bypass header and no-cache, and maps netwo
   const plain = createHttp({ siteUrl: 'https://libertyvillage.co', fetchImpl: async (url, init) => { seen.push({ url, headers: init.headers }); return new Response('', { status: 404 }); } });
   await plain.get('/y');
   assert.equal(seen.at(-1).headers['x-vercel-protection-bypass'], undefined);
+});
+
+test('createHttp follows by default; redirect manual reports Location as a same-origin path or a foreign absolute URL', async () => {
+  const modes = [];
+  const http = createHttp({
+    siteUrl: 'https://libertyvillage.co',
+    fetchImpl: async (url, init) => {
+      modes.push(init.redirect);
+      const location = url.endsWith('/abs') ? 'https://libertyvillage.co/guide/p' : url.endsWith('/foreign') ? 'https://evil.example/guide/p' : '/guide/p';
+      return new Response(null, { status: 301, headers: { location } });
+    },
+  });
+  await http.get('/x');
+  assert.deepEqual([(await http.get('/rel', { redirect: 'manual' })).location, (await http.get('/abs', { redirect: 'manual' })).location,
+    (await http.get('/foreign', { redirect: 'manual' })).location], ['/guide/p', '/guide/p', 'https://evil.example/guide/p']);
+  assert.deepEqual(modes, ['follow', 'manual', 'manual', 'manual']);
 });
 
 test('deploy hook: 2 attempts, 2xx required, failure is a DeployHookError (propagation)', async () => {

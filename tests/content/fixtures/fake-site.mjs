@@ -27,7 +27,8 @@ export function fakeLive() {
 }
 
 // Freeze the current live state into a deployment (the build export).
-export function buildDeployment({ live, liveSeq, url, registry, media = {}, breakPages = [], breakFiles = [] }) {
+// redirects: {source: [status, location]} served like next.config.ts redirects.
+export function buildDeployment({ live, liveSeq, url, registry, media = {}, breakPages = [], breakFiles = [], redirects = {} }) {
   const pages = new Map();
   const manifest = { schema: 1, live_seq: liveSeq, snapshot_id: `snap-${liveSeq}`, deployment_url: url, datasets: {}, media: [], files: {} };
   const locs = [];
@@ -63,6 +64,7 @@ export function buildDeployment({ live, liveSeq, url, registry, media = {}, brea
   }
   pages.set('/sitemap.xml', { status: 200, contentType: 'application/xml', body: Buffer.from(`<urlset>${locs.map((loc) => `<url><loc>${loc}</loc></url>`).join('')}</urlset>`) });
   pages.set('/content-snapshot/manifest.json', { status: 200, contentType: 'application/json', body: Buffer.from(JSON.stringify(manifest)) });
+  for (const [source, [status, location]] of Object.entries(redirects)) pages.set(source, { status, contentType: '', body: Buffer.alloc(0), location });
   return { url, pages };
 }
 
@@ -73,11 +75,13 @@ export function fakeAlias(initial) {
     state,
     promote(deployment) { state.current = deployment; },
     http: {
-      async get(target) {
+      // Follows redirects like fetch unless redirect: 'manual'.
+      async get(target, { redirect = 'follow' } = {}) {
         state.requests.push(target);
         if (state.onRequest) state.onRequest(target, state);
         const page = state.current?.pages.get(target);
-        return page ? { ...page } : { status: 404, contentType: 'text/html', body: Buffer.from('not found') };
+        if (page?.location && redirect !== 'manual') return this.get(page.location, { redirect });
+        return page ? { location: null, ...page } : { status: 404, contentType: 'text/html', body: Buffer.from('not found'), location: null };
       },
     },
   };

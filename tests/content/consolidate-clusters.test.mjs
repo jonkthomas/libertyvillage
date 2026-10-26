@@ -6,7 +6,9 @@ import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from 'node:fs';
 import { testDb } from './helpers/db.mjs';
-import { createSubmission, claimSubmission, recordRound, publishSubmission, readLive } from '../../scripts/content/store.mjs';
+import { createSubmission, claimSubmission, recordRound, publishSubmission, readLive, listPending } from '../../scripts/content/store.mjs';
+import { deployContent } from '../../scripts/content/deploy.mjs';
+import { FAST_SMOKE, localSite } from './fixtures/content-db.mjs';
 import { candidateDigest } from '../../scripts/content/canonical.mjs';
 import { consolidate, redirectsFor, routeRow, mergeCluster, validatePlan } from '../../scripts/content/consolidate-clusters.mjs';
 import { validateRecord } from '../../scripts/content/validate.mjs';
@@ -298,6 +300,33 @@ test('dry-run writes nothing, real gate apply is reversible, repeated apply is a
     assert.deepEqual(await databaseRows(f.db), restored);
     console.log('LOCAL DB: dry-run unchanged; 3 gated primaries; 3 unpublished; repeat unchanged; exact JSON rows restored');
   } finally { await f.cleanup(); }
+});
+
+// Real store, gate, admin unpublish and deploy propagation against a local HTTP stand-in
+// that serves the plan's 301s like next.config.ts. LOCAL TEST ONLY: the apply's 15-minute
+// admin claims are expired in this throwaway lv_test_* database instead of waiting them out,
+// and smoke gets the fixture plan's redirects (production reads consolidation-clusters.json).
+test('local apply then deploy: unpublished sources smoke as single 301s to 200 primaries; nothing stays pending', async () => {
+  const f = await setup();
+  const redirects = redirectsFor(fixturePlan);
+  const site = await localSite(f.db, { redirects });
+  try {
+    assert.equal((await consolidate(f.db, { ...f.opts, apply: true })).state, 'applied');
+    // The fixture publication is not a propagation subject (as in seededDb).
+    await f.db.query("update content.submissions set deploy_requested_at=now(),smoke_passed_at=now(),notified_at=now() where idempotency_key='fixture'");
+    await f.db.query("update content.submissions set claimed_until=now()-interval '1 second' where kind='admin' and idempotency_key like 'consolidation:%'");
+    const consolidation = new Map(redirects.map(r => [r.source, r.destination]));
+    const deployed = await deployContent(f.db, { actor: 'uat:consolidation' }, { env: site.env, deps: { smoke: { ...FAST_SMOKE, consolidation } } });
+    assert.equal(deployed.exitCode, 0, JSON.stringify(deployed.result));
+    assert.deepEqual(deployed.result.submissions.map(s => s.smoke), Array(6).fill('passed'));
+    assert.deepEqual(await listPending(f.db, { target: 'test' }), []);
+    for (const r of redirects) {
+      const hop = await fetch(site.origin + r.source, { redirect: 'manual' });
+      assert.deepEqual([hop.status, hop.headers.get('location')], [301, r.destination]);
+      assert.equal((await fetch(site.origin + r.destination, { redirect: 'manual' })).status, 200);
+    }
+    console.log(`LOCAL DEPLOY: 3 primaries + 3 unpublished sources smoke passed; ${redirects.length} single-hop 301 -> 200; 0 pending`);
+  } finally { await site.close(); await f.cleanup(); }
 });
 
 test('gate rejection leaves all secondary rows published and snapshot available', async () => {

@@ -10,6 +10,7 @@
 // M1 and M2 is discarded. A failing page check on an own item whose manifest entry is
 // its published rev, on a stable identity, is a proven bad render.
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
 
 export const SMOKE_INTERVAL_MS = 20_000;
 export const SMOKE_DEADLINE_MS = 15 * 60_000;
@@ -42,23 +43,36 @@ export function routeFor(dataset, key, registry) {
   return route ? route.replace(':key', key) : null;
 }
 
+// Confirmed consolidation sources -> their cluster primary. next.config.ts derives its
+// 301s from the same file, so an unpublished source is a redirect, never a 404.
+export function consolidationRedirects(plan) {
+  return new Map((plan?.clusters ?? []).filter((cluster) => cluster.confirmed === true).flatMap((cluster) =>
+    cluster.members.filter((member) => member.url !== cluster.primary).map((member) => [member.url, cluster.primary])));
+}
+export const CONSOLIDATION_REDIRECTS = consolidationRedirects(
+  JSON.parse(fs.readFileSync(new URL('./consolidation-clusters.json', import.meta.url), 'utf8')));
+
 // GET against the site origin (paths) or absolute URLs, with the protection bypass
-// header when set. Returns {status, contentType, body: Buffer}; network errors
-// surface as status 0 so retries treat them like any other failed attempt.
+// header when set. Returns {status, contentType, body: Buffer, location}; network errors
+// surface as status 0 so retries treat them like any other failed attempt. With
+// redirect: 'manual', location is the Location header, as a path when same-origin.
 export function createHttp({ siteUrl, bypass = null, fetchImpl = globalThis.fetch, timeoutMs = GET_TIMEOUT_MS }) {
   const origin = String(siteUrl || '').replace(/\/+$/, '');
   if (!origin) throw new Error('smoke requires CONTENT_SITE_URL');
   return {
     origin,
-    async get(pathOrUrl) {
+    async get(pathOrUrl, { redirect = 'follow' } = {}) {
       const url = /^https?:\/\//.test(pathOrUrl) ? pathOrUrl : `${origin}${pathOrUrl}`;
       const headers = { 'cache-control': 'no-cache', ...(bypass ? { 'x-vercel-protection-bypass': bypass } : {}) };
       try {
-        const response = await fetchImpl(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
+        const response = await fetchImpl(url, { headers, redirect, signal: AbortSignal.timeout(timeoutMs) });
         const body = Buffer.from(await response.arrayBuffer());
-        return { status: response.status, contentType: response.headers.get('content-type') || '', body };
+        const header = response.headers.get('location');
+        const target = header ? new URL(header, url) : null;
+        const location = target ? (target.origin === new URL(url).origin ? `${target.pathname}${target.search}${target.hash}` : target.href) : null;
+        return { status: response.status, contentType: response.headers.get('content-type') || '', body, location };
       } catch (error) {
-        return { status: 0, contentType: '', body: Buffer.alloc(0), error: String(error?.message || error) };
+        return { status: 0, contentType: '', body: Buffer.alloc(0), location: null, error: String(error?.message || error) };
       }
     },
   };
@@ -67,8 +81,9 @@ export function createHttp({ siteUrl, bypass = null, fetchImpl = globalThis.fetc
 // items: [{dataset, key, publishedRev}] still unresolved for this submission.
 // readCurrent(items) -> Map(itemId -> {rev|null, sha|null, payload|null}): the DB's
 // current live rev per item. registry: lib/content/datasets.json shape.
+// consolidation: Map(source route -> primary route) of confirmed cluster redirects.
 export async function runSmoke({
-  liveSeq, items, registry, readCurrent, http,
+  liveSeq, items, registry, readCurrent, http, consolidation = CONSOLIDATION_REDIRECTS,
   now = () => Date.now(), wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   intervalMs = SMOKE_INTERVAL_MS, deadlineMs = SMOKE_DEADLINE_MS, getTries = GET_TRIES, getRetryMs = GET_RETRY_MS,
 }) {
@@ -77,10 +92,10 @@ export async function runSmoke({
   let passes = 0;
   let lastWaiting = [];
 
-  const getUntil = async (target, accept) => {
+  const getUntil = async (target, accept, options) => {
     let response = null;
     for (let attempt = 1; attempt <= getTries; attempt += 1) {
-      response = await http.get(target);
+      response = await http.get(target, options);
       if (accept(response)) return { ok: true, response };
       if (attempt < getTries) await wait(getRetryMs);
     }
@@ -135,7 +150,7 @@ export async function runSmoke({
         continue;
       }
       if (!own) { passResults.set(itemId(item), 'superseded'); continue; }
-      const check = await checkItem({ item, live, manifest: m1, registry, getUntil, sitemapText });
+      const check = await checkItem({ item, live, manifest: m1, registry, consolidation, getUntil, sitemapText });
       if (check.ok) passResults.set(itemId(item), 'passed');
       else failures.push({ dataset: item.dataset, key: item.key, reason: check.reason });
     }
@@ -157,7 +172,20 @@ export async function runSmoke({
 // Exact <loc> match, so /directory/x never matches /directory/x-y.
 export const sitemapLists = (text, url) => text.includes(`<loc>${url}</loc>`);
 
-async function checkItem({ item, live, manifest, registry, getUntil, sitemapText }) {
+// Unpublished confirmed consolidation source: exactly one 301/308 hop to its primary,
+// which itself answers 200 (no further redirect). Anything else is a bad render.
+async function checkRedirected({ route, primary, getUntil }) {
+  const hop = await getUntil(route, (response) => [301, 308].includes(response.status) && response.location === primary, { redirect: 'manual' });
+  if (!hop.ok) {
+    const got = hop.response?.location ? `${hop.response.status} to ${hop.response.location}` : `${hop.response?.status}`;
+    return { ok: false, reason: `${route} returned ${got}, expected a single 301/308 to ${primary}` };
+  }
+  const target = await getUntil(primary, (response) => response.status === 200, { redirect: 'manual' });
+  if (!target.ok) return { ok: false, reason: `${route} redirects to ${primary}, which returned ${target.response?.status}, expected 200` };
+  return { ok: true };
+}
+
+async function checkItem({ item, live, manifest, registry, consolidation, getUntil, sitemapText }) {
   const entry = registry?.[item.dataset];
   if (!entry) return { ok: false, reason: `unknown dataset ${item.dataset}` };
   if (!entry.route) {
@@ -171,8 +199,14 @@ async function checkItem({ item, live, manifest, registry, getUntil, sitemapText
   const canonical = `${CANONICAL_ORIGIN}${route}`;
   if (live.rev === null || live.rev === undefined) {
     // page absent: unpublish, or compensation of an insert
-    const page = await getUntil(route, (response) => response.status === 404);
-    if (!page.ok) return { ok: false, reason: `${route} returned ${page.response?.status}, expected 404` };
+    const primary = consolidation?.get(route);
+    if (primary) {
+      const redirected = await checkRedirected({ route, primary, getUntil });
+      if (!redirected.ok) return redirected;
+    } else {
+      const page = await getUntil(route, (response) => response.status === 404);
+      if (!page.ok) return { ok: false, reason: `${route} returned ${page.response?.status}, expected 404` };
+    }
     const text = await sitemapText();
     if (text === null) return { ok: false, reason: '/sitemap.xml unavailable' };
     if (sitemapLists(text, canonical)) return { ok: false, reason: `sitemap still lists ${canonical}` };
