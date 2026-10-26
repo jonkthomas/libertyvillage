@@ -41,7 +41,8 @@ export function readRuns(logRoot, now, days = 3) {
 /** Every record the fixer wrote before (tolerant of a torn last line). */
 export function readHistory(file) {
   let text = '';
-  try { text = fs.readFileSync(file, 'utf8'); } catch { return []; }
+  // Only a missing log means "no history"; any other read error must not reset budgets.
+  try { text = fs.readFileSync(file, 'utf8'); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   return text.split('\n').flatMap((line) => {
     try { const r = JSON.parse(line); return r && typeof r === 'object' && typeof r.at === 'string' ? [r] : []; } catch { return []; }
   });
@@ -79,15 +80,17 @@ export function runPass({ apply = false, logFile, deps }) {
     if (record !== plan.act) appendRecord(logFile, record);
   }
   if (plan.act) {
-    let unit;
-    let result;
-    try {
-      unit = unitFor(plan.act);
-      result = deps.start(unit).status === 0 ? 'started' : 'failed-to-start';
-    } catch { result = 'failed-to-start'; }
-    plan.act.unit = unit ?? null;
-    plan.act.result = result;
+    // Reserve first: the 'acted' row counts against the budget even if this
+    // process dies between starting the unit and recording how it went.
+    let unit = null;
+    try { unit = unitFor(plan.act); } catch { /* recorded as failed-to-start below */ }
+    plan.act.unit = unit;
+    plan.act.result = 'starting';
     appendRecord(logFile, plan.act);
+    let result = 'failed-to-start';
+    try { if (unit && deps.start(unit).status === 0) result = 'started'; } catch { /* failed-to-start */ }
+    plan.act.result = result;
+    appendRecord(logFile, { at: deps.now(), run: plan.act.run, decision: 'outcome', actor: plan.act.actor, unit, result });
   }
   return { ...plan, dryRun: false };
 }
@@ -117,6 +120,7 @@ function main(argv = process.argv.slice(2)) {
   console.log(JSON.stringify({ dryRun: result.dryRun, skipped: result.skipped ?? null, records: result.records }, null, 1));
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// realpath: a symlinked install path (e.g. macOS /var -> /private/var) must still run main.
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   try { main(); } catch (error) { console.error(`ops fixer failed: ${error.message}`); process.exitCode = 1; }
 }

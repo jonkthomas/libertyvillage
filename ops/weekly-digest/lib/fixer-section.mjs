@@ -35,8 +35,10 @@ export function fixerView(model) {
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const runs = model.runs?.list ?? [];
   const lead = (r) => `${jobName(r.job)}: ${midSentence(explain(r.code).title)}.`;
+  // The fixer writes the 'acted' row before starting the unit and an 'outcome' row after.
+  const outcomes = new Map(records.filter((r) => r.decision === 'outcome').map((r) => [r.run, r.result]));
   const acted = records.filter((r) => r.decision === 'acted' && Object.hasOwn(DID, r.action)).map((r) => {
-    const result = actionResult(r, runs);
+    const result = actionResult({ ...r, result: outcomes.get(r.run) ?? r.result }, runs);
     return { at: r.at, what: `${lead(r)} ${DID[r.action]}`, result: result.words, outcome: result.outcome };
   });
   const handedOver = records.filter((r) => r.decision === 'escalated' || r.decision === 'budget-exhausted').map((r) => ({

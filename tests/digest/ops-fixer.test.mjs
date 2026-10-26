@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ALLOWLIST, classify, planPass, unitFor } from '../../ops/ops-fixer/policy.mjs';
@@ -117,30 +118,54 @@ test('dry run performs nothing: no unit started, no log written', () => {
   assert.equal(fs.existsSync(logFile), false);
 });
 
-test('every decision is logged durably with who/what/why/result, and the log feeds the next pass', () => {
+test('every decision is logged durably with who/what/why/result, reserved before the unit starts', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-fixer-'));
   const logFile = path.join(dir, 'actions.jsonl');
+  let atStart = null;
   const { started, deps: d } = deps();
+  const start = d.start;
+  d.start = (unit) => { atStart = readHistory(logFile); return start(unit); };
   runPass({ apply: true, logFile, deps: d });
   assert.deepEqual(started, ['lv-runner@deploy-retry:production:scheduled.service']);
+  // The action row is already durable when the unit is started (counts toward budgets).
+  const reserved = atStart.find((r) => r.decision === 'acted');
+  assert.equal(reserved.result, 'starting');
+  assert.equal(reserved.unit, 'lv-runner@deploy-retry:production:scheduled.service');
   const log = readHistory(logFile);
-  assert.equal(log.length, 2);
+  assert.deepEqual(log.map((r) => r.decision), ['escalated', 'acted', 'outcome']);
   const acted = log.find((r) => r.decision === 'acted');
   assert.equal(acted.actor, 'lv-ops-fixer');
   assert.equal(acted.action, 'retry-deploy');
   assert.equal(acted.why, 'Post saved but not showing on the site yet');
-  assert.equal(acted.result, 'started');
-  assert.equal(acted.unit, 'lv-runner@deploy-retry:production:scheduled.service');
+  assert.deepEqual(log.at(-1), { at: NOW, run: acted.run, decision: 'outcome', actor: 'lv-ops-fixer', unit: acted.unit, result: 'started' });
   assert.equal(log.find((r) => r.decision === 'escalated').code, 'mystery-code');
   // Second pass over the same failures: nothing new (idempotent), nothing started.
   const again = deps({ history: () => readHistory(logFile) });
   runPass({ apply: true, logFile, deps: again.deps });
   assert.deepEqual(again.started, []);
-  assert.equal(readHistory(logFile).length, 2);
-  // A unit that fails to start is logged as such.
+  assert.equal(readHistory(logFile).length, 3);
+  // A unit that fails to start is logged as such, and the digest says so.
   const broken = deps({ start: () => ({ status: 1 }), runs: () => [failed('news', 'cli-server')] });
   runPass({ apply: true, logFile, deps: broken.deps });
   assert.equal(readHistory(logFile).at(-1).result, 'failed-to-start');
+  const view = fixerView({ window: { from: '2026-10-26T00:00:00.000Z', to: '2026-10-27T00:00:00.000Z' }, runs: { list: [] }, fixer: { actions: readHistory(logFile) } });
+  assert.deepEqual(view.acted.map((a) => a.result), ['No result yet.', 'It did not start.']);
+  // An unreadable log is an error, never an empty history that would reset budgets.
+  assert.throws(() => readHistory(dir), /EISDIR/);
+});
+
+test('installed layout: install-vm.sh copies every module the fixer imports, and the installed fixer runs', () => {
+  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-fixer-install-'));
+  const install = spawnSync('bash', [path.join(repoRoot, 'ops/ops-fixer/install-vm.sh'), '--code-only', dest], { encoding: 'utf8' });
+  assert.equal(install.status, 0, install.stderr);
+  for (const rel of ['ops-fixer/fixer.mjs', 'ops-fixer/policy.mjs', 'weekly-digest/lib/digest.mjs', 'weekly-digest/lib/plain-english.mjs', 'weekly-digest/lib/fixer-section.mjs']) {
+    assert.ok(fs.existsSync(path.join(dest, rel)), rel);
+  }
+  const logs = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-fixer-nologs-'));
+  const run = spawnSync(process.execPath, [path.join(dest, 'ops-fixer/fixer.mjs'), '--log-root', logs, '--state-dir', path.join(logs, 'state')], { encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(JSON.parse(run.stdout).dryRun, true);
+  assert.equal(fs.existsSync(path.join(logs, 'state')), false, 'dry run writes nothing');
 });
 
 test('readRuns parses runner JSONL from the log directory', () => {
