@@ -1,18 +1,26 @@
 # Cluster consolidation
 
 `consolidation-clusters.json` owns membership, the primary and the useful sections
-to retain from every member. `next.config.ts` derives exact 301s from it. Changing
-a primary is a data-file edit; the matching redirects change with it. The HTTP
-test checks every source, destination existence and absence of chains.
+to retain from every member. Every cluster starts with `confirmed: false`, so
+this PR ships zero cluster redirects. `next.config.ts` derives exact 301s only
+from clusters with `confirmed: true`. Changing a primary is a data-file edit;
+the matching redirects change with it once confirmed. Tests check both states,
+destination existence and absence of chains.
 The optional `imageFrom` selects an existing image from another cluster member;
 the restaurant primary uses this because its legacy image file is absent.
 
-The initial choices are **PROVISIONAL**. Confirm primaries from
-`source-data.json` (GSC 28d) before the post-merge apply. That evidence must also
-be checked before deploying redirects: compare page clicks first, impressions
-second, and inspect the shared query rows for matching intent. Fill the per-member
-28-day metrics and update the plan's evidence/status. Missing GSC rows are unknown,
-not zero. World Cup posts remain live.
+The initial choices are **PROVISIONAL**. Obtain `source-data.json` from the
+read-only VM run. Confirm or replace each primary using 28-day page clicks first,
+impressions second, and shared query intent. Fill the per-member metrics and
+update the plan's evidence/status. A small follow-up PR flips `confirmed: true`
+for the verified choices; deploy those redirects while the originals remain live.
+Missing GSC rows are unknown, not zero. World Cup posts remain live.
+
+Apply refuses the entire selected plan if any cluster is unconfirmed (including
+a missing confirmation field), before DB reads or snapshot writes. A custom
+`--plan` can select only confirmed clusters for an incremental operation. Dry-run
+can preview unconfirmed candidates and emits no redirects for them. Rollback is
+exempt from confirmation, so a saved operation can always be recovered.
 
 Use a single operator per run directory. Keep that directory outside the checkout
 and retain it with the parent’s operational evidence. The snapshot binds to the
@@ -52,22 +60,24 @@ outside local tests; the gate itself refuses that seam on production.
 
 Parent sequence, staging first:
 
-1. Confirm the provisional choices/metrics, rerun tests, and deploy redirects while
-   all original content is still published. Check each source is a 301 and each
-   primary is a 200. Keep automated content writers/reconcilers paused throughout
-   the operational window.
-2. Inspect dry-run candidates, apply, then rebuild/export from that database with
-   the redirects still deployed. Check the retained content on each primary and
-   absence of secondaries from the fresh content export/sitemap. Reconcile the
-   propagation-pending submissions through the normal parent content deploy flow.
-3. Exercise rollback on staging: restore DB rows first, rebuild/export while
-   redirects remain deployed, then remove cluster redirects and redeploy. This
-   ordering keeps every old URL reachable throughout recovery.
-4. Only after staging passes, obtain John's exact production-action approval and
-   repeat with production credentials and a separate retained run directory (for
-   example `/tmp/lv-consolidation-production`). Never substitute credentials across
-   environments. Production script invocations are the same four commands above
-   with that directory and the production-bound environment.
+1. Get `source-data.json` from the read-only VM run.
+2. Confirm or replace each primary using 28-day clicks/impressions and shared
+   query intent; record the metrics in the data file.
+3. Flip `confirmed: true` in a small follow-up PR, rerun tests, then deploy the
+   redirects while all originals are still live. Check each confirmed source is
+   a 301 and its primary is a 200.
+4. Pause automated content writers/reconcilers, inspect dry-run candidates and
+   run the tool on staging. Rebuild/export with redirects deployed and verify
+   retained content, exports and sitemap. Reconcile propagation-pending
+   submissions through the normal parent deployment flow. Exercise rollback on
+   staging, then repeat on production only with John's exact-action go, matched
+   production credentials and a separate retained directory such as
+   `/tmp/lv-consolidation-production`.
+
+For recovery, restore DB rows first, rebuild/export with redirects still deployed,
+then remove cluster redirects and redeploy. This keeps every old URL reachable.
+Production script invocations are the same four commands above with the separate
+production directory and production-bound environment.
 
 Local acceptance uses throwaway `lv_test_*` databases created through
 `postgres://postgres@127.0.0.1:55432/postgres`, because the existing `openDb` target
@@ -77,6 +87,8 @@ binder intentionally refuses the admin database itself. Run:
 CONTENT_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres LC_ALL=C LANG=C ~/.pi/agent/bin/memguard -- node --test --test-concurrency=1 tests/content/consolidate-clusters.test.mjs
 ```
 
-The project verify script also runs this suite with a local site URL so every
-configured 301 and 200 destination is exercised. Operational fixture clusters are
-synthetic and independent of the editorial choices.
+The project verify script runs this suite with a local site URL: unconfirmed
+sources must return no redirect, confirmed sources must return a 301, and every
+primary must return 200. Isolated Next config fixtures exercise one confirmed
+cluster and all confirmed clusters without changing the deployed plan. Operational
+fixture clusters are synthetic and independent of the editorial choices.

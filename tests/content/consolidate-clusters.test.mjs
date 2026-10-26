@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from 'node:fs';
 import { testDb } from './helpers/db.mjs';
 import { createSubmission, claimSubmission, recordRound, publishSubmission, readLive } from '../../scripts/content/store.mjs';
 import { candidateDigest } from '../../scripts/content/canonical.mjs';
@@ -13,12 +14,50 @@ import { validateRecord } from '../../scripts/content/validate.mjs';
 const plan = JSON.parse(await fs.readFile(new URL('../../scripts/content/consolidation-clusters.json', import.meta.url)));
 const datasets = {};
 for (const d of ['posts', 'topics', 'services']) datasets[d] = JSON.parse(await fs.readFile(new URL(`../../data/${d}.json`, import.meta.url)));
-const configuredRedirects = () => JSON.parse(execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e',
-  "const {default:value} = await import(process.env.CONSOLIDATION_CONFIG || './next.config.ts'); const config = value.default ?? value; console.log(JSON.stringify(await config.redirects()))"], { encoding: 'utf8' }));
+const configuredRedirects = (variant) => {
+  let dir;
+  try {
+    const env = { ...process.env };
+    if (variant) {
+      dir = mkdtempSync(path.join(os.tmpdir(), 'lv-confirmed-redirects-'));
+      mkdirSync(path.join(dir, 'scripts/content'), { recursive: true });
+      copyFileSync(process.env.CONSOLIDATION_CONFIG || 'next.config.ts', path.join(dir, 'next.config.ts'));
+      writeFileSync(path.join(dir, 'scripts/content/consolidation-clusters.json'), JSON.stringify(variant));
+      env.CONSOLIDATION_CONFIG = path.join(dir, 'next.config.ts');
+    }
+    return JSON.parse(execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e',
+      "const {default:value} = await import(process.env.CONSOLIDATION_CONFIG || './next.config.ts'); const config = value.default ?? value; console.log(JSON.stringify(await config.redirects()))"], { encoding: 'utf8', env }));
+  } finally { if (dir) rmSync(dir, { recursive: true, force: true }); }
+};
+
+test('unconfirmed clusters produce no redirects in either the tool or Next config', () => {
+  assert.equal(plan.clusters.length, 13);
+  assert.ok(plan.clusters.every(c => c.confirmed === false));
+  assert.deepEqual(redirectsFor(plan), []);
+  const all = configuredRedirects();
+  const members = new Set(plan.clusters.flatMap(c => c.members.map(m => m.url)));
+  assert.ok(!all.some(r => members.has(r.source)));
+  assert.ok(!all.some(r => r.statusCode === 301));
+});
+
+test('confirming one cluster yields exactly its single-hop 301s', () => {
+  const variant = structuredClone(plan);
+  variant.clusters.forEach(c => { c.confirmed = false; });
+  const selected = variant.clusters[0];
+  selected.confirmed = true;
+  const expected = selected.members.filter(m => m.url !== selected.primary)
+    .map(m => ({ source: m.url, destination: selected.primary, statusCode: 301 }));
+  assert.deepEqual(redirectsFor(variant), expected);
+  const all = configuredRedirects(variant);
+  assert.deepEqual(all.filter(r => r.statusCode === 301), expected);
+  assert.ok(expected.every(r => !all.some(other => other.source === r.destination)));
+});
 
 test('every cluster source has an exact 301; destinations exist and no redirect chains', () => {
-  const all = configuredRedirects();
-  const redirects = redirectsFor(plan);
+  const confirmed = structuredClone(plan);
+  confirmed.clusters.forEach(c => { c.confirmed = true; });
+  const all = configuredRedirects(confirmed);
+  const redirects = redirectsFor(confirmed);
   const sources = new Set(all.map(r => r.source));
   for (const expected of redirects) {
     assert.deepEqual(all.filter(r => r.source === expected.source), [expected]);
@@ -30,7 +69,9 @@ test('every cluster source has an exact 301; destinations exist and no redirect 
 });
 
 test('D2 protects every World Cup URL and includes all three recent duplicate auto-posts', () => {
-  const all = configuredRedirects();
+  const confirmed = structuredClone(plan);
+  confirmed.clusters.forEach(c => { c.confirmed = true; });
+  const all = configuredRedirects(confirmed);
   const retired = new Set(all.map(r => r.source));
   for (const url of plan.protectedUrls) assert.ok(!retired.has(url));
   assert.ok(!all.some(r => /world-cup|fifa/.test(r.source)));
@@ -53,6 +94,7 @@ test('planned primary images exist locally for the unchanged content image gate'
 
 // Synthetic records keep the operational regression independent of editorial choices.
 const fixturePlan = { version: 1, clusters: ['posts', 'topics', 'services'].map((dataset, i) => ({
+  confirmed: true,
   id: `intent-${i}`, primary: `${{ posts: '/blog/', topics: '/guide/', services: '/best/' }[dataset]}fixture-primary-${i}`,
   members: ['primary', 'secondary'].map(role => ({
     url: `${{ posts: '/blog/', topics: '/guide/', services: '/best/' }[dataset]}fixture-${role}-${i}`,
@@ -94,6 +136,25 @@ async function databaseRows(db) {
   return result;
 }
 const payloads = async db => Object.fromEntries(Object.entries((await readLive(db, { datasets: ['posts', 'topics', 'services'] })).datasets).map(([d, v]) => [d, v.records]));
+
+test('apply refuses an unconfirmed cluster before any DB or file writes', async () => {
+  const f = await setup();
+  try {
+    const before = await databaseRows(f.db);
+    const unconfirmed = structuredClone(fixturePlan);
+    unconfirmed.clusters[1].confirmed = false;
+    await assert.rejects(consolidate(f.db, { ...f.opts, plan: unconfirmed, apply: true }), /unconfirmed cluster/i);
+    assert.deepEqual(await databaseRows(f.db), before);
+    await assert.rejects(fs.stat(f.opts.runDir), { code: 'ENOENT' });
+    const planFile = path.join(f.dir, 'unconfirmed.json');
+    await fs.writeFile(planFile, JSON.stringify(unconfirmed));
+    assert.throws(() => execFileSync(process.execPath, ['scripts/content/consolidate-clusters.mjs', '--plan', planFile, '--run-dir', f.opts.runDir, '--apply'], {
+      encoding: 'utf8', env: { ...process.env, CONTENT_DATABASE_URL: f.url }, stdio: ['ignore', 'pipe', 'pipe'],
+    }), error => error.status === 1 && /unconfirmed cluster/i.test(error.stderr));
+    assert.deepEqual(await databaseRows(f.db), before);
+    await assert.rejects(fs.stat(f.opts.runDir), { code: 'ENOENT' });
+  } finally { await f.cleanup(); }
+});
 
 test('dry-run writes nothing, real gate apply is reversible, repeated apply is a no-op', async () => {
   const f = await setup();
@@ -163,14 +224,21 @@ test('changing a primary uses the same operation and plan-derived redirects', ()
   assert.match(mergeCluster(c, records, r, '2026-10-26').content, /Useful 0/);
 });
 
-test('live HTTP: every redirect source returns 301 directly to a 200 primary', { skip: !process.env.CONSOLIDATION_BASE_URL }, async () => {
+test('live HTTP: unconfirmed sources do not redirect; confirmed 301s lead directly to 200 primaries', { skip: !process.env.CONSOLIDATION_BASE_URL }, async () => {
   const base = process.env.CONSOLIDATION_BASE_URL;
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname));
-  for (const r of redirectsFor(plan)) {
-    const response = await fetch(new URL(r.source, base), { method: 'HEAD', redirect: 'manual' });
-    assert.equal(response.status, 301, r.source);
-    assert.equal(new URL(response.headers.get('location'), base).pathname, r.destination);
-    const target = await fetch(new URL(r.destination, base), { method: 'HEAD', redirect: 'manual' });
-    assert.equal(target.status, 200, r.destination);
+  for (const c of plan.clusters) {
+    for (const m of c.members.filter(m => m.url !== c.primary)) {
+      const response = await fetch(new URL(m.url, base), { method: 'HEAD', redirect: 'manual' });
+      if (c.confirmed === true) {
+        assert.equal(response.status, 301, m.url);
+        assert.equal(new URL(response.headers.get('location'), base).pathname, c.primary);
+      } else {
+        assert.ok([200, 404].includes(response.status), `${m.url}: ${response.status}`);
+        assert.equal(response.headers.get('location'), null, m.url);
+      }
+    }
+    const target = await fetch(new URL(c.primary, base), { method: 'HEAD', redirect: 'manual' });
+    assert.equal(target.status, 200, c.primary);
   }
 });

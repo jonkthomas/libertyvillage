@@ -23,6 +23,7 @@ export function validatePlan(plan) {
   const seen = new Set(); const ids = new Set();
   for (const c of plan.clusters) {
     if (!c.id || ids.has(c.id) || c.members.length < 2 || !c.members.some(m => m.url === c.primary)) throw new Error('invalid cluster');
+    if (c.confirmed !== undefined && typeof c.confirmed !== 'boolean') throw new Error(`invalid confirmation: ${c.id}`);
     if (c.imageFrom && !c.members.some(m => m.url === c.imageFrom)) throw new Error('image source must be a cluster member');
     ids.add(c.id);
     for (const m of c.members) {
@@ -34,7 +35,7 @@ export function validatePlan(plan) {
   }
   return plan;
 }
-export const redirectsFor = (plan) => validatePlan(plan).clusters.flatMap(c => c.members.filter(m => m.url !== c.primary)
+export const redirectsFor = (plan) => validatePlan(plan).clusters.filter(c => c.confirmed === true).flatMap(c => c.members.filter(m => m.url !== c.primary)
   .map(m => ({ source: m.url, destination: c.primary, statusCode: 301 })));
 const normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const plain = (s) => s.replace(/^#{1,6}\s+/gm, '').replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)').replace(/\*\*/g, '');
@@ -124,6 +125,10 @@ async function lookup(db, key) {
 }
 export async function consolidate(db, { plan, apply = false, rollback = false, runDir, actor = 'seo-consolidation', gateScript, checkout = process.cwd() } = {}) {
   validatePlan(plan);
+  if (apply && !rollback) {
+    const unconfirmed = plan.clusters.filter(c => c.confirmed !== true).map(c => c.id);
+    if (unconfirmed.length) throw new Error(`unconfirmed clusters: ${unconfirmed.join(', ')}; confirm primaries from GSC before apply`);
+  }
   const digest = hash('sha256', JSON.stringify(plan));
   const redirects = redirectsFor(plan);
   const file = runDir && path.join(path.resolve(runDir), 'snapshot.json');

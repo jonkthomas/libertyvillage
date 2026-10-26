@@ -80,7 +80,8 @@
             "Accessibility and Parking"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "restaurants",
@@ -115,7 +116,8 @@
           ]
         }
       ],
-      "imageFrom": "/blog/best-restaurants-liberty-village-locals-guide"
+      "imageFrom": "/blog/best-restaurants-liberty-village-locals-guide",
+      "confirmed": false
     },
     {
       "id": "patios",
@@ -157,7 +159,8 @@
             "When Does Patio Season End?"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "fitness",
@@ -190,7 +193,8 @@
             "Overview"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "transit",
@@ -224,7 +228,8 @@
             "GO Transit — Regional Connections"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "brunch",
@@ -257,7 +262,8 @@
             "Best for Specific Needs"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "nightlife",
@@ -300,7 +306,8 @@
             "Late-Night Eats"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "date-night",
@@ -326,7 +333,8 @@
             "Beyond Dinner"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "farmers-market",
@@ -350,7 +358,8 @@
             "How to Stay Updated"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "remote-work",
@@ -392,7 +401,8 @@
             "Overview"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "condos",
@@ -416,7 +426,8 @@
             "What to Look For"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "things-to-do",
@@ -451,7 +462,8 @@
             "Make It a Weekend"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     },
     {
       "id": "printing",
@@ -478,7 +490,8 @@
             "Practical Tips for Printing in Liberty Village"
           ]
         }
-      ]
+      ],
+      "confirmed": false
     }
   ]
 }

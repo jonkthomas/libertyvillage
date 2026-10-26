@@ -9,9 +9,9 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      // Single source of truth for the reversible content consolidation plan.
+      // Only GSC-confirmed primaries may receive consolidation redirects.
       // Explicit 301: Next's permanent:true uses 308 instead.
-      ...consolidation.clusters.flatMap((cluster) =>
+      ...consolidation.clusters.filter((cluster) => cluster.confirmed === true).flatMap((cluster) =>
         cluster.members.filter((member) => member.url !== cluster.primary).map((member) => ({
           source: member.url,
           destination: cluster.primary,
