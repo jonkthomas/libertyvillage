@@ -59,7 +59,7 @@ export async function createSubmission(db, input) {
   const { kind, target, actor, idempotencyKey, baseSnapshotId = null, context = null, items, assets = [], discoverySeen = [] } = input;
   if (target !== db.target) throw new ValidationError('target mismatch');
   if (!idempotencyKey || !actor) throw new ValidationError('actor and idempotency key required');
-  if (!['seed', 'business', 'blog', 'blog-live', 'news', 'roundup', 'seo', 'topic-discovery', 'manual'].includes(kind)) throw new ValidationError('invalid kind');
+  if (!['seed', 'business', 'blog', 'blog-live', 'news', 'roundup', 'seo', 'topic-discovery', 'manual', 'refresh'].includes(kind)) throw new ValidationError('invalid kind');
   checkItems(items);
   const requestSha = hash('sha256', JSON.stringify({ kind, target, actor, baseSnapshotId, context, items, assets: assets.map((a) => ({ sha256: a.sha256, path: a.path })), discoverySeen }));
   return db.tx(async (c) => {

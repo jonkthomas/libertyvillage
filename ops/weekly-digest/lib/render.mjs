@@ -5,6 +5,7 @@
 // assets. John prefers plain, simple, dense UIs.
 import { actionMovementLines, searchClicksLead, execSummary, fmtDate } from './digest.mjs';
 import { renderFixerSection } from './fixer-section.mjs';
+import { renderRefreshed } from './refreshed.mjs';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -235,6 +236,8 @@ ${shipped}
 
 <h2>What we did → what it moved</h2>
 ${renderActionMovements(model.actions)}
+
+${renderRefreshed(model.refreshes)}
 
 <h2>What went wrong → what we did</h2>
 ${problems}
