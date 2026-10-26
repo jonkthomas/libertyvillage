@@ -75,7 +75,7 @@ async function crashAndResume({ crashAt, script, expectExit }) {
 }
 
 async function finish(ctx) { await ctx.site.close(); await ctx.handle.close(); }
-const slackFor = (ctx) => ctx.site.state.slack.filter((text) => text.includes(`#${ctx.id}`));
+const slackFor = (ctx) => ctx.site.state.slack.filter((text) => new RegExp(`\\nRef: submission #${ctx.id}(?: ·|$)`).test(text));
 
 test('kill after recordRound(go): resume publishes without re-reviewing or re-recording', async () => {
   const ctx = await crashAndResume({ crashAt: 'recordRound:go', script: 'pass', expectExit: 0 });
@@ -150,7 +150,7 @@ test('kill after Slack delivery, before markPhase(notified): the only case that 
     const lines = slackFor(ctx);
     assert.equal(lines.length, 2);
     assert.equal(lines[0], lines[1], 'same line, same stable #id');
-    assert.match(lines[0], new RegExp(`\\(#${ctx.id}, manual, 8\\.5, 0\\)$`));
+    assert.match(lines[0], new RegExp(`^\\[test run\\] New business listing live on the test site: .*\\nRef: submission #${ctx.id}$`, 's'));
     assert.equal(ctx.site.state.hookPosts, 1);
     assert.deepEqual(phasesOf(ctx.phaseLog, ctx.resumed.pid), ['slack:delivered']);
     assert.ok((await store.getSubmission(ctx.handle.db, ctx.id)).submission.notified_at);

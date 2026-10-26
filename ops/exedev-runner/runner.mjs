@@ -214,15 +214,70 @@ export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_EN
 // The root-owned generator helper's environment (it adds nothing secret itself).
 export const generatorEnv = (env) => childEnv(env, ['PATH', 'HOME', 'LANG', 'TZ']);
 
-export async function alertFailure({ webhook, job, target, slot, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null, exhaustedLabel = null }, fetchImpl = fetch) {
+// The shared plain-English map (ops/weekly-digest/lib/plain-english.mjs). This file
+// is installed alone, so load it from the repo checkout; a missing map degrades
+// to a plain generic sentence, never to no alert.
+let plainEnglish;
+async function loadPlainEnglish() {
+  if (plainEnglish !== undefined) return plainEnglish;
+  const rel = 'ops/weekly-digest/lib/plain-english.mjs';
+  for (const href of [new URL('../weekly-digest/lib/plain-english.mjs', import.meta.url).href, pathToFileURL(path.join(repo, rel)).href]) {
+    try { plainEnglish = await import(href); return plainEnglish; } catch { /* try the next location */ }
+  }
+  plainEnglish = null;
+  return plainEnglish;
+}
+
+const DATE_LABEL = /^\d{4}-\d{2}-\d{2}$/;
+const dayLabel = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(`${iso}T00:00:00Z`));
+const words = (key) => String(key).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ').toLowerCase();
+
+// Bounded census counts in words ("2 units, 1 core units; set aside: 1 below minimum").
+function censusWords(census) {
+  const { byReason = {}, ...counts } = censusCounts(census);
+  const found = Object.entries(counts).map(([key, n]) => `${n} ${words(key)}`).join(', ');
+  const aside = Object.entries(byReason).map(([key, n]) => `${n} ${words(key)}`).join(', ');
+  return [found && `found ${found}`, aside && `set aside ${aside}`].filter(Boolean).join('; ');
+}
+
+export function alertText(args, plain) {
+  const generic = `${args.job} did not finish (${args.target}). Details are in the weekly report.\nRef: run ${args.slot}`;
+  if (!plain) return generic;
+  // A partial map (missing export) or a throwing formatter must never drop the alert.
+  try { return plainAlertText(args, plain) || generic; } catch { return generic; }
+}
+
+function plainAlertText({ job, target, slot, reason = null, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null, exhaustedLabel = null }, plain) {
+  const stuck = Number.isSafeInteger(stuckSubmissionId) && stuckSubmissionId > 0;
+  const { explain, jobName, siteName, slackBody, midSentence } = plain;
+  const site = siteName(target);
+  const ref = `run ${slot}`;
+  if (exhaustedLabel) {
+    const e = explain('backfill exhausted');
+    const day = DATE_LABEL.test(exhaustedLabel) ? dayLabel(exhaustedLabel) : 'one October date';
+    return slackBody({ what: `${jobName(job)} on ${site}: gave up on the ${day} post. ${e.cause}`, why: e.impact, todo: e.action, link: e.link, ref });
+  }
+  if (holdCensus) {
+    const e = explain('roundup held');
+    const week = typeof holdWeek === 'string' && DATE_LABEL.test(holdWeek) ? ` for the week of ${dayLabel(holdWeek)}` : '';
+    const counts = censusWords(holdCensus);
+    return slackBody({ what: `${jobName(job)} held back on ${site}${week}. ${e.cause}`, why: e.impact, todo: e.action, link: e.link, ref: counts ? `${ref} · ${counts}` : ref });
+  }
+  if (stuck) {
+    return slackBody({
+      what: `${jobName(job)} on ${site}: a new post passed its page check but is not the live version.`,
+      why: 'It does not count toward the weekly plan until it is live.', todo: 'Check that the post is showing on the site.',
+      link: plain.LINKS.digest, ref: `${ref} · submission #${stuckSubmissionId} · inspect the original run`,
+    });
+  }
+  const e = explain(codeSuggestion ? 'SEO code suggestion; human PR required' : (reason ?? 'operational-error'));
+  return slackBody({ what: `${jobName(job)} on ${site}: ${midSentence(e.title)}. ${e.cause}`, why: e.impact, todo: e.action, link: e.link, ref });
+}
+
+export async function alertFailure({ webhook, job, target, slot, reason = null, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null, exhaustedLabel = null }, fetchImpl = fetch) {
   if (!webhook) return false;
   try {
-    const week = typeof holdWeek === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(holdWeek) ? ` week ${holdWeek};` : '';
-    const text = exhaustedLabel ? `⚠ ${job} label ${exhaustedLabel} exhausted (${target}); attempt cap retained, later labels continue; lv-runner ${slot}` :
-      holdCensus ? `⚠ ${job} publication held (${target});${week} lv-runner ${slot}; census ${JSON.stringify(censusCounts(holdCensus))}` :
-      Number.isSafeInteger(stuckSubmissionId) && stuckSubmissionId > 0 ? `⚠ ${job} held (${target}); submission #${stuckSubmissionId} smoked but not current-live; lv-runner ${slot}; inspect original slot` :
-        codeSuggestion ? `⚠ ${job} proposed code outside the data lane (${target}); human PR required; lv-runner ${slot}` :
-          `⚠ ${job} DB content job failed (${target}); lv-runner ${slot}`;
+    const text = alertText({ job, target, slot, reason, codeSuggestion, holdCensus, holdWeek, stuckSubmissionId, exhaustedLabel }, await loadPlainEnglish());
     const response = await fetchImpl(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }), signal: AbortSignal.timeout(10_000) });
     return response.ok;
   } catch { return false; }
@@ -1719,7 +1774,7 @@ export async function main(argv = process.argv.slice(2)) {
     const reason = failureReason(error);
     const stuckSubmissionId = Number.isSafeInteger(error?.stuckSubmissionId) && error.stuckSubmissionId > 0 ? error.stuckSubmissionId : null;
     logLine(log, 'failure', { error: reason, ...(stuckSubmissionId ? { submissionId: stuckSubmissionId } : {}), ...(error?.cliFailure ? { action: error.cliFailure.action, exit: error.cliFailure.exit, ...(error.cliFailure.message ? { message: error.cliFailure.message } : {}) } : {}) });
-    const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, codeSuggestion: reason === 'SEO code suggestion; human PR required', stuckSubmissionId });
+    const alerted = await alertFailure({ webhook: process.env.SLACK_WEBHOOK_URL, job, target, slot, reason, codeSuggestion: reason === 'SEO code suggestion; human PR required', stuckSubmissionId });
     if (!alerted) logLine(log, 'alert-failed');
     throw new Error(`runner failed: ${job}/${target}/${slot}`);
   } finally {

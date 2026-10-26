@@ -193,28 +193,44 @@ test('deploy hook: 2 attempts, 2xx required, failure is a DeployHookError (propa
   await assert.rejects(requestDeploy({ hookUrl: '' }), /CONTENT_DEPLOY_HOOK_URL is not set/);
 });
 
-test('notify: success/admin/failure/warning lines carry the stable #id; [scripted] prefix; ≤ 10 item lines', () => {
+test('notify: plain messages end with a stable Ref #id line; [test run] prefix; ≤ 10 item lines', () => {
   const submission = { id: 17, kind: 'business', target: 'staging', overall: '8.50', repairs: 1 };
   const items = [{ dataset: 'businesses', key: 'wilbur-s-taco-shop', payload: { name: "Wilbur's Taco Shop" } }];
-  assert.equal(formatSuccess({ submission, items, registry, siteUrl: 'https://alias.example/' }),
-    "✅ staging published: Wilbur's Taco Shop — https://alias.example/directory/wilbur-s-taco-shop (#17, business, 8.5, 1)");
-  assert.equal(formatSuccess({ submission, items, registry, siteUrl: 'https://alias.example', scripted: true }).split('\n').length, 1);
-  assert.match(formatSuccess({ submission, items, registry, siteUrl: 'https://a', scripted: true }), /^\[scripted\] ✅ /);
+  assert.equal(formatSuccess({ submission, items, registry, siteUrl: 'https://alias.example/' }), [
+    'New business listing live on the test site: "Wilbur\'s Taco Shop"',
+    'Why it matters: Readers and search engines can see it now. This is the test site; readers do not see it.',
+    'What you need to do: Nothing to do.',
+    'https://alias.example/directory/wilbur-s-taco-shop',
+    'Ref: submission #17',
+  ].join('\n'));
+  assert.match(formatSuccess({ submission, items, registry, siteUrl: 'https://a', scripted: true }), /^\[test run\] New business listing /);
   const many = Array.from({ length: 12 }, (_, index) => ({ dataset: 'topic-queue', key: String(index).padStart(64, '0'), payload: { title: `Topic ${index}` } }));
   const lines = formatSuccess({ submission: { ...submission, kind: 'topic-discovery' }, items: many, registry, siteUrl: 'https://a' }).split('\n');
-  assert.equal(lines.length, 11);
-  assert.match(lines[0], /Topic 0 — https:\/\/a\/content-snapshot\/topic-queue\.json \(#17, topic-discovery/);
-  assert.match(lines[10], /… and 2 more \(#17/);
-  assert.equal(formatAdmin({ submission: { id: 21, target: 'staging' }, items: [{ op: 'unpublish', dataset: 'businesses', key: 'k' }] }), '🔁 staging unpublish businesses/k (#21)');
+  assert.equal(lines[0], '12 updates live on the test site (Topic research):');
+  assert.equal(lines.filter((line) => line.startsWith('• ')).length, 11);
+  assert.equal(lines[1], '• Topic idea: Topic 0', 'route-less items get no snapshot-file link');
+  assert.equal(lines[11], '• … and 2 more');
+  assert.equal(lines.at(-1), 'Ref: submission #17');
+  assert.equal(formatAdmin({ submission: { id: 21, target: 'staging' }, items: [{ op: 'unpublish', dataset: 'businesses', key: 'k' }] }).split('\n')[0],
+    'Manual content update applied on the test site: 1 business listing removed.');
   const failure = formatFailure({
     submission: { id: 18, kind: 'manual', target: 'staging' }, decision: 'unrepairable', overall: 6.5,
-    findings: [{ severity: 'low', path: 'l', note: 'low' }, { severity: 'critical', path: 'c', note: 'crit' }, { severity: 'high', path: 'h', note: 'high' }, { severity: 'medium', path: 'm', note: 'med' }],
+    findings: [{ severity: 'low', path: 'l', note: 'low' }, { severity: 'critical', path: 'c', note: 'crit' }, { severity: 'high', path: 'h', note: 'high' }],
   }).split('\n');
-  assert.deepEqual(failure, ['❌ staging manual #18 unrepairable (score 6.5)', '• [critical] c: crit', '• [high] h: high', '• [medium] m: med', 'content show --submission 18']);
-  assert.match(formatFailure({ submission: { id: 2, kind: 'blog', target: 'test' }, decision: 'lint', errors: ['data/posts.json: p: [unrecorded-business] X'] }), /#2 lint \(score n\/a\)\n• data\/posts\.json: p/);
-  assert.match(formatPropagationWarning({ submission, reason: 'hook-failed' }), /^⚠ staging #17 published but not yet live \(hook-failed\); resume with content deploy --target staging$/);
-  assert.match(formatCompensationConflict({ submission }), /#17 smoke-failed: compensation-conflict/);
-  assert.match(formatAdminSmokeAlert({ submission: { id: 21, target: 'staging' }, failures: [{ dataset: 'businesses', key: 'k', reason: 'x' }] }), /admin #21 smoke failed \(businesses\/k: x\); no automatic undo/);
+  assert.deepEqual(failure, [
+    'Manual content change not published on the test site. The quality review found problems that automatic fixes cannot repair. Reviewer\'s main concern: "crit"',
+    'Why it matters: No bad content went live, but that post slot is still open.',
+    'What you need to do: Nothing to do. The next scheduled run tries again, with another topic if needed.',
+    'https://ofia.tail97aece.ts.net/decks/lv-digest/',
+    'Ref: submission #18 · details: content show --submission 18',
+  ]);
+  const lint = formatFailure({ submission: { id: 2, kind: 'blog', target: 'test' }, decision: 'lint', errors: ['data/posts.json: p: [unrecorded-business] X'] });
+  assert.match(lint, /^Blog post not published on the test site\. The draft named a business that is not in our directory/);
+  assert.doesNotMatch(lint.split('\nRef: ')[0], /unrecorded-business|data\/posts\.json|lint/);
+  assert.match(formatPropagationWarning({ submission, reason: 'hook-failed' }), /^Site rebuild did not start \(the test site\)\..*\nRef: submission #17 · resume: content deploy --target staging$/s);
+  assert.match(formatCompensationConflict({ submission }), /^Could not roll back a broken page .*\nWhat you need to do: Check the page on the site\.\nRef: submission #17/s);
+  assert.match(formatAdminSmokeAlert({ submission: { id: 21, target: 'staging' }, failures: [{ dataset: 'businesses', key: 'k', reason: 'x' }] }),
+    /Affected: 1 page \(business listing\)\.\nWhy it matters: Manual updates have no automatic undo\./);
 });
 
 test('notifyOnce: skipped when notified_at is set; a crash after delivery repeats the same #id line on resume', async () => {
@@ -318,6 +334,6 @@ test('real store: independent keys in one build; content deploy replays every pe
     assert.deepEqual(done.result.submissions.map((entry) => [entry.id, entry.smoke]), [[one.id, 'passed'], [two.id, 'passed']]);
     assert.deepEqual([await itemSmoke(db, one.id), await itemSmoke(db, two.id)], ['passed', 'passed']);
     assert.deepEqual(await store.listPending(db, { target: 'test' }), []);
-    assert.equal(site.state.slack.filter((text) => text.includes(`(#${one.id},`)).length, 1);
+    assert.equal(site.state.slack.filter((text) => text.endsWith(`\nRef: submission #${one.id}`)).length, 1);
   });
 });

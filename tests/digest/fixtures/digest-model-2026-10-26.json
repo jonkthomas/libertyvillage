@@ -1,0 +1,863 @@
+{
+ "generatedAt": "2026-10-26T13:38:41.526Z",
+ "window": {
+  "from": "2026-10-19T13:38:31.445Z",
+  "to": "2026-10-26T13:38:31.445Z"
+ },
+ "runs": {
+  "summary": {
+   "total": 19,
+   "success": 11,
+   "failure": 8,
+   "held": 0,
+   "incomplete": 0
+  },
+  "byJob": [
+   {
+    "job": "topic-discovery",
+    "target": "staging",
+    "ran": 2,
+    "success": 1,
+    "failure": 1,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "discover-businesses",
+    "target": "staging",
+    "ran": 1,
+    "success": 1,
+    "failure": 0,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "news",
+    "target": "staging",
+    "ran": 1,
+    "success": 1,
+    "failure": 0,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "weekly-growth-report",
+    "target": "staging",
+    "ran": 1,
+    "success": 1,
+    "failure": 0,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "weekly-blog",
+    "target": "staging",
+    "ran": 2,
+    "success": 0,
+    "failure": 2,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "topic-discovery",
+    "target": "production",
+    "ran": 2,
+    "success": 1,
+    "failure": 1,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "weekly-blog",
+    "target": "production",
+    "ran": 3,
+    "success": 1,
+    "failure": 2,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "news",
+    "target": "production",
+    "ran": 4,
+    "success": 4,
+    "failure": 0,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "october-blog-backfill",
+    "target": "production",
+    "ran": 2,
+    "success": 0,
+    "failure": 2,
+    "held": 0,
+    "incomplete": 0
+   },
+   {
+    "job": "discover-businesses",
+    "target": "production",
+    "ran": 1,
+    "success": 1,
+    "failure": 0,
+    "held": 0,
+    "incomplete": 0
+   }
+  ],
+  "list": [
+   {
+    "file": "topic-discovery-staging-20261022231327-743f0781.jsonl",
+    "job": "topic-discovery",
+    "target": "staging",
+    "slot": "20261022231327-743f0781",
+    "startedAt": "2026-10-22T23:13:27.441Z",
+    "endedAt": "2026-10-22T23:13:53.383Z",
+    "sha": "fcd87157",
+    "outcome": "failure",
+    "reason": null,
+    "error": "cli-operation",
+    "detail": "cli: inspect-run-slot",
+    "events": 6,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "submission",
+     "failure"
+    ]
+   },
+   {
+    "file": "topic-discovery-staging-20261023021834-64e4f501.jsonl",
+    "job": "topic-discovery",
+    "target": "staging",
+    "slot": "20261023021834-64e4f501",
+    "startedAt": "2026-10-23T02:18:34.471Z",
+    "endedAt": "2026-10-23T02:20:04.274Z",
+    "sha": "fcd87157",
+    "outcome": "success",
+    "reason": null,
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "submission",
+     "gate",
+     "success"
+    ]
+   },
+   {
+    "file": "discover-businesses-staging-20261023022033-03991f73.jsonl",
+    "job": "discover-businesses",
+    "target": "staging",
+    "slot": "20261023022033-03991f73",
+    "startedAt": "2026-10-23T02:20:33.235Z",
+    "endedAt": "2026-10-23T02:22:37.160Z",
+    "sha": "fcd87157",
+    "outcome": "success",
+    "reason": null,
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "submission",
+     "gate",
+     "success"
+    ]
+   },
+   {
+    "file": "news-staging-20261023044500-d6bfc472.jsonl",
+    "job": "news",
+    "target": "staging",
+    "slot": "20261023044500-d6bfc472",
+    "startedAt": "2026-10-23T04:45:00.933Z",
+    "endedAt": "2026-10-23T04:45:54.430Z",
+    "sha": "fcd87157",
+    "outcome": "success",
+    "reason": "no changes",
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "source-complete",
+     "news-decision",
+     "success"
+    ]
+   },
+   {
+    "file": "weekly-growth-report-staging-20261023044707-6938a84a.jsonl",
+    "job": "weekly-growth-report",
+    "target": "staging",
+    "slot": "20261023044707-6938a84a",
+    "startedAt": "2026-10-23T04:47:08.058Z",
+    "endedAt": "2026-10-23T04:47:28.891Z",
+    "sha": "fcd87157",
+    "outcome": "success",
+    "reason": null,
+    "error": null,
+    "detail": null,
+    "events": 5,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "source-complete",
+     "growth-report",
+     "success"
+    ]
+   },
+   {
+    "file": "weekly-blog-staging-20261023044740-1b9e355b.jsonl",
+    "job": "weekly-blog",
+    "target": "staging",
+    "slot": "20261023044740-1b9e355b",
+    "startedAt": "2026-10-23T04:47:40.228Z",
+    "endedAt": "2026-10-23T04:48:01.678Z",
+    "sha": "fcd87157",
+    "outcome": "failure",
+    "reason": null,
+    "error": "operational-error",
+    "detail": null,
+    "events": 15,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "cadence-schema-ready",
+     "cadence-prior-week",
+     "cadence-prior-week",
+     "cadence-alerts-delivered",
+     "cadence-count",
+     "export",
+     "cadence-inventory",
+     "cadence-plan",
+     "export",
+     "intent-skipped",
+     "cadence-attempt",
+     "cadence-attempt-failed",
+     "failure"
+    ]
+   },
+   {
+    "file": "weekly-blog-staging-20261023050633-a6685090.jsonl",
+    "job": "weekly-blog",
+    "target": "staging",
+    "slot": "20261023050633-a6685090",
+    "startedAt": "2026-10-23T05:06:33.902Z",
+    "endedAt": "2026-10-23T05:16:10.996Z",
+    "sha": "fcd87157",
+    "outcome": "failure",
+    "reason": null,
+    "error": "cadence content deficit",
+    "detail": null,
+    "events": 21,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "cadence-schema-ready",
+     "cadence-prior-week",
+     "cadence-prior-week",
+     "cadence-alerts-delivered",
+     "cadence-count",
+     "export",
+     "cadence-inventory",
+     "cadence-plan",
+     "export",
+     "intent-skipped",
+     "cadence-attempt",
+     "cadence-attempt-failed",
+     "export",
+     "cadence-attempt",
+     "generator-output-discarded",
+     "cadence-attempt-failed",
+     "cadence-count",
+     "cadence-deficit",
+     "failure"
+    ]
+   },
+   {
+    "file": "topic-discovery-production-202610230518-scheduled.jsonl",
+    "job": "topic-discovery",
+    "target": "production",
+    "slot": "202610230518-scheduled",
+    "startedAt": "2026-10-23T05:18:10.368Z",
+    "endedAt": "2026-10-23T05:19:50.446Z",
+    "sha": "be7904d7",
+    "outcome": "success",
+    "reason": null,
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "submission",
+     "gate",
+     "success"
+    ]
+   },
+   {
+    "file": "weekly-blog-production-202610230524-scheduled.jsonl",
+    "job": "weekly-blog",
+    "target": "production",
+    "slot": "202610230524-scheduled",
+    "startedAt": "2026-10-23T05:24:51.426Z",
+    "endedAt": "2026-10-23T05:35:42.605Z",
+    "sha": "be7904d7",
+    "outcome": "failure",
+    "reason": null,
+    "error": "cadence content deficit",
+    "detail": null,
+    "events": 22,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "cadence-schema-ready",
+     "cadence-prior-week",
+     "cadence-alerts-delivered",
+     "cadence-count",
+     "export",
+     "cadence-inventory",
+     "cadence-plan",
+     "export",
+     "intent-skipped",
+     "cadence-attempt",
+     "generator-output-discarded",
+     "cadence-attempt-failed",
+     "export",
+     "intent-skipped",
+     "cadence-attempt",
+     "generator-output-discarded",
+     "cadence-attempt-failed",
+     "cadence-count",
+     "cadence-deficit",
+     "failure"
+    ]
+   },
+   {
+    "file": "news-production-202610231217-scheduled.jsonl",
+    "job": "news",
+    "target": "production",
+    "slot": "202610231217-scheduled",
+    "startedAt": "2026-10-23T12:17:16.132Z",
+    "endedAt": "2026-10-23T12:18:13.651Z",
+    "sha": "be7904d7",
+    "outcome": "success",
+    "reason": "no changes",
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "source-complete",
+     "news-decision",
+     "success"
+    ]
+   },
+   {
+    "file": "weekly-blog-production-202610240155-scheduled.jsonl",
+    "job": "weekly-blog",
+    "target": "production",
+    "slot": "202610240155-scheduled",
+    "startedAt": "2026-10-24T01:55:36.102Z",
+    "endedAt": "2026-10-24T02:09:23.690Z",
+    "sha": "815e3f81",
+    "outcome": "failure",
+    "reason": null,
+    "error": "cadence content deficit",
+    "detail": null,
+    "events": 27,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "cadence-schema-ready",
+     "cadence-prior-week",
+     "cadence-alerts-delivered",
+     "cadence-count",
+     "export",
+     "cadence-inventory",
+     "cadence-plan",
+     "export",
+     "intent-skipped",
+     "intent-skipped",
+     "cadence-attempt",
+     "generator-output-accepted",
+     "submission",
+     "gate",
+     "cadence-consumed",
+     "export",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "cadence-attempt",
+     "generator-output-discarded",
+     "cadence-attempt-failed",
+     "cadence-count",
+     "cadence-deficit",
+     "failure"
+    ]
+   },
+   {
+    "file": "news-production-202610241217-scheduled.jsonl",
+    "job": "news",
+    "target": "production",
+    "slot": "202610241217-scheduled",
+    "startedAt": "2026-10-24T12:17:37.108Z",
+    "endedAt": "2026-10-24T12:18:26.706Z",
+    "sha": "815e3f81",
+    "outcome": "success",
+    "reason": "no changes",
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "source-complete",
+     "news-decision",
+     "success"
+    ]
+   },
+   {
+    "file": "october-blog-backfill-production-202610241537-scheduled.jsonl",
+    "job": "october-blog-backfill",
+    "target": "production",
+    "slot": "202610241537-scheduled",
+    "startedAt": "2026-10-24T15:37:05.915Z",
+    "endedAt": "2026-10-24T15:43:21.359Z",
+    "sha": "815e3f81",
+    "outcome": "failure",
+    "reason": null,
+    "error": "backfill publication incomplete",
+    "detail": null,
+    "events": 9,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "cadence-schema-ready",
+     "october-backfill-slot",
+     "export",
+     "intent-skipped",
+     "cadence-attempt",
+     "cadence-attempt-failed",
+     "failure"
+    ]
+   },
+   {
+    "file": "weekly-blog-production-202610251100-scheduled.jsonl",
+    "job": "weekly-blog",
+    "target": "production",
+    "slot": "202610251100-scheduled",
+    "startedAt": "2026-10-25T11:00:09.261Z",
+    "endedAt": "2026-10-25T11:13:05.105Z",
+    "sha": "ab878345",
+    "outcome": "success",
+    "reason": null,
+    "error": null,
+    "detail": null,
+    "events": 34,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "cadence-schema-ready",
+     "cadence-prior-week",
+     "cadence-prior-week",
+     "cadence-alerts-delivered",
+     "cadence-count",
+     "export",
+     "cadence-inventory",
+     "cadence-plan",
+     "export",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "cadence-attempt",
+     "cadence-attempt-failed",
+     "export",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "intent-skipped",
+     "cadence-attempt",
+     "generator-output-accepted",
+     "submission",
+     "gate",
+     "cadence-consumed",
+     "cadence-count",
+     "success"
+    ]
+   },
+   {
+    "file": "news-production-202610251217-scheduled.jsonl",
+    "job": "news",
+    "target": "production",
+    "slot": "202610251217-scheduled",
+    "startedAt": "2026-10-25T12:17:36.952Z",
+    "endedAt": "2026-10-25T12:24:50.828Z",
+    "sha": "ab878345",
+    "outcome": "success",
+    "reason": "no changes",
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "source-complete",
+     "news-decision",
+     "success"
+    ]
+   },
+   {
+    "file": "october-blog-backfill-production-202610251537-scheduled.jsonl",
+    "job": "october-blog-backfill",
+    "target": "production",
+    "slot": "202610251537-scheduled",
+    "startedAt": "2026-10-25T15:37:36.963Z",
+    "endedAt": "2026-10-25T15:42:02.375Z",
+    "sha": "ab878345",
+    "outcome": "failure",
+    "reason": null,
+    "error": "backfill publication incomplete",
+    "detail": null,
+    "events": 11,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "cadence-schema-ready",
+     "october-backfill-slot",
+     "export",
+     "intent-skipped",
+     "intent-skipped",
+     "cadence-attempt",
+     "generator-output-discarded",
+     "cadence-attempt-failed",
+     "failure"
+    ]
+   },
+   {
+    "file": "topic-discovery-production-202610261000-scheduled.jsonl",
+    "job": "topic-discovery",
+    "target": "production",
+    "slot": "202610261000-scheduled",
+    "startedAt": "2026-10-26T10:00:06.004Z",
+    "endedAt": "2026-10-26T10:00:53.897Z",
+    "sha": "ed06d7e3",
+    "outcome": "failure",
+    "reason": null,
+    "error": "gate blocked or rejected",
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "submission",
+     "gate",
+     "failure"
+    ]
+   },
+   {
+    "file": "news-production-202610261217-scheduled.jsonl",
+    "job": "news",
+    "target": "production",
+    "slot": "202610261217-scheduled",
+    "startedAt": "2026-10-26T12:17:36.972Z",
+    "endedAt": "2026-10-26T12:22:18.546Z",
+    "sha": "ed06d7e3",
+    "outcome": "success",
+    "reason": "no changes",
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "source-complete",
+     "news-decision",
+     "success"
+    ]
+   },
+   {
+    "file": "discover-businesses-production-202610261300-scheduled.jsonl",
+    "job": "discover-businesses",
+    "target": "production",
+    "slot": "202610261300-scheduled",
+    "startedAt": "2026-10-26T13:00:05.855Z",
+    "endedAt": "2026-10-26T13:02:09.567Z",
+    "sha": "ed06d7e3",
+    "outcome": "success",
+    "reason": null,
+    "error": null,
+    "detail": null,
+    "events": 7,
+    "badLines": 0,
+    "eventNames": [
+     "start",
+     "code-pinned",
+     "export",
+     "source-complete",
+     "submission",
+     "gate",
+     "success"
+    ]
+   }
+  ]
+ },
+ "failures": [
+  {
+   "job": "topic-discovery",
+   "target": "staging",
+   "slot": "20261022231327-743f0781",
+   "startedAt": "2026-10-22T23:13:27.441Z",
+   "reason": "cli-operation",
+   "file": "topic-discovery-staging-20261022231327-743f0781.jsonl"
+  },
+  {
+   "job": "weekly-blog",
+   "target": "staging",
+   "slot": "20261023044740-1b9e355b",
+   "startedAt": "2026-10-23T04:47:40.228Z",
+   "reason": "operational-error",
+   "file": "weekly-blog-staging-20261023044740-1b9e355b.jsonl"
+  },
+  {
+   "job": "weekly-blog",
+   "target": "staging",
+   "slot": "20261023050633-a6685090",
+   "startedAt": "2026-10-23T05:06:33.902Z",
+   "reason": "cadence content deficit",
+   "file": "weekly-blog-staging-20261023050633-a6685090.jsonl"
+  },
+  {
+   "job": "weekly-blog",
+   "target": "production",
+   "slot": "202610230524-scheduled",
+   "startedAt": "2026-10-23T05:24:51.426Z",
+   "reason": "cadence content deficit",
+   "file": "weekly-blog-production-202610230524-scheduled.jsonl"
+  },
+  {
+   "job": "weekly-blog",
+   "target": "production",
+   "slot": "202610240155-scheduled",
+   "startedAt": "2026-10-24T01:55:36.102Z",
+   "reason": "cadence content deficit",
+   "file": "weekly-blog-production-202610240155-scheduled.jsonl"
+  },
+  {
+   "job": "october-blog-backfill",
+   "target": "production",
+   "slot": "202610241537-scheduled",
+   "startedAt": "2026-10-24T15:37:05.915Z",
+   "reason": "backfill publication incomplete",
+   "file": "october-blog-backfill-production-202610241537-scheduled.jsonl"
+  },
+  {
+   "job": "october-blog-backfill",
+   "target": "production",
+   "slot": "202610251537-scheduled",
+   "startedAt": "2026-10-25T15:37:36.963Z",
+   "reason": "backfill publication incomplete",
+   "file": "october-blog-backfill-production-202610251537-scheduled.jsonl"
+  },
+  {
+   "job": "topic-discovery",
+   "target": "production",
+   "slot": "202610261000-scheduled",
+   "startedAt": "2026-10-26T10:00:06.004Z",
+   "reason": "gate blocked or rejected",
+   "file": "topic-discovery-production-202610261000-scheduled.jsonl"
+  }
+ ],
+ "posted": {
+  "items": [
+   {
+    "url": "https://libertyvillage.co/blog/jukebox-print-liberty-village-printing-guide-2026",
+    "lastmod": "2026-10-24",
+    "section": "blog",
+    "title": "Jukebox Print & Liberty Village Printing Guide (2026)"
+   },
+   {
+    "url": "https://libertyvillage.co/blog/dentists-liberty-village-2026",
+    "lastmod": "2026-10-25",
+    "section": "blog",
+    "title": "Dentists in Liberty Village: Your Neighbourhood Dental Care Guide"
+   }
+  ]
+ },
+ "queue": {
+  "held": false,
+  "timers": [
+   {
+    "unit": "lv-runner-october-blog-backfill.timer",
+    "next": "2026-10-26 15:37 UTC",
+    "last": "2026-10-25 15:37 UTC",
+    "activates": "lv-runner@october-blog-backfill:production:scheduled.service",
+    "schedule": "*-*-* 15:37:00 UTC"
+   },
+   {
+    "unit": "lv-runner-news.timer",
+    "next": "2026-10-27 12:17 UTC",
+    "last": "2026-10-26 12:17 UTC",
+    "activates": "lv-runner@news:production:scheduled.service",
+    "schedule": "*-*-* 12:17:00 UTC"
+   },
+   {
+    "unit": "lv-runner-weekly-blog.timer",
+    "next": "2026-10-28 11:00 UTC",
+    "last": "2026-10-25 11:00 UTC",
+    "activates": "lv-runner@weekly-blog:production:scheduled.service",
+    "schedule": "Wed,Sun *-*-* 11:00:00 UTC"
+   },
+   {
+    "unit": "lv-runner-weekly-growth-report.timer",
+    "next": "2026-10-29 10:37 UTC",
+    "last": "2026-10-23 05:18 UTC",
+    "activates": "lv-runner@weekly-growth-report:production:scheduled.service",
+    "schedule": "Thu *-*-* 10:37:00 UTC"
+   },
+   {
+    "unit": "lv-runner-topic-discovery.timer",
+    "next": "2026-11-02 10:00 UTC",
+    "last": "2026-10-26 10:00 UTC",
+    "activates": "lv-runner@topic-discovery:production:scheduled.service",
+    "schedule": "Mon *-*-* 10:00:00 UTC"
+   },
+   {
+    "unit": "lv-runner-discover-businesses.timer",
+    "next": "2026-11-02 13:00 UTC",
+    "last": "2026-10-26 13:00 UTC",
+    "activates": "lv-runner@discover-businesses:production:scheduled.service",
+    "schedule": "Mon *-*-* 13:00:00 UTC"
+   },
+   {
+    "unit": "lv-digest-agent.timer",
+    "next": "2026-11-02 14:00 UTC",
+    "last": "2026-10-26 13:00 UTC",
+    "activates": "lv-digest-agent.service",
+    "schedule": "Mon *-*-* 09:00:00 America/Toronto"
+   }
+  ]
+ },
+ "gsc": {
+  "weeks": [
+   {
+    "start": "2026-10-12",
+    "end": "2026-10-18",
+    "clicks": 100,
+    "impressions": 10000,
+    "ctr": 0.01,
+    "position": 9.4
+   },
+   {
+    "start": "2026-10-19",
+    "end": "2026-10-25",
+    "clicks": 83,
+    "impressions": 10740,
+    "ctr": 0.0077,
+    "position": 12
+   }
+  ],
+  "topQueries": [
+   {
+    "keys": [
+     "liberty village coffee"
+    ],
+    "clicks": 3,
+    "impressions": 40,
+    "ctr": 0.075,
+    "position": 6.1
+   },
+   {
+    "keys": [
+     "liberty village parking"
+    ],
+    "clicks": 2,
+    "impressions": 31,
+    "ctr": 0.065,
+    "position": 4.4
+   }
+  ],
+  "topPages": [
+   {
+    "keys": [
+     "https://libertyvillage.co/guide/parking-guide"
+    ],
+    "clicks": 9,
+    "impressions": 400,
+    "ctr": 0.0225,
+    "position": 8.2
+   },
+   {
+    "keys": [
+     "https://libertyvillage.co/blog/best-coffee-shops"
+    ],
+    "clicks": 6,
+    "impressions": 300,
+    "ctr": 0.02,
+    "position": 7.5
+   }
+  ],
+  "source": "fixture (synthetic numbers, real shape)",
+  "delta": {
+   "clicksPct": -17,
+   "impressionsPct": 7.4,
+   "ctr": 0.0077,
+   "position": 2.6
+  }
+ },
+ "notes": [
+  "GSC via treg failed, used VM fallback (TREG_TOKEN not set)"
+ ],
+ "links": {
+  "digestUrl": "https://example.test/lv-digest-2026-10-26.html",
+  "repo": "https://github.com/jonkthomas/libertyvillage"
+ }
+}

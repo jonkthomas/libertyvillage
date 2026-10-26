@@ -9,6 +9,7 @@ import { exportContent } from './export.mjs';
 import { restoreSnapshot } from './restore-snapshot.mjs';
 import { registry } from './canonical.mjs';
 import * as cadence from './cadence.mjs';
+import { formatCadenceAlert, formatStorageAlert } from './notify.mjs';
 import { roundupPublicationMode } from './roundup-mode.mjs';
 import fs from 'node:fs';
 const migrationsDir = path.dirname(fileURLToPath(new URL('./migrations/0001_content.sql',import.meta.url)));
@@ -157,7 +158,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
           case 'deliver-alerts': {
             const webhook = required(process.env.SLACK_WEBHOOK_URL, 'SLACK_WEBHOOK_URL');
             result = await cadence.deliverPendingAlerts(db, { target, maxAttempts: opts.maxAttempts ? Number(opts.maxAttempts) : undefined, send: async (payload) => {
-              const response = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: JSON.stringify(payload) }), signal: AbortSignal.timeout(10000) });
+              const response = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: formatCadenceAlert(payload) }), signal: AbortSignal.timeout(10000) });
               if (!response.ok) throw new Error('delivery-failed');
             } });
             break;
@@ -211,7 +212,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
         }
         break;
       }
-      case 'stats': { result=await store.stats(db); result.warn=result.projectBytes>350*1024*1024; if (opts.alert && result.warn && process.env.SLACK_WEBHOOK_URL) await fetch(process.env.SLACK_WEBHOOK_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:`⚠ Neon content storage ${Math.round(result.projectBytes/1048576)} MB > 350 MB of 512 MB`})}); break; }
+      case 'stats': { result=await store.stats(db); result.warn=result.projectBytes>350*1024*1024; if (opts.alert && result.warn && process.env.SLACK_WEBHOOK_URL) await fetch(process.env.SLACK_WEBHOOK_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:formatStorageAlert({ projectBytes: result.projectBytes })})}); break; }
       case 'gc-assets': result=await gcAssets(db,opts); break;
       case 'submit': { const submitContent=delegates.submitContent ?? (await import('./submit.mjs')).submitContent; ({result,exitCode}=await submitContent(db,opts)); break; }
       case 'gate': { const gateContent=delegates.gateContent ?? (await import('./gate.mjs')).gateContent; ({result,exitCode}=await gateContent(db,opts)); break; }

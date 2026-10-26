@@ -99,6 +99,8 @@ Parent owns protected branch settings, production credentials, timers and produc
 
 The runner logs job, target, slot, code SHA, submission ID, gate/deploy exit, bounded error codes and redacted validation/rejection guidance under `/var/log/lv-runner` mode 0700. The root helper separately writes a maximum 64 KiB root:root 0600 per-slot JSONL diagnostic under root-only `/var/log/lv-generator`: model/MCP status, tool counts, SDK summary, postWritten and closed-set stop reason only. Raw assistant/tool text, candidate bytes and env values are not persisted. Slack failure text uses only job, target and slot, except an unresolved prior smoke hold also names its trusted numeric submission ID; alert failures are logged locally. `flock -n` makes overlap visible and skips the second run. No production job is run by installation.
 
+**Slack wording:** every #libvillage message (runner alerts, publish/failure notices, missed-week alerts, the weekly digest) is written from the shared plain-English map `ops/weekly-digest/lib/plain-english.mjs`: what happened, why it matters, what to do, one link, with run/submission ids only in a trailing `Ref:` line. The installed runner loads the map from the pinned repo checkout; if it cannot, the alert falls back to one generic sentence plus the run reference. Add a new failure code to that map when you add it to `SAFE_FAILURES`; unknown codes read "investigating" and link the fix-it tickets.
+
 
 ## October 2026 recovery
 

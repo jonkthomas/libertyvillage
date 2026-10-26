@@ -235,12 +235,19 @@ test('B3 pass -> publish -> deploy -> smoke -> one Slack line, not repeated on r
     assert.deepEqual([out.result.state, out.result.decision, out.result.overall, out.result.repairs, out.result.deploy, out.result.smoke, out.result.notified], ['published', 'go', 8.5, 0, 'requested', 'passed', true]);
     assert.equal(out.result.published[0].url, `${site.origin}/directory/${BIZ.slug}`);
     assert.equal(typeof out.result.liveSeq, 'number');
-    const lines = site.slackWith(`(#${id},`);
-    assert.deepEqual(lines, [`[scripted] ✅ test published: ${BIZ.name} — ${site.origin}/directory/${BIZ.slug} (#${id}, manual, 8.5, 0)`]);
+    const published = (sid) => site.state.slack.filter((text) => text.endsWith(`\nRef: submission #${sid}`));
+    const lines = published(id);
+    assert.deepEqual(lines, [[
+      `[test run] New business listing live on the test site: "${BIZ.name}"`,
+      'Why it matters: Readers and search engines can see it now.',
+      'What you need to do: Nothing to do.',
+      `${site.origin}/directory/${BIZ.slug}`,
+      `Ref: submission #${id}`,
+    ].join('\n')]);
     assert.equal(site.state.hookPosts, 1);
     const again = await gate(db, site, id, PASS);
     assert.equal(again.exitCode, 0);
-    assert.equal(site.slackWith(`(#${id},`).length, 1, 'no repeat after notified_at');
+    assert.equal(published(id).length, 1, 'no repeat after notified_at');
     assert.equal(site.state.hookPosts, 1, 'no second hook after deploy_requested_at');
     const { rounds, items } = await store.getSubmission(db, id);
     assert.equal(rounds.length, 1);
@@ -289,7 +296,10 @@ test('B3 unrepairable / exhausted / not-converging close blocked with a failure 
       const out = await gate(db, site, id, scriptFile(script));
       assert.equal(out.exitCode, 2, `${decision}: ${JSON.stringify(out.result)}`);
       assert.deepEqual([out.result.state, out.result.decision], ['blocked', decision]);
-      assert.equal(site.slackWith(`#${id} ${decision}`).length, 1, decision);
+      const why = { unrepairable: /automatic fixes cannot repair/, exhausted: /maximum number of automatic fixes/, 'not-converging': /stopped improving/ }[decision];
+      const notices = site.slackWith(`Ref: submission #${id} · details: content show --submission ${id}`);
+      assert.equal(notices.length, 1, decision);
+      assert.match(notices[0], why, decision);
       assert.equal((await liveRecord(db, 'businesses', BIZ.slug)).description, BIZ.description, 'live rev unchanged');
     }
     const blocked = await store.listSubmissions(db, { state: 'blocked' });
@@ -307,7 +317,7 @@ test('B3 g1 validation failure closes rejected before any review', async () => {
     assert.equal(out.exitCode, 2, JSON.stringify(out.result));
     assert.deepEqual([out.result.state, out.result.decision], ['rejected', 'validation']);
     assert.equal(reviews, 0);
-    assert.match(site.slackWith(`#${id} validation`)[0], /business may not update businesses/);
+    assert.match(site.slackWith(`Ref: submission #${id} · details`)[0], /not published on the test site\. The content did not pass the format and safety checks/);
   });
 });
 
@@ -332,7 +342,7 @@ test('B3 propagation: hook 500 and freshness timeout exit 3, then content deploy
     assert.equal(failed.exitCode, 3, JSON.stringify(failed.result));
     assert.deepEqual([failed.result.state, failed.result.deploy, failed.result.smoke], ['published', 'failed', 'pending']);
     assert.equal(site.state.hookPosts, 2, 'two attempts');
-    assert.equal(site.slackWith(`#${hookId} published but not yet live (hook-failed)`).length, 1);
+    assert.equal(site.slackWith(`Site rebuild did not start (the test site).`).filter((text) => text.endsWith(`Ref: submission #${hookId} · resume: content deploy --target test`)).length, 1);
 
     site.state.hook = 'accept'; // hook accepted, the build never lands
     const staleId = await submitEdit(db, { ...BIZ, answerBlock: 'Freshness.', proTip: 'Hook failure.' }, 'fresh');
@@ -348,8 +358,9 @@ test('B3 propagation: hook 500 and freshness timeout exit 3, then content deploy
     assert.equal((await store.getSubmission(db, hookId)).items[0].smoke, 'superseded');
     assert.equal((await store.getSubmission(db, staleId)).items[0].smoke, 'passed');
     assert.deepEqual(await store.listPending(db, { target: 'test' }), []);
-    assert.equal(site.slackWith(`(#${hookId},`).length, 1);
-    assert.equal(site.slackWith(`(#${staleId},`).length, 1);
+    const published = (sid) => site.state.slack.filter((text) => text.endsWith(`\nRef: submission #${sid}`));
+    assert.equal(published(hookId).length, 1);
+    assert.equal(published(staleId).length, 1);
   });
 });
 
@@ -368,8 +379,8 @@ test('B3 bad render -> compensate -> admin submission smoked absent (insert -> 4
     assert.deepEqual([admin.submission.kind, admin.items[0].op, admin.items[0].smoke], ['admin', 'compensate', 'passed']);
     assert.ok(admin.submission.smoke_passed_at && admin.submission.notified_at);
     assert.equal((await fetch(`${site.origin}/directory/uat-render-probe`)).status, 404);
-    assert.equal(site.slackWith(`🔁 test compensate businesses/uat-render-probe (#${adminId})`).length, 1);
-    assert.equal(site.slackWith(`#${id} smoke-failed`).length, 1);
+    assert.equal(site.state.slack.filter((text) => text.startsWith('Automatic rollback applied on the test site: 1 business listing rolled back.') && text.endsWith(`Ref: submission #${adminId}`)).length, 1);
+    assert.equal(site.slackWith('failed its live check after publishing, so it was rolled back automatically').filter((text) => text.includes(`Ref: submission #${id} ·`)).length, 1);
     assert.equal(await liveRecord(db, 'businesses', 'uat-render-probe'), undefined);
   });
 });
@@ -393,8 +404,8 @@ test('admin unpublish/rollback: hook failure -> exit 3 -> content deploy resumes
     assert.deepEqual([replay.exitCode, replay.result.existing, replay.result.rev], [0, true, 2]);
     assert.deepEqual((await store.history(db, { dataset: 'businesses', key })).revisions.map((rev) => rev.source), ['writer', 'rollback']);
     await assert.rejects(adminContent(db, { op: 'unpublish', dataset: 'guide-hub', key: 'guide-hub', reason: 'uat', idempotencyKey: 'g1', actor: 'uat:test' }, { env: site.env }), { code: 'ValidationError' });
-    assert.equal(site.slackWith(`🔁 test unpublish businesses/${key}`).length, 1);
-    assert.equal(site.slackWith(`🔁 test rollback businesses/${key}`).length, 1);
+    assert.equal(site.slackWith('Manual content update applied on the test site: 1 business listing removed.').length, 1);
+    assert.equal(site.slackWith('Manual content update applied on the test site: 1 business listing rolled back.').length, 1);
   });
 });
 
@@ -576,7 +587,7 @@ test('gate exception after claim sends a safe nonempty recovery notice and relea
     assert.equal((await store.getSubmission(handle.db, id)).submission.claim_token, null);
     assert.equal((await store.getSubmission(handle.db, id)).submission.state, 'open');
     assert.equal(site.state.slack.length, 1);
-    assert.match(site.state.slack[0], new RegExp(`#${id} gate error: .+ — rerun: content gate --submission ${id}`));
+    assert.match(site.state.slack[0], new RegExp(`^Quality review stopped before finishing a draft\\. .+\\nRef: submission #${id} · retry: content gate --submission ${id}$`, 's'));
     assert.equal(site.state.slack[0].includes(secret), false);
   } finally { await site.close(); await handle.close(); }
 });

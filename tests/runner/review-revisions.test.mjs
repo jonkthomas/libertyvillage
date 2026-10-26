@@ -104,7 +104,7 @@ test('N1: all exhausted labels complete without new attempts or repeated diagnos
   assert.equal(world.logs.filter((row) => row.event === 'october-backfill-exhausted').length, 7);
   const sent = [];
   assert.equal(await alertFailure({ webhook: 'https://slack.example/fixture', job: 'october-blog-backfill', target: 'staging', slot: 'fixture', exhaustedLabel: notices[0] }, async (_url, options) => { sent.push(JSON.parse(options.body).text); return { ok: true }; }), true);
-  assert.match(sent[0], /2026-10-01 exhausted.*attempt cap retained, later labels continue/);
+  assert.match(sent[0], /^October catch-up post on the test site: gave up on the Oct 1 post\..*\nWhy it matters: That date stays without a post; the remaining dates continue\./s);
 });
 
 test('D1/N1: accelerated current-week backfill completes its label but never replaces live weekly-blog posts', (t) => {
