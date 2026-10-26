@@ -709,9 +709,46 @@ export function loadPublishedPosts(filePath = path.join(path.dirname(queuePath()
   }
 }
 
-export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [] } = {}) {
+// Separate from #216's paraphrase key: editorial wrappers and singular/plural
+// business names must not create a new URL for an already served local intent.
+const PRIMARY_INTENT_STOPWORDS = new Set('a an and are at best by complete directory find for guide guides how in is of on our review reviews the to top toronto updated what where which with your neighbourhood neighborhood'.split(' '));
+function primaryIntentKey(value) {
+  let text = String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const area = (text.match(OUTSIDE_PLACES)?.[0] ?? 'liberty village').toLowerCase().replace(/\s+/g, '-');
+  text = text.replace(OUTSIDE_PLACES, ' ').replace(/\bliberty village\b/g, ' ')
+    .replace(/\b(?:19|20)\d{2}\b/g, ' ')
+    .replace(/\b\d+\s+(?:best|top)\b|\b(?:best|top)\s+\d+\b/g, ' ')
+    .replace(/\b(?:dental(?:\s+(?:care|clinics?))?|dentistry|dentists?)\b/g, ' dentist ')
+    .replace(/\bcoffee\s+shops?\b|\bcafes?\b/g, ' coffee ');
+  if (/\bdentist\b/.test(text)) text = text.replace(/\bclinics?\b/g, ' ');
+  const words = [...new Set(text.split(/\s+/).filter((word) => word && !PRIMARY_INTENT_STOPWORDS.has(word))
+    .map((word) => word.endsWith('ies') ? `${word.slice(0, -3)}y`
+      : word.length > 3 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word))].sort();
+  return words.length ? `${area}|${words.join(' ')}` : '';
+}
+
+function primaryIntentPages({ services, guides, publishedPosts }) {
+  const primary = new Map();
+  // Directory category links resolve to /best/:service, not separate category URLs
+  // (app/directory/page.tsx). Prefer that stable category page when several exist.
+  for (const [route, records] of [['best', services], ['guide', guides], ['blog', publishedPosts]]) {
+    for (const record of records) {
+      if (!record || record.live === false || record.unpublished === true || record.draft === true
+        || (record.liveRev ?? record.live_rev) != null && Number(record.liveRev ?? record.live_rev) <= 0
+        || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(record.slug ?? '')) continue;
+      for (const value of [record.slug, record.title, record.name, record.pluralName]) {
+        const key = primaryIntentKey(value);
+        if (key && !primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
+      }
+    }
+  }
+  return primary;
+}
+
+export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [], services = [], guides = [], log = console.warn } = {}) {
   let next = queue ?? loadTopicQueue();
   const added = [];
+  const primaryPages = primaryIntentPages({ services, guides, publishedPosts });
   const seenIntents = new Set((next.topics ?? []).map((entry) => (
     `${entry?.kind ?? ''}|${intentFingerprint(entry?.title)}`
   )));
@@ -721,6 +758,13 @@ export async function appendDiscoveredTopics(queue, discoveries, { publishedPost
   ]);
   for (const discovery of discoveries) {
     if (added.length >= 25) break;
+    const primary = discovery?.kind === 'blog' && primaryPages.get(primaryIntentKey(discovery.title));
+    if (primary) {
+      // The ledger records completed actions, not suggestions. There is no
+      // suggestion writer in this branch: keep the existing URL and log the skip.
+      log(`topic discovery: intent already served; keeping ${primary}`);
+      continue;
+    }
     const normalized = normalizeDiscovery(discovery);
     if (!normalized) continue;
     const fingerprint = `${normalized?.kind ?? ''}|${intentFingerprint(normalized?.title)}`;
@@ -779,7 +823,13 @@ async function main() {
   if (command === 'discover') {
     const current = loadTopicQueue();
     const discoveries = await discoverTopics();
-    const result = await appendDiscoveredTopics(current, discoveries, { publishedPosts: loadPublishedPosts() });
+    // The trusted runner exports current LIVE DB records before this command.
+    const dataDir = path.dirname(queuePath());
+    const result = await appendDiscoveredTopics(current, discoveries, {
+      publishedPosts: loadPublishedPosts(),
+      services: loadPublishedPosts(path.join(dataDir, 'services.json')),
+      guides: loadPublishedPosts(path.join(dataDir, 'topics.json')),
+    });
     saveTopicQueue(result.queue);
     writeOutput({
       added: String(result.added.length),
