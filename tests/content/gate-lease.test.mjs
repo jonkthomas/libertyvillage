@@ -460,6 +460,6 @@ test('a network error from the heartbeat wins over the fixer failure and release
     assert.equal(submission.state, 'gating', 'not closed as a fixer error');
     assert.equal(submission.claim_token, null, 'the still-valid claim is released for a retry');
     assert.equal(site.state.slack.length, 1);
-    assert.match(site.state.slack[0], new RegExp(`#${id} gate error: operational-error — rerun: content gate --submission ${id}`));
+    assert.match(site.state.slack[0], new RegExp(`^Quality review stopped before finishing a draft\\. The run hit a technical problem.+\\nRef: submission #${id} · retry: content gate --submission ${id}$`, 's'));
   });
 });

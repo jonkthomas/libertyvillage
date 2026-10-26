@@ -3,6 +3,8 @@
 // Tolerant by contract: runner JSONL gains fields over time (unknown/missing
 // fields must never break a digest) and every fetch may degrade to a note.
 
+import { explain, normalizeCode, jobName, siteName } from './plain-english.mjs';
+
 export const TORONTO_TZ = 'America/Toronto';
 
 export function fmtDate(d, opts = {}) {
@@ -240,19 +242,210 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
   };
 }
 
+// ── Exec summary (shared by the Slack post and the page) ────────────────────
+// Derived at render time from the published model, so the JSON shape the fix-it
+// agent reads is unchanged and old digests re-render the same way.
+
+/** Planned posts per week; mirrors the runner's CADENCE.contentGoal. */
+export const WEEKLY_POST_PLAN = 2;
+
+const shortDay = (d) => fmtDate(d, { month: 'short', day: 'numeric' });
+const round = (n, dp = 0) => (n == null || !Number.isFinite(Number(n)) ? null : Number(Number(n).toFixed(dp)));
+const fmtInt = (n) => (n == null ? '—' : new Intl.NumberFormat('en-CA').format(Math.round(n)));
+const pctChange = (prev, cur) => (prev ? round(((cur - prev) / prev) * 100, 1) : null);
+const pos1 = (n) => (n == null ? null : Number(n).toFixed(1));
+
+/** "Oct 19–26" within a month, "Oct 26–Nov 2" across months; optional ", 2026". */
+export function dateRange(from, to, { year = false } = {}) {
+  const month = (d) => fmtDate(d, { month: 'short' });
+  const day = (d) => fmtDate(d, { day: 'numeric' });
+  const tail = year ? `, ${fmtDate(to, { year: 'numeric' })}` : '';
+  return month(from) === month(to) ? `${month(from)} ${day(from)}–${day(to)}${tail}` : `${shortDay(from)}–${shortDay(to)}${tail}`;
+}
+
+/** "2026-10-28 11:00 UTC" (systemd list-timers) or ISO -> Date, else null. */
+export function parseTimerTime(s) {
+  if (typeof s !== 'string' || !s.trim()) return null;
+  const iso = s.trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(?::\d{2})?) UTC$/, '$1T$2Z');
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? new Date(t) : null;
+}
+
+const DAY_NAMES = { Mon: 'Mon', Tue: 'Tue', Wed: 'Wed', Thu: 'Thu', Fri: 'Fri', Sat: 'Sat', Sun: 'Sun' };
+/** systemd OnCalendar -> "daily" | "Wed and Sun" | "every Mon" (best effort). */
+export function scheduleWords(schedule) {
+  const s = String(schedule ?? '').trim();
+  if (!s) return '';
+  const days = s.match(/^([A-Z][a-z]{2}(?:[,.]+[A-Z][a-z]{2})*)\s/);
+  if (!days) return /^\*-\*-\*/.test(s) ? 'daily' : '';
+  const list = days[1].split(/[,.]+/).filter((d) => DAY_NAMES[d]);
+  return list.length === 1 ? `every ${list[0]}` : list.join(' and ');
+}
+
+const TIMER_WORDS = {
+  'weekly-blog': 'New blog post', 'october-blog-backfill': 'October catch-up post', 'topic-discovery': 'Topic research (fills the topic queue)',
+  'discover-businesses': 'Business directory refresh', news: 'News check', 'weekly-growth-report': 'Growth report',
+  'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'SEO improvements',
+};
+
+/** Timers -> plain "next week" rows, production only, soonest first. */
+export function nextWeekPlan(timers, now) {
+  const nowMs = Date.parse(now ?? new Date().toISOString());
+  const rows = [];
+  for (const t of Array.isArray(timers) ? timers : []) {
+    const m = String(t.activates ?? '').match(/^lv-runner@([a-z-]+):(staging|production)/);
+    const job = m?.[1] ?? (String(t.unit ?? '').startsWith('lv-digest-agent') ? 'fix-it-agent' : null);
+    if (!job || (m && m[2] !== 'production')) continue;
+    const next = parseTimerTime(t.next);
+    rows.push({
+      job,
+      what: job === 'fix-it-agent' ? 'Fix-it agent reviews this report' : (TIMER_WORDS[job] ?? job.replace(/-/g, ' ')),
+      next: next ? next.toISOString() : null,
+      repeats: scheduleWords(t.schedule),
+      paused: !next,
+    });
+  }
+  return rows
+    .filter((r) => !r.next || Date.parse(r.next) >= nowMs - 86_400_000)
+    .sort((a, b) => (a.next ? Date.parse(a.next) : Infinity) - (b.next ? Date.parse(b.next) : Infinity));
+}
+
+/** A failed run is resolved by the first later successful run of the same job on the same site. */
+function resolvedLater(f, runs) {
+  const t = Date.parse(f.startedAt);
+  return runs
+    .filter((r) => r.job === f.job && r.target === f.target && r.outcome === 'success' && Date.parse(r.startedAt) > t)
+    .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))[0] ?? null;
+}
+
+/** Failure rows grouped by plain-English cause (largest group first); `open` counts the unresolved ones. */
+export function problemGroups(failures, runs = []) {
+  const groups = new Map();
+  for (const f of Array.isArray(failures) ? failures : []) {
+    const e = explain(f.reason);
+    const key = e.title;
+    const g = groups.get(key) ?? { title: e.title, cause: e.cause, impact: e.impact, action: e.action, needsYou: e.needsYou, known: e.known, link: e.link, count: 0, live: 0, open: 0, where: [] };
+    g.count += 1;
+    const fixed = resolvedLater(f, Array.isArray(runs) ? runs : []);
+    if (!fixed) g.open += 1;
+    else if (!g.resolvedAt || Date.parse(fixed.startedAt) > Date.parse(g.resolvedAt)) g.resolvedAt = fixed.startedAt;
+    if (f.target === 'production') g.live += 1;
+    g.where.push({ job: jobName(f.job), site: siteName(f.target), at: f.startedAt });
+    groups.set(key, g);
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || b.live - a.live);
+}
+
+function searchSentence(gsc) {
+  const [prev, cur] = gsc?.weeks?.length >= 2 ? gsc.weeks.slice(-2) : [null, gsc?.weeks?.at(-1)];
+  if (!cur) return 'Search data was unavailable this week.';
+  if (!prev) return `Search: ${fmtInt(cur.clicks)} clicks from ${fmtInt(cur.impressions)} impressions.`;
+  const c = pctChange(prev.clicks, cur.clicks), i = pctChange(prev.impressions, cur.impressions);
+  const verb = (n, up, down) => (n == null ? 'held' : n > 0.5 ? up : n < -0.5 ? down : 'held steady');
+  const amt = (n) => (n == null || Math.abs(n) <= 0.5 ? '' : ` ${Math.abs(n)}%`); // one decimal, as on the tiles
+  const cv = verb(c, 'rose', 'fell'), iv = verb(i, 'rose', 'fell');
+  const join = (cv === 'rose') !== (iv === 'rose') && cv !== 'held steady' && iv !== 'held steady' ? 'while' : 'and';
+  let s = `Search clicks ${cv}${amt(c)} (${fmtInt(prev.clicks)} → ${fmtInt(cur.clicks)}) ${join} impressions ${iv}${amt(i)}`;
+  const p0 = pos1(prev.position), p1 = pos1(cur.position);
+  if (p0 != null && p1 != null && Math.abs(p1 - p0) >= 0.3) {
+    const worse = Number(p1) > Number(p0);
+    if (worse && cv === 'fell' && iv === 'rose') s += `: we are showing up more but ranking lower (average position ${p0} → ${p1})`;
+    else s += `; average position ${worse ? 'slipped' : 'improved'} from ${p0} to ${p1}`;
+  }
+  return `${s}.`;
+}
+
+const lowerFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+
+/**
+ * The exec view of one digest model: headline, KPI tiles, what shipped,
+ * problems grouped by cause, next week, what's working, and what needs John.
+ */
+export function execSummary(model) {
+  const items = model.posted?.items ?? [];
+  const live = items.length;
+  const plan = WEEKLY_POST_PLAN;
+  // A week that ended on plan settles its earlier "behind plan" progress
+  // checks: one quiet line, not issues.
+  const onPlan = live >= plan;
+  const progressCheck = (f) => onPlan && normalizeCode(f.reason) === 'cadence content deficit';
+  const checks = (model.failures ?? []).filter(progressCheck).length;
+  const progressNote = checks
+    ? `Mid-week progress checks flagged the week as behind ${checks === 1 ? 'once' : checks === 2 ? 'twice' : `${checks} times`}; it finished on plan.`
+    : null;
+  // Issues are live-site (production) causes, each shown as a block on the page;
+  // test-site causes stay out of the count and get one footnote line.
+  const remaining = (model.failures ?? []).filter((f) => !progressCheck(f));
+  const groups = problemGroups(remaining.filter((f) => f.target === 'production'), model.runs?.list ?? []);
+  const testGroups = problemGroups(remaining.filter((f) => f.target !== 'production'), model.runs?.list ?? []);
+  const needsYou = [...groups, ...testGroups].filter((g) => g.needsYou && g.open > 0);
+  const weeks = model.gsc?.weeks ?? [];
+  const [prev, cur] = weeks.length >= 2 ? weeks.slice(-2) : [null, weeks.at(-1) ?? null];
+  const gscRange = cur?.start && cur?.end ? dateRange(`${cur.start}T12:00:00Z`, `${cur.end}T12:00:00Z`) : null;
+
+  const postsSentence = live >= plan ? `${live} of ${plan} planned posts went live.`
+    : live === 0 ? `No posts went live this week (plan: ${plan}).`
+      : `${live} of ${plan} planned posts went live, ${plan - live} short.`;
+  // Count live-site issues (causes), each resolved or still open, not raw failed runs.
+  const open = groups.filter((g) => g.open > 0);
+  const cats = [
+    [groups.length - open.length, 'resolved', 'resolved'],
+    [open.filter((g) => g.known && !g.needsYou).length, 'being retried automatically', 'being retried automatically'],
+    [open.filter((g) => !g.known).length, 'being investigated', 'being investigated'],
+    [open.filter((g) => g.known && g.needsYou).length, 'needs you', 'need you'],
+  ].filter(([n]) => n > 0);
+  const n = groups.length;
+  let problems;
+  if (!n) problems = testGroups.length ? 'No live-site issues this week.' : 'No issues this week.';
+  else if (cats.length === 1) problems = n === 1 ? `1 issue this week, ${cats[0][1]}.` : `${n} issues this week, ${n === 2 ? 'both' : 'all'} ${cats[0][2]}.`;
+  else problems = `${n} issues this week: ${cats.map(([k, one, many]) => `${k} ${k === 1 ? one : many}`).join(', ')}.`;
+  const ask = model.queue?.held ? 'Publishing is paused (hold switch on): lift it when ready.'
+    : needsYou.length ? `${needsYou.length === 1 ? '1 thing needs' : `${needsYou.length} things need`} you: ${needsYou.map((g) => lowerFirst(g.action.replace(/\.$/, ''))).join('; ')}.`
+      : 'Nothing needs you this week.';
+
+  const kpi = (label, value, previous, opts = {}) => {
+    const delta = opts.delta ?? (previous != null && value != null ? pctChange(previous, value) : null);
+    const better = delta == null || Math.abs(delta) < (opts.flat ?? 0.5) ? null : (opts.lowerIsBetter ? delta < 0 : delta > 0);
+    return { label, value, previous, delta, unit: opts.unit ?? '%', better, note: opts.note ?? null, display: opts.display ?? null };
+  };
+  const pos = round(cur?.position, 1), posPrev = round(prev?.position, 1);
+  const kpis = [
+    { label: 'Posts live vs plan', display: `${live} of ${plan}`, previous: null, delta: null, unit: null, better: live >= plan ? true : false,
+      note: live >= plan ? 'on plan' : `${plan - live} short` },
+    kpi(`Search clicks${gscRange ? ` (${gscRange})` : ''}`, cur?.clicks ?? null, prev?.clicks ?? null),
+    kpi('Search impressions', cur?.impressions ?? null, prev?.impressions ?? null),
+    kpi('Average position', pos, posPrev, { delta: pos != null && posPrev != null ? round(pos - posPrev, 1) : null, unit: '', lowerIsBetter: true, flat: 0.3, note: 'lower is better' }),
+  ];
+
+  return {
+    week: dateRange(model.window.from, model.window.to, { year: true }),
+    weekShort: dateRange(model.window.from, model.window.to),
+    gscRange,
+    headline: `${postsSentence} ${searchSentence(model.gsc)}`,
+    problems, progressNote, ask,
+    kpis, groups, testGroups, needsYou,
+    shipped: items.map((p) => ({ title: p.title ?? String(p.url ?? '').replace(/^https?:\/\/[^/]+/, ''), url: p.url, date: p.lastmod, section: p.section })),
+    next: nextWeekPlan(model.queue?.timers, model.window.to),
+    working: {
+      pages: (model.gsc?.topPages ?? []).slice(0, 5),
+      queries: (model.gsc?.topQueries ?? []).slice(0, 5),
+    },
+  };
+}
+
 export function slackMessage(model) {
-  const w = `${fmtDate(model.window.from, { month: 'short', day: 'numeric' })}–${fmtDate(model.window.to, { month: 'short', day: 'numeric' })}`;
-  const s = model.runs.summary;
-  const gscLine = model.gsc?.weeks?.length
-    ? `GSC: ${model.gsc.weeks.at(-1).clicks} clicks${model.gsc.delta?.clicksPct != null ? ` (${model.gsc.delta.clicksPct >= 0 ? '+' : ''}${model.gsc.delta.clicksPct}% WoW)` : ''}`
-    : 'GSC: unavailable';
-  const held = model.queue?.held ? ' · loops HELD' : '';
+  const x = execSummary(model);
+  const day = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d ?? '') ? shortDay(`${d}T12:00:00Z`) : d ? shortDay(d) : '');
+  const shipped = x.shipped.length
+    ? `Published: ${x.shipped.map((p) => `"${p.title}"${p.date ? ` (${day(p.date)})` : ''}`).join('; ')}.`
+    : 'Published: nothing this week.';
   const lines = [
-    `Liberty Village weekly digest — ${w}${held}`,
-    `• Posted: ${model.posted.items.length} page(s)`,
-    `• Runs: ${s.total} attempted, ${s.failure} failed`,
-    `• ${gscLine}`,
-    model.links.digestUrl ?? '',
+    `Liberty Village content report, week of ${x.weekShort}`,
+    x.headline,
+    shipped,
+    `Problems: ${x.problems}${x.progressNote ? ` ${x.progressNote}` : ''}`,
+    `What you need to do: ${x.ask}`,
+    model.links?.digestUrl ? `Full report: ${model.links.digestUrl}` : '',
   ].filter(Boolean);
   return lines.join('\n');
 }

@@ -16,6 +16,7 @@ export const ORPHAN_HOURS = 2;
 export const AUTOMATION_STATUS_PREFIX = 'automation/';
 export const STALE_NOTIFICATION_UTC_HOUR = 12;
 const HOUR_MS = 60 * 60 * 1000;
+const DEFAULT_REPO = 'jonkthomas/libertyvillage';
 
 function hasBlockedLabel(item) {
   return (item?.labels || []).some((label) => (typeof label === 'string' ? label : label?.name) === BLOCKED_LABEL);
@@ -73,11 +74,19 @@ export function selectOrphanAutomationPrs(items, { now, staleHours = ORPHAN_HOUR
     .sort((left, right) => left.number - right.number);
 }
 
-export function formatOrphanText(orphans, { staleHours = ORPHAN_HOURS } = {}) {
-  const summary = orphans
-    .map((pr) => `#${pr.number} ${pr.title.replace(/\s+/g, ' ').trim().slice(0, 80)} (PR age ${pr.ageHours === null ? 'unknown' : `${pr.ageHours}h`}, head age ${pr.headAgeHours === null ? 'unknown' : `${pr.headAgeHours}h`})`)
-    .join(' | ');
-  return `Automation sentinel ORPHAN pass: ${orphans.length} bot PR(s) reached no terminal state in ${staleHours}h — ${summary}`;
+// One line each (GitHub outputs refuse newlines), in plain English for
+// #libvillage: what happened, why it matters, what to do, one link.
+const prList = (prs, age) => prs
+  .map((pr) => `#${pr.number} ${pr.title.replace(/\s+/g, ' ').trim().slice(0, 80)} (${age(pr)})`)
+  .join('; ');
+const hours = (value) => (value === null ? 'unknown' : `${value}h`);
+const prs = (n) => `${n} automation pull request${n === 1 ? '' : 's'}`;
+
+export function formatOrphanText(orphans, { staleHours = ORPHAN_HOURS, repo = DEFAULT_REPO } = {}) {
+  return `${prs(orphans.length)} stalled with no pass or fail result in ${staleHours}h: `
+    + `${prList(orphans, (pr) => `PR age ${hours(pr.ageHours)}, head age ${hours(pr.headAgeHours)}`)}. `
+    + 'Why it matters: the automation may have stopped, so these changes are neither live nor rejected. '
+    + `What you need to do: open each pull request and check why its checks never finished. https://github.com/${repo}/pulls`;
 }
 
 export function shouldNotifyStaleBlocked(now, utcHour = STALE_NOTIFICATION_UTC_HOUR) {
@@ -87,11 +96,11 @@ export function shouldNotifyStaleBlocked(now, utcHour = STALE_NOTIFICATION_UTC_H
   return new Date(nowMs).getUTCHours() === utcHour;
 }
 
-export function formatSlackText(stale, { staleHours = STALE_HOURS } = {}) {
-  const summary = stale
-    .map((pr) => `#${pr.number} ${pr.title.replace(/\s+/g, ' ').trim().slice(0, 80)} (idle ${pr.idleHours === null ? 'unknown' : `${pr.idleHours}h`})`)
-    .join(' | ');
-  return `Automation sentinel: ${stale.length} blocked PR(s) untouched for more than ${staleHours}h — ${summary}`;
+export function formatSlackText(stale, { staleHours = STALE_HOURS, repo = DEFAULT_REPO } = {}) {
+  return `${prs(stale.length)} blocked by the automatic checks and untouched for more than ${staleHours}h: `
+    + `${prList(stale, (pr) => `idle ${hours(pr.idleHours)}`)}. `
+    + 'Why it matters: their content changes stay off the site until someone decides. '
+    + `What you need to do: review each one, then fix, merge or close it. https://github.com/${repo}/pulls?q=is%3Aopen+label%3A${encodeURIComponent(BLOCKED_LABEL)}`;
 }
 
 // Read-only: every call below is a GET.
@@ -127,8 +136,8 @@ async function main() {
     orphan_count: orphans.length,
     notify: notify ? 'true' : 'false',
     stale_notification_due: staleNotificationDue ? 'true' : 'false',
-    slack_text: staleNotificationDue && stale.length ? formatSlackText(stale) : '',
-    orphan_text: orphans.length ? formatOrphanText(orphans) : '',
+    slack_text: staleNotificationDue && stale.length ? formatSlackText(stale, { repo }) : '',
+    orphan_text: orphans.length ? formatOrphanText(orphans, { repo }) : '',
   });
   console.log(stale.length
     ? `Blocked PRs idle for more than ${STALE_HOURS}h: ${stale.map((pr) => `#${pr.number}`).join(', ')}`

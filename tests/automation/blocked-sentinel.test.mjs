@@ -58,7 +58,8 @@ test('an unreadable timestamp is surfaced instead of silently dropped', () => {
 test('one single-line Slack summary lists every stale PR', () => {
   const text = formatSlackText(selectStaleBlockedPrs([item(75, 48), item(81, 30)], { now: NOW }));
   assert.doesNotMatch(text, /\n/);
-  assert.match(text, /2 blocked PR\(s\) untouched for more than 24h/);
+  assert.match(text, /^2 automation pull requests blocked by the automatic checks and untouched for more than 24h: /);
+  assert.match(text, /Why it matters: .* What you need to do: review each one, then fix, merge or close it\. https:\/\/github\.com\/jonkthomas\/libertyvillage\/pulls\?q=is%3Aopen\+label%3Aautomation-blocked$/);
   assert.match(text, /#75 Blocked PR 75 \(idle 48h\)/);
   assert.match(text, /#81 Blocked PR 81 \(idle 30h\)/);
 });
@@ -85,7 +86,8 @@ test('owned orphan PRs surface after two hours without changing the blocked wind
     owned(119, 20, { labels: [{ name: 'automation-retry-1' }] }),
   ], { now: NOW });
   assert.deepEqual(orphans.map((pr) => pr.number), [111, 117, 118, 119]);
-  assert.match(formatOrphanText(orphans), /no terminal state in 2h/);
+  assert.match(formatOrphanText(orphans), /^4 automation pull requests stalled with no pass or fail result in 2h: /);
+  assert.doesNotMatch(formatOrphanText(orphans), /\n/);
   assert.deepEqual(TERMINAL_LABELS, [BLOCKED_LABEL, ABANDONED_LABEL]);
 });
 

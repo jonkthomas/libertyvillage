@@ -189,21 +189,27 @@ test('renderHtml keeps failures and posted pages visible on the page', () => {
   assert.ok(!html.includes('<script'), 'digest must be JS-free');
 });
 
-test('slackMessage summarizes counts and links the digest', () => {
+test('slackMessage reads as a plain report: verdict, shipped, problems, ask, one link', () => {
   const runs = parseRuns(fixtureFiles(), FROM, TO);
   const model = buildModel({
     generatedAt: '2026-10-27T12:00:00.000Z', window: { from: FROM, to: TO }, runs,
     posted: postedFromSitemap(read('sitemap.xml'), FROM, TO),
+    titles: { 'https://libertyvillage.co/blog/parking-guide': 'Parking in Liberty Village' },
     queue: { held: true, timers: [] },
     gsc: { source: 'test', weeks: [{ clicks: 120, impressions: 4500 }], delta: { clicksPct: 20 } },
     links: { digestUrl: 'https://example/d' },
   });
   const msg = slackMessage(model);
-  assert.ok(msg.includes('2 failed'), msg);
-  assert.ok(msg.includes('HELD'), msg);
-  assert.ok(msg.includes('2 page(s)'), msg);
-  assert.ok(msg.includes('+20% WoW'), msg);
-  assert.ok(msg.endsWith('https://example/d'));
+  const lines = msg.split('\n');
+  assert.match(lines[0], /^Liberty Village content report, week of Oct 19–26$/);
+  assert.match(lines[1], /^2 of 2 planned posts went live\. Search: 120 clicks from 4,500 impressions\.$/);
+  assert.match(msg, /Published: "\/blog\/best-coffee-shops" \(Oct 21\); "Parking in Liberty Village" \(Oct 23\)\./);
+  assert.match(msg, /Problems: 3 issues this week: 1 resolved, 1 being retried automatically, 1 being investigated\./);
+  assert.match(msg, /What you need to do: Publishing is paused \(hold switch on\): lift it when ready\./);
+  assert.equal(lines.at(-1), 'Full report: https://example/d');
+  assert.equal((msg.match(/https?:\/\//g) ?? []).length, 1, 'exactly one link');
+  // Raw codes, log names and run ids never reach the Slack body.
+  assert.doesNotMatch(msg, /cli-validation|slack webhook|exit 2|\.jsonl|-scheduled|weekly-blog|topic-discovery/);
 });
 
 test('gscWeeks returns two complete Mon–Sun weeks ending before now', () => {

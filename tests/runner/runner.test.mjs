@@ -258,25 +258,35 @@ test('failure alert contains only a non-secret run reference and reports deliver
   let body;
   const sent = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging', slot: '202609281100-abcd1234' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
   assert.equal(sent, true);
-  assert.equal(body.text, '⚠ weekly-blog DB content job failed (staging); lv-runner 202609281100-abcd1234');
+  assert.equal(body.text, [
+    'Weekly blog post on the test site: unexpected technical error. The run hit a technical problem that is not one of the known content issues.',
+    'Why it matters: That run changed nothing on the site.',
+    'What you need to do: Nothing to do now. The fix-it agent reviews it on Monday; if it keeps happening it opens a ticket.',
+    'https://ofia.tail97aece.ts.net/decks/lv-digest/',
+    'Ref: run 202609281100-abcd1234',
+  ].join('\n'));
+  await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'production', slot: '202609281100-abcd1234', reason: 'cadence content deficit' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
+  assert.match(body.text, /^Weekly blog post on libertyvillage\.co: behind the 2-posts-a-week plan\./);
+  assert.doesNotMatch(body.text.split('\nRef: ')[0], /cadence content deficit|weekly-blog|202609281100/);
   const suggested = await alertFailure({ webhook: 'https://slack.example/secret', job: 'seo-improvements', target: 'staging', slot: '202609281100-abcd1234', codeSuggestion: true }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
   assert.equal(suggested, true);
-  assert.match(body.text, /code outside the data lane.*human PR required/);
-  assert.doesNotMatch(body.text, /job failed|slack.example|invalid JSON/);
+  assert.match(body.text, /SEO run suggested a code change.*\nWhat you need to do: Review the suggestion and open a pull request if you want it\./s);
+  assert.doesNotMatch(body.text, /technical error|slack.example|invalid JSON/);
   const held = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-roundup', target: 'staging',
     slot: '202609281100-abcd1234', holdCensus: { candidatesSeen: 3, accepted: 1, byReason: { undated: 2 },
       title: 'private High Park candidate', url: 'https://private.example/' } }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
   assert.equal(held, true);
-  assert.match(body.text, /publication held.*candidatesSeen":3.*undated":2/);
-  assert.doesNotMatch(body.text, /private|High Park|private.example|DB content job failed/);
+  assert.match(body.text, /^Weekly news roundup held back on the test site\./);
+  assert.match(body.text, /\nRef: run 202609281100-abcd1234 · found 3 candidates seen, 1 accepted; set aside 2 undated$/);
+  assert.doesNotMatch(body.text, /private|High Park|private.example|technical error|[{}]/);
   const stuck = await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging',
     slot: '202609281100-abcd1234', stuckSubmissionId: 123 }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
   assert.equal(stuck, true);
-  assert.match(body.text, /submission #123 smoked but not current-live/);
+  assert.match(body.text, /a new post passed its page check but is not the live version.*\nRef: run 202609281100-abcd1234 · submission #123/s);
   assert.doesNotMatch(body.text, /slack.example|secret/);
   await alertFailure({ webhook: 'https://slack.example/secret', job: 'weekly-blog', target: 'staging',
     slot: '202609281100-abcd1234', stuckSubmissionId: 'private slug' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
-  assert.doesNotMatch(body.text, /private slug|smoked but not current-live/);
+  assert.doesNotMatch(body.text, /private slug|passed its page check/);
   assert.equal(await alertFailure({ webhook: 'https://slack.example/secret', job: 'news', target: 'staging', slot: '202609281217-abcd1234' }, async () => { throw new Error('offline'); }), false);
 });
 
@@ -339,7 +349,8 @@ test('a structured-v2 hold notice names the week and bounded counts only', async
     holdCensus: { units: 2, coreUnits: 1, coreAnchorUnits: 0, byReason: { 'below-minimum': 1, 'no-core': 1 }, url: 'https://evidence.example/', quote: 'verbatim text' },
     holdWeek: '2026-09-28' }, async (_url, init) => { body = JSON.parse(init.body); return { ok: true }; });
   assert.equal(sent, true);
-  assert.match(body.text, /publication held \(staging\); week 2026-09-28; .*"units":2.*"coreUnits":1.*below-minimum/);
+  assert.match(body.text, /held back on the test site for the week of Sep 28\./);
+  assert.match(body.text, /Ref: run 202609301100-abcd1234 · found 2 units, 1 core units, 0 core anchor units; set aside 1 below minimum, 1 no core$/);
   assert.doesNotMatch(body.text, /evidence.example|verbatim/);
   assert.equal(failureReason(new Error('prior roundup smoke not current-live')), 'prior roundup smoke not current-live');
   assert.equal(failureReason(new Error('prior roundup backlog exceeds recovery budget')), 'prior roundup backlog exceeds recovery budget');
