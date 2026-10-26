@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import consolidation from "./scripts/content/consolidation-clusters.json";
 
 const nextConfig: NextConfig = {
   trailingSlash: false,
@@ -8,6 +9,15 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // Only GSC-confirmed primaries may receive consolidation redirects.
+      // Explicit 301: Next's permanent:true uses 308 instead.
+      ...consolidation.clusters.filter((cluster) => cluster.confirmed === true).flatMap((cluster) =>
+        cluster.members.filter((member) => member.url !== cluster.primary).map((member) => ({
+          source: member.url,
+          destination: cluster.primary,
+          statusCode: 301 as const,
+        })),
+      ),
       {
         source: "/guide/moving-guide",
         destination: "/blog/moving-to-liberty-village-2026-essential-guide",
