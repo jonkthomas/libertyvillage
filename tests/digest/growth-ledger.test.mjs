@@ -32,7 +32,10 @@ test('click declines, zero prior clicks, missing analytics and unknown T0 are ho
 });
 test('Mac ledger transport requests read-only list over existing VM/env bridge', async () => {
   const rows = await fetchers.fetchLedgerOnVm({ since: '2026-09-21T10:00:00.000Z' }, async (command, opts) => {
-    assert.match(command, /\. \/etc\/lv-runner.env/); assert.match(command, /ledger.mjs list '2026-09-21T10:00:00.000Z'/);
+    assert.match(command, /\. \/etc\/lv-runner.env;[\s\S]*\. \/etc\/lv-runner-production.env;/,
+      'load common keys then production DB credentials, as launcher.sh does');
+    assert.doesNotMatch(command, /lv-runner-staging/);
+    assert.match(command, /ledger.mjs list '2026-09-21T10:00:00.000Z'/);
     assert.equal(opts.asRoot, true); assert.doesNotMatch(command, /weekly|INSERT|UPDATE|DELETE/i); return JSON.stringify([action]);
   });
   assert.equal(rows[0].slug, 'coffee');

@@ -30,6 +30,19 @@ test('planner respects learned action/page/query weights, with neutral unseen gr
   assert.deepEqual(ranked.map((x) => x.title), ['B', 'C', 'A']);
 });
 
+test('snippet learning is distinct from full refresh learning for the same page/query group', () => {
+  const growth = { impressions: 500, position: 15, actionKind: 'refresh', pageType: 'blog', queryType: 'local-intent' };
+  const ranked = rankTopicCandidates([
+    { title: 'Snippet', kind: 'seo', growth: { ...growth, actionType: 'snippet' } },
+    { title: 'Full refresh', kind: 'seo', growth },
+  ], [
+    { actionKind: 'refresh', actionType: 'snippet', pageType: 'blog', queryType: 'local-intent', weight: 0.5 },
+    { actionKind: 'refresh', actionType: 'refresh', pageType: 'blog', queryType: 'local-intent', weight: 2 },
+  ]);
+  assert.deepEqual(ranked.map((entry) => entry.title), ['Full refresh', 'Snippet']);
+  assert.equal(ranked[0].growth.actionType, 'refresh');
+});
+
 test('ranked demand survives existing near-duplicate filter with evidence in queue rationale', async () => {
   const candidates = rankTopicCandidates(candidatesFromGsc([...current, { ...current[0], keys: ['https://libertyvillage.co', 'coffee liberty village'], impressions: 10 }]));
   const discoveries = candidates.map(({ growth, ...entry }) => ({ ...entry, rationale: entry.rationale + '\nGrowth hints: ' + JSON.stringify(growth) }));

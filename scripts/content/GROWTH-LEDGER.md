@@ -10,28 +10,41 @@ listActions interfaces. Actions are idempotent on action kind, slug and UTC
 date. Replays preserve the original baseline and details. listActions returns
 database column names with JSON baseline, outcome_2w, outcome_4w and details.
 Refresh callers can put their snapshot and before/after metadata in details.
+The optional recordAction argument actionType persists as action_type and accepts
+snippet, refresh, merge, new or link. It defaults to new for new_post and refresh
+for refresh. Slice B can pass actionType: 'snippet' for title/meta/intro-only
+changes. Earlier rows without a subtype are read/grouped using the same defaults;
+the original UTC-day idempotency key still applies. Revised migration 0006 adds
+the nullable column replay-safely without rewriting existing rows. If an earlier
+candidate's 0006 was already applied, reapply its revised idempotent SQL as well.
 
 Submission captures the target query from queue growth hints, or the trusted
 source-pack topic, falling back to the post title. Private submission context
-freezes T0 across retries. T0 uses the latest snapshot no more than two weeks
-old: an absent page/query in an available snapshot means zero clicks and
+freezes T0 across retries. T0 uses the latest snapshot whose end date is no more
+than two weeks old: an absent page/query in an available snapshot means zero clicks and
 impressions; no snapshot means unknown. The publish tail records new_post only
 for published inserted blog/blog-live posts, using the stable revision publish
 timestamp. Measurement errors log a bounded warning without blocking content.
 
 Outcomes cover seven days ending the day before the +14/+28-day anniversary,
-filtered by exact URL and query. Once filled they are immutable. An empty
-successful GSC response means zero clicks/impressions and unknown position.
-API failure leaves the observation pending. GoogleAuth/searchanalytics uses the
-existing runner credential path, web search, dataState all (as in the digest VM
-fallback) and 25,000-row pagination. Snapshot replacement is scoped to the
-fetched week in one DB transaction. Anonymized queries can be omitted and recent
-days can be preliminary; these observations do not establish causation.
+filtered by exact URL and query. The action must be due and the window end date
+plus three days must be at or before now (UTC) before the observation is fetched.
+Once filled it is immutable. An empty response or API failure leaves it pending
+for retry; only an explicit metric row can teach the planner a zero-click result.
+GoogleAuth/searchanalytics uses the existing runner credential path, web search,
+dataState final and 25,000-row pagination. Weekly snapshots use the latest full
+Mon–Sun week whose Sunday is at least three days old. For example, Monday
+October 26 snapshots October 12–18; October 19–25 becomes eligible October 28.
+An empty snapshot fetch preserves existing rows; a nonempty replacement is
+scoped to the fetched week in one DB transaction. The digest's live headline
+still uses its existing GSC windows. Anonymized queries can be omitted; these
+observations do not establish causation.
 
-actionWeights returns camelCase actionKind, pageType, queryType, samples,
+actionWeights returns camelCase actionKind, actionType, pageType, queryType, samples,
 averageClickDelta and weight. Each action contributes its latest mature
 observation (+4w preferred); unknown baselines do not contribute. The grouped
-average click delta produces this multiplier:
+average click delta is grouped by kind, type, page type and query type and produces
+this multiplier:
 
 `clamp(1 + delta / (10 + abs(delta)) * samples / (samples + 3), 0.5, 2)`
 

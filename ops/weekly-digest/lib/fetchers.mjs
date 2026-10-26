@@ -264,6 +264,7 @@ export async function fetchLedgerOnVm({ since } = {}, execute = vmExec) {
   const out = await execute(`set -e
 cd /srv/lv-runner/repo
 set -a; . /etc/lv-runner.env; set +a
+set -a; . /etc/lv-runner-production.env; set +a
 node scripts/content/ledger.mjs list '${since}'`, { asRoot: true, timeoutMs: 60_000 });
   const rows = JSON.parse(out.trim());
   if (!Array.isArray(rows)) throw new Error('invalid ledger rows');

@@ -128,7 +128,8 @@ treg → VM googleapis fallback remain the search source. Missing search data or
 zero prior clicks produces an explicit unavailable comparison.
 
 The Mac reads five weeks of ledger rows using its existing root VM transport:
-source `/etc/lv-runner.env`, then run
+source `/etc/lv-runner.env` followed by `/etc/lv-runner-production.env`, matching
+the launcher's common-then-target order, then run
 `node scripts/content/ledger.mjs list <since>`. Database credentials stay on the
 VM; no second summary file can become stale or point at a different target.
 The existing fix-it JSON projection and push stay unchanged. A ledger fetch
@@ -139,7 +140,9 @@ position. Missing baselines say unknown; outcomes not yet due say pending.
 These are observations, not causal attribution.
 
 After the parent applies migration 0006 and reinstalls the runner, the existing
-Monday 10:00 UTC topic-discovery job snapshots the previous calendar week and
-fills due outcomes before discovery. The 08:00 Toronto digest runs afterward.
+Monday 10:00 UTC topic-discovery job snapshots the latest full Mon–Sun week
+whose end is at least three days old and fills lag-safe due outcomes before
+discovery. Empty GSC results remain pending; learning requests final data.
+The 08:00 Toronto digest runs afterward.
 No new timer is added or enabled. The parent also reinstalls the Mac digest.
-Recent GSC days can still be preliminary, as in the existing VM fallback.
+The digest headline retains its existing live GSC windows and VM fallback.

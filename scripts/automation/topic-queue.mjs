@@ -490,15 +490,18 @@ export function rankTopicCandidates(candidates, weights = []) {
   return candidates.map((entry) => {
     const hints = { ...growthHints(entry), ...(entry.growth ?? {}) };
     const actionKind = hints.actionKind ?? (entry.kind === 'seo' ? 'refresh' : 'new_post');
+    const actionType = hints.actionType ?? (actionKind === 'new_post' ? 'new' : 'refresh');
     const pageType = hints.pageType ?? 'blog';
     const queryType = hints.queryType ?? 'local-intent';
-    const learned = weights.find((w) => w.actionKind === actionKind && w.pageType === pageType && w.queryType === queryType)?.weight ?? 1;
+    const learned = weights.find((w) => w.actionKind === actionKind
+      && (w.actionType ?? (w.actionKind === 'new_post' ? 'new' : 'refresh')) === actionType
+      && w.pageType === pageType && w.queryType === queryType)?.weight ?? 1;
     const impressions = Math.max(0, Number(hints.impressions) || 0);
     const poorPosition = Math.min(3, Math.max(0.1, (Number(hints.position) || 30) / 10));
     const rising = Math.max(0, Math.min(3, Number(hints.impressionGrowth) || 0));
     const local = /liberty village/i.test(hints.targetQuery ?? entry.title) ? 1.25 : 1;
     const score = (1 + Math.log1p(impressions)) * poorPosition * (hints.noMatchingPage ? 1.5 : 1) * (1 + rising) * local * learned;
-    return { ...entry, growth: { ...hints, actionKind, pageType, queryType, score, learnedWeight: learned } };
+    return { ...entry, growth: { ...hints, actionKind, actionType, pageType, queryType, score, learnedWeight: learned } };
   }).sort((a, b) => b.growth.score - a.growth.score || String(a.title).localeCompare(String(b.title)));
 }
 

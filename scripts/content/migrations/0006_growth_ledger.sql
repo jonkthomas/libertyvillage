@@ -7,6 +7,9 @@ create table if not exists content.content_action_ledger (
   baseline jsonb not null, outcome_2w jsonb, outcome_4w jsonb,
   details jsonb not null default '{}'::jsonb
 );
+-- Nullable for rows from an earlier candidate; readers infer their action kind's default.
+alter table content.content_action_ledger add column if not exists action_type text
+  check (action_type in ('snippet','refresh','merge','new','link'));
 create unique index if not exists content_action_ledger_day
   on content.content_action_ledger(action_kind, slug, ((acted_at at time zone 'UTC')::date));
 create table if not exists content.gsc_weekly_snapshot (
