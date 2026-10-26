@@ -84,11 +84,11 @@ export function renderHtml(model) {
 
   // Live-site problems (and anything that needs John) in full; test-site-only
   // noise in one line, since readers never saw it.
-  const testOnly = x.groups.filter((g) => g.live === 0 && !g.needsYou);
-  const full = x.groups.filter((g) => !testOnly.includes(g));
+  const testOnly = x.testGroups;
+  const full = x.groups;
   const note = x.progressNote ? `<p class="testonly"><span class="k">Progress checks</span><span>${esc(x.progressNote)}</span></p>` : '';
-  const problems = x.groups.length
-    ? [...full.map(problemBlock), note,
+  const problems = x.groups.length || testOnly.length
+    ? [full.length ? '' : `<p class="empty">${esc(x.problems)}</p>`, ...full.map(problemBlock), note,
       testOnly.length ? `<p class="testonly"><span class="k">Test site only</span><span>${testOnly.map((g) => `${esc(g.title)} (${g.count}×)`).join('; ')}. No reader impact; the raw log is in the appendix.</span></p>` : ''].join('\n')
     : `<p class="empty">No issues this week.</p>${note}`;
 

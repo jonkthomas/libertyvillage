@@ -361,7 +361,6 @@ export function execSummary(model) {
   const items = model.posted?.items ?? [];
   const live = items.length;
   const plan = WEEKLY_POST_PLAN;
-  const s = model.runs?.summary ?? { total: 0, failure: 0 };
   // A week that ended on plan settles its earlier "behind plan" progress
   // checks: one quiet line, not issues.
   const onPlan = live >= plan;
@@ -370,8 +369,12 @@ export function execSummary(model) {
   const progressNote = checks
     ? `Mid-week progress checks flagged the week as behind ${checks === 1 ? 'once' : checks === 2 ? 'twice' : `${checks} times`}; it finished on plan.`
     : null;
-  const groups = problemGroups((model.failures ?? []).filter((f) => !progressCheck(f)), model.runs?.list ?? []);
-  const needsYou = groups.filter((g) => g.needsYou && g.open > 0);
+  // Issues are live-site (production) causes, each shown as a block on the page;
+  // test-site causes stay out of the count and get one footnote line.
+  const remaining = (model.failures ?? []).filter((f) => !progressCheck(f));
+  const groups = problemGroups(remaining.filter((f) => f.target === 'production'), model.runs?.list ?? []);
+  const testGroups = problemGroups(remaining.filter((f) => f.target !== 'production'), model.runs?.list ?? []);
+  const needsYou = [...groups, ...testGroups].filter((g) => g.needsYou && g.open > 0);
   const weeks = model.gsc?.weeks ?? [];
   const [prev, cur] = weeks.length >= 2 ? weeks.slice(-2) : [null, weeks.at(-1) ?? null];
   const gscRange = cur?.start && cur?.end ? dateRange(`${cur.start}T12:00:00Z`, `${cur.end}T12:00:00Z`) : null;
@@ -379,17 +382,19 @@ export function execSummary(model) {
   const postsSentence = live >= plan ? `${live} of ${plan} planned posts went live.`
     : live === 0 ? `No posts went live this week (plan: ${plan}).`
       : `${live} of ${plan} planned posts went live, ${plan - live} short.`;
-  // Count issues (causes), each resolved or still open, not raw failed runs.
+  // Count live-site issues (causes), each resolved or still open, not raw failed runs.
   const open = groups.filter((g) => g.open > 0);
-  const parts = [
-    [groups.length - open.length, 'resolved'],
-    [open.filter((g) => g.known && !g.needsYou).length, 'still being retried automatically'],
-    [open.filter((g) => !g.known).length, 'being investigated'],
-    [needsYou.length, needsYou.length === 1 ? 'needs you' : 'need you'],
-  ].filter(([n]) => n > 0).map(([n, words]) => `${n} ${words}`);
-  const problems = groups.length
-    ? `${groups.length} ${groups.length === 1 ? 'issue' : 'issues'} this week: ${parts.join(', ')}.`
-    : s.total ? `No issues this week: all ${s.total} automated runs did their job.` : 'No issues this week.';
+  const cats = [
+    [groups.length - open.length, 'resolved', 'resolved'],
+    [open.filter((g) => g.known && !g.needsYou).length, 'being retried automatically', 'being retried automatically'],
+    [open.filter((g) => !g.known).length, 'being investigated', 'being investigated'],
+    [open.filter((g) => g.known && g.needsYou).length, 'needs you', 'need you'],
+  ].filter(([n]) => n > 0);
+  const n = groups.length;
+  let problems;
+  if (!n) problems = testGroups.length ? 'No live-site issues this week.' : 'No issues this week.';
+  else if (cats.length === 1) problems = n === 1 ? `1 issue this week, ${cats[0][1]}.` : `${n} issues this week, ${n === 2 ? 'both' : 'all'} ${cats[0][2]}.`;
+  else problems = `${n} issues this week: ${cats.map(([k, one, many]) => `${k} ${k === 1 ? one : many}`).join(', ')}.`;
   const ask = model.queue?.held ? 'Publishing is paused (hold switch on): lift it when ready.'
     : needsYou.length ? `${needsYou.length === 1 ? '1 thing needs' : `${needsYou.length} things need`} you: ${needsYou.map((g) => lowerFirst(g.action.replace(/\.$/, ''))).join('; ')}.`
       : 'Nothing needs you this week.';
@@ -414,7 +419,7 @@ export function execSummary(model) {
     gscRange,
     headline: `${postsSentence} ${searchSentence(model.gsc)}`,
     problems, progressNote, ask,
-    kpis, groups, needsYou,
+    kpis, groups, testGroups, needsYou,
     shipped: items.map((p) => ({ title: p.title ?? String(p.url ?? '').replace(/^https?:\/\/[^/]+/, ''), url: p.url, date: p.lastmod, section: p.section })),
     next: nextWeekPlan(model.queue?.timers, model.window.to),
     working: {
