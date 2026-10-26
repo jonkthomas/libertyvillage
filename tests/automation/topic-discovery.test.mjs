@@ -185,6 +185,23 @@ test('every place-to-live wording collapses to one livability topic; other inten
   ]);
 });
 
+test('best-places recommendations are not folded into residential livability', async () => {
+  const queue = { version: 1, topics: [
+    { key: 'g', kind: 'blog', title: 'Is Liberty Village, Toronto A Good Area?', source: 'serpapi', rationale: 'prior week' },
+  ] };
+  const publishedPosts = [{ title: 'Is Liberty Village, Toronto a Good Area to Live In?', slug: 'is-liberty-village-toronto-a-good-area' }];
+  const discoveries = buildSerpApiPaaEntries([
+    { question: 'What are the best places in Liberty Village?' },
+    { question: 'What is the best area in Liberty Village?' },
+    { question: 'Is Liberty Village the best place to live?' },
+  ], 'Liberty Village Toronto');
+  const result = await appendDiscoveredTopics(queue, discoveries, { publishedPosts });
+  assert.deepEqual(result.added.map((entry) => entry.title), [
+    'What Are The Best Places In Liberty Village, Toronto?',
+    'What Is The Best Area In Liberty Village, Toronto?',
+  ]);
+});
+
 test('historical raw GSC queue titles block their editorial directory-guide form', async () => {
   // Stored exactly as the 2026-08/09 runs appended them, before editorial titles.
   const queue = { version: 1, topics: [

@@ -607,11 +607,13 @@ export async function discoverTopics({ now = new Date() } = {}) {
 // intentFingerprint, whose values are stored as consumed cadence intents.
 const NEAR_DUP_STOPWORDS = new Set(['a', 'an', 'the', 'in', 'of', 'for', 'to', 'on', 'at', 'is', 'are', 'it', 'its', 'there',
   'some', 'what', 'which', 'how', 'do', 'does', 'can', 'i', 'you', 'considered', 'really', 'actually', 'liberty', 'village', 'toronto']);
-// A question built only from these words asks "is it a good place to live?".
-// Anything else (safe, families, rent, eat, visiting...) keeps its own intent.
-const LIVABILITY_EVALUATIVE = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth', 'best', 'ideal', 'top']);
-const LIVABILITY_WORDS = new Set([...LIVABILITY_EVALUATIVE, 'place', 'live', 'living',
-  'area', 'neighbourhood', 'neighborhood', 'community']);
+// A question built only from these words asks "is it a good place to live?" when
+// it names residence (live, neighbourhood...) or judges the place (nice, good...).
+// Ranking words alone ("best places", "best area") are recommendations, not
+// livability; anything else (safe, families, rent, eat, visit...) keeps its intent.
+const LIVABILITY_JUDGEMENT = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth']);
+const LIVABILITY_RESIDENCE = new Set(['live', 'living', 'neighbourhood', 'neighborhood', 'community']);
+const LIVABILITY_WORDS = new Set([...LIVABILITY_JUDGEMENT, ...LIVABILITY_RESIDENCE, 'best', 'ideal', 'top', 'place', 'area']);
 
 export function nearDuplicateKey(title) {
   const text = (String(title ?? '').toLowerCase().match(/[a-z0-9]+/g) ?? []).join(' ')
@@ -621,7 +623,7 @@ export function nearDuplicateKey(title) {
     .filter((token) => token && !NEAR_DUP_STOPWORDS.has(token))
     .map((token) => (token.length > 3 && token.endsWith('s') && !token.endsWith('ss') ? token.slice(0, -1) : token)))];
   if (tokens.length && tokens.every((token) => LIVABILITY_WORDS.has(token))
-    && tokens.some((token) => LIVABILITY_EVALUATIVE.has(token) || token === 'live' || token === 'living')) return 'livability';
+    && tokens.some((token) => LIVABILITY_JUDGEMENT.has(token) || LIVABILITY_RESIDENCE.has(token))) return 'livability';
   return tokens.sort().join(' ');
 }
 
