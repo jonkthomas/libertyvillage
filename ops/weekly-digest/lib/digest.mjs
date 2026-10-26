@@ -180,21 +180,47 @@ export function sectionOf(url) {
   } catch { return 'other'; }
 }
 
-/** Parse sitemap.xml text, return urls whose <lastmod> falls in [from, to). */
+/**
+ * Parse sitemap.xml text, return urls whose <lastmod> falls in [from, to).
+ * Static, directory, guide and building pages carry the build time as lastmod
+ * (app/sitemap.ts `now`), so one deploy stamps hundreds of URLs at once; only
+ * blog/news posts carry their own publish/update date. A lastmod value shared
+ * by a large share of URLs is that deploy stamp, not a publication: skip it.
+ */
 export function postedFromSitemap(xmlText, from, to) {
   const fromMs = Date.parse(from), toMs = Date.parse(to);
-  const items = [];
+  const urls = [];
   const re = /<url>\s*<loc>([^<]+)<\/loc>\s*(?:<lastmod>([^<]*)<\/lastmod>)?/g;
   let m;
   while ((m = re.exec(xmlText)) !== null) {
-    const loc = m[1].trim();
-    const lastmod = m[2] ? m[2].trim() : null;
+    urls.push({ url: m[1].trim(), lastmod: m[2] ? m[2].trim() : null });
+  }
+  const counts = new Map();
+  for (const u of urls) if (u.lastmod) counts.set(u.lastmod, (counts.get(u.lastmod) ?? 0) + 1);
+  const isDeployStamp = (lastmod) => {
+    const n = counts.get(lastmod) ?? 0;
+    return n >= 10 && n >= urls.length * 0.25;
+  };
+  const items = [];
+  for (const { url, lastmod } of urls) {
     const t = lastmod ? Date.parse(lastmod) : NaN;
-    if (Number.isFinite(t) && t >= fromMs && t < toMs) {
-      items.push({ url: loc, lastmod, section: sectionOf(loc) });
+    if (Number.isFinite(t) && t >= fromMs && t < toMs && !isDeployStamp(lastmod)) {
+      items.push({ url, lastmod, section: sectionOf(url) });
     }
   }
   return items;
+}
+
+/** Decode the HTML entities a page <title> carries (the renderer escapes again). */
+export function decodeEntities(s) {
+  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  return String(s).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, e) => {
+    if (e[0] === '#') {
+      const cp = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(cp) && cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : whole;
+    }
+    return named[e.toLowerCase()] ?? whole;
+  });
 }
 
 // ── Model ────────────────────────────────────────────────────────────────────
@@ -206,7 +232,7 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     window,
     runs: { summary: runsView.summary, byJob: runsView.byJob, list: runs ?? [] },
     failures: failureRows(runs ?? [], window.to),
-    posted: { items: (posted ?? []).map((p) => ({ ...p, title: titles[p.url] ?? null })) },
+    posted: { items: (posted ?? []).map((p) => ({ ...p, title: titles[p.url] ? decodeEntities(titles[p.url]) : null })) },
     queue: queue ?? { held: null, timers: [], note: 'not fetched' },
     gsc: gsc ?? { source: 'unavailable', note: 'not fetched' },
     notes,
