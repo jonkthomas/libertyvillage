@@ -8,11 +8,11 @@ const SITE_URL = "https://libertyvillage.co";
 export const metadata: Metadata = {
   title: "About LibertyVillage.co — Who We Are & How We Work",
   description:
-    "LibertyVillage.co is an independent neighbourhood guide written by Liberty Village residents. Learn who we are, how we source our recommendations, and how to get in touch.",
+    "LibertyVillage.co is an independent neighbourhood guide to Liberty Village, Toronto. Learn how we choose and rank businesses, where our data comes from, and how to get in touch.",
   openGraph: {
     title: "About LibertyVillage.co — Who We Are & How We Work",
     description:
-      "LibertyVillage.co is an independent neighbourhood guide written by Liberty Village residents.",
+      "LibertyVillage.co is an independent neighbourhood guide to Liberty Village, Toronto.",
     type: "website",
     url: `${SITE_URL}/about`,
     siteName: "LibertyVillage.co",
@@ -30,7 +30,7 @@ const aboutPageSchema = {
   url: `${SITE_URL}/about`,
   name: "About LibertyVillage.co",
   description:
-    "LibertyVillage.co is an independent neighbourhood guide written by Liberty Village residents. This page covers who we are, how we source recommendations, and how to get in touch.",
+    "LibertyVillage.co is an independent neighbourhood guide to Liberty Village, Toronto. This page covers how we choose and rank businesses, where our data comes from, and how to get in touch.",
   mainEntity: {
     "@type": "Organization",
     name: "LibertyVillage.co",
@@ -69,25 +69,25 @@ export default function AboutPage() {
         <h2 className="sr-only">Quick Answer</h2>
         <p className="text-base leading-relaxed text-warm-800">
           LibertyVillage.co is an independent guide to Liberty Village, Toronto,
-          started in 2024 by a small editorial team of neighbourhood residents.
-          We review restaurants, services, and businesses that are actually
-          inside or immediately serving the 28-hectare (0.28 km&sup2;) neighbourhood, not
-          businesses 10+ minutes away. All rankings are based on Google Reviews,
-          firsthand visits, and input from other residents. We don&apos;t accept
-          payment for placement, and sponsored content is labelled clearly.
+          started in 2024 and published under one collective byline. We cover
+          restaurants, services, and businesses that are inside or immediately
+          serving the 28-hectare (0.28 km&sup2;) neighbourhood. Rankings are
+          based mainly on Google Reviews ratings and review volume. We
+          don&apos;t accept payment for placement, and sponsored content is
+          labelled clearly.
         </p>
       </section>
 
       <h2 className="mt-10 text-xl font-semibold text-warm-800">Who we are</h2>
       <p className="mt-3 text-warm-600 leading-relaxed">
-        We&apos;re a team of Liberty Village residents — designers, writers,
-        and long-time locals — who were tired of searching the same four
-        outdated blog posts every time a friend moved to the neighbourhood.
-        LibertyVillage.co is the guide we wished existed when we moved here.
+        LibertyVillage.co is an independent project that puts what you need to
+        know about Liberty Village in one place: local businesses, condo
+        buildings, parking, transit, and things to do. The guides that existed
+        before it were scattered and often out of date.
       </p>
       <p className="mt-3 text-warm-600 leading-relaxed">
-        We write under the collective byline <em>LibertyVillage.co Editorial</em>.
-        Specific posts will credit individual contributors as the team grows.
+        Everything is published under the collective byline{" "}
+        <em>LibertyVillage.co Editorial</em> rather than individual names.
       </p>
 
       <h2 className="mt-10 text-xl font-semibold text-warm-800">
@@ -95,24 +95,18 @@ export default function AboutPage() {
       </h2>
       <ul className="mt-3 space-y-2 text-warm-600 leading-relaxed list-disc pl-5">
         <li>
-          <strong>We visit in person.</strong> Every restaurant, gym, and coffee
-          shop we recommend has been visited by at least one team member.
+          <strong>We start from public reviews.</strong> Google Reviews ratings
+          and review volume are the main ranking signal, so a long record of
+          good reviews counts for more than a handful of five-star ones.
         </li>
         <li>
-          <strong>We use Google Reviews as a floor, not a ceiling.</strong>{" "}
-          Sustained 4.0+ ratings across 100+ reviews are a baseline. The final
-          ranking reflects firsthand experience plus input from neighbours.
+          <strong>We focus on Liberty Village proper.</strong> Listings are
+          businesses inside the neighbourhood or immediately serving it.
         </li>
         <li>
-          <strong>We prioritize Liberty Village proper.</strong> Businesses
-          further than a 10-minute walk from the centre of the neighbourhood
-          are noted as &ldquo;nearby&rdquo; rather than included in the main
-          rankings.
-        </li>
-        <li>
-          <strong>We update yearly.</strong> Every service page and comparison
-          is reviewed each January. Prices, hours, and new openings change fast
-          in the neighbourhood.
+          <strong>We keep pages current.</strong> New posts go out every week,
+          and pages are corrected when we find or are told about outdated
+          prices, hours, or openings.
         </li>
         <li>
           <strong>We don&apos;t accept payment for placement.</strong> If a post
@@ -126,9 +120,9 @@ export default function AboutPage() {
       <p className="mt-3 text-warm-600 leading-relaxed">
         Rent, demographic, and transit statistics reference the City of Toronto
         Open Data portal, Statistics Canada, the Toronto Regional Real Estate
-        Board, and TTC service alerts. Business listings are sourced from
-        Google Business Profile, verified in person, and confirmed with owners
-        where possible. Event and road-closure information tracks City of
+        Board, and TTC service alerts. Business listings are compiled from
+        public sources, including Google listings and business websites. Event
+        and road-closure information tracks City of
         Toronto announcements, TFC fixtures, and FIFA World Cup 2026 planning
         documents.
       </p>
@@ -138,9 +132,14 @@ export default function AboutPage() {
       </h2>
       <p className="mt-3 text-warm-600 leading-relaxed">
         Spot something out of date, a closed business, or a place we missed?
-        Tell us — we update pages in 48 hours or less. Reach us through the
-        newsletter form on any blog post, or via Google Business messaging
-        for the neighbourhood directory.
+        Email{" "}
+        <a
+          href="mailto:hello@libertyvillage.co"
+          className="font-medium text-amber-700 underline hover:text-amber-900"
+        >
+          hello@libertyvillage.co
+        </a>{" "}
+        and we&apos;ll correct it.
       </p>
 
       <h2 className="mt-10 text-xl font-semibold text-warm-800">Quick facts</h2>
@@ -159,7 +158,7 @@ export default function AboutPage() {
         </div>
         <div className="rounded-lg border border-warm-200 bg-warm-50 px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-wide text-warm-500">Update frequency</dt>
-          <dd className="mt-1 text-base font-medium text-warm-900">Weekly blog, annual service reviews</dd>
+          <dd className="mt-1 text-base font-medium text-warm-900">New blog posts weekly</dd>
         </div>
       </dl>
 
