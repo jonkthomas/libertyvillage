@@ -38,7 +38,42 @@ export function validatePlan(plan) {
 export const redirectsFor = (plan) => validatePlan(plan).clusters.filter(c => c.confirmed === true).flatMap(c => c.members.filter(m => m.url !== c.primary)
   .map(m => ({ source: m.url, destination: c.primary, statusCode: 301 })));
 const normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-const plain = (s) => s.replace(/^#{1,6}\s+/gm, '').replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)').replace(/\*\*/g, '');
+const markdownLink = /\[([^\]]+)\]\(\(?([^)]+?)\)?\)/g;
+function mapText(value, transform) {
+  if (typeof value === 'string') return transform(value);
+  if (Array.isArray(value)) return value.map(item => mapText(item, transform));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, mapText(item, transform)]));
+  return value;
+}
+function rewriteLinks(text, primary, redirects) {
+  const destinations = new Map(redirects.map(r => [r.source, r.destination]));
+  return text.replace(markdownLink, (match, label, href) => {
+    let url;
+    try { url = new URL(href, `https://libertyvillage.co${primary}`); } catch { return match; }
+    if (!['libertyvillage.co', 'www.libertyvillage.co'].includes(url.hostname)) return match;
+    const destination = destinations.get(url.pathname) ?? url.pathname;
+    if (destination === primary) return label;
+    return destination === url.pathname ? match : `[${label}](${destination}${url.search}${url.hash})`;
+  });
+}
+function plain(text) {
+  // Service sections render as plain <p> text, so preserve labels without URL suffixes.
+  const lines = text.replace(markdownLink, '$1').replace(/^#{1,6}\s+/gm, '').replace(/\*\*/g, '').split('\n');
+  const cellValues = line => line.trim().replace(/^\||\|$/g, '').split('|').map(s => s.trim());
+  const output = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('|') && lines[i + 1]?.includes('|') && cellValues(lines[i + 1]).every(s => /^:?-+:?$/.test(s))) {
+      const headers = cellValues(lines[i]);
+      i += 2;
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        output.push(cellValues(lines[i]).map((cell, j) => `${headers[j]}: ${cell}`).join('; ') + '.');
+        i++;
+      }
+      i--;
+    } else output.push(lines[i].replace(/^\s*[-*]\s+/, ''));
+  }
+  return output.join(' ').replace(/\s+/g, ' ').trim();
+}
 export function sectionsOf(record) {
   if (record.definition) return [{ heading: 'Overview', content: record.definition }, ...(record.sections ?? [])];
   const matches = [...(record.content ?? '').matchAll(/^(#{2,3}) (.+)$/gm)];
@@ -82,7 +117,7 @@ export function mergeCluster(cluster, records, redirects, now) {
     for (const take of source.keyTakeaways ?? []) if (!takes.some(t => normalize(t) === normalize(take))) takes.push(take);
   }
   if (routeRow(cluster.primary).dataset === 'services') {
-    primary.sections = [...(primary.sections ?? []), ...additions.map(s => ({ heading: s.heading, content: plain(s.content) }))];
+    primary.sections = [...(primary.sections ?? []), ...additions];
     primary.specificFaqs = faqs;
   } else {
     primary.content += additions.map(s => `\n\n## ${s.heading}\n\n${s.content}`).join('');
@@ -94,7 +129,8 @@ export function mergeCluster(cluster, records, redirects, now) {
     if (primary[field]) primary[field] = primary[field].filter(key => !retired.has(prefix + key) && prefix + key !== cluster.primary);
   }
   if (primary.canonicalUrl) primary.canonicalUrl = `https://libertyvillage.co${cluster.primary}`;
-  return primary;
+  const linked = mapText(primary, text => rewriteLinks(text, cluster.primary, redirects));
+  return routeRow(cluster.primary).dataset === 'services' ? mapText(linked, plain) : linked;
 }
 async function current(db, row) {
   return (await db.query(`select e.*,r.payload,r.payload_sha256 from content.entries e left join content.revisions r

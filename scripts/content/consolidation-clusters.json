@@ -8,7 +8,7 @@
       "end": "2026-10-25"
     },
     "gscStatus": "UNAVAILABLE: confirm primaries from source-data.json (GSC 28d) before the post-merge apply",
-    "selection": "Provisional existing intent hubs; restaurants uses the definitive guide (710 impressions/7 clicks in the latest weekly roadmap evidence, not a 28d comparison). No 28d numbers are inferred."
+    "selection": "Provisional intent hubs preserve every directory category with listed businesses. No 28d numbers are inferred; confirm editorial membership and primaries from GSC without retiring populated directory hubs."
   },
   "protectedUrls": [
     "/blog/best-bars-restaurants-near-bmo-field-world-cup-2026",
@@ -85,7 +85,7 @@
     },
     {
       "id": "restaurants",
-      "primary": "/blog/best-restaurants-liberty-village-2026-definitive-guide",
+      "primary": "/best/restaurants",
       "status": "PROVISIONAL",
       "members": [
         {
@@ -116,7 +116,6 @@
           ]
         }
       ],
-      "imageFrom": "/blog/best-restaurants-liberty-village-locals-guide",
       "confirmed": false
     },
     {
@@ -164,7 +163,7 @@
     },
     {
       "id": "fitness",
-      "primary": "/guide/fitness-guide",
+      "primary": "/best/gyms",
       "status": "PROVISIONAL",
       "members": [
         {
@@ -363,7 +362,7 @@
     },
     {
       "id": "remote-work",
-      "primary": "/guide/remote-work-spots",
+      "primary": "/best/coworking-spaces",
       "status": "PROVISIONAL",
       "members": [
         {

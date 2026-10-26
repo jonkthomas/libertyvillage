@@ -14,6 +14,7 @@ import { validateRecord } from '../../scripts/content/validate.mjs';
 const plan = JSON.parse(await fs.readFile(new URL('../../scripts/content/consolidation-clusters.json', import.meta.url)));
 const datasets = {};
 for (const d of ['posts', 'topics', 'services']) datasets[d] = JSON.parse(await fs.readFile(new URL(`../../data/${d}.json`, import.meta.url)));
+const businesses = JSON.parse(await fs.readFile(new URL('../../data/businesses.json', import.meta.url)));
 const configuredRedirects = (variant) => {
   let dir;
   try {
@@ -83,6 +84,72 @@ test('D2 protects every World Cup URL and includes all three recent duplicate au
   assert.throws(() => validatePlan(invalid));
 });
 
+test('directory hubs with businesses are never consolidation redirect sources', () => {
+  const confirmed = structuredClone(plan);
+  confirmed.clusters.forEach(c => { c.confirmed = true; });
+  const sources = new Set(configuredRedirects(confirmed).map(r => r.source));
+  for (const service of datasets.services) {
+    if (businesses.some(b => b.category === service.slug || b.categories?.includes(service.slug))) {
+      assert.ok(!sources.has(`/best/${service.slug}`), `directory hub must stay live: ${service.slug}`);
+    }
+  }
+});
+
+test('candidates rewrite retired links, unlink self-links and render clean service prose', () => {
+  const c = { id: 'links', primary: '/blog/current', members: [
+    { url: '/blog/current', keepSections: ['Advice'] },
+    { url: '/blog/old-self', keepSections: ['Advice'] },
+  ] };
+  const records = new Map([
+    [c.primary, { content: '## Advice\n\nExisting [old guide](/guide/old).', faqs: [], relatedTopics: ['old'], relatedServices: [], relatedPosts: [] }],
+    ['/blog/old-self', { content: '## Advice\n\nRead [self](/blog/current), [alias](/blog/old-self), [absolute self](https://libertyvillage.co/blog/current), [moved](/guide/old?from=advice#tips) and [outside](https://example.org/guide/old).', faqs: [{ question: 'Where?', answer: '[Here](/blog/old-self) or [elsewhere](/guide/old).' }] }],
+  ]);
+  const redirects = [{ source: '/blog/old-self', destination: c.primary }, { source: '/guide/old', destination: '/best/bars' }];
+  const merged = mergeCluster(c, records, redirects, '2026-10-26');
+  const html = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e',
+    "import value from './lib/markdown.ts'; import fs from 'node:fs'; const md = value.default ?? value; console.log(md.renderMarkdownContent(fs.readFileSync(0, 'utf8')))"], { encoding: 'utf8', input: merged.content });
+  assert.match(html, /href="\/best\/bars\?from=advice#tips"/);
+  assert.match(html, /href="https:\/\/example.org\/guide\/old"/);
+  assert.doesNotMatch(html, /href="(?:https:\/\/libertyvillage.co)?\/blog\/(?:current|old-self)/);
+  assert.doesNotMatch(html, /href="\/guide\/old/);
+  assert.equal(merged.faqs[0].answer, 'Here or [elsewhere](/best/bars).');
+
+  const service = { ...c, primary: '/best/bars', members: [{ url: '/best/bars', keepSections: ['Overview'] }, c.members[1]] };
+  records.set('/best/bars', { definition: 'A [self](/best/bars) overview.', sections: [], specificFaqs: [] });
+  records.get('/blog/old-self').content += '\n\n| Gym | Price |\n| --- | --- |\n| GoodLife | $50 |';
+  const prose = mergeCluster(service, records, redirects, '2026-10-26');
+  const text = prose.sections.map(s => s.content).join(' ');
+  assert.match(text, /Read self, alias, absolute self, moved and outside\./);
+  assert.match(text, /Gym: GoodLife; Price: \$50\./);
+  assert.doesNotMatch(text, /\]\(|\(\/(?:guide|blog|best)\/|https?:\/\//);
+});
+
+test('retained content from every available real source has no self or retired link', () => {
+  const confirmed = structuredClone(plan);
+  confirmed.clusters.forEach(c => { c.confirmed = true; });
+  const redirects = redirectsFor(confirmed);
+  const retired = new Set(redirects.map(r => r.source));
+  const records = new Map();
+  for (const [dataset, prefix] of [['posts', '/blog/'], ['topics', '/guide/'], ['services', '/best/']])
+    for (const record of datasets[dataset]) records.set(prefix + record.slug, record);
+  for (const cluster of confirmed.clusters) {
+    // The checkout seed predates some auto-posts; synthetic tests above cover arbitrary links.
+    const c = { ...cluster, members: cluster.members.filter(m => records.has(m.url)) };
+    const candidate = mergeCluster(c, records, redirects, '2026-10-26');
+    const text = JSON.stringify(candidate);
+    for (const [, href] of text.matchAll(/\]\(([^)]+)\)/g)) {
+      const url = new URL(href, 'https://libertyvillage.co');
+      if (url.hostname === 'libertyvillage.co') {
+        assert.notEqual(url.pathname, c.primary, `${c.id}: self-link`);
+        assert.ok(!retired.has(url.pathname), `${c.id}: retired ${url.pathname}`);
+      }
+    }
+    if (routeRow(c.primary).dataset === 'services')
+      for (const section of candidate.sections) assert.doesNotMatch(section.content, /\]\(|\(\/(?:best|guide|blog)\//, c.id);
+    assert.equal(validateRecord(routeRow(c.primary).dataset, routeRow(c.primary).key, candidate).ok, true, c.id);
+  }
+});
+
 test('planned primary images exist locally for the unchanged content image gate', async () => {
   for (const c of plan.clusters) {
     const { dataset, key } = routeRow(c.imageFrom ?? c.primary);
@@ -111,9 +178,9 @@ async function setup() {
     if (dataset !== 'services') payload.title = `Fixture ${key}`;
     if (dataset === 'posts') payload.category = 'lifestyle';
     if (dataset === 'services') {
-      payload.definition = `Unique practical detail from ${key}.`;
+      payload.definition = `Unique practical detail from ${key}. Read [primary](${c.primary}) and [old](${m.url}).`;
       payload.sections = [{ heading: 'Existing advice', content: `Advice for ${key}.` }];
-    } else payload.content = `## Useful detail\n\nUnique practical detail from ${key}.\n\nShared paragraph.`;
+    } else payload.content = `## Useful detail\n\nUnique practical detail from ${key}.\n\nShared paragraph. Read [primary](${c.primary}) and [old](${m.url}).`;
     // The same question must be retained only once.
     payload[dataset === 'services' ? 'specificFaqs' : 'faqs'] = [{ question: 'When should I book?', answer: 'Call ahead.' }];
     return { dataset, key, payload, expectedLiveRev: null };
@@ -181,6 +248,7 @@ test('dry-run writes nothing, real gate apply is reversible, repeated apply is a
       assert.equal(records.length, 1);
       const text = records[0].content ?? records[0].sections.map(s => s.content).join('\n');
       assert.match(text, /fixture-secondary/);
+      assert.doesNotMatch(text, /\]\(/, 'self-links remain unlinked after gated persistence and read');
       assert.equal(records[0][dataset === 'services' ? 'specificFaqs' : 'faqs'].length, 1);
       assert.equal(validateRecord(dataset, records[0].slug, records[0]).ok, true);
     }

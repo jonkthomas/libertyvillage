@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/blog/liberty-village-running-routes-martin-goodman-trail",
-        destination: "/guide/fitness-guide",
+        destination: "/best/gyms",
         permanent: true,
       },
       // Orphaned 404s from old slash-less relative links on /buildings

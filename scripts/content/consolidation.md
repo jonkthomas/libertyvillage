@@ -6,8 +6,16 @@ this PR ships zero cluster redirects. `next.config.ts` derives exact 301s only
 from clusters with `confirmed: true`. Changing a primary is a data-file edit;
 the matching redirects change with it once confirmed. Tests check both states,
 destination existence and absence of chains.
-The optional `imageFrom` selects an existing image from another cluster member;
-the restaurant primary uses this because its legacy image file is absent.
+Directory category hubs with listed businesses remain primaries or stay outside
+clusters: restaurants, gyms and coworking keep their `/best/*` hubs. Confirmation
+must preserve that intent boundary even if an editorial URL has more clicks.
+The optional `imageFrom` can select an existing image from another member.
+
+Candidate text rewrites links from retired URLs to their primaries and unlinks
+self-links, including links already in the primary. Query strings and fragments
+on rewritten links are retained. Service records use plain prose because their
+renderer does not support Markdown: link labels remain, raw URL suffixes are
+removed, and table rows become readable header/value sentences.
 
 The initial choices are **PROVISIONAL**. Obtain `source-data.json` from the
 read-only VM run. Confirm or replace each primary using 28-day page clicks first,
