@@ -6,9 +6,13 @@ import './fixtures/agent-sdk-mock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refreshDeps, acceptGeneratedOutput } from '../../ops/exedev-runner/runner.mjs';
 
 import { GATE_MODEL } from '../../scripts/automation/constants.mjs';
+import { canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
 import * as store from '../../scripts/content/store.mjs';
 import { keyOf, recordSha } from '../../scripts/content/canonical.mjs';
 import { explain } from '../../ops/weekly-digest/lib/plain-english.mjs';
@@ -161,6 +165,108 @@ const snippetOnly = (p) => ({ ...p, title: `${p.title}: where to park and what i
 const byLane = (p, snapshot) => (snapshot.mode === 'snippet' ? snippetOnly(p) : better(p));
 const better = (p) => ({ ...p, title: `${p.title}: routes, timing and tips`, description: `${p.description} Updated with clearer routes and timing.`,
   content: `${p.content}\n## Timing\n\nWeekday mornings are quieter.\n`, updatedAt: '2026-11-02' });
+
+test('runner discards other-post edits before real DB publish and local HTTP smoke', { skip }, async (t) => {
+  const { db, close } = await refreshDb();
+  const site = await localSite(db);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-refresh-contained-'));
+  const trusted = path.join(root, 'trusted');
+  const scratch = path.join(root, 'scratch');
+  for (const dir of [trusted, scratch]) fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
+  try {
+    await site.build();
+    const before = await livePosts(db);
+    const slug = SLUGS[0], otherSlug = SLUGS[1];
+    const events = [];
+    const postsFile = path.join(trusted, 'data/posts.json');
+    const runner = refreshDeps({ target: 'test', slot: 'containment', request: {}, run: root,
+      export: () => fs.writeFileSync(postsFile, JSON.stringify(before)),
+      readPosts: () => JSON.parse(fs.readFileSync(postsFile, 'utf8')),
+      writePosts: (posts) => fs.writeFileSync(postsFile, JSON.stringify(posts)),
+      generate: () => {
+        const output = before.map((p) => p.slug === slug ? better(p) : p.slug === otherSlug ? { ...p, content: `${p.content}\nPRIVATE OFF-TARGET BODY`, updatedAt: '2026-11-02' } : p);
+        fs.writeFileSync(path.join(scratch, 'data/posts.json'), JSON.stringify(output));
+        return acceptGeneratedOutput(scratch, trusted, 'seo-improvements', ['data/posts.json'], before, true);
+      },
+      log: (event, details) => events.push({ event, ...details }),
+    });
+    const deps = loopDeps(db, site, { now: MON, recordAction: async () => {}, events });
+    const plan = deps.plan;
+    deps.plan = async () => ({ ...await plan(), candidates: [{ slug, title: 'Guide walks', mode: 'full' }] });
+    deps.generate = runner.generate;
+    const result = await runRefreshLoop({ deps });
+    assert.equal(result.refreshed, 1, JSON.stringify(result));
+    assert.deepEqual(await liveRecord(db, 'posts', otherSlug), before.find((p) => p.slug === otherSlug));
+    assert.deepEqual(JSON.parse(fs.readFileSync(postsFile, 'utf8')).filter((p) => p.slug !== slug), before.filter((p) => p.slug !== slug));
+    assert.deepEqual(events.find((e) => e.discardedOffTarget).discardedOffTarget, [otherSlug]);
+    assert.ok(!JSON.stringify(events).includes('PRIVATE OFF-TARGET BODY'));
+    const items = (await db.query("select i.key from content.submission_items i join content.submissions s on s.id=i.submission_id where s.kind='refresh'")).rows;
+    assert.deepEqual(items.map((i) => i.key), [slug]);
+    const url = `${site.origin}/blog/${slug}`;
+    const served = await fetch(url);
+    assert.equal(served.status, 200);
+    assert.ok((await served.text()).includes(better(before.find((p) => p.slug === slug)).title));
+    t.diagnostic(`GET ${url} -> 200; refreshed title served; ${otherSlug} unchanged in DB and checkout; discardedOffTarget=[${otherSlug}]`);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); await site.close(); await close(); }
+});
+
+test('sorted-key single-post snippet publishes; an off-target edit is refused and logged without bodies', { skip }, async (t) => {
+  const { db, close } = await refreshDb();
+  const site = await localSite(db);
+  try {
+    await site.build();
+    const before = await livePosts(db);
+    const slug = SLUGS[0];
+    const snapshot = await reserveRefresh(db, { candidate: { slug, mode: 'snippet' }, now: MON });
+    const after = JSON.parse(canonicalJson(before.map((p) => p.slug === slug ? snippetOnly(p) : p)));
+    const out = await submitRefresh(db, { snapshotId: snapshot.snapshotId, before, after, actor: 'uat:refresh', env: site.env, checkout: REPO, now: MON,
+      deps: { gate: { review: pass, smoke: FAST_SMOKE } } });
+    assert.equal(out.exitCode, 0, JSON.stringify(out.result));
+    assert.equal(out.result.state, 'published');
+    const url = `${site.origin}/blog/${slug}`;
+    const served = await fetch(url);
+    assert.equal(served.status, 200);
+    assert.match(await served.text(), /where to park and what it costs/);
+    t.diagnostic(`GET ${url} -> 200, refreshed title served`);
+    for (const p of before.filter((p) => p.slug !== slug)) assert.deepEqual(await liveRecord(db, 'posts', p.slug), p);
+
+    const current = await livePosts(db);
+    const target = SLUGS[1];
+    const other = SLUGS[2];
+    const bad = JSON.parse(canonicalJson(current.map((p) => p.slug === target ? snippetOnly(p) : p.slug === other ? { ...p, content: `${p.content}\nPRIVATE BODY MUST NOT APPEAR IN LOGS` } : p)));
+    const snap = await reserveRefresh(db, { candidate: { slug: target, mode: 'snippet' }, now: MON });
+    const events = [];
+    const result = await runRefreshLoop({ deps: {
+      plan: () => ({ isoWeek: '2026-W45', remaining: 1, candidates: [{ slug: target }] }),
+      reserve: () => snap, generate: () => ({ before: current, after: bad }),
+      submit: async (s, generated) => (await submitRefresh(db, { snapshotId: s.snapshotId, ...generated, actor: 'uat:refresh', now: MON })).result,
+      log: (event, details) => events.push({ event, details }),
+    } });
+    assert.equal(result.outcomes[0].reasonCode, 'refresh-off-target');
+    const logged = events.find((e) => e.event === 'refresh-outcome').details;
+    assert.deepEqual(logged.refusalDetail, { kind: 'changed', slug: other });
+    assert.doesNotMatch(JSON.stringify(logged), /PRIVATE BODY|content/);
+    assert.deepEqual(await liveRecord(db, 'posts', other), current.find((p) => p.slug === other));
+    assert.equal((await db.query("select count(*)::int as n from content.submissions where kind='refresh'")).rows[0].n, 1, 'off-target output never reaches submission');
+  } finally { await site.close(); await close(); }
+});
+
+test('refresh comparison keeps array order, values and post membership strict; key order alone is no change', () => {
+  const before = SLUGS.slice(0, 2).map((slug) => post(slug, slug));
+  const slug = SLUGS[0];
+  assert.throws(() => extractRefreshedPost({ before, after: JSON.parse(canonicalJson(before)), slug }), (e) => e.reason === 'refresh-no-change');
+  const after = JSON.parse(canonicalJson(before.map((p) => p.slug === slug ? snippetOnly(p) : p)));
+  for (const change of [
+    (p) => ({ ...p, tags: [...p.tags].reverse() }),
+    (p) => ({ ...p, updatedAt: '2026-11-02' }),
+    (p) => ({ ...p, faqs: p.faqs.map((q, i) => i ? q : { ...q, answer: 'Changed' }) }),
+  ]) assert.throws(() => extractRefreshedPost({ before, after: [after[0], change(after[1])], slug }), (e) => e.reason === 'refresh-off-target');
+  for (const [posts, kind, changedSlug] of [[after.slice(0, 1), 'removed', SLUGS[1]], [[...after, post('refresh-added', 'Added')], 'added', 'refresh-added'], [[...after, after[1]], 'duplicate', SLUGS[1]]]) {
+    assert.throws(() => extractRefreshedPost({ before, after: posts, slug }), (e) => {
+      assert.deepEqual(e.detail, { kind, slug: changedSlug }); return true;
+    });
+  }
+});
 
 test('weekly run: refreshes the 2 weakest posts in place, ledger gets before/after, cap holds across runs, rollback restores the exact row', { skip }, async () => {
   const { db, close } = await refreshDb();

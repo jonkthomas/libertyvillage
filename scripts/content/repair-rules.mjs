@@ -17,6 +17,7 @@
 import { describeRepairContract, RECORD_REPAIR_MAX_BYTES } from '../automation/record-repair.mjs';
 import { RECORD_REPAIR_RULES } from '../automation/record-rules.mjs';
 import { validateRecordRepair } from '../automation/preflight.mjs';
+import { canonicalJson } from '../automation/blog-source-pack.mjs';
 
 export const LEGACY_REPAIR_DATASETS = Object.freeze(['posts', 'businesses', 'topics']);
 
@@ -88,9 +89,9 @@ export function validateRowRepair(dataset, original, repaired, { maxBytes = RECO
   const repairedKeys = Object.keys(repaired).sort();
   if (originalKeys.join('\0') !== repairedKeys.join('\0')) errors.push('repair must preserve the exact top-level key set');
   for (const field of contract.immutable) {
-    if (JSON.stringify(original[field]) !== JSON.stringify(repaired[field])) errors.push(`immutable field changed: ${field}`);
+    if (canonicalJson(original[field]) !== canonicalJson(repaired[field])) errors.push(`immutable field changed: ${field}`);
   }
-  const changedFields = originalKeys.filter((field) => JSON.stringify(original[field]) !== JSON.stringify(repaired[field]));
+  const changedFields = originalKeys.filter((field) => canonicalJson(original[field]) !== canonicalJson(repaired[field]));
   const isRepairable = (field) => (contract.repairable ? contract.repairable.includes(field) : !contract.immutable.includes(field));
   if (!changedFields.some(isRepairable)) errors.push('repair must change at least one repairable field');
   for (const field of changedFields) {
