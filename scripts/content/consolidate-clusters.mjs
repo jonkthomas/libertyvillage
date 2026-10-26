@@ -23,6 +23,7 @@ export function validatePlan(plan) {
   const seen = new Set(); const ids = new Set();
   for (const c of plan.clusters) {
     if (!c.id || ids.has(c.id) || c.members.length < 2 || !c.members.some(m => m.url === c.primary)) throw new Error('invalid cluster');
+    if (c.imageFrom && !c.members.some(m => m.url === c.imageFrom)) throw new Error('image source must be a cluster member');
     ids.add(c.id);
     for (const m of c.members) {
       routeRow(m.url);
@@ -49,6 +50,11 @@ export function sectionsOf(record) {
 export function mergeCluster(cluster, records, redirects, now) {
   const primary = structuredClone(records.get(cluster.primary));
   if (!primary) throw new Error(`missing primary: ${cluster.primary}`);
+  if (cluster.imageFrom) {
+    const image = records.get(cluster.imageFrom)?.image;
+    if (!image) throw new Error(`missing image source: ${cluster.imageFrom}`);
+    primary.image = image;
+  }
   const retired = new Set(redirects.map(r => r.source));
   const original = primary.content ?? primary.sections?.map(s => s.content).join('\n\n') ?? '';
   const seen = new Set(original.split(/\n\s*\n/).map(normalize));

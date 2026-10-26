@@ -42,6 +42,15 @@ test('D2 protects every World Cup URL and includes all three recent duplicate au
   assert.throws(() => validatePlan(invalid));
 });
 
+test('planned primary images exist locally for the unchanged content image gate', async () => {
+  for (const c of plan.clusters) {
+    const { dataset, key } = routeRow(c.imageFrom ?? c.primary);
+    const record = datasets[dataset].find(r => r.slug === key);
+    assert.ok(record?.image?.startsWith('/images/'));
+    assert.ok((await fs.stat(new URL(`../../public${record.image}`, import.meta.url))).isFile(), c.id);
+  }
+});
+
 // Synthetic records keep the operational regression independent of editorial choices.
 const fixturePlan = { version: 1, clusters: ['posts', 'topics', 'services'].map((dataset, i) => ({
   id: `intent-${i}`, primary: `${{ posts: '/blog/', topics: '/guide/', services: '/best/' }[dataset]}fixture-primary-${i}`,

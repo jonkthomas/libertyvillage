@@ -4,6 +4,8 @@
 to retain from every member. `next.config.ts` derives exact 301s from it. Changing
 a primary is a data-file edit; the matching redirects change with it. The HTTP
 test checks every source, destination existence and absence of chains.
+The optional `imageFrom` selects an existing image from another cluster member;
+the restaurant primary uses this because its legacy image file is absent.
 
 The initial choices are **PROVISIONAL**. Confirm primaries from
 `source-data.json` (GSC 28d) before the post-merge apply. That evidence must also
