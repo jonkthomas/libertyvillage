@@ -363,7 +363,7 @@ const JOBS = {
   'weekly-blog': 'Weekly blog post', 'october-blog-backfill': 'October catch-up post', 'topic-discovery': 'Topic research',
   'discover-businesses': 'Business directory refresh', news: 'Daily news check', 'weekly-growth-report': 'Weekly growth report',
   'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'SEO improvements', blog: 'Blog post', admin: 'Manual content update', manual: 'Manual content change',
-  'guide-hub': 'Neighbourhood guide',
+  'guide-hub': 'Neighbourhood guide', 'deploy-retry': 'Site rebuild retry',
 };
 /** "weekly-blog" -> "Weekly blog post"; unknown slugs become words. */
 export function jobName(job) {

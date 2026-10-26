@@ -20,6 +20,7 @@ import { renderHtml } from './lib/render.mjs';
 import { agentInput } from './lib/agent-input.mjs';
 import {
   fetchVmLogs, fetchVmQueue, fetchSitemap, fetchTitles, fetchGsc, gscDelta, vmExec, VM_HOST,
+  fetchVmFixerActions, fetchFixItIssues,
 } from './lib/fetchers.mjs';
 
 const HOME = os.homedir();
@@ -123,11 +124,17 @@ async function main() {
   gsc.delta = gscDelta(gsc.weeks ?? []);
   log(`gsc source: ${gsc.source}`);
 
+  // 4b. What the ops fixer did, and the issues the fix-it agent filed (tolerant)
+  const fixer = { actions: [], issues: [] };
+  try { fixer.actions = await fetchVmFixerActions(window.from); } catch (e) { notes.push(`ops fixer log unavailable: ${e.message}`); }
+  try { fixer.issues = await fetchFixItIssues(window.from); } catch (e) { notes.push(`fix-it issues unavailable: ${String(e.message ?? e).slice(0, 120)}`); }
+  log(`ops fixer records: ${fixer.actions.length}, fix-it issues: ${fixer.issues.length}`);
+
   // 5. Build + render
   const digestUrl = dryRun ? `${baseUrl}/lv-digest-${id}.html (dry run, not published)` : `${baseUrl}/lv-digest-${id}.html`;
   const model = buildModel({
     generatedAt: new Date().toISOString(),
-    window, runs, posted, titles, queue, gsc, notes,
+    window, runs, posted, titles, queue, gsc, fixer, notes,
     links: { digestUrl, repo: 'https://github.com/jonkthomas/libertyvillage' },
   });
   const html = renderHtml(model);

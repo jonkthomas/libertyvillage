@@ -1,0 +1,19 @@
+[Unit]
+Description=Liberty Village ops fixer: whitelisted retries of failed runner jobs
+Documentation=https://github.com/jonkthomas/libertyvillage/tree/staging/ops/ops-fixer
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Root only to read the 0700 runner logs and `systemctl start` the runner's own
+# units (the exact units its timers start). No env file, token or DB credential.
+ExecStart=/usr/local/bin/node /opt/lv-ops-fixer/ops-fixer/fixer.mjs --apply
+TimeoutStartSec=5min
+UMask=0027
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/lv-ops-fixer
+ReadOnlyPaths=/var/log/lv-runner
+InaccessiblePaths=-/etc/lv-runner.env -/etc/lv-runner-staging.env -/etc/lv-runner-production.env -/etc/lv-digest-agent.env -/etc/lv-digest-publisher.token -/srv/lv-runner -/run/lv-runner -/var/lib/lv-runner -/var/log/lv-generator -/var/lib/lv-digest-publisher
