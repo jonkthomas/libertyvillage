@@ -201,8 +201,9 @@ test('slackMessage reads as a plain report: verdict, shipped, problems, ask, one
   });
   const msg = slackMessage(model);
   const lines = msg.split('\n');
-  assert.match(lines[0], /^Liberty Village content report, week of Oct 19–26$/);
-  assert.match(lines[1], /^2 of 2 planned posts went live\. Search: 120 clicks from 4,500 impressions\.$/);
+  assert.match(lines[0], /^Search clicks this week:/);
+  assert.match(lines[1], /^Liberty Village content report, week of Oct 19–26$/);
+  assert.match(lines[2], /^2 of 2 planned posts went live\. Search: 120 clicks from 4,500 impressions\.$/);
   assert.match(msg, /Published: "\/blog\/best-coffee-shops" \(Oct 21\); "Parking in Liberty Village" \(Oct 23\)\./);
   assert.match(msg, /Problems: 3 issues this week: 1 resolved, 1 being retried automatically, 1 being investigated\./);
   assert.match(msg, /What you need to do: Publishing is paused \(hold switch on\): lift it when ready\./);

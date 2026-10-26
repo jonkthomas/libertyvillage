@@ -257,3 +257,16 @@ export function gscDelta(weeks) {
       ? Math.round((latest.position - prev.position) * 10) / 10 : null,
   };
 }
+
+/** Read only: use the same root VM/env transport as GSC, keep DB credentials on VM. */
+export async function fetchLedgerOnVm({ since } = {}, execute = vmExec) {
+  if (!/^\d{4}-\d{2}-\d{2}(?:T[0-9:.]+Z)?$/.test(since ?? '')) throw new Error('invalid ledger since');
+  const out = await execute(`set -e
+cd /srv/lv-runner/repo
+set -a; . /etc/lv-runner.env; set +a
+set -a; . /etc/lv-runner-production.env; set +a
+node scripts/content/ledger.mjs list '${since}'`, { asRoot: true, timeoutMs: 60_000 });
+  const rows = JSON.parse(out.trim());
+  if (!Array.isArray(rows)) throw new Error('invalid ledger rows');
+  return rows;
+}
