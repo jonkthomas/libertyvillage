@@ -6,7 +6,16 @@
 // Messages are written for a non-technical reader (#libvillage): what happened,
 // why it matters, what to do, one link. Codes, paths and commands stay in the
 // trailing Ref line. Wording comes from the shared plain-English map.
-import { explain, codesInErrors, jobName, siteName, slackBody, LINKS } from '../../ops/weekly-digest/lib/plain-english.mjs';
+import * as plain from '../../ops/weekly-digest/lib/plain-english.mjs';
+
+const { explain, codesInErrors, jobName, siteName, slackBody, LINKS } = plain;
+
+// A broken or partial map must never cost a notice: any formatter error falls
+// back to one generic sentence that still carries the stable submission id.
+const generic = (submission) => `Content system update for submission #${submission?.id ?? '?'} (${submission?.target ?? 'unknown site'}). Details: content show --submission ${submission?.id ?? '?'}`;
+const guarded = (format, fallback) => (args) => {
+  try { return format(args); } catch { return fallback(args ?? {}); }
+};
 
 export const MAX_SUCCESS_LINES = 10;
 export const SLACK_TIMEOUT_MS = 10_000;
@@ -39,7 +48,7 @@ export function describeItem({ dataset, key, payload }, { registry, siteUrl }) {
 }
 
 // Published: one title + link for a single item; a short list (≤ 10) otherwise.
-export function formatSuccess({ submission, items, registry, siteUrl, scripted = false }) {
+function formatSuccessRaw({ submission, items, registry, siteUrl, scripted = false }) {
   const site = siteName(submission.target);
   const described = items.map((item) => ({ ...describeItem(item, { registry, siteUrl }), dataset: item.dataset, routed: Boolean(registry?.[item.dataset]?.route) }));
   const why = submission.kind === 'blog' ? 'It counts toward the 2-posts-a-week plan.'
@@ -58,7 +67,7 @@ export function formatSuccess({ submission, items, registry, siteUrl, scripted =
 const OP_WORD = { insert: 'added', upsert: 'updated', update: 'updated', unpublish: 'removed', delete: 'removed', rollback: 'rolled back', compensate: 'rolled back' };
 
 // Manual (admin) change applied: counts by dataset and operation, no slugs.
-export function formatAdmin({ submission, items, scripted = false }) {
+function formatAdminRaw({ submission, items, scripted = false }) {
   const groups = new Map();
   for (const item of items) {
     const g = groups.get(item.dataset) ?? new Map();
@@ -76,7 +85,7 @@ export function formatAdmin({ submission, items, scripted = false }) {
 }
 
 // Not published: plain cause from the shared map, the reviewer's top note, next step.
-export function formatFailure({ submission, decision, findings = [], errors = [], scripted = false }) {
+function formatFailureRaw({ submission, decision, findings = [], errors = [], scripted = false }) {
   const chosen = decision || submission.decision || 'error';
   const lintCodes = codesInErrors(errors);
   const e = explain(lintCodes.length && ['lint', 'validation'].includes(chosen) ? lintCodes[0] : chosen);
@@ -93,7 +102,7 @@ export function formatFailure({ submission, decision, findings = [], errors = []
 }
 
 // Published but not yet visible (deploy hook failed or the page check timed out).
-export function formatPropagationWarning({ submission, reason, scripted = false }) {
+function formatPropagationWarningRaw({ submission, reason, scripted = false }) {
   const e = explain(reason);
   return slackBody({
     prefix: scriptedPrefix(scripted),
@@ -103,7 +112,7 @@ export function formatPropagationWarning({ submission, reason, scripted = false 
   });
 }
 
-export function formatCompensationConflict({ submission, scripted = false }) {
+function formatCompensationConflictRaw({ submission, scripted = false }) {
   const e = explain('compensation-conflict');
   return slackBody({
     prefix: scriptedPrefix(scripted),
@@ -113,7 +122,7 @@ export function formatCompensationConflict({ submission, scripted = false }) {
   });
 }
 
-export function formatAdminSmokeAlert({ submission, failures = [], scripted = false }) {
+function formatAdminSmokeAlertRaw({ submission, failures = [], scripted = false }) {
   const e = explain('admin-smoke-failed');
   const pages = failures.length ? ` Affected: ${failures.length} ${failures.length === 1 ? 'page' : 'pages'} (${[...new Set(failures.map((f) => noun(f.dataset)))].join(', ')}).` : '';
   return slackBody({
@@ -125,7 +134,7 @@ export function formatAdminSmokeAlert({ submission, failures = [], scripted = fa
 }
 
 // The review step crashed before deciding (gate error); the draft waits.
-export function formatGateError({ id, reason }) {
+function formatGateErrorRaw({ id, reason }) {
   const e = explain(reason);
   return slackBody({
     what: `Quality review stopped before finishing a draft. ${e.cause}`,
@@ -140,24 +149,37 @@ const weekOf = (weekStart) => new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC'
   .format(new Date(`${weekStart}T00:00:00Z`));
 
 // Missed-week cadence alert ({target, weekStart, alertKind, counts}); never the raw payload.
-export function formatCadenceAlert({ target, weekStart, alertKind, counts = {} }) {
+function formatCadenceAlertRaw({ target, weekStart, alertKind, counts = {} }) {
   const news = alertKind === 'WEEKLY_NEWS_MISSED';
   const e = explain(alertKind);
   const n = Number.isInteger(counts?.[news ? 'roundup' : 'content']) ? counts[news ? 'roundup' : 'content'] : null;
   const what = news
     ? `Missed week on ${siteName(target)}: no news roundup went live for the week of ${weekOf(weekStart)} (plan: 1).`
-    : `Missed week on ${siteName(target)}: ${n ?? 'fewer than'} of 2 planned posts went live for the week of ${weekOf(weekStart)}.`;
+    : `Missed week on ${siteName(target)}: ${n == null ? 'fewer than 2' : `${n} of 2`} planned posts went live for the week of ${weekOf(weekStart)}.`;
   return slackBody({ what, why: e.impact, todo: e.action, link: LINKS.digest });
 }
 
 // Neon storage warning (content stats --alert).
-export function formatStorageAlert({ projectBytes, warnMb = 350, capMb = 512 }) {
+function formatStorageAlertRaw({ projectBytes, warnMb = 350, capMb = 512 }) {
   return slackBody({
     what: `Content database is getting full: ${Math.round(projectBytes / 1048576)} MB used of ${capMb} MB (warning line ${warnMb} MB).`,
     why: `If it reaches ${capMb} MB, new posts cannot be saved.`,
     todo: 'Ask for old content history to be cleaned up before it fills.',
   });
 }
+
+const bySubmission = (args) => generic(args.submission);
+export const formatSuccess = guarded(formatSuccessRaw, bySubmission);
+export const formatAdmin = guarded(formatAdminRaw, bySubmission);
+export const formatFailure = guarded(formatFailureRaw, bySubmission);
+export const formatPropagationWarning = guarded(formatPropagationWarningRaw, bySubmission);
+export const formatCompensationConflict = guarded(formatCompensationConflictRaw, bySubmission);
+export const formatAdminSmokeAlert = guarded(formatAdminSmokeAlertRaw, bySubmission);
+export const formatGateError = guarded(formatGateErrorRaw, ({ id }) => generic({ id }));
+export const formatCadenceAlert = guarded(formatCadenceAlertRaw, ({ target, weekStart }) =>
+  `Missed-week alert for ${target ?? 'unknown site'}, week of ${weekStart ?? 'unknown'}. Details are in the weekly report.`);
+export const formatStorageAlert = guarded(formatStorageAlertRaw, ({ projectBytes }) =>
+  `Content database storage warning: ${Math.round(Number(projectBytes) / 1048576)} MB used of 512 MB.`);
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
 function severityRank(severity) {

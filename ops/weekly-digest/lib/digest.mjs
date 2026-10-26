@@ -310,10 +310,12 @@ export function nextWeekPlan(timers, now) {
     .sort((a, b) => (a.next ? Date.parse(a.next) : Infinity) - (b.next ? Date.parse(b.next) : Infinity));
 }
 
-/** A failed run is resolved when a later run of the same job on the same site succeeded. */
+/** A failed run is resolved by the first later successful run of the same job on the same site. */
 function resolvedLater(f, runs) {
   const t = Date.parse(f.startedAt);
-  return runs.some((r) => r.job === f.job && r.target === f.target && r.outcome === 'success' && Date.parse(r.startedAt) > t);
+  return runs
+    .filter((r) => r.job === f.job && r.target === f.target && r.outcome === 'success' && Date.parse(r.startedAt) > t)
+    .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))[0] ?? null;
 }
 
 /** Failure rows grouped by plain-English cause (largest group first); `open` counts the unresolved ones. */
@@ -324,7 +326,9 @@ export function problemGroups(failures, runs = []) {
     const key = e.title;
     const g = groups.get(key) ?? { title: e.title, cause: e.cause, impact: e.impact, action: e.action, needsYou: e.needsYou, known: e.known, link: e.link, count: 0, live: 0, open: 0, where: [] };
     g.count += 1;
-    if (!resolvedLater(f, Array.isArray(runs) ? runs : [])) g.open += 1;
+    const fixed = resolvedLater(f, Array.isArray(runs) ? runs : []);
+    if (!fixed) g.open += 1;
+    else if (!g.resolvedAt || Date.parse(fixed.startedAt) > Date.parse(g.resolvedAt)) g.resolvedAt = fixed.startedAt;
     if (f.target === 'production') g.live += 1;
     g.where.push({ job: jobName(f.job), site: siteName(f.target), at: f.startedAt });
     groups.set(key, g);
@@ -338,7 +342,7 @@ function searchSentence(gsc) {
   if (!prev) return `Search: ${fmtInt(cur.clicks)} clicks from ${fmtInt(cur.impressions)} impressions.`;
   const c = pctChange(prev.clicks, cur.clicks), i = pctChange(prev.impressions, cur.impressions);
   const verb = (n, up, down) => (n == null ? 'held' : n > 0.5 ? up : n < -0.5 ? down : 'held steady');
-  const amt = (n) => (n == null || Math.abs(n) <= 0.5 ? '' : ` ${Math.round(Math.abs(n))}%`);
+  const amt = (n) => (n == null || Math.abs(n) <= 0.5 ? '' : ` ${Math.abs(n)}%`); // one decimal, as on the tiles
   const cv = verb(c, 'rose', 'fell'), iv = verb(i, 'rose', 'fell');
   const join = (cv === 'rose') !== (iv === 'rose') && cv !== 'held steady' && iv !== 'held steady' ? 'while' : 'and';
   let s = `Search clicks ${cv}${amt(c)} (${fmtInt(prev.clicks)} → ${fmtInt(cur.clicks)}) ${join} impressions ${iv}${amt(i)}`;

@@ -240,9 +240,15 @@ function censusWords(census) {
   return [found && `found ${found}`, aside && `set aside ${aside}`].filter(Boolean).join('; ');
 }
 
-export function alertText({ job, target, slot, reason = null, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null, exhaustedLabel = null }, plain) {
+export function alertText(args, plain) {
+  const generic = `${args.job} did not finish (${args.target}). Details are in the weekly report.\nRef: run ${args.slot}`;
+  if (!plain) return generic;
+  // A partial map (missing export) or a throwing formatter must never drop the alert.
+  try { return plainAlertText(args, plain) || generic; } catch { return generic; }
+}
+
+function plainAlertText({ job, target, slot, reason = null, codeSuggestion = false, holdCensus = null, holdWeek = null, stuckSubmissionId = null, exhaustedLabel = null }, plain) {
   const stuck = Number.isSafeInteger(stuckSubmissionId) && stuckSubmissionId > 0;
-  if (!plain) return `${job} did not finish (${target}). Details are in the weekly report.\nRef: run ${slot}`;
   const { explain, jobName, siteName, slackBody, midSentence } = plain;
   const site = siteName(target);
   const ref = `run ${slot}`;

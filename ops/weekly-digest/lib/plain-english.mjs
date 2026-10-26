@@ -49,7 +49,7 @@ const ENTRIES = {
   },
   'gate blocked or rejected': {
     title: 'Quality review stopped a draft',
-    cause: 'Our automatic quality review blocked or rejected the draft (for example, it was too close to an existing page).',
+    cause: 'Our automatic quality review stopped the draft before it went live.',
     impact: SLOT_OPEN, action: NEXT_TOPIC,
   },
   'cadence content deficit': {

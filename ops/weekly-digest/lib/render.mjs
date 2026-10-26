@@ -63,10 +63,15 @@ function whereLine(where) {
 const nextStep = (action) => action.replace(/^Nothing to do(?: now| yet)?\.\s*/, '') || 'No follow-up needed.';
 
 function problemBlock(g) {
-  return `<div class="problem${g.needsYou ? ' needs' : ''}">
-<div class="problem-head"><b>${esc(g.title)}</b><span class="count">${g.count}×</span><span class="tag">${g.open ? 'open' : 'resolved'}</span>${g.needsYou ? '<span class="tag you">needs you</span>' : ''}${g.known ? '' : '<span class="tag">investigating</span>'}</div>
-<p><span class="k">Why</span><span>${esc(g.cause)} ${esc(g.impact)}</span></p>
-<p><span class="k">Next step</span><span>${esc(nextStep(g.action))}${g.known ? '' : ` ${link(g.link, 'Fix-it tickets')}`}</span></p>
+  // A resolved cause never asks for action: a later run of the same job succeeded.
+  const open = g.open > 0;
+  const needs = open && g.needsYou;
+  const next = open ? `${esc(nextStep(g.action))}${g.known ? '' : ` ${link(g.link, 'Fix-it tickets')}`}`
+    : esc(`Fixed itself${g.resolvedAt ? ` on ${fmtDate(g.resolvedAt, { month: 'short', day: 'numeric' })}` : ''}; nothing to do.`);
+  return `<div class="problem${needs ? ' needs' : ''}">
+<div class="problem-head"><b>${esc(g.title)}</b><span class="count">${g.count}×</span><span class="tag">${open ? 'open' : 'resolved'}</span>${needs ? '<span class="tag you">needs you</span>' : ''}${g.known || !open ? '' : '<span class="tag">investigating</span>'}</div>
+<p><span class="k">Why</span><span>${esc(g.cause)}${open ? ` ${esc(g.impact)}` : ''}</span></p>
+<p><span class="k">Next step</span><span>${next}</span></p>
 <p class="where"><span class="k">Where</span><span>${whereLine(g.where)}</span></p>
 </div>`;
 }
