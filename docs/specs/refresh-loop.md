@@ -63,6 +63,23 @@ score = impressions × max(0, expectedCtr(min(position, 8)) − ctr)      over t
 | Gate failure changes nothing | A gate failure or refusal leaves the submission rejected or blocked and publishes nothing. The snapshot is kept, and the outcome is logged with a reason code from `ops/weekly-digest/lib/plain-english.mjs` (`refresh-*`). |
 | Before/after in the Monday digest | Each outcome is logged as a `refresh-outcome` runner log line. The digest renders it in **Refreshed this week** (`ops/weekly-digest/lib/refreshed.mjs`). |
 
+## Binding, repairs and deploy confirmation
+
+- **Snapshot bound to the submission.**
+  - `content refresh submit` stores `context.refresh = { snapshotId, mode, original }` on the submission.
+  - A bare `content submit --kind refresh` is refused, so the binding can't be skipped.
+  - The kind policy re-checks the binding at submit, on every fixer plan (the repair validator) and on every gate round, including after a resume.
+  - So a gate repair can never widen a snippet refresh or break the source binding.
+- **Same source binding as new posts.** The original post is the trusted evidence, checked by `checkRefreshAgainstOriginal` (`scripts/automation/blog-source-pack.mjs`). It applies the `checkDraftAgainstPack` rules with the original standing in for the pack:
+  - Businesses may only come from the original post.
+  - The original title's topic and operational premises must be kept.
+  - Every `related*` slug and every internal link must resolve to a live record.
+  - A failure is coded `refresh-unbound`.
+- **Only confirmed-live refreshes count.**
+  - A refresh can be published in the DB but not yet live: the deploy hook failed, or smoke hasn't passed. Its snapshot then stays `reserved` and is reported as `pending` with `hook-failed` or `smoke-timeout`.
+  - A same-snapshot `content refresh submit` retry, or the next `content refresh plan`, resumes propagation (deploy hook and smoke) without regenerating.
+  - Cooldown, the ledger row and the digest's "refreshed" status all wait for confirmation. The digest shows "not live yet" until then.
+
 ## Rollback
 
 ```

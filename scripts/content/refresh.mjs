@@ -116,10 +116,18 @@ export function splitIntro(content) {
   return { intro: text.slice(0, cut), rest: text.slice(cut) };
 }
 const SNIPPET_FIELDS = new Set(['title', 'description', 'content', 'updatedAt']);
+// Null when `record` changes only what a snippet refresh may change relative to
+// `prior` (the snapshot). Shared with the submit/gate kind policy, so it holds for
+// the generator output, every fixer repair and every gate round.
+export function snippetOverreach(prior, record) {
+  const keys = new Set([...Object.keys(prior ?? {}), ...Object.keys(record ?? {})]);
+  for (const key of keys) if (!SNIPPET_FIELDS.has(key) && JSON.stringify(prior?.[key]) !== JSON.stringify(record?.[key])) return `snippet refresh changed ${key}`;
+  if (splitIntro(prior?.content).rest !== splitIntro(record?.content).rest) return 'snippet refresh changed the body beyond the intro';
+  return null;
+}
 function checkSnippetOnly(prior, record) {
-  const keys = new Set([...Object.keys(prior), ...Object.keys(record)]);
-  for (const key of keys) if (!SNIPPET_FIELDS.has(key) && JSON.stringify(prior[key]) !== JSON.stringify(record[key])) throw new RefreshRefused('refresh-snippet-overreach', `snippet refresh changed ${key}`);
-  if (splitIntro(prior.content).rest !== splitIntro(record.content).rest) throw new RefreshRefused('refresh-snippet-overreach', 'snippet refresh changed the body beyond the intro');
+  const overreach = snippetOverreach(prior, record);
+  if (overreach) throw new RefreshRefused('refresh-snippet-overreach', overreach);
 }
 
 // The generator rewrites data/posts.json in a scratch copy. Accept exactly one
@@ -175,8 +183,8 @@ async function weekUsage(c, target, isoWeek) {
 
 // Rank this week's candidates. Settles abandoned snapshots first so a crashed run
 // neither holds a post forever nor loses a refresh that did publish.
-export async function planRefresh(db, { target = db.target, now = new Date(), gsc, deps = {} }) {
-  const settled = await settleStaleRefreshes(db, { target, now, deps });
+export async function planRefresh(db, { target = db.target, now = new Date(), gsc, env = process.env, deps = {}, checkout = process.cwd() }) {
+  const settled = await settleStaleRefreshes(db, { target, now, env, deps, checkout });
   const isoWeek = weekOf(now);
   const usage = await weekUsage(db, target, isoWeek);
   const snippetDone = new Set((await db.query("select distinct key from content.refresh_snapshots where target=$1 and mode='snippet' and state in ('published','rolled-back')", [target])).rows.map((row) => row.key));
@@ -222,9 +230,23 @@ const getSnapshot = async (db, id) => {
   if (!row) throw new ValidationError(`refresh snapshot ${id} not found`);
   return row;
 };
-const failedReason = (submission) => (submission.decision === 'lint' ? 'refresh-fact-check'
-  : submission.decision === 'validation' ? 'refresh-validation' : submission.decision === 'conflict' ? 'refresh-conflict'
-    : submission.state === 'compensated' ? 'refresh-smoke-failed' : 'refresh-gate-failed');
+// Plain-English code for a refused or rejected refresh, from the submit error or
+// the deciding gate round's deterministic errors.
+export function refusalReason(text) {
+  const message = String(text ?? '');
+  if (message.includes('refresh-snippet-overreach')) return 'refresh-snippet-overreach';
+  if (message.includes('not bound to its original post')) return 'refresh-unbound';
+  return /\[[a-z-]+\]/.test(message) ? 'refresh-fact-check' : 'refresh-validation';
+}
+const failedReason = (submission, rounds = []) => {
+  if (['lint', 'validation'].includes(submission.decision)) {
+    const reason = refusalReason((rounds.at(-1)?.lint?.errors ?? []).join('; '));
+    return submission.decision === 'lint' && reason === 'refresh-validation' ? 'refresh-fact-check' : reason;
+  }
+  return submission.decision === 'conflict' ? 'refresh-conflict' : submission.state === 'compensated' ? 'refresh-smoke-failed' : 'refresh-gate-failed';
+};
+// Published in the DB but not yet confirmed live: the hook never landed, or smoke has not passed.
+const propagationReason = (submission) => (submission.deploy_requested_at ? 'smoke-timeout' : 'hook-failed');
 
 async function defaultRecordAction(db, action) {
   const ledger = await import('./ledger.mjs');
@@ -249,15 +271,18 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
   let reason = reasonCode ?? 'refresh-error';
   let after = null;
   if (submissionId != null) {
-    const { submission, items } = await getSubmission(db, submissionId);
+    const { submission, items, rounds } = await getSubmission(db, submissionId);
     if (submission.idempotency_key !== refreshIdempotencyKey(snap.target, snap.id) || submission.kind !== 'refresh') throw new ValidationError('submission is not this refresh');
-    if (['open', 'gating'].includes(submission.state)) return result(snap, { pending: true });
+    if (['open', 'gating'].includes(submission.state)) return result(snap, { pending: true, submissionId });
     if (submission.state === 'published') {
+      // Only a confirmed live page closes as published (cooldown, ledger, digest);
+      // until then the snapshot stays open and the next submit/plan resumes propagation.
+      if (!submission.smoke_passed_at) return result(snap, { pending: true, submissionId, reasonCode: propagationReason(submission) });
       const item = items.find((entry) => entry.dataset === 'posts' && entry.key === snap.key);
       after = (await one(db, 'select payload from content.revisions where dataset=$1 and key=$2 and rev=$3', ['posts', snap.key, item.published_rev])).payload;
       state = 'published';
-      reason = submission.smoke_passed_at ? null : 'publish or propagation pending';
-    } else reason = failedReason(submission);
+      reason = null;
+    } else reason = failedReason(submission, rounds);
   }
   const summary = { before: face(snap.payload), after: face(after), change: summarizeChange(snap.payload, after) };
   const closed = (await db.query(`update content.refresh_snapshots set state=$2, reason_code=$3, submission_id=$4, summary=$5::json, closed_at=$6
@@ -285,6 +310,10 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
   const snap = await getSnapshot(db, snapshotId);
   if (snap.state !== 'reserved') return { result: await closeRefresh(db, { snapshotId, deps }), exitCode: snap.state === 'published' ? 0 : 2 };
   const close = async (fields) => closeRefresh(db, { snapshotId, now, deps, ...fields });
+  // A retry of a snapshot that already has a submission never regenerates: it
+  // resumes that submission (gate rounds or deploy/smoke) to a confirmed outcome.
+  const existing = await one(db, 'select id from content.submissions where idempotency_key=$1', [refreshIdempotencyKey(snap.target, snap.id)]);
+  if (existing) return gateAndClose(db, { snapshotId, submissionId: n(existing.id), actor, env, deps, checkout, now });
   let record;
   try {
     record = extractRefreshedPost({ before, after, slug: snap.key, mode: snap.mode });
@@ -302,29 +331,49 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
     fs.writeFileSync(baseline, JSON.stringify({ snapshot_id: null, datasets: { posts: { entries: { [snap.key]: { rev: snap.live_rev, sha: snap.payload_sha256 } } } } }));
     const { submitContent } = await import('./submit.mjs');
     try {
+      // context.refresh binds the snapshot (mode + original post) to the submission:
+      // the kind policy re-checks snippet scope and original-post binding at submit,
+      // on every fixer plan and on every gate round, so a repair cannot widen it.
       ({ result: { submissionId } } = await submitContent(db, {
         kind: 'refresh', idempotencyKey: refreshIdempotencyKey(snap.target, snap.id), actor, root: checkout, recordFile, dataset: 'posts', baseline,
+        refresh: { snapshotId: n(snap.id), mode: snap.mode, original: snap.payload },
       }, { env, checkout }));
     } catch (error) {
       if (!['ValidationError', 'ConflictError'].includes(error.code)) throw error;
-      const reasonCode = error.code === 'ConflictError' ? 'refresh-conflict' : /\[[a-z-]+\]/.test(error.message) ? 'refresh-fact-check' : 'refresh-validation';
-      return { result: await close({ reasonCode }), exitCode: 2 };
+      return { result: await close({ reasonCode: error.code === 'ConflictError' ? 'refresh-conflict' : refusalReason(error.message) }), exitCode: 2 };
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   if (submissionId == null) return { result: await close({ reasonCode: 'refresh-no-change' }), exitCode: 2 };
-  const { gateContent } = await import('./gate.mjs');
-  const gated = await gateContent(db, { submission: submissionId, actor }, { env, deps: deps.gate ?? {}, checkout });
-  const closed = await close({ submissionId });
-  return { result: { ...closed, gate: { exitCode: gated.exitCode, decision: gated.result?.decision ?? null } }, exitCode: closed.pending ? 1 : closed.state === 'published' ? (closed.reasonCode ? 3 : 0) : 2 };
+  return gateAndClose(db, { snapshotId, submissionId, actor, env, deps, checkout, now });
 }
 
-export async function settleStaleRefreshes(db, { target = db.target, now = new Date(), deps = {} } = {}) {
-  const stale = (await db.query(`select id from content.refresh_snapshots where target=$1 and state='reserved'
-    and created_at < $2::timestamptz - make_interval(hours => $3) order by id`, [target, now, REFRESH.staleHours])).rows;
+// gateContent resumes any state: open/gating rounds, or a published submission's
+// deploy hook + smoke (publishTail). Exit 3 = published but not yet confirmed live.
+async function gateAndClose(db, { snapshotId, submissionId, actor, env, deps, checkout, now }) {
+  const { gateContent } = await import('./gate.mjs');
+  const gated = await gateContent(db, { submission: submissionId, actor }, { env, deps: deps.gate ?? {}, checkout });
+  const closed = await closeRefresh(db, { snapshotId, submissionId, now, deps });
+  const exitCode = closed.pending ? (['hook-failed', 'smoke-timeout'].includes(closed.reasonCode) ? 3 : 1) : closed.state === 'published' ? 0 : 2;
+  return { result: { ...closed, gate: { exitCode: gated.exitCode, decision: gated.result?.decision ?? null } }, exitCode };
+}
+
+// Every plan first finishes earlier work: a refresh published in the DB but not
+// confirmed live gets its deploy hook + smoke resumed now; an abandoned snapshot
+// (stale, no submission) closes as interrupted; a stale in-review one resumes its gate.
+export async function settleStaleRefreshes(db, { target = db.target, now = new Date(), env = process.env, deps = {}, actor = 'refresh:settle', checkout = process.cwd() } = {}) {
+  const open = (await db.query(`select r.id, s.id as submission_id, s.state as submission_state,
+      r.created_at < $2::timestamptz - make_interval(hours => $3) as stale
+    from content.refresh_snapshots r left join content.submissions s on s.idempotency_key = 'refresh:' || r.target || ':' || r.id
+    where r.target=$1 and r.state='reserved' order by r.id`, [target, now, REFRESH.staleHours])).rows;
   const settled = [];
-  for (const { id } of stale) {
-    const closed = await closeRefresh(db, { snapshotId: n(id), reasonCode: 'refresh-interrupted', now, deps });
-    if (!closed.pending) settled.push({ snapshotId: closed.snapshotId, slug: closed.slug, state: closed.state, reasonCode: closed.reasonCode });
+  for (const row of open) {
+    let closed;
+    if (row.submission_state === 'published' || (row.stale && ['open', 'gating'].includes(row.submission_state))) {
+      ({ result: closed } = await gateAndClose(db, { snapshotId: n(row.id), submissionId: n(row.submission_id), actor, env, deps, checkout, now }));
+    } else if (row.stale || ['rejected', 'blocked', 'error', 'compensated'].includes(row.submission_state)) {
+      closed = await closeRefresh(db, { snapshotId: n(row.id), reasonCode: 'refresh-interrupted', now, deps });
+    } else continue;
+    settled.push({ snapshotId: closed.snapshotId, slug: closed.slug, state: closed.state, reasonCode: closed.reasonCode, pending: Boolean(closed.pending) });
   }
   return settled;
 }
@@ -377,7 +426,8 @@ export async function runRefreshLoop({ deps }) {
     }
     deps.log('refresh-outcome', refreshLogLine(outcome));
     outcomes.push(outcome);
-    if (stop) break;
+    // A deploy that did not confirm is not about this post either; the next plan resumes it.
+    if (stop || outcome?.pending) break;
   }
   return { refreshed: outcomes.filter((o) => o.state === 'published').length, attempted: outcomes.length, outcomes };
 }
@@ -388,7 +438,7 @@ const clipFace = (value) => (value ? { title: clip(value.title, 200), descriptio
 export function refreshLogLine(o) {
   return {
     snapshotId: o.snapshotId ?? null, slug: o.slug ?? null, url: o.url ?? null, mode: MODES.includes(o.mode) ? o.mode : null,
-    actionType: MODES.includes(o.mode) ? actionTypeOf(o.mode) : null, state: o.state ?? null, reasonCode: o.reasonCode ?? null,
+    actionType: MODES.includes(o.mode) ? actionTypeOf(o.mode) : null, state: o.pending ? 'pending' : o.state ?? null, reasonCode: o.reasonCode ?? null,
     submissionId: o.submissionId ?? null, targetQuery: clip(o.targetQuery, 200), baseline: o.baseline ?? null,
     before: clipFace(o.before), after: clipFace(o.after), change: clip(o.change, 300),
   };

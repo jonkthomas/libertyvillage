@@ -14,9 +14,10 @@ import { keyOf, recordSha } from '../../scripts/content/canonical.mjs';
 import { explain } from '../../ops/weekly-digest/lib/plain-english.mjs';
 import {
   REFRESH, closeRefresh, expectedCtr, extractRefreshedPost, isLeakQuery, listRefreshes, planRefresh, rankRefreshCandidates, refreshScore,
-  reserveRefresh, rollbackRefresh, runRefreshLoop, splitIntro, submitRefresh,
+  refreshLogLine, reserveRefresh, rollbackRefresh, runRefreshLoop, splitIntro, submitRefresh,
 } from '../../scripts/content/refresh.mjs';
-import { FAST_SMOKE, hasTestDb, liveRecord, localSite, publishDirect, seededDb } from './fixtures/content-db.mjs';
+import { refreshRow, renderRefreshed } from '../../ops/weekly-digest/lib/refreshed.mjs';
+import { baselineFile, FAST_SMOKE, hasTestDb, liveRecord, localSite, publishDirect, seededDb, tempJson } from './fixtures/content-db.mjs';
 
 const skip = !hasTestDb && 'CONTENT_TEST_DATABASE_URL not set';
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
@@ -288,8 +289,14 @@ test('a live row that moved after the snapshot is a conflict, never overwritten;
     const lint = await submitRefresh(db, { snapshotId: linted.snapshotId, before: current, after: current.map((p) => (p.slug === SLUGS[2] ? invented(p) : p)),
       actor: 'uat:refresh', env: site.env, checkout: REPO, now: MON, deps: { gate: { review: pass, smoke: FAST_SMOKE } } });
     assert.equal(lint.exitCode, 2);
-    assert.equal(lint.result.reasonCode, 'refresh-fact-check');
-    assert.equal(explain(lint.result.reasonCode).title, 'Refresh failed the fact check');
+    // Caught twice over: the new-post claim linter ([unrecorded-business]) and the original-post binding.
+    assert.equal(lint.result.reasonCode, 'refresh-unbound');
+    assert.equal((await liveRecord(db, 'posts', SLUGS[2])).content.includes('Fake Bistro'), false);
+    const { checkKindPolicy, validateRecord } = { ...(await import('../../scripts/content/submit.mjs')), ...(await import('../../scripts/content/validate.mjs')) };
+    const original = await liveRecord(db, 'posts', SLUGS[2]);
+    const policy = checkKindPolicy({ kind: 'refresh', items: [{ dataset: 'posts', key: SLUGS[2], op: 'update', payload: invented(original) }],
+      ctx: { now: MON.toISOString(), refresh: { mode: 'full', original } }, live: { businesses: [], posts: current }, deps: { validateRecord, lintMode: 'fail' } });
+    assert.ok(policy.lint.some((finding) => finding.includes('[unrecorded-business]')), 'the new-post claim linter runs for refresh');
 
     // Ledger module absent (slice A not merged): the refresh still publishes and closes.
     const second = await reserveRefresh(db, { candidate: { slug: SLUGS[1] }, now: MON });
@@ -313,4 +320,149 @@ test('migration 0007 adds the refresh kind and is idempotent', { skip }, async (
     await assert.rejects(db.query('delete from content.refresh_snapshots where id=$1', [snap.snapshotId]), /refresh-snapshot-immutable/);
     assert.equal(keyOf('posts', (await liveRecord(db, 'posts', SLUGS[3]))), SLUGS[3]);
   } finally { await close(); }
+});
+
+// ── Review round 1 (Sol): the guarantees must hold through gate repair, deploy
+// retries and the new-post source binding. ──────────────────────────────────
+const { buildRecordRepairPlan } = await import('../../scripts/automation/record-repair.mjs');
+const { submitContent } = await import('../../scripts/content/submit.mjs');
+const repairVerdict = (slug) => async ({ contentSha }) => ({ overall: 6.5, findings: [{ severity: 'high', path: `data/posts.json#${slug}`, note: 'Clarify the last section.' }], model: GATE_MODEL, commit_sha: contentSha });
+// A real fixer: asks the validator, throws on refusal (review-agent planRecordRepair).
+const fixer = (edit, seen) => async ({ validate, payload }) => {
+  const record = edit(payload[0].records[0]);
+  const check = validate(buildRecordRepairPlan({ files: [{ file: 'data/posts.json', records: [{ key: record.slug, record }] }], reason: 'repair' }));
+  seen.push(check);
+  if (!check.ok) throw new Error(`invalid repair plan: ${check.errors.join('; ')}`);
+  return { check };
+};
+const sequence = (...verdicts) => { let i = 0; return (args) => verdicts[Math.min(i++, verdicts.length - 1)](args); };
+const overreach = (p) => ({ ...p, content: `${p.content}\n## Repair beyond intro\n\nPlanning ahead helps.\n`, faqs: p.faqs.map((q, i) => (i ? q : { ...q, answer: 'Changed by repair.' })) });
+
+test('SOL-B-1: a gate repair cannot widen a snippet refresh; a valid snippet repair still publishes', { skip }, async () => {
+  const { db, close } = await refreshDb();
+  const site = await localSite(db);
+  try {
+    await site.build();
+    const submitSnippet = async (slug, review, fix) => {
+      const snap = await reserveRefresh(db, { candidate: { slug, mode: 'snippet' }, now: MON });
+      const posts = await livePosts(db);
+      return { snap, out: await submitRefresh(db, { snapshotId: snap.snapshotId, before: posts, after: posts.map((p) => (p.slug === slug ? { ...p, title: `${p.title}: better snippet` } : p)),
+        actor: 'uat:refresh', env: site.env, checkout: REPO, now: MON, deps: { gate: { review, fix, smoke: FAST_SMOKE } } }) };
+    };
+    // Fixer overreach (body section + FAQ): the validator refuses it, nothing publishes.
+    const original = await liveRecord(db, 'posts', SLUGS[0]);
+    const checks = [];
+    const refused = await submitSnippet(SLUGS[0], repairVerdict(SLUGS[0]), fixer(overreach, checks));
+    assert.equal(refused.out.exitCode, 2);
+    assert.equal(refused.out.result.state, 'failed');
+    assert.ok(checks.length >= 1 && checks.every((c) => !c.ok && c.errors.some((e) => e.includes('refresh-snippet-overreach'))), 'every overreaching plan refused by the validator');
+    assert.deepEqual(await liveRecord(db, 'posts', SLUGS[0]), original, 'live row untouched');
+
+    // A fixer that bypasses its validator: the next gate round's own policy refuses before publish.
+    const bypass = async ({ payload }) => ({ check: { ok: true, errors: [], repaired: [{ dataset: 'posts', key: payload[0].records[0].slug, payload: overreach(payload[0].records[0]) }] } });
+    const caught = await submitSnippet(SLUGS[1], sequence(repairVerdict(SLUGS[1]), pass), bypass);
+    assert.equal(caught.out.exitCode, 2);
+    assert.equal(caught.out.result.reasonCode, 'refresh-snippet-overreach');
+    assert.equal(explain('refresh-snippet-overreach').known, true);
+    const sub = await store.getSubmission(db, caught.out.result.submissionId);
+    assert.deepEqual([sub.submission.state, sub.submission.decision, sub.rounds.length], ['rejected', 'validation', 2], 'round 1 (the repaired draft) rejected by its deterministic check');
+    assert.equal((await liveRecord(db, 'posts', SLUGS[1])).title, 'Guide parking');
+
+    // A repair that stays in the snippet (title/description/intro) is accepted and publishes.
+    const okChecks = [];
+    const good = await submitSnippet(SLUGS[2], sequence(repairVerdict(SLUGS[2]), pass), fixer((p) => ({ ...p, description: 'A clearer description.', content: `Start here.\n\n${p.content}` }), okChecks));
+    assert.equal(good.out.exitCode, 0);
+    assert.equal(okChecks[0].ok, true);
+    const live = await liveRecord(db, 'posts', SLUGS[2]);
+    const snapPayload = (await db.query('select payload from content.refresh_snapshots where id=$1', [good.snap.snapshotId])).rows[0].payload;
+    assert.equal(live.description, 'A clearer description.');
+    assert.equal(splitIntro(live.content).rest, splitIntro(snapPayload.content).rest);
+    assert.deepEqual(live.faqs, snapPayload.faqs);
+  } finally { await site.close(); await close(); }
+});
+
+test('SOL-B-2: a deploy that has not confirmed stays pending; a retry or the next plan finishes it; only then refreshed', { skip }, async () => {
+  const { db, close } = await refreshDb();
+  const site = await localSite(db);
+  try {
+    await site.build();
+    const actions = [];
+    const deps = { gate: { review: pass, smoke: FAST_SMOKE }, recordAction: async (_db, action) => { actions.push(action); } };
+    const start = async (slug) => {
+      const snap = await reserveRefresh(db, { candidate: { slug }, now: MON });
+      const posts = await livePosts(db);
+      return { snap, posts };
+    };
+    site.state.hook = 503;
+    const a = await start(SLUGS[0]);
+    const after = a.posts.map((p) => (p.slug === SLUGS[0] ? better(p) : p));
+    const first = await submitRefresh(db, { snapshotId: a.snap.snapshotId, before: a.posts, after, actor: 'uat:refresh', env: site.env, checkout: REPO, now: MON, deps });
+    assert.equal(first.exitCode, 3);
+    assert.deepEqual([first.result.state, first.result.pending, first.result.reasonCode], ['reserved', true, 'hook-failed']);
+    assert.equal(refreshLogLine(first.result).state, 'pending');
+    assert.match(renderRefreshed([{ ...refreshRow(refreshLogLine(first.result)), target: 'production' }]), /not live yet[\s\S]*readers still see the old page/);
+    assert.doesNotMatch(renderRefreshed([{ ...refreshRow(refreshLogLine(first.result)), target: 'production' }]), />refreshed</);
+    assert.equal(actions.length, 0, 'no ledger row before the page is live');
+    assert.doesNotMatch(site.state.deployment.pages.get(`/blog/${SLUGS[0]}`).body.toString(), /routes, timing and tips/, 'old page still served');
+    const pendingPlan = await planRefresh(db, { gsc: GSC, now: MON, env: site.env, deps });
+    assert.equal(pendingPlan.settled[0].pending, true, 'plan tried to finish it; hook still down');
+
+    // Hook recovers: the same-snapshot retry deploys (no regeneration) and confirms.
+    site.state.hook = 'build';
+    const hooks = site.state.hookPosts;
+    const retry = await submitRefresh(db, { snapshotId: a.snap.snapshotId, before: a.posts, after: a.posts, actor: 'uat:refresh', env: site.env, checkout: REPO, now: MON, deps });
+    assert.equal(retry.exitCode, 0);
+    assert.equal(retry.result.state, 'published');
+    assert.ok(site.state.hookPosts > hooks, 'the retry posted the deploy hook');
+    assert.match(site.state.deployment.pages.get(`/blog/${SLUGS[0]}`).body.toString(), /routes, timing and tips/, 'new title served');
+    assert.equal(actions.length, 1);
+    assert.equal((await db.query("select count(*)::int as n from content.submissions where kind='refresh'")).rows[0].n, 1, 'no second refresh');
+
+    // The next plan also finishes a pending deploy on its own.
+    site.state.hook = 503;
+    const b = await start(SLUGS[1]);
+    const second = await submitRefresh(db, { snapshotId: b.snap.snapshotId, before: b.posts, after: b.posts.map((p) => (p.slug === SLUGS[1] ? better(p) : p)), actor: 'uat:refresh', env: site.env, checkout: REPO, now: MON, deps });
+    assert.equal(second.exitCode, 3);
+    assert.ok(!(await planRefresh(db, { gsc: GSC, now: NEXT_MON, env: site.env, deps })).candidates.some((c) => c.slug === SLUGS[1]), 'pending is not a candidate');
+    site.state.hook = 'build';
+    const plan = await planRefresh(db, { gsc: GSC, now: MON, env: site.env, deps });
+    assert.deepEqual(plan.settled.map((s) => [s.slug, s.state, s.pending]), [[SLUGS[1], 'published', false]]);
+    assert.equal(plan.remaining, 0, 'both confirmed refreshes count toward the week');
+    assert.match(site.state.deployment.pages.get(`/blog/${SLUGS[1]}`).body.toString(), /routes, timing and tips/);
+  } finally { await site.close(); await close(); }
+});
+
+test('SOL-B-3: refresh runs the new-post source binding: links, businesses and topic, also after repair', { skip }, async () => {
+  const { db, close } = await refreshDb();
+  const site = await localSite(db);
+  try {
+    await site.build();
+    const business = (await store.readLive(db, { datasets: ['businesses'] })).datasets.businesses.records[0];
+    const attempt = async (slug, edit, gate = { review: pass, smoke: FAST_SMOKE }) => {
+      const snap = await reserveRefresh(db, { candidate: { slug }, now: MON });
+      const posts = await livePosts(db);
+      return submitRefresh(db, { snapshotId: snap.snapshotId, before: posts, after: posts.map((p) => (p.slug === slug ? edit(better(p)) : p)), actor: 'uat:refresh', env: site.env, checkout: REPO, now: MON, deps: { gate } });
+    };
+    const broken = await attempt(SLUGS[0], (p) => ({ ...p, content: `${p.content}\nSee [our other guide](/blog/sol-nonexistent-target).\n` }));
+    assert.deepEqual([broken.exitCode, broken.result.reasonCode], [2, 'refresh-unbound'], 'nonexistent internal link refused');
+    const related = await attempt(SLUGS[1], (p) => ({ ...p, relatedPosts: ['sol-nonexistent-target'] }));
+    assert.equal(related.result.reasonCode, 'refresh-unbound');
+    const outside = await attempt(SLUGS[2], (p) => ({ ...p, content: `${p.content}\n[${business.name}](/directory/${business.slug}) is nearby.\n` }));
+    assert.equal(outside.result.reasonCode, 'refresh-unbound', 'a business the original post never named is outside its evidence');
+    for (const slug of SLUGS.slice(0, 3)) assert.match((await liveRecord(db, 'posts', slug)).title, /^Guide /, `${slug} unchanged`);
+    assert.equal(explain('refresh-unbound').known, true);
+
+    // After repair: the fixer validator applies the same binding.
+    const checks = [];
+    const repaired = await attempt(SLUGS[3], (p) => p, { review: repairVerdict(SLUGS[3]), smoke: FAST_SMOKE,
+      fix: fixer((p) => ({ ...p, content: `${p.content}\n[More](/guide/sol-nonexistent-topic)\n` }), checks) });
+    assert.equal(repaired.exitCode, 2);
+    assert.ok(checks.every((c) => !c.ok && c.errors.some((e) => e.includes('invalid-internal-link:/guide/sol-nonexistent-topic'))));
+    assert.match((await liveRecord(db, 'posts', SLUGS[3])).title, /^Guide /);
+
+    // The binding cannot be skipped: a bare `content submit --kind refresh` is refused.
+    const bare = { ...(await liveRecord(db, 'posts', SLUGS[3])), title: 'Guide dogs: bare submit' };
+    await assert.rejects(submitContent(db, { kind: 'refresh', idempotencyKey: 'bare', actor: 'uat', root: REPO, recordFile: tempJson(bare), dataset: 'posts', baseline: await baselineFile(db) }, { checkout: REPO }),
+      /refresh submit requires its snapshot binding/);
+  } finally { await site.close(); await close(); }
 });

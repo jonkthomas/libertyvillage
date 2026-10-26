@@ -302,6 +302,11 @@ const ENTRIES = {
     cause: 'A snippet refresh may only rewrite the title, description and intro, but the writer changed more of the post, so it was refused.',
     impact: REFRESH_KEPT, action: REFRESH_NEXT,
   },
+  'refresh-unbound': {
+    title: 'Refresh went beyond what the original post supports',
+    cause: 'The rewrite named a business the original post did not, dropped its topic, or linked to a page that does not exist, so it was refused, the same check new posts get.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
   'refresh-no-change': {
     title: 'Refresh made no change',
     cause: 'The writer finished without changing the post.', impact: REFRESH_KEPT, action: REFRESH_NEXT,

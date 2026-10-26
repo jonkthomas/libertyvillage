@@ -44,7 +44,7 @@ test('digest renders "Refreshed this week" with before/after and baseline metric
   assert.match(section, /4 clicks · 2,000 impressions · 0\.2% CTR · position 14\.2 · top search “liberty village parking”/);
   assert.match(section, /Dog Parks<\/a><\/b><span class="tag">full rewrite<\/span><span class="tag">not changed/);
   assert.match(section, /Lots, Rates &amp; Street Rules<\/a><\/b><span class="tag">snippet: title, description, intro<\/span><span class="tag">refreshed/);
-  assert.match(section, /1 full rewrite · 1 snippet-only/);
+  assert.match(section, /0 full rewrites · 1 snippet-only/, 'the lane count covers only refreshes that went live');
   assert.equal(published.actionType, 'snippet', 'the log line carries the ledger action type');
   assert.match(section, /Refresh did not pass the quality review\. .*The live page was left as it was\./);
   assert.doesNotMatch(section, /refresh-gate-failed/, 'raw codes stay out of the page');

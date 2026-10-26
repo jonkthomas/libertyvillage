@@ -13,7 +13,8 @@ import { structuredData } from '../automation/news-preflight.mjs';
 import { loadSiteLinkIndex } from '../news-pilot/draft-evidence.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
-import { canonicalJson, checkDraftAgainstPack, verifySourcePack } from '../automation/blog-source-pack.mjs';
+import { canonicalJson, checkDraftAgainstPack, checkRefreshAgainstOriginal, verifySourcePack } from '../automation/blog-source-pack.mjs';
+import { snippetOverreach } from './refresh.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { roundupCoverageErrors, ROUNDUP_COVERAGE_MAX_KEYS, validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
@@ -118,6 +119,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     }
     if (deps.submittedAt !== undefined) errors.push(...checkGeneratedAt(ctx.now, deps.submittedAt));
   }
+  if (kind === 'refresh') errors.push(...refreshBindingErrors({ item, record, ctx, live }));
   if (rules.news) errors.push(...checkNewsRecord({ record, ctx, live, news: deps.news }));
   if (rules.roundup) errors.push(...checkRoundupRecordV2({ item, record, ctx, news: deps.news }));
   errors.push(...roundupCoverageIntegrityErrors({ kind, item, ctx, live }));
@@ -129,6 +131,19 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
   }
   if (rules.images && typeof deps.checkImages === 'function') errors.push(...deps.checkImages(item));
   return { errors, lint };
+}
+
+// A refresh is bound to its snapshot (context.refresh, written by trusted submit):
+// the original post is its evidence (checkRefreshAgainstOriginal, the new-post
+// rules), and a snippet refresh may change only title, description and intro.
+// Fail closed without the binding.
+export function refreshBindingErrors({ item, record, ctx = {}, live = {} }) {
+  const bound = ctx.refresh;
+  if (!bound?.original || bound.original.slug !== item.key || !['snippet', 'full'].includes(bound.mode)) return ['refresh draft is not bound to its original post: missing-snapshot-binding'];
+  const errors = checkRefreshAgainstOriginal(record, bound.original, { businesses: live.businesses ?? [], posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [] })
+    .slice(0, 20).map((error) => `refresh draft is not bound to its original post: ${error}`);
+  const overreach = bound.mode === 'snippet' ? snippetOverreach(bound.original, record) : null;
+  return overreach ? [...errors, `refresh-snippet-overreach: ${overreach}`] : errors;
 }
 
 // --generated-at must be the DATA_SHA commit time, within 36 h before submit.
@@ -764,6 +779,17 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live
     return { now: result.now, clusterId: result.clusterId, evidence };
   }
   if (kind === 'roundup') return roundupContext({ db, opts, items, clock, idempotencyKey, live, roundup });
+  if (opts.refresh !== undefined && kind !== 'refresh') throw new ValidationError('refresh binding is only for refresh');
+  if (kind === 'refresh') {
+    // Only `content refresh submit` (in process) can supply the snapshot binding.
+    const bound = opts.refresh;
+    if (!bound || typeof bound !== 'object' || !bound.original || bound.original.slug !== items[0]?.key || !['snippet', 'full'].includes(bound.mode)) {
+      throw new ValidationError('refresh submit requires its snapshot binding (use content refresh submit)');
+    }
+    const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
+    if (prior?.context?.refresh) return prior.context;
+    return { now: new Date(clock()).toISOString(), refresh: { snapshotId: bound.snapshotId ?? null, mode: bound.mode, original: bound.original } };
+  }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
   // A cadence blog is always pack-bound; a pack-bound replay must still carry its full stored pack.

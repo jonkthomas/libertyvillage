@@ -40,21 +40,25 @@ export function renderRefreshed(rows) {
   const live = all.filter((r) => r.target !== 'staging');
   const test = all.filter((r) => r.target === 'staging');
   const block = (r) => {
+    // Only a confirmed live page counts as refreshed; a pending one is still publishing.
     const published = r.state === 'published' || r.state === 'rolled-back';
+    const pending = r.state === 'pending';
     const why = published ? null : explain(r.reasonCode ?? 'refresh-error');
-    const status = r.state === 'published' ? 'refreshed' : r.state === 'rolled-back' ? 'rolled back' : 'not changed';
+    const status = r.state === 'published' ? 'refreshed' : r.state === 'rolled-back' ? 'rolled back' : pending ? 'not live yet' : 'not changed';
     const lane = r.lane === 'snippet' ? 'snippet: title, description, intro' : 'full rewrite';
     return `<div class="problem">
 <div class="problem-head"><b>${r.url ? `<a href="${esc(r.url)}">${esc(r.after?.title ?? r.before?.title ?? r.slug)}</a>` : esc(r.slug)}</b><span class="tag">${esc(lane)}</span><span class="tag">${esc(status)}</span></div>
 ${published ? `${pair('Title', r.before?.title, r.after?.title)}${pair('Description', r.before?.description, r.after?.description)}
 <p><span class="k">Changed</span><span>${esc(r.change ?? '—')}</span></p>`
-    : `<p><span class="k">Why</span><span>${esc(why.title)}. ${esc(why.cause)} The live page was left as it was.</span></p>`}
+    : pending ? `<p><span class="k">Why</span><span>${esc(why.title)}. The new version is saved but readers still see the old page; the next refresh run finishes publishing it.</span></p>`
+      : `<p><span class="k">Why</span><span>${esc(why.title)}. ${esc(why.cause)} The live page was left as it was.</span></p>`}
 <p class="where"><span class="k">Before</span><span>${esc(metrics(r.baseline ?? {}))}${r.targetQuery ? ` · top search “${esc(r.targetQuery)}”` : ''} (last 28 days)</span></p>
 </div>`;
   };
   const body = live.length ? live.map(block).join('\n') : '<p class="empty">No posts were refreshed this week.</p>';
   const note = test.length ? `<p class="testonly"><span class="k">Test site only</span><span>${test.map((r) => `${esc(r.slug)} (${esc(r.lane)}, ${esc(r.state)})`).join('; ')}.</span></p>` : '';
-  const snippets = live.filter((r) => r.lane === 'snippet').length;
-  const lanes = live.length ? `<p class="dim">${live.length - snippets} full rewrite${live.length - snippets === 1 ? '' : 's'} · ${snippets} snippet-only (searches at position 4–20 with a weak click rate get a new title, description and intro first)</p>\n` : '';
+  const done = live.filter((r) => r.state === 'published' || r.state === 'rolled-back');
+  const snippets = done.filter((r) => r.lane === 'snippet').length;
+  const lanes = done.length ? `<p class="dim">${done.length - snippets} full rewrite${done.length - snippets === 1 ? '' : 's'} · ${snippets} snippet-only (searches at position 4–20 with a weak click rate get a new title, description and intro first)</p>\n` : '';
   return `<h2>Refreshed this week</h2>\n${lanes}${body}${note}`;
 }
