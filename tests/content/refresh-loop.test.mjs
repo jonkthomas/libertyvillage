@@ -6,7 +6,10 @@ import './fixtures/agent-sdk-mock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refreshDeps, acceptGeneratedOutput } from '../../ops/exedev-runner/runner.mjs';
 
 import { GATE_MODEL } from '../../scripts/automation/constants.mjs';
 import { canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
@@ -162,6 +165,50 @@ const snippetOnly = (p) => ({ ...p, title: `${p.title}: where to park and what i
 const byLane = (p, snapshot) => (snapshot.mode === 'snippet' ? snippetOnly(p) : better(p));
 const better = (p) => ({ ...p, title: `${p.title}: routes, timing and tips`, description: `${p.description} Updated with clearer routes and timing.`,
   content: `${p.content}\n## Timing\n\nWeekday mornings are quieter.\n`, updatedAt: '2026-11-02' });
+
+test('runner discards other-post edits before real DB publish and local HTTP smoke', { skip }, async (t) => {
+  const { db, close } = await refreshDb();
+  const site = await localSite(db);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-refresh-contained-'));
+  const trusted = path.join(root, 'trusted');
+  const scratch = path.join(root, 'scratch');
+  for (const dir of [trusted, scratch]) fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
+  try {
+    await site.build();
+    const before = await livePosts(db);
+    const slug = SLUGS[0], otherSlug = SLUGS[1];
+    const events = [];
+    const postsFile = path.join(trusted, 'data/posts.json');
+    const runner = refreshDeps({ target: 'test', slot: 'containment', request: {}, run: root,
+      export: () => fs.writeFileSync(postsFile, JSON.stringify(before)),
+      readPosts: () => JSON.parse(fs.readFileSync(postsFile, 'utf8')),
+      writePosts: (posts) => fs.writeFileSync(postsFile, JSON.stringify(posts)),
+      generate: () => {
+        const output = before.map((p) => p.slug === slug ? better(p) : p.slug === otherSlug ? { ...p, content: `${p.content}\nPRIVATE OFF-TARGET BODY`, updatedAt: '2026-11-02' } : p);
+        fs.writeFileSync(path.join(scratch, 'data/posts.json'), JSON.stringify(output));
+        return acceptGeneratedOutput(scratch, trusted, 'seo-improvements', ['data/posts.json'], before, true);
+      },
+      log: (event, details) => events.push({ event, ...details }),
+    });
+    const deps = loopDeps(db, site, { now: MON, recordAction: async () => {}, events });
+    const plan = deps.plan;
+    deps.plan = async () => ({ ...await plan(), candidates: [{ slug, title: 'Guide walks', mode: 'full' }] });
+    deps.generate = runner.generate;
+    const result = await runRefreshLoop({ deps });
+    assert.equal(result.refreshed, 1, JSON.stringify(result));
+    assert.deepEqual(await liveRecord(db, 'posts', otherSlug), before.find((p) => p.slug === otherSlug));
+    assert.deepEqual(JSON.parse(fs.readFileSync(postsFile, 'utf8')).filter((p) => p.slug !== slug), before.filter((p) => p.slug !== slug));
+    assert.deepEqual(events.find((e) => e.discardedOffTarget).discardedOffTarget, [otherSlug]);
+    assert.ok(!JSON.stringify(events).includes('PRIVATE OFF-TARGET BODY'));
+    const items = (await db.query("select i.key from content.submission_items i join content.submissions s on s.id=i.submission_id where s.kind='refresh'")).rows;
+    assert.deepEqual(items.map((i) => i.key), [slug]);
+    const url = `${site.origin}/blog/${slug}`;
+    const served = await fetch(url);
+    assert.equal(served.status, 200);
+    assert.ok((await served.text()).includes(better(before.find((p) => p.slug === slug)).title));
+    t.diagnostic(`GET ${url} -> 200; refreshed title served; ${otherSlug} unchanged in DB and checkout; discardedOffTarget=[${otherSlug}]`);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); await site.close(); await close(); }
+});
 
 test('sorted-key single-post snippet publishes; an off-target edit is refused and logged without bodies', { skip }, async (t) => {
   const { db, close } = await refreshDb();
