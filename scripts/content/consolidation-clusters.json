@@ -1,0 +1,496 @@
+{
+  "version": 1,
+  "status": "PROVISIONAL",
+  "evidence": {
+    "content": "Public live content-snapshot exports, 2026-10-26 (74 posts)",
+    "gscWindow": {
+      "start": "2026-09-28",
+      "end": "2026-10-25"
+    },
+    "gscStatus": "UNAVAILABLE: confirm primaries from source-data.json (GSC 28d) before the post-merge apply",
+    "selection": "Provisional intent hubs preserve every directory category with listed businesses. No 28d numbers are inferred; confirm editorial membership and primaries from GSC without retiring populated directory hubs."
+  },
+  "protectedUrls": [
+    "/blog/best-bars-restaurants-near-bmo-field-world-cup-2026",
+    "/blog/croatian-fans-guide-world-cup-2026-toronto",
+    "/blog/fifa-world-cup-2026-liberty-village-survival-guide",
+    "/blog/game-day-dining-bmo-field-patios-restaurants-2026",
+    "/blog/german-fans-guide-world-cup-2026-toronto",
+    "/blog/germany-ghana-match-day-liberty-village-june-27-recap",
+    "/blog/ghanaian-fans-guide-world-cup-2026-toronto",
+    "/blog/liberty-village-june-12-match-day-guide-croatia",
+    "/blog/liberty-village-late-night-world-cup-match-dining",
+    "/blog/liberty-village-parking-world-cup-2026-resident-guide",
+    "/blog/liberty-village-summer-guide-2026-patios-parks-events",
+    "/blog/liberty-village-world-cup-parking-residents-guide",
+    "/blog/liberty-village-world-cup-road-closures-resident-access",
+    "/blog/panamanian-fans-guide-world-cup-2026-toronto",
+    "/blog/rent-liberty-village-condo-world-cup-airbnb-guide",
+    "/blog/senegalese-fans-guide-world-cup-2026-toronto",
+    "/blog/walking-liberty-village-to-bmo-field-game-day-route",
+    "/blog/watch-world-cup-liberty-village-coffee-shops-2026",
+    "/blog/watch-world-cup-liberty-village-without-tickets",
+    "/blog/world-cup-2026-jobs-toronto-bmo-field",
+    "/blog/world-cup-2026-toronto-fan-zone-bentway-guide",
+    "/blog/world-cup-2026-toronto-schedule-dates",
+    "/blog/world-cup-2026-toronto-tickets-guide",
+    "/blog/world-cup-2026-toronto-updates-may-2026",
+    "/blog/world-cup-2026-volunteer-toronto"
+  ],
+  "clusters": [
+    {
+      "id": "dentists",
+      "primary": "/best/dentists",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/best/dentists",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Edition Dental — Reviews, Hours & What to Expect"
+          ]
+        },
+        {
+          "url": "/blog/dentist-liberty-village-complete-guide-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "What to Expect for Routine Care",
+            "Insurance, Payment Plans, and Costs",
+            "Making the Most of Your Dental Benefits"
+          ]
+        },
+        {
+          "url": "/blog/best-dentists-liberty-village-clinic-reviews-guide-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Alternatives: Dentists Near Liberty Village",
+            "Booking Your First Appointment"
+          ]
+        },
+        {
+          "url": "/blog/dentists-liberty-village-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Dental Practices on King Street West",
+            "East Liberty Street Dental Hub",
+            "Accessibility and Parking"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "restaurants",
+      "primary": "/best/restaurants",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/blog/best-restaurants-liberty-village-2026-definitive-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Vegetarian and vegan options",
+            "Late-night eats"
+          ]
+        },
+        {
+          "url": "/blog/best-restaurants-liberty-village-locals-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Quick Bites and Casual",
+            "The Practical Stuff"
+          ]
+        },
+        {
+          "url": "/best/restaurants",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Best for Healthy & Macro-Friendly Eating",
+            "How the Restaurants Are Laid Out (and Reservations)"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "patios",
+      "primary": "/best/patios",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/best/patios",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Overview"
+          ]
+        },
+        {
+          "url": "/blog/best-patios-liberty-village-2026-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Seasonal Opening Schedule",
+            "Patio Dining Etiquette and Tips"
+          ]
+        },
+        {
+          "url": "/blog/best-patios-liberty-village-summer-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "The Hidden Gems",
+            "Patio Logistics and Pro Tips"
+          ]
+        },
+        {
+          "url": "/guide/summer-patio-season",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Parks and Picnics",
+            "When Does Patio Season End?"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "fitness",
+      "primary": "/best/gyms",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/guide/fitness-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Outdoor Fitness",
+            "Condo Building Gyms"
+          ]
+        },
+        {
+          "url": "/blog/liberty-village-fitness-guide-every-gym-compared",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "The Comparison Table",
+            "How to Choose"
+          ]
+        },
+        {
+          "url": "/best/gyms",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Overview"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "transit",
+      "primary": "/guide/transit-guide",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/guide/transit-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "PRESTO and Fare Tips"
+          ]
+        },
+        {
+          "url": "/blog/liberty-village-car-free-transit-guide-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Car-Share Options: When You Need Four Wheels",
+            "Cost Comparison: Car vs. Car-Free",
+            "Winter Strategies: Making It Work Year-Round"
+          ]
+        },
+        {
+          "url": "/blog/liberty-village-transit-guide-ttc-bike-share-go",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Getting to Pearson Airport (YYZ)",
+            "GO Transit — Regional Connections"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "brunch",
+      "primary": "/best/brunch-spots",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/best/brunch-spots",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Overview"
+          ]
+        },
+        {
+          "url": "/blog/weekend-brunch-guide-liberty-village",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Brunch Strategy",
+            "Liberty Village Brunch Comparison"
+          ]
+        },
+        {
+          "url": "/guide/brunch-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "What to Order",
+            "Best for Specific Needs"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "nightlife",
+      "primary": "/best/bars",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/best/bars",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Overview"
+          ]
+        },
+        {
+          "url": "/blog/liberty-village-nightlife-bars-guide-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Nightlife by Occasion",
+            "What Liberty Village Nightlife Is Not",
+            "Getting Home Safely"
+          ]
+        },
+        {
+          "url": "/blog/best-bars-liberty-village-toronto-guide-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Entertainment Venues",
+            "Insider Tips for Liberty Village Bar-Hopping"
+          ]
+        },
+        {
+          "url": "/guide/nightlife-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Live Music and Events",
+            "Late-Night Eats"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "date-night",
+      "primary": "/guide/date-night-ideas",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/guide/date-night-ideas",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Waterfront Walks"
+          ]
+        },
+        {
+          "url": "/blog/date-night-liberty-village-every-budget",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "The $20 Date",
+            "The $50 Date",
+            "The $100 Date",
+            "Beyond Dinner"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "farmers-market",
+      "primary": "/guide/farmers-market",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/guide/farmers-market",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Nearby Market Options"
+          ]
+        },
+        {
+          "url": "/blog/liberty-village-farmers-market",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "What to Make With Your Market Haul",
+            "How to Stay Updated"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "remote-work",
+      "primary": "/best/coworking-spaces",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/guide/remote-work-spots",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Condo Amenity Spaces"
+          ]
+        },
+        {
+          "url": "/blog/remote-work-cafes-coworking-liberty-village",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Cafes for the Occasional Work Day",
+            "Building a Routine"
+          ]
+        },
+        {
+          "url": "/blog/coworking-spaces-liberty-village-compared-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Comparison Table: Coworking Spaces and Cafés",
+            "Choosing Your Workspace: A Decision Framework",
+            "Booking and Access"
+          ]
+        },
+        {
+          "url": "/best/coworking-spaces",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Overview"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "condos",
+      "primary": "/blog/liberty-village-condo-market-2026-buyers-renters",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/blog/liberty-village-condo-market-2026-buyers-renters",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "What Is Performing Well"
+          ]
+        },
+        {
+          "url": "/blog/liberty-village-condo-buying-renting-guide-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Top Condo Buildings",
+            "What to Look For"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "things-to-do",
+      "primary": "/guide/things-to-do",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/guide/things-to-do",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Weekend Activities"
+          ]
+        },
+        {
+          "url": "/blog/weekend-activities-liberty-village-guide",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Active Weekends: Getting Outside",
+            "Lazy Afternoons: Embrace the Chill",
+            "Making It Work: Practical Weekend Tips"
+          ]
+        },
+        {
+          "url": "/blog/what-are-some-fun-things-to-do-liberty-village",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Explore the Neighbourhood's Craft Beer Scene",
+            "Stay Active with Fitness Options",
+            "Make It a Weekend"
+          ]
+        }
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "printing",
+      "primary": "/best/printing-services",
+      "status": "PROVISIONAL",
+      "members": [
+        {
+          "url": "/best/printing-services",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Overview"
+          ]
+        },
+        {
+          "url": "/blog/jukebox-print-liberty-village-printing-guide-2026",
+          "clicks28d": null,
+          "impressions28d": null,
+          "keepSections": [
+            "Jukebox Print: Same-Day Stickers and 24/7 Access",
+            "Moveable Inc.: Professional Printing Since 1983",
+            "Red Hot Printing: Budget-Friendly with Fast Turnaround",
+            "Choosing the Right Printer",
+            "Practical Tips for Printing in Liberty Village"
+          ]
+        }
+      ],
+      "confirmed": false
+    }
+  ]
+}

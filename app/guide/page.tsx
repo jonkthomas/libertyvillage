@@ -10,7 +10,7 @@ import NeighbourhoodHistory from "@/components/NeighbourhoodHistory";
 
 export const metadata: Metadata = {
   title: "Liberty Village Neighbourhood Guide 2026 | libertyvillage.co",
-  description: "Complete neighbourhood guide to Liberty Village, Toronto. Walk Score 88, Transit Score 96, median rent $2,608/mo. Parking, transit, moving, fitness, nightlife, and more — written by locals.",
+  description: "Complete neighbourhood guide to Liberty Village, Toronto. Walk Score 88, Transit Score 96, median rent $2,608/mo. Parking, transit, moving, fitness, nightlife, and more.",
   openGraph: {
     title: "Liberty Village Neighbourhood Guide 2026",
     description: "Complete neighbourhood guide to Liberty Village, Toronto — Walk Score 88, Transit Score 96, population ~7,500.",

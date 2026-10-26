@@ -4,6 +4,8 @@
 // fields must never break a digest) and every fetch may degrade to a note.
 
 import { explain, normalizeCode, jobName, siteName } from './plain-english.mjs';
+import { fixerSlackLine } from './fixer-section.mjs';
+import { refreshRow, refreshedThisWeek } from './refreshed.mjs';
 
 export const TORONTO_TZ = 'America/Toronto';
 
@@ -59,6 +61,7 @@ export function parseRun(fileName, text) {
     outcome: null, // success | failure | held | incomplete
     reason: null, error: null, detail: null,
     events: 0, badLines: 0, eventNames: [],
+    refreshes: [],
   };
   for (const line of String(text).split('\n')) {
     const trimmed = line.trim();
@@ -108,6 +111,8 @@ export function parseRun(fileName, text) {
           run.error = extra[0] ?? null;
         }
       }
+    } else if (ev.event === 'refresh-outcome') {
+      run.refreshes.push(refreshRow(ev, run));
     } else if (ev.event === 'roundup-hold-alerted') {
       if (!run.outcome) {
         run.outcome = 'held';
@@ -227,7 +232,7 @@ export function decodeEntities(s) {
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
-export function buildModel({ generatedAt, window, runs, posted, titles = {}, queue, gsc, actions = [], notes = [], links = {} }) {
+export function buildModel({ generatedAt, window, runs, posted, titles = {}, queue, gsc, actions = [], fixer = null, notes = [], links = {} }) {
   const runsView = summarizeRuns(runs ?? []);
   return {
     generatedAt,
@@ -238,8 +243,10 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     queue: queue ?? { held: null, timers: [], note: 'not fetched' },
     gsc: gsc ?? { source: 'unavailable', note: 'not fetched' },
     actions,
+    fixer: fixer ?? { actions: [], issues: [] },
     notes,
     links,
+    refreshes: refreshedThisWeek(runs ?? []),
   };
 }
 
@@ -286,7 +293,7 @@ export function scheduleWords(schedule) {
 const TIMER_WORDS = {
   'weekly-blog': 'New blog post', 'october-blog-backfill': 'October catch-up post', 'topic-discovery': 'Topic research (fills the topic queue)',
   'discover-businesses': 'Business directory refresh', news: 'News check', 'weekly-growth-report': 'Growth report',
-  'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'SEO improvements',
+  'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'Refresh the 2 weakest posts',
 };
 
 /** Timers -> plain "next week" rows, production only, soonest first. */
@@ -461,6 +468,7 @@ export function slackMessage(model) {
     'What we did → what it moved',
     ...(model.actions?.length ? actionMovementLines(model.actions) : ['No measured actions yet; outcomes appear after 2 and 4 weeks.']),
     `Problems: ${x.problems}${x.progressNote ? ` ${x.progressNote}` : ''}`,
+    fixerSlackLine(model),
     `What you need to do: ${x.ask}`,
     model.links?.digestUrl ? `Full report: ${model.links.digestUrl}` : '',
   ].filter(Boolean);

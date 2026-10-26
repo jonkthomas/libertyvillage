@@ -1,8 +1,8 @@
 [Unit]
-Description=SEO improvements UTC schedule
+Description=Refresh loop (2 weakest posts) UTC schedule
 
 [Timer]
-OnCalendar=Mon *-*-* 10:11:00 UTC
+OnCalendar=Tue *-*-* 04:23:00 UTC
 Persistent=true
 Unit=lv-runner@seo-improvements:production:scheduled.service
 

@@ -6,7 +6,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
-  'seo-improvements': { calendar: 'Mon *-*-* 10:11:00 UTC', kind: 'seo' },
+  // Refresh loop (docs/runbooks/refresh-loop.md); the timer stays disabled until a staging proof.
+  'seo-improvements': { calendar: 'Tue *-*-* 04:23:00 UTC', kind: 'refresh' },
   'discover-businesses': { calendar: 'Mon *-*-* 13:00:00 UTC', kind: 'business' },
   news: { calendar: '*-*-* 12:17:00 UTC', kind: 'news' },
   'weekly-growth-report': { calendar: 'Thu *-*-* 10:37:00 UTC', kind: null },
@@ -14,6 +15,8 @@ export const JOBS = Object.freeze({
   'october-blog-backfill': { calendar: '*-*-* 15:37:00 UTC', kind: 'blog' },
   // On-demand only (no timer): staging until John authorizes production.
   'weekly-roundup': { calendar: null, kind: 'roundup', stagingOnly: true },
+  // On-demand only: the ops fixer (ops/ops-fixer) retries a failed site rebuild.
+  'deploy-retry': { calendar: null, kind: null },
 });
 export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
 const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
@@ -23,6 +26,7 @@ const SOURCE_ENV = {
   'discover-businesses': ['SERPAPI_API_KEY', 'PEXELS_API_KEY'],
   news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY', 'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY'],
   'weekly-growth-report': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE'],
+  'seo-improvements': ['GOOGLE_APPLICATION_CREDENTIALS'],
   // APIFY_API_TOKEN (Instagram provider) is scoped to this source process only:
   // never trustedEnv, the generator, the gate or any other job (spec §4.4).
   'weekly-roundup': ['SERPER_API_KEY', 'APIFY_API_TOKEN', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY',
@@ -401,7 +405,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     const exportedPosts = job === 'weekly-blog' ? readJson(path.join(repo, 'data', 'posts.json')) : null;
     const requestDir = path.join(stateRoot, 'generator-requests');
     fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun })}\n`, { mode: 0o600 });
+    fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun, ...(topic?.refresh ? { refresh: topic.refresh } : {}) })}\n`, { mode: 0o600 });
     // The root-owned helper validates this path, changes ownership, and starts a
     // transient service as lv-generator with strict filesystem protection.
     const helper = '/usr/local/libexec/lv-runner-generator';
@@ -1624,6 +1628,51 @@ async function cadenceDeps(job, target, slot, log) {
   };
 }
 
+// Refresh loop (docs/runbooks/refresh-loop.md): GSC blog rows -> `content refresh
+// plan` -> per post: DB snapshot (reserve, weekly cap) -> fresh export ->
+// sandboxed generator -> trusted `content refresh submit` (same-slug check,
+// refresh gate, publish, deploy hook, smoke, ledger). A dry run only plans;
+// an on-demand --topic names the one ranked slug to refresh.
+export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, log }) {
+  const write = (name, value) => { const file = path.join(run, name); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; };
+  return {
+    plan: () => {
+      const plan = parseJson(cli(['refresh', 'plan', '--gsc', path.join(run, 'gsc.json'), '--target', target]).stdout);
+      // On-demand `--topic <slug>` (staging proof): refresh only that ranked post.
+      return request.topic ? { ...plan, candidates: plan.candidates.filter((c) => c.slug === request.topic).slice(0, 1) } : plan;
+    },
+    reserve: (candidate) => (request.dryRun ? { capReached: true, isoWeek: 'dry-run' }
+      : parseJson(cli(['refresh', 'reserve', '--candidate', write(`candidate-${candidate.slug}.json`, candidate), '--target', target]).stdout)),
+    generate: (snapshot, candidate) => {
+      exportData();
+      const before = readPosts();
+      generate({ title: candidate.title ?? snapshot.slug, refresh: { slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
+      return { before, after: readPosts() };
+    },
+    submit: (snapshot, generated) => parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
+      '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
+      '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout),
+    close: ({ snapshotId, reasonCode }) => parseJson(cli(['refresh', 'close', '--snapshot', String(snapshotId), '--reason', reasonCode, '--target', target]).stdout),
+    log,
+  };
+}
+
+async function runRefresh(target, slot, request, log, notifications) {
+  const run = path.join(stateRoot, 'refresh', target, slot);
+  fs.mkdirSync(run, { recursive: true, mode: 0o700 });
+  if (!fs.existsSync(path.join(run, 'gsc.json'))) source('scripts/content/refresh-gsc.mjs', ['--out', path.join(run, 'gsc.json')], 'seo-improvements', log);
+  const { runRefreshLoop } = await import(pathToFileURL(path.join(repo, 'scripts/content/refresh.mjs')).href);
+  const result = await runRefreshLoop({ deps: refreshDeps({
+    target, slot, request, run, cli: (args, allowExit = []) => cli(args, repo, allowExit),
+    export: () => { cli(['export', '--root', '.', '--target', target]); logLine(log, 'export'); },
+    generate: (topic) => generator('seo-improvements', slot, topic, false, log, notifications),
+    readPosts: () => readJson(path.join(repo, 'data', 'posts.json')),
+    log: (event, details) => logLine(log, event, details),
+  }) });
+  if (request.dryRun) return { dryRun: true };
+  return { reason: `refreshed ${result.refreshed} of ${result.attempted}`, noChanges: result.refreshed === 0 };
+}
+
 async function runJob(job, target, slot, request, log, notifications = {}) {
   if (job === 'weekly-blog' || job === 'weekly-roundup' || job === 'october-blog-backfill') {
     cli(['cadence', 'preflight', '--target', target]);
@@ -1636,6 +1685,13 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
     const sources = Object.fromEntries(['gsc', 'posthog'].map((name) => [name, ['ok', 'unavailable'].includes(report.sources?.[name]) ? report.sources[name] : 'unknown']));
     logLine(log, 'growth-report', { sources, artifacts: ['weekly-growth.json', 'weekly-growth.md'] });
     return { report: true };
+  }
+  if (job === 'deploy-retry') {
+    // Re-POST the deploy hook, then smoke every published-but-pending submission.
+    const resumed = cli(['deploy', '--target', target], repo, [3]);
+    logLine(log, 'deploy-retry', { exit: resumed.code });
+    if (resumed.code === 3) throw new Error('publish or propagation pending');
+    return { id: null };
   }
   if (job === 'weekly-roundup') return runWeeklyRoundup({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
   if (job === 'october-blog-backfill') {
@@ -1657,6 +1713,7 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
       logLine(log, 'growth-ledger-updated');
     } catch { logLine(log, 'growth-ledger-failed', { reason: 'measurement unavailable; discovery continues' }); }
   }
+  if (job === 'seo-improvements') return runRefresh(target, slot, request, log, notifications);
   const previous = job === 'news' && request.dryRun ? null : lookup(job, target, slot, log);
   if (previous) return previous;
   cli(['export', '--root', '.', '--target', target]);
@@ -1670,21 +1727,6 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
     const result = submitAndGate(job, target, slot, log);
     cli(['stats', '--alert', '--target', target]);
     return result;
-  }
-  if (job === 'seo-improvements') {
-    const baseline = command(node, ['scripts/content/seo-guard.mjs', 'capture'], { cwd: repo, env: sourceEnv(process.env, job) }).stdout;
-    const baselinePath = path.join(stateRoot, 'seo-baseline', `${slot}.json`);
-    fs.mkdirSync(path.dirname(baselinePath), { recursive: true });
-    fs.writeFileSync(baselinePath, baseline, { mode: 0o600 });
-    const topic = request.topic ? { title: request.topic, key: null } : null;
-    const changed = generator(job, slot, topic, !!request.dryRun, log, notifications);
-    if (request.dryRun) return { dryRun: true, paths: changed.length };
-    if (!changed.some((rel) => /^data\/[^/]+\.json$/.test(rel))) return { noChanges: true };
-    const guard = command(node, ['scripts/content/seo-guard.mjs', 'check', baselinePath], { cwd: repo, env: sourceEnv(process.env, job), allowExit: [2] });
-    if (guard.code === 2) throw new Error('SEO data lane blocked');
-    const decision = parseJson(guard.stdout).decision;
-    if (decision !== 'submit') return { noChanges: true };
-    return submitAndGate(job, target, slot, log);
   }
   if (job === 'news') {
     // Match the DB workflow: an unfinished news submission takes precedence

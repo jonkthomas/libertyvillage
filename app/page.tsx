@@ -10,6 +10,7 @@ import CategoryCard from "@/components/CategoryCard";
 import DirectorySearchStrip from "@/components/DirectorySearchStrip";
 import AnswerBlock from "@/components/AnswerBlock";
 import { generateFAQSchema } from "@/lib/schema";
+import { HOME_ANSWER, HOME_FAQS } from "@/lib/home";
 
 export const metadata = generateHomePageMeta();
 
@@ -80,9 +81,7 @@ const popularGuides = [
   { href: "/blog/weekend-brunch-guide-liberty-village", label: "Best Brunch Spots", desc: "Top-rated brunch spots ranked by locals" },
   { href: "/blog/liberty-village-fitness-guide-every-gym-compared", label: "Gym Comparison", desc: "Every gym compared with prices and amenities" },
   { href: "/blog/grocery-stores-liberty-village-complete-guide", label: "Grocery Guide", desc: "Every grocery option in and near the neighbourhood" },
-  { href: "/world-cup", label: "FIFA World Cup 2026 Hub", desc: "Every match, closure, bar, and volunteer guide for Toronto's 6 BMO Field matches" },
-  { href: "/blog/fifa-world-cup-2026-liberty-village-survival-guide", label: "World Cup Survival Guide", desc: "Your essential guide for the 2026 FIFA World Cup" },
-  { href: "/blog/liberty-village-world-cup-road-closures-resident-access", label: "Road Closures", desc: "World Cup street closures and resident access routes" },
+  { href: "/world-cup", label: "FIFA World Cup 2026 Hub", desc: "Coverage of Toronto's six FIFA World Cup 2026 matches at BMO Field" },
 ];
 
 export default function Home() {
@@ -163,7 +162,7 @@ export default function Home() {
               className="mt-5 max-w-lg text-lg leading-relaxed text-white/85 sm:text-xl"
             >
               Find the best restaurants, parking, gyms, and bars
-              in Liberty Village &mdash; rated by locals, updated for 2026.
+              in Liberty Village &mdash; updated for 2026.
             </p>
             <div data-hero-animate className="mt-8 flex flex-wrap items-center gap-4">
               <Link
@@ -215,13 +214,10 @@ export default function Home() {
           2a. ANSWER BLOCK — "What is Liberty Village?"
           AEO target for navigational "liberty village" query
           ═══════════════════════════════════════════ */}
-      {/* TODO verify against City of Toronto Open Data: canonical neighbourhood facts
-          — population "about 9,000" and area "28 hectares (0.28 km²)" — must stay
-          identical here, in the FAQ schema below, /about, and public/llms.txt. */}
       <section className="mx-auto max-w-4xl px-6 pt-16 sm:px-10 lg:px-16">
         <SectionReveal>
           <AnswerBlock>
-            <strong>Liberty Village</strong> is a 28-hectare (0.28 km²) neighbourhood in west-downtown Toronto, bounded by King Street West, Dufferin Street, and the GO rail corridor. Home to about 9,000 residents — mostly young professionals aged 25 to 40 — it sits directly adjacent to <strong>BMO Field</strong>, host venue for six FIFA World Cup 2026 matches. Walk Score 88, Transit Score 96, median 1-bedroom rent $2,608, median condo price $610,000 (December 2025). This guide covers every restaurant, bar, gym, condo building, parking lot, and transit route in the neighbourhood — updated for 2026, written by residents.
+            <strong>Liberty Village</strong>{HOME_ANSWER.slice("Liberty Village".length)}
           </AnswerBlock>
         </SectionReveal>
       </section>
@@ -590,30 +586,7 @@ export default function Home() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(generateFAQSchema([
-            {
-              question: "What is Liberty Village?",
-              // TODO verify against City of Toronto Open Data: area "28 hectares (0.28 km²)"
-              // and population "about 9,000" must match the homepage answer block, /about, and llms.txt.
-              answer:
-                "Liberty Village is a 28-hectare (0.28 km²) neighbourhood in west-downtown Toronto, bounded by King Street West, Dufferin Street, and the GO rail corridor. About 9,000 residents live there, mostly young professionals aged 25 to 40. The area has a Walk Score of 88 and Transit Score of 96, and sits adjacent to BMO Field — host venue for six FIFA World Cup 2026 matches.",
-            },
-            {
-              question: "Where is Liberty Village in Toronto?",
-              answer:
-                "Liberty Village is in west-downtown Toronto, bounded by King Street West to the north, Dufferin Street to the west, and the GO rail corridor to the south. It sits between Parkdale and CityPlace, with Exhibition Place and BMO Field directly to the south.",
-            },
-            {
-              question: "How much is rent in Liberty Village?",
-              answer:
-                "Median 1-bedroom rent in Liberty Village is $2,608 per month as of early 2026. The median condo price is $610,000 (December 2025). Rents vary by building, with newer towers like Reina commanding premiums and older loft conversions like Toy Factory Lofts trading at slightly lower price points.",
-            },
-            {
-              question: "What is Liberty Village known for?",
-              answer:
-                "Liberty Village is known for its converted industrial brick lofts, dense restaurant and bar scene along East Liberty Street and King West, proximity to BMO Field (host of FIFA World Cup 2026 matches), the 504 King streetcar, and being one of Toronto's most walkable young-professional neighbourhoods.",
-            },
-          ])),
+          __html: JSON.stringify(generateFAQSchema(HOME_FAQS)),
         }}
       />
     </div>

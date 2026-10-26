@@ -7,6 +7,7 @@ import type {
   Topic,
   BlogPost,
 } from "./types";
+import { HOME_DESCRIPTION, HOME_TITLE } from "./home";
 
 const SITE_URL = "https://libertyvillage.co";
 const SITE_NAME = "LibertyVillage.co";
@@ -45,8 +46,8 @@ function buildMeta(
 
 export function generateHomePageMeta(): Metadata {
   return buildMeta(
-    "Liberty Village, Toronto — Neighbourhood Guide (2026)",
-    "Liberty Village is Toronto's 28-hectare neighbourhood between King West and the lake. Local guide to 200+ restaurants, bars, gyms, parking, transit, and BMO Field — by residents, for 2026.",
+    HOME_TITLE,
+    HOME_DESCRIPTION,
     "/",
     "/images/og/og-home.jpg",
   );
@@ -104,6 +105,11 @@ export function generateBusinessPageMeta(business: Business): Metadata {
     `/directory/${business.slug}`,
     business.image || "/images/og/og-directory.jpg",
   );
+}
+
+/** Guide H1/headline: prefix "Liberty Village" only when the title doesn't already name it. */
+export function guideHeading(title: string): string {
+  return title.toLowerCase().includes("liberty village") ? title : `Liberty Village ${title}`;
 }
 
 export function generateGuidePageMeta(topic: Topic): Metadata {
