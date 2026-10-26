@@ -14,7 +14,8 @@ import { loadSiteLinkIndex } from '../news-pilot/draft-evidence.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
 import { canonicalJson, checkDraftAgainstPack, checkRefreshAgainstOriginal, verifySourcePack } from '../automation/blog-source-pack.mjs';
-import { snippetOverreach } from './refresh.mjs';
+import { snippetOverreach, splitIntro } from './refresh.mjs';
+import { refreshFailureDetail, refreshBindingDetail } from './refresh-diagnostics.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { roundupCoverageErrors, ROUNDUP_COVERAGE_MAX_KEYS, validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
@@ -89,6 +90,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
   const rules = KIND_RULES[kind];
   const errors = [];
   const lint = [];
+  const refreshFailures = [];
   if (!rules) return { errors: [`unsupported submit kind: ${kind}`], lint };
   if (typeof deps.validateRecord !== 'function') throw new Error('kind policy requires deps.validateRecord');
   const record = item.payload;
@@ -106,9 +108,16 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     const mode = deps.lintMode || resolveLintMode(process.env);
     // A roundup (trusted roundupCoverage marker, integrity-checked below) is
     // source-grounded: directory address/price comparisons do not apply.
-    const result = lintPost(record, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
+    // Snippet mode cannot repair the immutable body/FAQs/answer block. Lint
+    // every writable text field, including the entire new intro, instead.
+    // The snapshot binding below still rejects edits to any excluded field.
+    const lintRecord = kind === 'refresh' && ctx.refresh?.mode === 'snippet'
+      ? { slug: record?.slug, publishedAt: record?.publishedAt, title: record?.title, description: record?.description, content: splitIntro(record?.content).intro }
+      : record;
+    const result = lintPost(lintRecord, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
       roundup: item.dataset === 'posts' && hasOwn(record, 'roundupCoverage') });
     if (!result.ok && mode === 'fail') lint.push(...result.findings.map((finding) => `[${finding.rule}] ${finding.claim} — ${finding.detail}`));
+    if (kind === 'refresh' && mode === 'fail') refreshFailures.push(...result.findings.map((f) => ({ code: f.rule, field: f.field, businessSlug: f.businessSlug })));
   }
   if (rules.submitted) {
     if (!ctx.topicKey) errors.push('blog-live requires context.topicKey');
@@ -119,7 +128,10 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     }
     if (deps.submittedAt !== undefined) errors.push(...checkGeneratedAt(ctx.now, deps.submittedAt));
   }
-  if (kind === 'refresh') errors.push(...refreshBindingErrors({ item, record, ctx, live }));
+  if (kind === 'refresh') {
+    errors.push(...refreshBindingErrors({ item, record, ctx, live }));
+    refreshFailures.push(...refreshBindingDetail(checkRefreshAgainstOriginal(record, ctx.refresh?.original, { ...live, mode: ctx.refresh?.mode })));
+  }
   if (rules.news) errors.push(...checkNewsRecord({ record, ctx, live, news: deps.news }));
   if (rules.roundup) errors.push(...checkRoundupRecordV2({ item, record, ctx, news: deps.news }));
   errors.push(...roundupCoverageIntegrityErrors({ kind, item, ctx, live }));
@@ -130,7 +142,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     if (title && queue.some((entry) => normalizeTitle(entry?.title) === title)) errors.push('duplicate topic title already in the live queue');
   }
   if (rules.images && typeof deps.checkImages === 'function') errors.push(...deps.checkImages(item));
-  return { errors, lint };
+  return { errors, lint, ...(kind === 'refresh' ? { refusalDetail: refreshFailureDetail(refreshFailures) } : {}) };
 }
 
 // A refresh is bound to its snapshot (context.refresh, written by trusted submit):
@@ -140,7 +152,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
 export function refreshBindingErrors({ item, record, ctx = {}, live = {} }) {
   const bound = ctx.refresh;
   if (!bound?.original || bound.original.slug !== item.key || !['snippet', 'full'].includes(bound.mode)) return ['refresh draft is not bound to its original post: missing-snapshot-binding'];
-  const errors = checkRefreshAgainstOriginal(record, bound.original, { businesses: live.businesses ?? [], posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [] })
+  const errors = checkRefreshAgainstOriginal(record, bound.original, { businesses: live.businesses ?? [], posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [], mode: bound.mode })
     .slice(0, 20).map((error) => `refresh draft is not bound to its original post: ${error}`);
   const overreach = bound.mode === 'snippet' ? snippetOverreach(bound.original, record) : null;
   return overreach ? [...errors, `refresh-snippet-overreach: ${overreach}`] : errors;
@@ -565,15 +577,18 @@ export function checkKindPolicy({ kind, items, ctx = {}, live = {}, deps = {} })
   const shape = checkKindShape({ kind, items });
   const errors = [...shape.errors];
   const lint = [];
+  const refreshFailures = [];
   if (KIND_RULES[kind]) {
     for (const item of items) {
       const result = checkRecordPolicy({ kind, item, ctx, live, deps });
       errors.push(...result.errors.map((error) => `${itemLabel(item)}: ${error}`));
       lint.push(...result.lint.map((finding) => `${itemLabel(item)}: ${finding}`));
+      refreshFailures.push(...(result.refusalDetail?.failures ?? []));
     }
   }
   const ok = errors.length === 0 && lint.length === 0;
-  return { ok, decision: ok ? null : (errors.length ? 'validation' : 'lint'), errors: [...errors, ...lint], lint };
+  return { ok, decision: ok ? null : (errors.length ? 'validation' : 'lint'), errors: [...errors, ...lint], lint,
+    ...(kind === 'refresh' ? { refusalDetail: refreshFailureDetail(refreshFailures) } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -845,7 +860,7 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
       kind, items: images.items, ctx: context, live: liveCtx.live,
       deps: policyDeps({ kind, context: { root: liveCtx.root }, checkout: root }),
     });
-    if (!policy.ok) throw new ValidationError(policy.errors.join('; '));
+    if (!policy.ok) throw Object.assign(new ValidationError(policy.errors.join('; ')), { refusalDetail: policy.refusalDetail });
   } finally {
     liveCtx.cleanup();
   }

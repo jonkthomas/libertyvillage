@@ -57,7 +57,7 @@ function refreshClause() {
   return ` REFRESH MODE: rewrite ONLY the post with slug "${slug}" in data/posts.json so it earns more clicks from Google (it gets impressions but a weak click-through rate or position).${query}`
     + ' Improve its title (under 60 characters, matches what the page delivers), description (under 155 characters), answerBlock, section structure, FAQs and key takeaways where that helps searchers.'
     + ' Change only title, description, content, answerBlock, faqs, keyTakeaways and updatedAt. Keep every other field, including slug, publishedAt, category, author and image, exactly as it is; set updatedAt to today. Do not add, remove or edit any other post or any other data file.'
-    + ' Every fact must come from the existing post or the site data (data/businesses.json and other data files); never invent businesses, prices, hours, dates or quotes.';
+    + ' Every fact must come from the existing post; never invent businesses, prices, hours, dates or quotes.';
 }
 
 // Both writing stages use the same scope; review feedback cannot widen it.
@@ -65,9 +65,9 @@ function writerOptions({ topicFocus = '', revision = '' } = {}) {
   if (process.env.REFRESH_SLUG) {
     return {
       systemPromptPath: P('seo-refresh-system.md'),
-      prompt: refreshClause() + (revision ? ` Address this review feedback within the same allowed fields: ${revision}` : '')
-        + ' Write tasks/seo-improve-summary.md with the target, query, changes and verification.',
+      prompt: refreshClause() + (revision ? ` Address this review feedback within the same allowed fields: ${revision}` : ''),
       skills: [], settingSources: [],
+      tools: ['Read', 'Edit', 'Write'],
     };
   }
   return {
@@ -112,7 +112,8 @@ async function runStage(label, opts) {
       persistSession: false,
       ...(opts.mcpServers ? { mcpServers: opts.mcpServers } : {}),
       ...(opts.settingSources ? { settingSources: opts.settingSources } : {}),
-      ...(opts.skills ? { skills: opts.skills } : {})
+      ...(opts.skills ? { skills: opts.skills } : {}),
+      ...(opts.tools ? { tools: opts.tools } : {})
     }
   });
 
@@ -128,7 +129,11 @@ async function runStage(label, opts) {
     } else if (m.type === 'assistant') {
       const txt = (m.message?.content || []).filter(b => b.type === 'text').map(b => b.text).join(' ');
       if (txt) { textChunks.push(txt); console.log(`[${label}] ${txt.slice(0, 160)}${txt.length > 160 ? '…' : ''}`); }
-      for (const t of (m.message?.content || []).filter(b => b.type === 'tool_use')) console.log(`[${label}:tool] ${t.name}`);
+      for (const t of (m.message?.content || []).filter(b => b.type === 'tool_use')) {
+        console.log(`[${label}:tool] ${t.name}`);
+        // Shared bounded diagnostic parser recognizes this format.
+        if (process.env.REFRESH_SLUG) console.log(`[tool_use] ${t.name}`);
+      }
     } else if (m.type === 'result') { result = m; }
   }
   const cost = result?.total_cost_usd || 0;
@@ -189,6 +194,13 @@ const weightedOverall = (j, r) => {
 };
 
 async function main() {
+  if (process.env.REFRESH_SLUG) {
+    // One bounded writer. The trusted refresh submission owns validation and
+    // review; the broad SEO build/browser/revise pipeline has no role here.
+    const result = await runStage('REFRESH', { ...writerOptions(), maxTurns: 20, budget: 1.0 });
+    process.exit(result.success ? 0 : 1);
+    return;
+  }
   const t0 = Date.now();
   const runLog = { date: new Date().toISOString(), dryRun: DRY, success: false, totalCostUsd: 0, errors: [] };
   let server = null;

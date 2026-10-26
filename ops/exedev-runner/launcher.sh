@@ -48,6 +48,7 @@ def ownership(uid, gid):
         os.chown(base, uid, gid)
         for name in dirs + files: os.chown(os.path.join(base, name), uid, gid, follow_symlinks=False)
 CLIENT_TIMEOUT = 45 * 60
+if refresh is not None: CLIENT_TIMEOUT = 12 * 60
 def _quiet(*args):
     try:
         return subprocess.run(list(args), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
@@ -77,6 +78,9 @@ try:
     ownership(generator.pw_uid, generator.pw_gid)
     unit = f'lv-generator-{slot}-{os.urandom(4).hex()}'
     cmd = ['systemd-run', '--wait', '--pipe', '--collect', '--quiet', f'--unit={unit}', '-p', 'User=lv-generator', '-p', 'NoNewPrivileges=yes', '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes', '-p', 'PrivateTmp=yes', '-p', 'CapabilityBoundingSet=', '-p', 'RestrictSUIDSGID=yes', '-p', 'RuntimeMaxSec=40min', '-p', f'WorkingDirectory={scratch}', '-p', f'ReadWritePaths={scratch} /var/cache/lv-generator', '-p', f'EnvironmentFile={envfile}', 'node', script]
+    if refresh is not None:
+        cmd[cmd.index('RuntimeMaxSec=40min')] = 'RuntimeMaxSec=10min'
+        cmd[cmd.index(f'ReadWritePaths={scratch} /var/cache/lv-generator')] = f'ReadWritePaths={scratch}/data/posts.json /var/cache/lv-generator'
     diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl')
     try:
         result = capture_generator(cmd, diag, CLIENT_TIMEOUT)

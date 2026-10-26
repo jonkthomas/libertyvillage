@@ -14,6 +14,7 @@ import path from 'node:path';
 import { registry } from './canonical.mjs';
 import { getSubmission, readLive, ValidationError } from './store.mjs';
 import { canonicalJson } from '../automation/blog-source-pack.mjs';
+import { refreshFailureDetail } from './refresh-diagnostics.mjs';
 import { isoWeekOf } from '../news-pilot/roundup.mjs';
 
 export const REFRESH = Object.freeze({
@@ -268,13 +269,14 @@ async function defaultRecordAction(db, action) {
 
 // Close a reserved snapshot from its submission (or a refusal before submit).
 // A published refresh writes one ledger row; the ledger is optional.
-export async function closeRefresh(db, { snapshotId, submissionId = null, reasonCode = null, now = new Date(), deps = {} }) {
+export async function closeRefresh(db, { snapshotId, submissionId = null, reasonCode = null, refusalDetail = null, now = new Date(), deps = {} }) {
   const snap = await getSnapshot(db, snapshotId);
   const result = (row, extra = {}) => ({
     snapshotId: n(row.id), slug: row.key, url: row.url, target: row.target, isoWeek: row.iso_week, mode: row.mode, actionType: actionTypeOf(row.mode),
     state: row.state, reasonCode: row.reason_code,
     submissionId: n(row.submission_id), baseline: row.baseline, targetQuery: row.target_query,
-    before: row.summary?.before ?? face(row.payload), after: row.summary?.after ?? null, change: row.summary?.change ?? null, ...extra,
+    before: row.summary?.before ?? face(row.payload), after: row.summary?.after ?? null, change: row.summary?.change ?? null,
+    ...(row.summary?.refusalDetail ? { refusalDetail: row.summary.refusalDetail } : {}), ...extra,
   });
   if (snap.state !== 'reserved') return result(snap, { existing: true });
   // A submission under this snapshot's key decides the outcome even when the
@@ -295,9 +297,14 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
       after = (await one(db, 'select payload from content.revisions where dataset=$1 and key=$2 and rev=$3', ['posts', snap.key, item.published_rev])).payload;
       state = 'published';
       reason = null;
-    } else reason = failedReason(submission, rounds);
+    } else {
+      reason = failedReason(submission, rounds);
+      refusalDetail = rounds.at(-1)?.lint?.refusalDetail;
+    }
   }
   const summary = { before: face(snap.payload), after: face(after), change: summarizeChange(snap.payload, after) };
+  const safeDetail = refreshFailureDetail(refusalDetail?.failures);
+  if (safeDetail) summary.refusalDetail = safeDetail;
   const closed = (await db.query(`update content.refresh_snapshots set state=$2, reason_code=$3, submission_id=$4, summary=$5::json, closed_at=$6
     where id=$1 and state='reserved' returning *`, [snap.id, state, reason, submissionId, JSON.stringify(summary), now])).rows[0];
   if (!closed) return result(await getSnapshot(db, snapshotId), { existing: true });
@@ -353,7 +360,7 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
       }, { env, checkout }));
     } catch (error) {
       if (!['ValidationError', 'ConflictError'].includes(error.code)) throw error;
-      return { result: await close({ reasonCode: error.code === 'ConflictError' ? 'refresh-conflict' : refusalReason(error.message) }), exitCode: 2 };
+      return { result: await close({ reasonCode: error.code === 'ConflictError' ? 'refresh-conflict' : refusalReason(error.message), refusalDetail: error.refusalDetail }), exitCode: 2 };
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   if (submissionId == null) return { result: await close({ reasonCode: 'refresh-no-change' }), exitCode: 2 };
@@ -460,6 +467,7 @@ export function refreshLogLine(o) {
     actionType: MODES.includes(o.mode) ? actionTypeOf(o.mode) : null, state: o.pending ? 'pending' : o.state ?? null, reasonCode: o.reasonCode ?? null,
     submissionId: o.submissionId ?? null, targetQuery: clip(o.targetQuery, 200), baseline: o.baseline ?? null,
     before: clipFace(o.before), after: clipFace(o.after), change: clip(o.change, 300),
+    ...(refreshFailureDetail(o.refusalDetail?.failures) ? { refusalDetail: refreshFailureDetail(o.refusalDetail.failures) } : {}),
     ...(o.refusalDetail && ['changed', 'added', 'removed', 'duplicate', 'invalid-posts'].includes(o.refusalDetail.kind) ? {
       refusalDetail: { kind: o.refusalDetail.kind, slug: typeof o.refusalDetail.slug === 'string' && SLUG.test(o.refusalDetail.slug) ? o.refusalDetail.slug : null },
     } : {}),

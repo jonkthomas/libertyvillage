@@ -140,7 +140,7 @@ export function outsideNamesInPack(pack, businesses) {
 // as checkDraftAgainstPack apply with the original standing in for the pack:
 // businesses only from the original, its topic and operational premises kept,
 // and every internal link resolving to a live record.
-export function checkRefreshAgainstOriginal(post, original, { businesses = [], posts = [], services = [], topics = [] } = {}) {
+export function checkRefreshAgainstOriginal(post, original, { businesses = [], posts = [], services = [], topics = [], mode = 'full' } = {}) {
   if (!post || typeof post !== 'object' || !original || typeof original !== 'object') return ['missing-draft'];
   const errors = [];
   const allowed = new Set(extractReferencedBusinesses(original, businesses).map((record) => record.slug));
@@ -153,9 +153,17 @@ export function checkRefreshAgainstOriginal(post, original, { businesses = [], p
   for (const premise of operationalPremisesIn(original.title)) if (!premise.core.test(`${post.slug ?? ''} ${post.title ?? ''}`.toLowerCase())) errors.push(`draft-dropped-premise:${premise.id}`);
   const live = { blog: slugs(posts), best: slugs(services), guide: slugs(topics), directory: slugs(businesses) };
   for (const [field, kind] of [['relatedPosts', 'blog'], ['relatedServices', 'best'], ['relatedTopics', 'guide'], ['relatedBusinesses', 'directory']]) {
+    // Snippet mode owns none of these fields; scope validation separately
+    // requires exact equality. Existing stale references cannot block a snippet.
+    if (mode === 'snippet' && canonicalJson(post[field]) === canonicalJson(original[field])) continue;
     for (const slug of array(post[field])) if (!live[kind].includes(slug)) errors.push(`invalid-${field}:${slug}`);
   }
   for (const match of String(post.content ?? '').matchAll(/\]\((\/(?:blog|guide|best|directory)\/[^)]+)\)/g)) {
+    if (mode === 'snippet') {
+      const heading = /^## /m.exec(String(post.content ?? ''));
+      const cut = heading ? heading.index : String(post.content ?? '').indexOf('\n\n');
+      if (cut >= 0 && match.index >= cut) continue;
+    }
     const [kind, slug] = match[1].slice(1).split('/');
     if (!live[kind].includes(slug)) errors.push(`invalid-internal-link:${match[1]}`);
   }

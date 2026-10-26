@@ -386,6 +386,22 @@ export function copyScratchTree(from, to) {
   fs.cpSync(from, to, { recursive: true, force: true, verbatimSymlinks: true });
 }
 
+export function prepareGeneratorScratch(from, to, refresh = null) {
+  if (!refresh) return copyScratchTree(from, to);
+  if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(refresh.slug ?? '')) throw new Error('invalid refresh slug');
+  const targets = readJson(path.join(from, 'data/posts.json')).filter((post) => post.slug === refresh.slug);
+  if (targets.length !== 1) throw new Error('refresh target missing or duplicated');
+  for (const rel of ['scripts/seo-improve-agent.js', 'scripts/prompts/seo-refresh-system.md']) {
+    fs.mkdirSync(path.dirname(path.join(to, rel)), { recursive: true });
+    fs.copyFileSync(path.join(from, rel), path.join(to, rel));
+  }
+  // Copy runtime dependencies, as on the legacy path. No application tree, Git
+  // metadata, settings, skills or other data records enter this scratch tree.
+  copyScratchTree(fs.realpathSync(path.join(from, 'node_modules')), path.join(to, 'node_modules'));
+  fs.mkdirSync(path.join(to, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(to, 'data/posts.json'), JSON.stringify(targets) + '\n');
+}
+
 // Scratch Git metadata is untrusted after the SDK runs. Inspect only a small,
 // regular detached HEAD; never block on a FIFO or read an unbounded device/file.
 export function readScratchHead(scratch) {
@@ -409,7 +425,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
   try {
     fs.rmSync(scratch, { recursive: true, force: true });
     fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
-    copyScratchTree(repo, scratch);
+    prepareGeneratorScratch(repo, scratch, topic?.refresh);
     const exportedPosts = job === 'weekly-blog' || topic?.refresh ? readJson(path.join(repo, 'data', 'posts.json')) : null;
     const requestDir = path.join(stateRoot, 'generator-requests');
     fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
@@ -418,6 +434,13 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     // transient service as lv-generator with strict filesystem protection.
     const helper = '/usr/local/libexec/lv-runner-generator';
     const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' ? [1] : [] });
+    if (topic?.refresh) {
+      // The isolated tree intentionally has no Git checkout. Only its one
+      // bounded output is read; refreshDeps retains the strict graft backstop.
+      const output = acceptGeneratedOutput(scratch, repo, job, ['data/posts.json'], exportedPosts, true);
+      logLine(log, 'generator-output-accepted', { paths: 0 });
+      return output;
+    }
     const diagnostic = job === 'weekly-blog' ? readGeneratorRelay(helperResult) : null;
     const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
     if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
