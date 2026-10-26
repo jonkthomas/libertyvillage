@@ -90,8 +90,9 @@ export async function buildDeployment(db, url, { breakRoutes = [] } = {}) {
 }
 
 // Local Vercel/Slack stand-in. hook: 'build' (default) | 'accept' (2xx, no build) | status code.
-export async function localSite(db) {
-  const state = { hook: 'build', hookPosts: 0, slack: [], slackStatus: 200, deployment: null, builds: 0, breakRoutes: [], requests: [] };
+// redirects: [{source, destination, statusCode}] served before pages, like next.config.ts.
+export async function localSite(db, { redirects = [] } = {}) {
+  const state = { hook: 'build', hookPosts: 0, slack: [], slackStatus: 200, deployment: null, builds: 0, breakRoutes: [], requests: [], redirects };
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://x');
@@ -110,6 +111,8 @@ export async function localSite(db) {
         res.writeHead(state.slackStatus).end('ok');
         return;
       }
+      const redirect = state.redirects.find((r) => r.source === url.pathname);
+      if (redirect) { res.writeHead(redirect.statusCode, { location: redirect.destination }).end(); return; }
       const page = state.deployment?.pages.get(url.pathname);
       if (!page) { res.writeHead(404, { 'content-type': 'text/html' }).end('<h1>404</h1>'); return; }
       res.writeHead(page.status, { 'content-type': page.type }).end(page.body);
