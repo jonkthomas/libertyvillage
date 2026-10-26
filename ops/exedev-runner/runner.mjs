@@ -1642,7 +1642,7 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
     generate: (snapshot, candidate) => {
       exportData();
       const before = readPosts();
-      generate({ title: candidate.title ?? snapshot.slug, refresh: { slug: snapshot.slug, query: snapshot.targetQuery ?? '' } });
+      generate({ title: candidate.title ?? snapshot.slug, refresh: { slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
       return { before, after: readPosts() };
     },
     submit: (snapshot, generated) => parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),

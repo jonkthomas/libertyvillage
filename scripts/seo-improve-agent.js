@@ -48,6 +48,12 @@ function refreshClause() {
   const slug = process.env.REFRESH_SLUG;
   if (!slug) return '';
   const query = process.env.REFRESH_QUERY ? ` Its top Google search is "${process.env.REFRESH_QUERY}".` : '';
+  if (process.env.REFRESH_MODE === 'snippet') {
+    return ` SNIPPET REFRESH MODE: the post with slug "${slug}" in data/posts.json ranks on Google but few searchers click it.${query}`
+      + ' Rewrite ONLY its title (under 60 characters), description (under 155 characters) and the intro paragraph(s) before the first "## " heading, so the search result clearly answers that search and earns the click.'
+      + ' Leave every heading and all text from the first "## " heading onward byte-for-byte unchanged, and every other field (FAQs, answerBlock, key takeaways, tags, links, slug, publishedAt, image) unchanged; set updatedAt to today.'
+      + ' Do not add, remove or edit any other post or data file. Use only facts already in the post; never invent businesses, prices, hours, dates or quotes.';
+  }
   return ` REFRESH MODE: rewrite ONLY the post with slug "${slug}" in data/posts.json so it earns more clicks from Google (it gets impressions but a weak click-through rate or position).${query}`
     + ' Improve its title (under 60 characters, matches what the page delivers), description (under 155 characters), answerBlock, section structure, FAQs and key takeaways where that helps searchers.'
     + ' Keep slug, publishedAt, category, author and image exactly as they are; set updatedAt to today. Do not add, remove or edit any other post or any other data file.'

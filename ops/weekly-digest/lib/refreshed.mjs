@@ -15,6 +15,7 @@ export function refreshRow(ev, run = {}) {
   return {
     at: text(ev?.at, 40), target: run.target ?? null, slug: text(ev?.slug, 128), url: text(ev?.url, 300),
     state: text(ev?.state, 20), reasonCode: text(ev?.reasonCode, 80), targetQuery: text(ev?.targetQuery, 200),
+    lane: ev?.mode === 'snippet' || ev?.actionType === 'snippet' ? 'snippet' : 'full',
     baseline: { clicks: num(b.clicks), impressions: num(b.impressions), ctr: num(b.ctr), position: num(b.position) },
     before: face(ev?.before), after: face(ev?.after), change: text(ev?.change, 300),
   };
@@ -42,8 +43,9 @@ export function renderRefreshed(rows) {
     const published = r.state === 'published' || r.state === 'rolled-back';
     const why = published ? null : explain(r.reasonCode ?? 'refresh-error');
     const status = r.state === 'published' ? 'refreshed' : r.state === 'rolled-back' ? 'rolled back' : 'not changed';
+    const lane = r.lane === 'snippet' ? 'snippet: title, description, intro' : 'full rewrite';
     return `<div class="problem">
-<div class="problem-head"><b>${r.url ? `<a href="${esc(r.url)}">${esc(r.after?.title ?? r.before?.title ?? r.slug)}</a>` : esc(r.slug)}</b><span class="tag">${esc(status)}</span></div>
+<div class="problem-head"><b>${r.url ? `<a href="${esc(r.url)}">${esc(r.after?.title ?? r.before?.title ?? r.slug)}</a>` : esc(r.slug)}</b><span class="tag">${esc(lane)}</span><span class="tag">${esc(status)}</span></div>
 ${published ? `${pair('Title', r.before?.title, r.after?.title)}${pair('Description', r.before?.description, r.after?.description)}
 <p><span class="k">Changed</span><span>${esc(r.change ?? '—')}</span></p>`
     : `<p><span class="k">Why</span><span>${esc(why.title)}. ${esc(why.cause)} The live page was left as it was.</span></p>`}
@@ -51,6 +53,8 @@ ${published ? `${pair('Title', r.before?.title, r.after?.title)}${pair('Descript
 </div>`;
   };
   const body = live.length ? live.map(block).join('\n') : '<p class="empty">No posts were refreshed this week.</p>';
-  const note = test.length ? `<p class="testonly"><span class="k">Test site only</span><span>${test.map((r) => `${esc(r.slug)} (${esc(r.state)})`).join('; ')}.</span></p>` : '';
-  return `<h2>Refreshed this week</h2>\n${body}${note}`;
+  const note = test.length ? `<p class="testonly"><span class="k">Test site only</span><span>${test.map((r) => `${esc(r.slug)} (${esc(r.lane)}, ${esc(r.state)})`).join('; ')}.</span></p>` : '';
+  const snippets = live.filter((r) => r.lane === 'snippet').length;
+  const lanes = live.length ? `<p class="dim">${live.length - snippets} full rewrite${live.length - snippets === 1 ? '' : 's'} · ${snippets} snippet-only (searches at position 4–20 with a weak click rate get a new title, description and intro first)</p>\n` : '';
+  return `<h2>Refreshed this week</h2>\n${lanes}${body}${note}`;
 }

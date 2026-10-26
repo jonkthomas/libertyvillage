@@ -297,6 +297,11 @@ const ENTRIES = {
     cause: 'The writer changed posts other than the one being refreshed, so the whole refresh was refused.',
     impact: REFRESH_KEPT, action: REFRESH_NEXT,
   },
+  'refresh-snippet-overreach': {
+    title: 'Snippet refresh changed more than the snippet',
+    cause: 'A snippet refresh may only rewrite the title, description and intro, but the writer changed more of the post, so it was refused.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
   'refresh-no-change': {
     title: 'Refresh made no change',
     cause: 'The writer finished without changing the post.', impact: REFRESH_KEPT, action: REFRESH_NEXT,

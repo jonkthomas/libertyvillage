@@ -15,6 +15,24 @@ It replaces the old broad `seo-improvements` data lane (held off since #182). It
    4. The snapshot is closed as `published` or `failed`, with a plain-English reason code. A published refresh writes one ledger row (`recordAction`, `actionKind: 'refresh'`).
 4. The run stops when 2 refreshes have published, when the DB cap refuses a reserve, or when it hits a technical failure such as the writer or the CLI. A refusal or a gate rejection moves on to the next candidate.
 
+## Two lanes: snippet first, then full rewrite
+
+Search Console impressions are up 72% since July, but CTR has halved, from 1.19% to 0.57%. CTR is therefore the biggest lever (SEO roadmap P0-5, the "leak" lane).
+
+- **Leak query:** position 4–20, more than 50 impressions, and CTR under 5% over the window (`isLeakQuery`).
+- **Snippet lane:** a candidate page with at least one leak query gets a **snippet-only** rewrite first.
+  - The writer may change only the title, the meta description and the intro (the body before the first `## ` heading, or its first paragraph when it has none) and `updatedAt`.
+  - `extractRefreshedPost(..., mode: 'snippet')` refuses any other changed field, or a single changed byte after the intro, with `refresh-snippet-overreach`.
+  - The snippet targets the page's top leak query.
+- **Full lane:** a page is considered for a full rewrite only after it has had a published (or rolled-back) snippet refresh, or when it has no leak query.
+- **Both lanes share everything else:**
+  - the 2-per-ISO-week cap and the attempt cap
+  - kind `refresh` and its gate
+  - snapshot and rollback
+  - same URL and slug
+  - the ledger path, with `recordAction({ actionKind: 'refresh', actionType: 'snippet' | 'refresh', details: { actionType, ... } })`
+- The lane is stored in `refresh_snapshots.mode` (`snippet` | `full`). The digest tags each row as "snippet: title, description, intro" or "full rewrite".
+
 ## Weakness score (documented, tested)
 
 ```
@@ -37,6 +55,7 @@ score = impressions × max(0, expectedCtr(min(position, 8)) − ctr)      over t
 
 | Guardrail | Enforcement |
 |---|---|
+| Snippet lane stays a snippet | In `snippet` mode, only title, description, intro and `updatedAt` may change. The body after the intro must be byte-identical (`refresh-snippet-overreach`). |
 | Same URL and slug | `extractRefreshedPost` refuses a slug or publish-date change and any other changed post. Kind `refresh` may only `update` an existing `posts` row (`KIND_RULES.refresh`). Reserve refuses a URL that is not `/blog/<slug>`. |
 | Same quality and fact gate as new posts | Kind `refresh` runs the new-post claim linter (`lint: true`), grounding references (`GROUNDED`), the blog repair policy (`POLICY_KIND.refresh = 'blog'`) and the blog review lenses plus one REFRESH lens. It uses the same model, bar and repair budget. |
 | Snapshot first, with rollback | `reserveRefresh` writes the snapshot before any generation. The row is immutable (trigger) and is the rollback target. |

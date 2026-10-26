@@ -20,7 +20,7 @@ function harness(request) {
     if (sub === 'plan') return { stdout: JSON.stringify(PLAN) };
     if (sub === 'reserve') {
       const slug = JSON.parse(fs.readFileSync(args[args.indexOf('--candidate') + 1], 'utf8')).slug;
-      return { stdout: JSON.stringify({ snapshotId: slug === 'a' ? 1 : 2, slug, targetQuery: `q ${slug}` }) };
+      return { stdout: JSON.stringify({ snapshotId: slug === 'a' ? 1 : 2, slug, targetQuery: `q ${slug}`, mode: slug === 'b' ? 'snippet' : 'full' }) };
     }
     if (sub === 'submit') {
       const after = JSON.parse(fs.readFileSync(args[args.indexOf('--after') + 1], 'utf8'));
@@ -42,7 +42,7 @@ test('refresh runner: plan -> reserve -> export -> generator(refresh slug) -> su
   const h = harness({});
   const result = await runRefreshLoop({ deps: h.deps });
   assert.equal(result.refreshed, 2);
-  assert.deepEqual(h.generated, [{ title: 'A', refresh: { slug: 'a', query: 'q a' } }, { title: 'B', refresh: { slug: 'b', query: 'q b' } }]);
+  assert.deepEqual(h.generated, [{ title: 'A', refresh: { slug: 'a', query: 'q a', mode: 'full' } }, { title: 'B', refresh: { slug: 'b', query: 'q b', mode: 'snippet' } }], 'the lane reaches the generator request');
   const submit = h.calls.find((c) => c.args[1] === 'submit');
   assert.deepEqual(submit.allowExit, [2, 3], 'refused/rejected (2) and propagation pending (3) are outcomes, not crashes');
   assert.ok(submit.args.includes('runner:seo-improvements#202611030423-abcd1234'));

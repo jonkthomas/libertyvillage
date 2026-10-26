@@ -19,6 +19,7 @@ create table if not exists content.refresh_snapshots (
   target_query text,
   baseline json,                      -- {clicks, impressions, ctr, position} at T0
   score numeric,
+  mode text not null default 'full' check (mode in ('snippet','full')),   -- snippet = title, description, intro only (leak lane)
   state text not null default 'reserved' check (state in ('reserved','published','failed','rolled-back')),
   reason_code text,
   submission_id bigint references content.submissions(id),
@@ -35,8 +36,8 @@ create unique index if not exists refresh_snapshots_open_idx on content.refresh_
 -- The snapshot itself never changes; only its outcome columns move forward.
 create or replace function content.refresh_snapshot_immutable() returns trigger language plpgsql as $$
 begin
-  if tg_op = 'DELETE' or (new.id,new.target,new.iso_week,new.dataset,new.key,new.url,new.live_rev,new.payload::text,new.payload_sha256,new.created_at)
-    is distinct from (old.id,old.target,old.iso_week,old.dataset,old.key,old.url,old.live_rev,old.payload::text,old.payload_sha256,old.created_at)
+  if tg_op = 'DELETE' or (new.id,new.target,new.iso_week,new.dataset,new.key,new.url,new.live_rev,new.payload::text,new.payload_sha256,new.mode,new.created_at)
+    is distinct from (old.id,old.target,old.iso_week,old.dataset,old.key,old.url,old.live_rev,old.payload::text,old.payload_sha256,old.mode,old.created_at)
     then raise exception 'refresh-snapshot-immutable'; end if;
   return new;
 end $$;

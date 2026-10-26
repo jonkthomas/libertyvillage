@@ -13,8 +13,8 @@ import * as store from '../../scripts/content/store.mjs';
 import { keyOf, recordSha } from '../../scripts/content/canonical.mjs';
 import { explain } from '../../ops/weekly-digest/lib/plain-english.mjs';
 import {
-  REFRESH, closeRefresh, expectedCtr, extractRefreshedPost, listRefreshes, planRefresh, rankRefreshCandidates, refreshScore,
-  reserveRefresh, rollbackRefresh, runRefreshLoop, submitRefresh,
+  REFRESH, closeRefresh, expectedCtr, extractRefreshedPost, isLeakQuery, listRefreshes, planRefresh, rankRefreshCandidates, refreshScore,
+  reserveRefresh, rollbackRefresh, runRefreshLoop, splitIntro, submitRefresh,
 } from '../../scripts/content/refresh.mjs';
 import { FAST_SMOKE, hasTestDb, liveRecord, localSite, publishDirect, seededDb } from './fixtures/content-db.mjs';
 
@@ -56,7 +56,10 @@ const GSC = {
   ],
   queries: [
     { page: page(SLUGS[0]), query: 'liberty village walks', clicks: 5, impressions: 700, ctr: 0.007, position: 3 },
-    { page: page(SLUGS[0]), query: 'walking liberty village', clicks: 1, impressions: 90, ctr: 0.01, position: 4 },
+    { page: page(SLUGS[0]), query: 'walking liberty village', clicks: 1, impressions: 90, ctr: 0.01, position: 3.5 },
+    // Leak queries (position 4-20, >50 impressions, CTR <5%) put parking in the snippet lane;
+    // the larger non-leak query is not the snippet's target.
+    { page: page(SLUGS[1]), query: 'parking near me', clicks: 40, impressions: 1600, ctr: 0.025, position: 2 },
     { page: page(SLUGS[1]), query: 'liberty village parking', clicks: 4, impressions: 1500, ctr: 0.003, position: 14 },
   ],
 };
@@ -71,8 +74,40 @@ test('weakest-post selection: missed-click score, merged rows, floors and exclus
   assert.deepEqual(ranked.map((c) => c.score), [90, 46, 6]);
   assert.deepEqual(ranked[0].baseline, { clicks: 10, impressions: 1000, ctr: 0.01, position: 3 }, 'www and trailing-slash rows merge');
   assert.equal(ranked[0].targetQuery, 'liberty village walks', 'top query by impressions');
+  assert.deepEqual(ranked.map((c) => c.mode), ['full', 'snippet', 'full'], 'only the page with a leak query starts in the snippet lane');
+  assert.equal(ranked[1].targetQuery, 'liberty village parking', 'a snippet refresh targets the top leak query');
+  const after = rankRefreshCandidates({ gsc: GSC, posts, snippetDone: new Set([SLUGS[1]]) });
+  assert.equal(after.find((c) => c.slug === SLUGS[1]).mode, 'full', 'a full rewrite is considered only after the snippet refresh');
   assert.equal(ranked[0].url, page(SLUGS[0]));
   assert.deepEqual(rankRefreshCandidates({ gsc: GSC, posts, exclude: new Set([SLUGS[0]]) }).map((c) => c.slug)[0], SLUGS[1], 'cooldown exclusions skip a post');
+});
+
+test('leak-query thresholds: position 4-20, more than 50 impressions, CTR under 5%', () => {
+  const q = (position, impressions, ctr) => isLeakQuery({ position, impressions, ctr });
+  assert.equal(q(4, 51, 0.049), true);
+  assert.equal(q(20, 51, 0.049), true);
+  assert.equal(q(3.9, 500, 0.01), false, 'top-3 is not a leak');
+  assert.equal(q(20.1, 500, 0.01), false, 'beyond position 20 is a ranking problem, not a snippet one');
+  assert.equal(q(10, 50, 0.01), false, 'needs more than 50 impressions');
+  assert.equal(q(10, 500, 0.05), false, 'CTR must be under 5%');
+});
+
+test('snippet-only rewrite: title, description and intro may change; the body beyond the intro may not', () => {
+  const base = post(SLUGS[1], 'Parking');
+  assert.deepEqual(splitIntro(base.content), { intro: '', rest: base.content }, 'a body that opens with a section has an empty intro');
+  const withIntro = { ...base, content: `Parking is tight on weekends.\n\n${base.content}` };
+  assert.equal(splitIntro(withIntro.content).intro, 'Parking is tight on weekends.\n\n');
+  const before = [withIntro, post(SLUGS[0], 'Walks')];
+  const snippet = (fn) => { try { return extractRefreshedPost({ before, after: [fn({ ...withIntro }), before[1]], slug: SLUGS[1], mode: 'snippet' }); } catch (error) { return error.reason; } };
+  const ok = snippet((p) => ({ ...p, title: 'Liberty Village Parking: Lots and Street Rules', description: 'Where to park.', content: `Short answer: use the Green P lots.\n\n${base.content}`, updatedAt: '2026-11-02' }));
+  assert.equal(ok.title, 'Liberty Village Parking: Lots and Street Rules');
+  assert.equal(splitIntro(ok.content).rest, splitIntro(withIntro.content).rest, 'body beyond the intro byte-identical');
+  assert.equal(snippet((p) => ({ ...p, title: 'New', content: `${p.content}\n## Extra\n\nMore.\n` })), 'refresh-snippet-overreach');
+  assert.equal(snippet((p) => ({ ...p, title: 'New', content: p.content.replace('Planning ahead', 'Plan ahead') })), 'refresh-snippet-overreach');
+  assert.equal(snippet((p) => ({ ...p, title: 'New', faqs: [] })), 'refresh-snippet-overreach');
+  assert.equal(snippet((p) => ({ ...p, title: 'New', answerBlock: 'Different.' })), 'refresh-snippet-overreach');
+  // The same edit is fine as a full rewrite.
+  assert.equal(extractRefreshedPost({ before, after: [{ ...withIntro, title: 'New', faqs: [] }, before[1]], slug: SLUGS[1] }).title, 'New');
 });
 
 test('generator output: exactly the snapshot post may change, same slug and publish date', () => {
@@ -109,7 +144,7 @@ function loopDeps(db, site, { now, review = pass, rewrite, recordAction, seen })
       const live = await liveRecord(db, 'posts', snapshot.slug);
       seen?.push({ slug: snapshot.slug, snapshotSha: row.payload_sha256, liveSha: recordSha(live) });
       const before = await livePosts(db);
-      return { before, after: before.map((p) => (p.slug === snapshot.slug ? rewrite(p) : p)) };
+      return { before, after: before.map((p) => (p.slug === snapshot.slug ? rewrite(p, snapshot) : p)) };
     },
     submit: async (snapshot, generated) => (await submitRefresh(db, {
       snapshotId: snapshot.snapshotId, ...generated, actor: 'uat:refresh', env: site.env, checkout: REPO, now,
@@ -119,6 +154,10 @@ function loopDeps(db, site, { now, review = pass, rewrite, recordAction, seen })
     log: () => {},
   };
 }
+// The writer, faked: a snippet refresh rewrites title, description and intro only.
+const snippetOnly = (p) => ({ ...p, title: `${p.title}: where to park and what it costs`, description: 'Lots, street rules and rates in one place.',
+  content: `Short answer first: the paid lots fill early.\n\n${p.content}`, updatedAt: '2026-11-02' });
+const byLane = (p, snapshot) => (snapshot.mode === 'snippet' ? snippetOnly(p) : better(p));
 const better = (p) => ({ ...p, title: `${p.title}: routes, timing and tips`, description: `${p.description} Updated with clearer routes and timing.`,
   content: `${p.content}\n## Timing\n\nWeekday mornings are quieter.\n`, updatedAt: '2026-11-02' });
 
@@ -129,9 +168,9 @@ test('weekly run: refreshes the 2 weakest posts in place, ledger gets before/aft
     await site.build();
     const actions = [];
     const seen = [];
-    const run1 = await runRefreshLoop({ deps: loopDeps(db, site, { now: MON, rewrite: better, seen, recordAction: async (_db, action) => { actions.push(action); return { id: actions.length }; } }) });
+    const run1 = await runRefreshLoop({ deps: loopDeps(db, site, { now: MON, rewrite: byLane, seen, recordAction: async (_db, action) => { actions.push(action); return { id: actions.length }; } }) });
     assert.equal(run1.refreshed, 2);
-    assert.deepEqual(run1.outcomes.map((o) => o.slug), [SLUGS[0], SLUGS[1]], 'the two weakest by score, in order');
+    assert.deepEqual(run1.outcomes.map((o) => [o.slug, o.mode, o.state]), [[SLUGS[0], 'full', 'published'], [SLUGS[1], 'snippet', 'published']], 'the two weakest by score, in order; one full, one snippet');
     for (const s of seen) assert.equal(s.snapshotSha, s.liveSha, `${s.slug}: snapshot taken before any change`);
 
     // Same slug and URL: an in-place update of the existing entry, now live with the new title.
@@ -152,16 +191,27 @@ test('weekly run: refreshes the 2 weakest posts in place, ledger gets before/aft
     assert.equal(actions[0].pageType, 'blog');
     assert.deepEqual(actions[0].baseline, { clicks: 10, impressions: 1000, ctr: 0.01, position: 3 });
     assert.equal(actions[0].details.snapshotId, run1.outcomes[0].snapshotId);
+    assert.deepEqual([actions[0].actionType, actions[0].details.actionType], ['refresh', 'refresh']);
+    assert.deepEqual([actions[1].actionType, actions[1].details.actionType], ['snippet', 'snippet']);
+    assert.equal(actions[1].targetQuery, 'liberty village parking');
+    // The published snippet refresh left the body beyond the intro byte-identical.
+    const parkingBefore = (await db.query('select payload from content.refresh_snapshots where id=$1', [run1.outcomes[1].snapshotId])).rows[0].payload;
+    const parkingAfter = await liveRecord(db, 'posts', SLUGS[1]);
+    assert.notEqual(parkingAfter.title, parkingBefore.title);
+    assert.equal(splitIntro(parkingAfter.content).rest, splitIntro(parkingBefore.content).rest);
+    assert.deepEqual(parkingAfter.faqs, parkingBefore.faqs);
     assert.equal(actions[0].details.before.title, 'Guide walks');
     assert.equal(actions[0].details.after.title, 'Guide walks: routes, timing and tips');
     assert.match(actions[0].details.change, /title/);
 
-    // Cap: a second run the same ISO week refreshes nothing, and the DB refuses a direct reserve too.
-    const run2 = await runRefreshLoop({ deps: loopDeps(db, site, { now: MON, rewrite: better, recordAction: async () => {} }) });
+    // Cap shared by both lanes: 1 full + 1 snippet = 2, so a second run the same ISO week
+    // refreshes nothing, and the DB refuses a direct reserve in either lane.
+    const run2 = await runRefreshLoop({ deps: loopDeps(db, site, { now: MON, rewrite: byLane, recordAction: async () => {} }) });
     assert.equal(run2.refreshed, 0);
     assert.equal(run2.attempted, 0);
     const direct = await reserveRefresh(db, { candidate: { slug: SLUGS[2] }, now: new Date(MON.getTime() + 3 * 86_400_000) });
     assert.equal(direct.capReached, true);
+    assert.equal((await reserveRefresh(db, { candidate: { slug: SLUGS[3], mode: 'snippet' }, now: MON })).capReached, true);
     assert.equal((await db.query("select count(*)::int as n from content.refresh_snapshots where iso_week='2026-W45'")).rows[0].n, 2);
     // Next week the cap resets; the two refreshed posts sit out their cooldown.
     const nextPlan = await planRefresh(db, { gsc: GSC, now: NEXT_MON });
