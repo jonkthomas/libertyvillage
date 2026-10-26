@@ -518,6 +518,10 @@ async function discoverFromPosthog() {
   const token = neverEcho('POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE');
   if (!token) return [];
   try {
+    // ponytail: buildPosthogLandingQuery lives in ../generate-weekly-growth-report.mjs, so this
+    // source has never produced a topic. Importing it from there would start adding seo topics
+    // named after already-published pages to every weekly batch, which the gate has never
+    // reviewed. Left off deliberately; the warning below makes the failure visible.
     const { POSTHOG_PROJECT_ID, PRODUCTION_HOSTNAME, REPORT_TIMEZONE, buildPosthogLandingQuery, buildWeeklyWindows } = await import('../lib/growth-report.mjs');
     const windows = buildWeeklyWindows({ now: new Date() });
     const window = windows.at(-1);
@@ -528,7 +532,10 @@ async function discoverFromPosthog() {
       body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
       signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      console.warn(`topic discovery: PostHog source failed: HTTP ${response.status}`);
+      return [];
+    }
     const payload = await response.json();
     const rows = Array.isArray(payload?.results) ? payload.results : [];
     return rows.slice(0, 5).map((row) => ({
@@ -537,7 +544,8 @@ async function discoverFromPosthog() {
       source: 'implicit-discovery',
       rationale: `PostHog production landing on ${PRODUCTION_HOSTNAME} (${REPORT_TIMEZONE}): ${row[0]} (${row[1]} organic landings)`,
     })).filter((entry) => entry.title);
-  } catch {
+  } catch (error) {
+    console.warn(`topic discovery: PostHog source failed: ${error?.message ?? error}`);
     return [];
   }
 }
@@ -593,18 +601,70 @@ export async function discoverTopics({ now = new Date() } = {}) {
   return [...gsc, ...posthog, ...serp].map((entry) => ({ ...entry, addedAt }));
 }
 
-export async function appendDiscoveredTopics(queue, discoveries) {
+// Discovery-only near-duplicate key: paraphrased questions such as "Is Liberty
+// Village a nice area?" and "...a good place to live?" are one search intent and
+// the gate rejects a submission that carries both. Kept separate from
+// intentFingerprint, whose values are stored as consumed cadence intents.
+const NEAR_DUP_STOPWORDS = new Set(['a', 'an', 'the', 'in', 'of', 'for', 'to', 'on', 'at', 'is', 'are', 'it', 'its', 'there',
+  'some', 'what', 'which', 'how', 'do', 'does', 'can', 'i', 'you', 'considered', 'really', 'actually', 'liberty', 'village', 'toronto']);
+// A question built only from these words asks "is it a good place to live?" when
+// it names residence (live, neighbourhood...) or judges the place (nice, good...).
+// Ranking words alone ("best places", "best area") are recommendations, not
+// livability; anything else (safe, families, rent, eat, visit...) keeps its intent.
+const LIVABILITY_JUDGEMENT = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth']);
+const LIVABILITY_RESIDENCE = new Set(['live', 'living', 'neighbourhood', 'neighborhood', 'community']);
+const LIVABILITY_WORDS = new Set([...LIVABILITY_JUDGEMENT, ...LIVABILITY_RESIDENCE, 'best', 'ideal', 'top', 'place', 'area']);
+
+export function nearDuplicateKey(title) {
+  const text = (String(title ?? '').toLowerCase().match(/[a-z0-9]+/g) ?? []).join(' ')
+    .replace(/\bfamous\b/g, 'known')
+    .replace(/\b(?:(?:fun|cool|best) )?things to do\b|\bto do\b/g, 'todo');
+  const tokens = [...new Set(text.split(' ')
+    .filter((token) => token && !NEAR_DUP_STOPWORDS.has(token))
+    .map((token) => (token.length > 3 && token.endsWith('s') && !token.endsWith('ss') ? token.slice(0, -1) : token)))];
+  if (tokens.length && tokens.every((token) => LIVABILITY_WORDS.has(token))
+    && tokens.some((token) => LIVABILITY_JUDGEMENT.has(token) || LIVABILITY_RESIDENCE.has(token))) return 'livability';
+  return tokens.sort().join(' ');
+}
+
+// Stored GSC titles are raw queries ("Liberty Village Happy Hour"); incoming GSC
+// discoveries are their editorial form. Key existing titles both ways.
+function existingNearKeys(title) {
+  const editorial = gscEditorialTitle(title);
+  return editorial ? [nearDuplicateKey(title), nearDuplicateKey(editorial)] : [nearDuplicateKey(title)];
+}
+
+function publishedTitles(posts) {
+  return (Array.isArray(posts) ? posts : []).flatMap((post) => [post?.title, post?.slug?.replace(/-/g, ' ')]).filter(Boolean);
+}
+
+export function loadPublishedPosts(filePath = path.join(path.dirname(queuePath()), 'posts.json')) {
+  try {
+    const value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [] } = {}) {
   let next = queue ?? loadTopicQueue();
   const added = [];
   const seenIntents = new Set((next.topics ?? []).map((entry) => (
     `${entry?.kind ?? ''}|${intentFingerprint(entry?.title)}`
   )));
+  const seenNear = new Set([
+    ...(next.topics ?? []).flatMap((entry) => existingNearKeys(entry?.title).map((key) => `${entry?.kind ?? ''}|${key}`)),
+    ...publishedTitles(publishedPosts).flatMap((title) => existingNearKeys(title).map((key) => `blog|${key}`)),
+  ]);
   for (const discovery of discoveries) {
     const normalized = normalizeDiscovery(discovery);
     if (!normalized) continue;
     const fingerprint = `${normalized?.kind ?? ''}|${intentFingerprint(normalized?.title)}`;
-    if (seenIntents.has(fingerprint)) continue;
+    const near = `${normalized?.kind ?? ''}|${nearDuplicateKey(normalized?.title)}`;
+    if (seenIntents.has(fingerprint) || seenNear.has(near)) continue;
     seenIntents.add(fingerprint);
+    seenNear.add(near);
     const result = appendTopic(next, normalized);
     next = result.queue;
     if (result.added) added.push(result.entry);
@@ -655,7 +715,7 @@ async function main() {
   if (command === 'discover') {
     const current = loadTopicQueue();
     const discoveries = await discoverTopics();
-    const result = await appendDiscoveredTopics(current, discoveries);
+    const result = await appendDiscoveredTopics(current, discoveries, { publishedPosts: loadPublishedPosts() });
     saveTopicQueue(result.queue);
     writeOutput({
       added: String(result.added.length),

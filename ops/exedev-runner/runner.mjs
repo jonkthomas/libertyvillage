@@ -182,7 +182,13 @@ export function command(binary, args, { cwd, env, allowExit = [] } = {}) {
     failure.cliFailure = classifyCliFailure(binary, args, result);
     throw failure;
   }
-  return { code: result.status, stdout: result.stdout ?? '' };
+  return { code: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+}
+
+// Only the bounded source-unavailable lines a discovery script prints, never raw stderr.
+export function sourceWarnings(stderr) {
+  return String(stderr ?? '').split('\n').filter((line) => /^topic discovery: [A-Za-z ]{1,40} source failed: /.test(line))
+    .slice(0, 5).map((line) => line.slice(0, 200));
 }
 
 export function parseJson(text) { return JSON.parse(text.trim()); }
@@ -253,7 +259,8 @@ function checkout(target, log) {
 
 function source(script, args, job, log) {
   const result = command(node, [script, ...args], { cwd: repo, env: sourceEnv(process.env, job) });
-  logLine(log, 'source-complete', { script, exit: result.code });
+  const warnings = sourceWarnings(result.stderr);
+  logLine(log, 'source-complete', { script, exit: result.code, ...(warnings.length ? { warnings } : {}) });
   return result;
 }
 
