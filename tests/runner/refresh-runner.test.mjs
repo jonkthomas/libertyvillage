@@ -5,8 +5,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { refreshDeps } from '../../ops/exedev-runner/runner.mjs';
-import { runRefreshLoop } from '../../scripts/content/refresh.mjs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { acceptGeneratedOutput, copyScratchTree, refreshDeps } from '../../ops/exedev-runner/runner.mjs';
+import { extractRefreshedPost, runRefreshLoop } from '../../scripts/content/refresh.mjs';
+import { canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
+import { hasTestDb, seededDb } from '../content/fixtures/content-db.mjs';
 
 const PLAN = { isoWeek: '2026-W45', remaining: 2, attemptsLeft: 4, candidates: [{ slug: 'a', score: 9, title: 'A' }, { slug: 'b', score: 5, title: 'B' }], settled: [] };
 function harness(request) {
@@ -68,4 +72,48 @@ test('refresh runner: a generator failure closes the snapshot with a reason and 
   assert.equal(result.attempted, 1);
   assert.deepEqual(h.events.find((e) => e.event === 'refresh-outcome').details.reasonCode, 'refresh-generator-failed');
   assert.ok(h.calls.some((c) => c.args[1] === 'close' && c.args.includes('refresh-generator-failed')));
+});
+
+// Real export -> runner before -> scratch writer -> accepted output -> runner
+// after. Sorted JSON keys change serialization, never another post's values.
+test('refresh runner: DB export and scratch key ordering allow a single-post refresh', { skip: !hasTestDb && 'CONTENT_TEST_DATABASE_URL not set' }, async (t) => {
+  const handle = await seededDb();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-refresh-export-'));
+  t.after(async () => { fs.rmSync(root, { recursive: true, force: true }); await handle.close(); });
+  const trusted = path.join(root, 'trusted');
+  const scratch = path.join(root, 'scratch');
+  const run = path.join(root, 'run');
+  fs.mkdirSync(run);
+  const postsFile = path.join(trusted, 'data', 'posts.json');
+  const cliFile = fileURLToPath(new URL('../../scripts/content/cli.mjs', import.meta.url));
+  let editOther = false;
+  const deps = refreshDeps({
+    target: 'test', slot: 'refresh-ordering', request: {}, run, log: () => {},
+    export: () => {
+      const exported = spawnSync(process.execPath, [cliFile, 'export', '--root', trusted, '--target', 'test'], {
+        encoding: 'utf8', env: { PATH: process.env.PATH, CONTENT_DATABASE_URL: handle.url, CONTENT_DB_NAME: handle.name },
+      });
+      assert.equal(exported.status, 0, exported.stderr);
+    },
+    readPosts: () => JSON.parse(fs.readFileSync(postsFile, 'utf8')),
+    generate: ({ refresh }) => {
+      fs.rmSync(scratch, { recursive: true, force: true });
+      copyScratchTree(trusted, scratch);
+      const output = path.join(scratch, 'data', 'posts.json');
+      const posts = JSON.parse(fs.readFileSync(output, 'utf8'));
+      posts.find((p) => p.slug === refresh.slug).title += ': clearer guide';
+      if (editOther) posts.find((p) => p.slug !== refresh.slug).description += ' Actual off-target edit.';
+      fs.writeFileSync(output, canonicalJson(posts));
+      acceptGeneratedOutput(scratch, trusted, 'seo-improvements', ['data/posts.json']);
+    },
+  });
+  const slug = (await handle.db.query("select key from content.entries where dataset='posts' and live_rev is not null order by position limit 1")).rows[0].key;
+  const generated = deps.generate({ slug, mode: 'snippet' }, { title: 'Refresh' });
+  const other = generated.before.find((p) => p.slug !== slug);
+  assert.notEqual(JSON.stringify(other), JSON.stringify(generated.after.find((p) => p.slug === other.slug)), 'regression requires a real key-order difference');
+  assert.deepEqual(generated.after.find((p) => p.slug === other.slug), other, 'all non-target values remain identical');
+  assert.equal(extractRefreshedPost({ ...generated, slug, mode: 'snippet' }).title, `${generated.before.find((p) => p.slug === slug).title}: clearer guide`);
+  editOther = true;
+  const bad = deps.generate({ slug, mode: 'snippet' }, { title: 'Refresh' });
+  assert.throws(() => extractRefreshedPost({ ...bad, slug, mode: 'snippet' }), (error) => error.reason === 'refresh-off-target');
 });
