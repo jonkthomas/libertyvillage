@@ -25,6 +25,15 @@ env.update(HOME='/var/cache/lv-generator', PATH='/usr/local/bin:/usr/bin:/bin', 
 if job == 'weekly-blog' and request.get('topic'):
     env['TOPIC_OVERRIDE'] = request['topic']
 if job == 'seo-improvements': env['SEO_MODE'] = 'data'
+# Refresh loop: the trusted runner names one live post (slug) and its top search.
+refresh = request.get('refresh') if job == 'seo-improvements' else None
+if refresh is not None:
+    slug, query, refresh_mode = refresh.get('slug'), refresh.get('query') or '', refresh.get('mode') or 'full'
+    if not isinstance(slug, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,127}', slug) or not isinstance(query, str) or len(query) > 200 or not query.isprintable() or refresh_mode not in ('snippet', 'full'):
+        sys.exit(2)
+    env['REFRESH_SLUG'] = slug
+    env['REFRESH_QUERY'] = query
+    env['REFRESH_MODE'] = refresh_mode
 for key, value in env.items():
     if '\x00' in value or '\n' in value or '\r' in value: sys.exit(2)
 envfile = pathlib.Path(f'/run/lv-runner/generator-{slot}.env')
@@ -113,7 +122,7 @@ if [[ "$mode" == lv-runner-service ]]; then
   IFS=: read -r job target slot extra <<< "$1"
   [[ -z "${extra:-}" && "$slot" =~ ^[a-zA-Z0-9_-]{8,80}$ ]] || exit 2
   if [[ "$slot" == scheduled ]]; then slot="$(date -u +%Y%m%d%H%M)-scheduled"; fi
-  case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog|october-blog-backfill|weekly-roundup) ;; *) exit 2;; esac
+  case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog|october-blog-backfill|deploy-retry|weekly-roundup) ;; *) exit 2;; esac
   [[ "$target" == staging || "$target" == production ]] || exit 2
   # weekly-roundup is on-demand and staging-only until John authorizes production.
   [[ "$job" != weekly-roundup || "$target" == staging ]] || { echo 'weekly-roundup is staging-only' >&2; exit 2; }
@@ -213,7 +222,7 @@ if [[ "$action" == report ]]; then
 fi
 [[ "$action" == run && $# -ge 1 ]] || usage
 job=$1; shift
-case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog|october-blog-backfill|weekly-roundup) ;; *) usage;; esac
+case "$job" in topic-discovery|seo-improvements|discover-businesses|news|weekly-growth-report|weekly-blog|october-blog-backfill|deploy-retry|weekly-roundup) ;; *) usage;; esac
 target=''; slot=''; topic=''; dry_run=false; approved=false
 while (($#)); do
   case "$1" in

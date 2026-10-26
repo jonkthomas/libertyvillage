@@ -207,7 +207,11 @@ test('blog-live policy: date/author/topic checks and a stale --generated-at', as
     const ok = await submit(db, args(post));
     assert.equal(ok.exitCode, 0);
     const { submission } = await store.getSubmission(db, ok.result.submissionId);
-    assert.deepEqual(submission.context, { now: new Date(generatedAt).toISOString(), topicKey: 'c'.repeat(64) });
+    const { growthActions, ...policyContext } = submission.context;
+    assert.deepEqual(policyContext, { now: new Date(generatedAt).toISOString(), topicKey: 'c'.repeat(64) });
+    assert.deepEqual(growthActions, [{ slug: post.slug, url: `https://libertyvillage.co/blog/${post.slug}`,
+      pageType: 'blog', targetQuery: post.title, queryType: 'local-intent',
+      baseline: { clicks: null, impressions: null, ctr: null, position: null } }]);
     await refused(submit(db, args({ ...post, slug: 'bl-author', author: 'Someone Else' })), /author must be LibertyVillage\.co/);
     await refused(submit(db, args({ ...post, slug: 'bl-date', publishedAt: '2026-01-01', updatedAt: '2026-01-01' })), /run date/);
     await refused(submit(db, args({ ...post, slug: 'bl-stale' }, { generatedAt: '2026-01-01T00:00:00Z' })), /more than 36 h before submit/);

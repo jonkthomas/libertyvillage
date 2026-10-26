@@ -37,7 +37,7 @@ export function safeCliError(error) {
 }
 function parse(argv) {
   const [command,...rest] = argv;
-  if (command === 'cadence' && rest[0] && !rest[0].startsWith('--')) rest.shift();
+  if ((command === 'cadence' || command === 'refresh') && rest[0] && !rest[0].startsWith('--')) rest.shift();
   const opts = {};
   for (let i=0;i<rest.length;i++) {
     if (!rest[i].startsWith('--')) throw new store.ValidationError(`unexpected argument: ${rest[i]}`);
@@ -111,6 +111,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
   const mutators = new Set(['migrate','seed','submit','gate','deploy','unpublish','rollback','gc-assets','reset']);
   const cadenceMutators = new Set(['reserve','renew','release','attempt','attach','outcome','deadline','deliver-alerts','evidence-claim','evidence-state','evidence-retry']);
   if (command === 'cadence' && cadenceMutators.has(argv[1])) mutators.add('cadence');
+  if (command === 'refresh' && argv[1] !== 'list') mutators.add('refresh');
   const expectDb = opts.expectDb ?? process.env.CONTENT_DB_NAME;
   const url = process.env[command === 'migrate' || command === 'reset' ? 'CONTENT_DATABASE_URL_UNPOOLED' : 'CONTENT_DATABASE_URL'];
   const host = url ? new URL(url).hostname : null;
@@ -173,6 +174,22 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
             break;
           }
           default: throw new store.ValidationError(`unknown cadence subcommand: ${sub}`);
+        }
+        break;
+      }
+      case 'refresh': {
+        // Refresh loop (scripts/content/refresh.mjs); the runner owns the generator step.
+        const refresh = await import('./refresh.mjs');
+        const json = (file, name) => JSON.parse(fs.readFileSync(required(file, name), 'utf8'));
+        const snapshotId = () => Number(required(opts.snapshot, '--snapshot'));
+        switch (argv[1]) {
+          case 'plan': result = await refresh.planRefresh(db, { target, gsc: json(opts.gsc, '--gsc') }); break;
+          case 'reserve': result = await refresh.reserveRefresh(db, { target, candidate: json(opts.candidate, '--candidate') }); break;
+          case 'submit': ({ result, exitCode } = await refresh.submitRefresh(db, { snapshotId: snapshotId(), before: json(opts.before, '--before'), after: json(opts.after, '--after'), actor: required(actorFor(opts), '--actor') })); break;
+          case 'close': result = await refresh.closeRefresh(db, { snapshotId: snapshotId(), reasonCode: required(opts.reason, '--reason') }); break;
+          case 'rollback': ({ result, exitCode } = await refresh.rollbackRefresh(db, { snapshotId: snapshotId(), actor: required(actorFor(opts), '--actor'), reason: opts.reason && opts.reason !== true ? opts.reason : 'refresh rollback' })); break;
+          case 'list': result = await refresh.listRefreshes(db, { target, since: opts.since && opts.since !== true ? opts.since : null }); break;
+          default: throw new store.ValidationError(`unknown refresh command: ${argv[1]}`);
         }
         break;
       }

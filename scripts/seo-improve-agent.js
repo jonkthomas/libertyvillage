@@ -41,6 +41,25 @@ function seoModeClause() {
   return '';
 }
 
+// Refresh loop (docs/runbooks/refresh-loop.md): the trusted runner names one live
+// post. The runner refuses any output that touches another post, changes the
+// slug or publish date, and gates the rewrite like a new blog post.
+function refreshClause() {
+  const slug = process.env.REFRESH_SLUG;
+  if (!slug) return '';
+  const query = process.env.REFRESH_QUERY ? ` Its top Google search is "${process.env.REFRESH_QUERY}".` : '';
+  if (process.env.REFRESH_MODE === 'snippet') {
+    return ` SNIPPET REFRESH MODE: the post with slug "${slug}" in data/posts.json ranks on Google but few searchers click it.${query}`
+      + ' Rewrite ONLY its title (under 60 characters), description (under 155 characters) and the intro paragraph(s) before the first "## " heading, so the search result clearly answers that search and earns the click.'
+      + ' Leave every heading and all text from the first "## " heading onward byte-for-byte unchanged, and every other field (FAQs, answerBlock, key takeaways, tags, links, slug, publishedAt, image) unchanged; set updatedAt to today.'
+      + ' Do not add, remove or edit any other post or data file. Use only facts already in the post; never invent businesses, prices, hours, dates or quotes.';
+  }
+  return ` REFRESH MODE: rewrite ONLY the post with slug "${slug}" in data/posts.json so it earns more clicks from Google (it gets impressions but a weak click-through rate or position).${query}`
+    + ' Improve its title (under 60 characters, matches what the page delivers), description (under 155 characters), answerBlock, section structure, FAQs and key takeaways where that helps searchers.'
+    + ' Keep slug, publishedAt, category, author and image exactly as they are; set updatedAt to today. Do not add, remove or edit any other post or any other data file.'
+    + ' Every fact must come from the existing post or the site data (data/businesses.json and other data files); never invent businesses, prices, hours, dates or quotes.';
+}
+
 const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || './gcp-credentials.json';
 let gaEmail = '', gaKey = '';
 try { const c = JSON.parse(fs.readFileSync(credsPath, 'utf8')); gaEmail = c.client_email || ''; gaKey = c.private_key || ''; } catch {}
@@ -162,7 +181,7 @@ async function main() {
       : '';
     const builder = await runStage('BUILDER', {
       systemPromptPath: P('seo-improve-system.md'),
-      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply.' + topicFocus + ' ' + (DRY ? 'DRESS REHEARSAL (dry run): make your data-backed edits normally — they will NOT be committed or deployed (the runner is discarded). Ensure at least one concrete, justified edit so the judge and reader stages have something real to evaluate. Then write tasks/seo-improve-summary.md.' : ('Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.' + (process.env.FORCE_EDIT === 'true' ? ' Even if wins look marginal this week, make at least one concrete, justified improvement so a reviewable PR is produced.' : ''))) + seoModeClause(),
+      prompt: 'Execute the weekly SEO/AEO improvement pass per the system prompt. Invoke the relevant skills (on-page, schema-markup, geo-citability, internal-linker, seo-content, keyword-research) when they apply.' + topicFocus + ' ' + (DRY ? 'DRESS REHEARSAL (dry run): make your data-backed edits normally — they will NOT be committed or deployed (the runner is discarded). Ensure at least one concrete, justified edit so the judge and reader stages have something real to evaluate. Then write tasks/seo-improve-summary.md.' : ('Make data-backed edits within the hard rails, then write tasks/seo-improve-summary.md.' + (process.env.FORCE_EDIT === 'true' ? ' Even if wins look marginal this week, make at least one concrete, justified improvement so a reviewable PR is produced.' : ''))) + seoModeClause() + refreshClause(),
       mcpServers: MCP.gscGa4,
       settingSources: ['project'],
       skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
@@ -198,7 +217,7 @@ async function main() {
         const issues = JSON.stringify({ judge: j?.blocking_issues || [], judge_suggestions: j?.suggestions || [], reader_problems: r?.problems || [] }, null, 2);
         await runStage('REVISE', {
           systemPromptPath: P('seo-improve-system.md'),
-          prompt: `Your prior changes scored ${overall}/10 overall with judge ${j?.overall} (bar: overall ≥${THRESHOLD} AND judge ≥${JUDGE_FLOOR}). The adversarial judge is the SEO-substance gate — address its blocking issues directly, don't just polish. Stay within the hard rails, then update tasks/seo-improve-summary.md:\n${issues}` + seoModeClause(),
+          prompt: `Your prior changes scored ${overall}/10 overall with judge ${j?.overall} (bar: overall ≥${THRESHOLD} AND judge ≥${JUDGE_FLOOR}). The adversarial judge is the SEO-substance gate — address its blocking issues directly, don't just polish. Stay within the hard rails, then update tasks/seo-improve-summary.md:\n${issues}` + seoModeClause() + refreshClause(),
           mcpServers: MCP.gscGa4, settingSources: ['project'],
           skills: ['on-page', 'schema-markup', 'geo-citability', 'internal-linker', 'seo-content', 'keyword-research'],
           maxTurns: 80, budget: 3.0
@@ -260,5 +279,5 @@ async function main() {
 if (require.main === module) {
   main().catch(e => { console.error('Fatal:', e); process.exit(1); });
 } else {
-  module.exports = { seoModeClause };
+  module.exports = { seoModeClause, refreshClause };
 }

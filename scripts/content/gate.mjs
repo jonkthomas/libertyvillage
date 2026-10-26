@@ -26,10 +26,11 @@ import { evaluateRepairProgress } from '../automation/recovery.mjs';
 import { cutFindingPaths } from './review-document.mjs';
 import { fileOf } from './repair-rules.mjs';
 
-// Automated kinds map to themselves; operator `manual` edits use the seo policy.
+// Automated kinds map to themselves; operator `manual` edits use the seo policy;
+// a refresh rewrites a blog post, so it repairs under the blog policy.
 export const POLICY_KIND = Object.freeze({
   business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news', roundup: 'roundup',
-  'topic-discovery': 'topic-discovery', seo: 'seo', manual: 'seo',
+  'topic-discovery': 'topic-discovery', seo: 'seo', manual: 'seo', refresh: 'blog',
 });
 
 export const TERMINAL_DECISIONS = Object.freeze(['validation', 'lint', 'unrepairable', 'exhausted', 'not-converging', 'block']);
@@ -139,7 +140,7 @@ export function fixerPayload(items) {
 // ---------------------------------------------------------------------------
 // gateContent: g0-g8 driven only by DB state; every mutation carries the claim.
 // ---------------------------------------------------------------------------
-const GROUNDED = Object.freeze(['blog', 'blog-live', 'news', 'roundup']);
+const GROUNDED = Object.freeze(['blog', 'blog-live', 'news', 'roundup', 'refresh']);
 
 // Verified blog source-pack facts stored by trusted submit (submissions.context),
 // re-bounded here; a scratch sidecar never reaches the gate.
@@ -518,6 +519,10 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
 async function publishTail({ db, id, token, actor, env, deps }) {
   const propagation = await propagate(db, { submissionId: id, token, actor, env, deps });
   const refreshed = await getSubmission(db, id);
+  if (refreshed.submission.state === 'published') {
+    const { recordPublishedPosts } = await import('./submit.mjs');
+    await recordPublishedPosts(db, id, deps);
+  }
   const last = refreshed.rounds.at(-1);
   const base = String(env.CONTENT_SITE_URL || '').replace(/\/+$/, '');
   const published = refreshed.items.map((item) => {

@@ -3,7 +3,9 @@
 // (shared plain-English map), next week, what's working; the raw run log sits in
 // a collapsed appendix so nothing is lost. Plain system CSS, no JS, no external
 // assets. John prefers plain, simple, dense UIs.
-import { execSummary, fmtDate } from './digest.mjs';
+import { actionMovementLines, searchClicksLead, execSummary, fmtDate } from './digest.mjs';
+import { renderFixerSection } from './fixer-section.mjs';
+import { renderRefreshed } from './refreshed.mjs';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -177,6 +179,7 @@ h3{font-size:14px;margin:0 0 6px}
 .tag.you{color:var(--bad);border-color:#f1c0c0}
 .k{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
 .where{color:var(--muted)}
+.fixed{margin:0;padding-left:18px;font-size:14px}.fixed li{margin:3px 0}.fixed time{color:var(--muted);margin-right:4px}
 .testonly{margin:10px 0 0;font-size:14px;color:var(--muted);display:grid;grid-template-columns:92px 1fr;gap:8px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 table{border-collapse:collapse;width:100%;font-size:13px}
@@ -220,7 +223,8 @@ footer{margin-top:28px;color:var(--faint);font-size:11px}
 <p class="meta">Generated ${esc(when(model.generatedAt))} (Toronto) · search figures cover ${esc(x.gscRange ?? 'the latest complete week')}</p>
 
 <section class="verdict">
-<p class="headline">${esc(x.headline)}</p>
+<p class="headline">${esc(searchClicksLead(model.gsc))}</p>
+<p>${esc(x.headline)}</p>
 <p>${esc(x.problems)}</p>
 <p class="ask">${esc(x.ask)}</p>
 </section>
@@ -230,8 +234,15 @@ footer{margin-top:28px;color:var(--faint);font-size:11px}
 <h2>What shipped</h2>
 ${shipped}
 
+<h2>What we did → what it moved</h2>
+${renderActionMovements(model.actions)}
+
+${renderRefreshed(model.refreshes)}
+
 <h2>What went wrong → what we did</h2>
 ${problems}
+
+${renderFixerSection(model)}
 
 <h2>Next week</h2>
 ${model.queue?.held ? '<p class="fail">Publishing is paused (hold switch on): nothing below publishes until it is lifted.</p>' : ''}
@@ -267,4 +278,9 @@ ${model.notes?.length ? `<h2>Fetch notes</h2><ul class="notes">${model.notes.map
 
 <footer>libertyvillage.co weekly content report · built from the content runner's logs, the live sitemap and Google Search Console · the digest JSON for the fix-it agent is published alongside this page</footer>
 </body></html>`;
+}
+
+export function renderActionMovements(actions = []) {
+  return actions.length ? `<ul>${actionMovementLines(actions).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>`
+    : '<p class="empty">No measured actions yet; outcomes appear after 2 and 4 weeks.</p>';
 }

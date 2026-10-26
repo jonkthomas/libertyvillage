@@ -1,5 +1,6 @@
 // g6 deploy (§4.6): POST the target's Vercel deploy hook. A crash between the POST
 // and markPhase('deploy_requested') re-POSTs on resume; a duplicate build is harmless.
+import { pingIndexNow, INDEXNOW_RUN_CAP } from './indexnow.mjs';
 import { keyOf, registry } from './canonical.mjs';
 import {
   ClaimError, claimSubmission, compensateSubmission, ConflictError, getSubmission, listPending, markItemSmoke,
@@ -102,6 +103,7 @@ export async function notifyFailure(db, { submission, rounds, token, rt, decisio
 }
 
 export async function propagate(db, { submissionId, token, actor, env = process.env, deps = {}, hookPosted = false }) {
+  deps = { ...deps, indexNowBudget: deps.indexNowBudget ?? { remaining: INDEXNOW_RUN_CAP } };
   const rt = runtime(env, deps);
   const id = Number(submissionId);
   let { submission, items, rounds } = await getSubmission(db, id);
@@ -178,6 +180,11 @@ export async function propagate(db, { submissionId, token, actor, env = process.
     }
     await markPhase(db, id, token, 'smoke_passed');
     await renew();
+    // The changed publish/refresh is now observed live, beyond hook acceptance.
+    await pingIndexNow({
+      urls: itemUrls(items.filter((item) => registry[item.dataset]?.route), env.CONTENT_SITE_URL).map((item) => item.url).filter(Boolean),
+      env, fetchImpl: rt.fetchImpl, budget: deps.indexNowBudget, log: deps.indexNowLog ?? console.info,
+    });
   }
 
   // g8 notify
@@ -229,6 +236,7 @@ async function holdClaim(db, id, token, owner) {
 // `content deploy`: POST the target hook once, then g7-g8 for every listPending id.
 // With {submission, token} (unpublish/rollback): g6-g8 for that admin submission only.
 export async function deployContent(db, opts = {}, { env = process.env, deps = {} } = {}) {
+  deps = { ...deps, indexNowBudget: deps.indexNowBudget ?? { remaining: INDEXNOW_RUN_CAP } };
   const rt = runtime(env, deps);
   const owner = opts.actor && opts.actor !== true ? opts.actor : `deploy:${process.pid}`;
   if (opts.submission !== undefined && opts.submission !== true) {

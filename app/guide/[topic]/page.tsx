@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { getAllTopics, getTopicBySlug } from "@/lib/data";
-import { generateGuidePageMeta } from "@/lib/meta";
+import { getAllBusinesses, getAllTopics, getTopicBySlug } from "@/lib/data";
+import { generateGuidePageMeta, guideHeading } from "@/lib/meta";
 import { generateArticleSchema, generateDefinedTermSetSchema, generateSpeakableSchema } from "@/lib/schema";
 import { getRelatedGuides, getRelatedServices, getRelatedPostsForTopic, getBreadcrumbs } from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
+import { linkifyHtml } from "@/lib/linkify";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
@@ -56,7 +57,7 @@ export default async function GuidePage({ params }: Props) {
   const explicitUpdated = topic.lastUpdated || topic.updatedAt || null;
   const articleSchema: Record<string, unknown> = {
     ...generateArticleSchema(
-      `Liberty Village ${topic.title}`,
+      guideHeading(topic.title),
       topic.description,
       explicitPublished || explicitUpdated || today
     ),
@@ -74,7 +75,11 @@ export default async function GuidePage({ params }: Props) {
   // FAQPage JSON-LD is emitted once by <FAQSection> below — do not duplicate it
   // here, or Google sees two FAQPage blocks on the same URL.
 
-  const contentHtml = renderMarkdownContent(topic.content);
+  // Link the first mention of each business in the body to its directory page.
+  const directoryLookups = getAllBusinesses().map((b) => ({ name: b.name, href: `/directory/${b.slug}` }));
+  const contentHtml = linkifyHtml(renderMarkdownContent(topic.content), directoryLookups, {
+    selfHref: `/guide/${topic.slug}`,
+  });
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -85,7 +90,7 @@ export default async function GuidePage({ params }: Props) {
       )}
 
       <h1 className="text-3xl font-bold text-warm-900 sm:text-4xl">
-        Liberty Village {topic.title}
+        {guideHeading(topic.title)}
       </h1>
       <p className="mt-3 text-lg text-warm-500">{topic.description}</p>
       {explicitUpdated && (

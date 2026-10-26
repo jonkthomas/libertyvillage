@@ -1,9 +1,16 @@
 import type { Building, Business, FAQ } from "./types";
 
 const SITE_URL = "https://libertyvillage.co";
-// Collective byline used on /about. Used as the fallback author when a piece of
-// content has no explicit author of its own.
-const SITE_AUTHOR = "LibertyVillage.co Editorial";
+// Collective byline used on /about. Every blog post carries it (D4, 2026-10-26): per-post author
+// strings are ignored, because the one that differed named a person we can't stand behind.
+export const SITE_AUTHOR = "LibertyVillage.co Editorial";
+
+/** JSON-LD author: the collective byline is an Organization, never a Person. */
+function authorSchema(name: string) {
+  return name === SITE_AUTHOR
+    ? { "@type": "Organization", name, url: `${SITE_URL}/about` }
+    : { "@type": "Person", name };
+}
 
 /** Serialize JSON-LD without allowing user/model text to close the script tag. */
 export function serializeJsonLd(value: unknown): string {
@@ -102,10 +109,7 @@ export function generateArticleSchema(
       name: "LibertyVillage.co",
       url: SITE_URL,
     },
-    author: {
-      "@type": "Person",
-      name: author,
-    },
+    author: authorSchema(author),
   };
 }
 
@@ -209,10 +213,7 @@ export function generateBlogPostSchema(post: {
       name: "LibertyVillage.co",
       url: SITE_URL,
     },
-    author: {
-      "@type": "Person",
-      name: post.author || SITE_AUTHOR,
-    },
+    author: authorSchema(SITE_AUTHOR),
     mainEntityOfPage: {
       "@type": "WebPage",
       "@id": `${SITE_URL}/blog/${post.slug}`,
@@ -246,7 +247,6 @@ export function generateOrganizationSchema() {
       "Liberty Village restaurants",
       "Liberty Village real estate",
       "Liberty Village transit",
-      "FIFA World Cup 2026 Toronto",
       "BMO Field",
     ],
   };

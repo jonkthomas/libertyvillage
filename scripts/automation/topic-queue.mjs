@@ -479,37 +479,86 @@ function neverEcho(name) {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : '';
 }
 
-async function discoverFromGsc() {
-  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!credentials) return [];
+// Growth hints stay in the existing rationale string, so old exporters/gates keep working.
+const GROWTH_HINT = '\nGrowth hints: ';
+export function growthHints(entry) {
+  try { return JSON.parse(String(entry?.rationale ?? '').split(GROWTH_HINT)[1] ?? '{}'); }
+  catch { return {}; }
+}
+
+export function rankTopicCandidates(candidates, weights = []) {
+  return candidates.map((entry) => {
+    const hints = { ...growthHints(entry), ...(entry.growth ?? {}) };
+    const actionKind = hints.actionKind ?? (entry.kind === 'seo' ? 'refresh' : 'new_post');
+    const actionType = hints.actionType ?? (actionKind === 'new_post' ? 'new' : 'refresh');
+    const pageType = hints.pageType ?? 'blog';
+    const queryType = hints.queryType ?? 'local-intent';
+    const learned = weights.find((w) => w.actionKind === actionKind
+      && (w.actionType ?? (w.actionKind === 'new_post' ? 'new' : 'refresh')) === actionType
+      && w.pageType === pageType && w.queryType === queryType)?.weight ?? 1;
+    const impressions = Math.max(0, Number(hints.impressions) || 0);
+    const poorPosition = Math.min(3, Math.max(0.1, (Number(hints.position) || 30) / 10));
+    const rising = Math.max(0, Math.min(3, Number(hints.impressionGrowth) || 0));
+    const local = /liberty village/i.test(hints.targetQuery ?? entry.title) ? 1.25 : 1;
+    const score = (1 + Math.log1p(impressions)) * poorPosition * (hints.noMatchingPage ? 1.5 : 1) * (1 + rising) * local * learned;
+    return { ...entry, growth: { ...hints, actionKind, actionType, pageType, queryType, score, learnedWeight: learned } };
+  }).sort((a, b) => b.growth.score - a.growth.score || String(a.title).localeCompare(String(b.title)));
+}
+
+export function localEvidenceHints(entry, businesses = []) {
+  const title = String(entry.title ?? '').toLowerCase();
+  const terms = title.match(/brunch|coffee|cafe|gym|fitness|restaurant|dining|bakery|bakeries|salon|hair|patio|happy hour/g) ?? [];
+  const records = businesses.filter(liveBusiness).filter((r) => !terms.length || terms.some((term) =>
+    JSON.stringify([r.category, r.subcategory, r.tags, r.description]).toLowerCase().includes(term)))
+    .slice(0, 5);
+  return records.map((record) => ({ recordId: businessId(record), name: record.name, facts: verbatimFacts(record),
+    // Only paths already supported by images.mjs; the submit gate still proves the bytes.
+    ...(typeof record.image === 'string' && /^\/(?:images|media)\//.test(record.image) ? { photo: record.image } : {}),
+  }));
+}
+
+export function candidatesFromGsc(current, previous = [], { publishedPosts = [] } = {}) {
+  const aggregate = (rows) => {
+    const byQuery = new Map();
+    for (const row of rows) {
+      const query = row.query ?? row.keys?.[1] ?? row.keys?.[0];
+      if (!query) continue;
+      const prior = byQuery.get(query) ?? { query, clicks: 0, impressions: 0, weightedPosition: 0 };
+      prior.clicks += Number(row.clicks) || 0;
+      prior.impressions += Number(row.impressions) || 0;
+      prior.weightedPosition += (Number(row.position) || 0) * (Number(row.impressions) || 0);
+      byQuery.set(query, prior);
+    }
+    return [...byQuery.values()].map((row) => ({ ...row, position: row.impressions ? row.weightedPosition / row.impressions : null }));
+  };
+  const previousByQuery = new Map(aggregate(previous).map((r) => [r.query, r]));
+  return aggregate(current).flatMap((row) => {
+    const title = gscEditorialTitle(row.query);
+    if (!title || row.impressions <= 0) return [];
+    const old = previousByQuery.get(row.query)?.impressions ?? 0;
+    const growth = old > 0 ? (row.impressions - old) / old : row.impressions > 0 ? 1 : 0;
+    const noMatchingPage = !publishedTitles(publishedPosts).some((t) => existingNearKeys(t).includes(nearDuplicateKey(title)));
+    return [{ kind: 'blog', title: row.query, source: 'gsc',
+      rationale: `GSC demand (${row.clicks} clicks, ${row.impressions} impressions, position ${row.position?.toFixed(1) ?? 'unknown'})`,
+      growth: { targetQuery: row.query, clicks: row.clicks, impressions: row.impressions, position: row.position,
+        impressionGrowth: growth, noMatchingPage, queryType: /liberty village/i.test(row.query) ? 'local-intent' : 'informational', pageType: 'blog', actionKind: 'new_post' },
+    }];
+  });
+}
+
+async function discoverFromGsc({ now, publishedPosts }) {
+  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) return [];
   try {
-    const { google } = await import('googleapis');
-    const { GSC_SITE } = await import('../lib/growth-report.mjs');
-    const auth = new google.auth.GoogleAuth({
-      keyFile: credentials,
-      scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
-    });
-    const client = google.searchconsole({ version: 'v1', auth });
-    const end = new Date();
-    const start = new Date(end.getTime() - 28 * 24 * HOUR_MS);
-    const response = await client.searchanalytics.query({
-      siteUrl: GSC_SITE,
-      requestBody: {
-        startDate: start.toISOString().slice(0, 10),
-        endDate: end.toISOString().slice(0, 10),
-        dimensions: ['query'],
-        rowLimit: 8,
-        dataState: 'final',
-      },
-    });
-    const rows = Array.isArray(response?.data?.rows) ? response.data.rows : [];
-    return rows.slice(0, 5).map((row) => ({
-      kind: 'blog',
-      title: titleFromQuery(row.keys?.[0]),
-      source: 'gsc',
-      rationale: `GSC top query (${row.clicks ?? 0} clicks, ${row.impressions ?? 0} impressions)`,
-    })).filter((entry) => entry.title);
+    const { fetchGscRows, lastFullWeek } = await import('../content/ledger.mjs');
+    const week = lastFullWeek(now);
+    const previousNow = new Date(new Date(now).getTime() - 7 * 24 * HOUR_MS);
+    const [current, previous] = await Promise.all([
+      fetchGscRows({ ...week, dimensions: ['page', 'query'] }),
+      fetchGscRows({ ...lastFullWeek(previousNow), dimensions: ['page', 'query'] }),
+    ]);
+    return candidatesFromGsc(current, previous, { publishedPosts });
   } catch {
+    console.warn('topic discovery: GSC demand unavailable');
     return [];
   }
 }
@@ -518,11 +567,8 @@ async function discoverFromPosthog() {
   const token = neverEcho('POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE');
   if (!token) return [];
   try {
-    // ponytail: buildPosthogLandingQuery lives in ../generate-weekly-growth-report.mjs, so this
-    // source has never produced a topic. Importing it from there would start adding seo topics
-    // named after already-published pages to every weekly batch, which the gate has never
-    // reviewed. Left off deliberately; the warning below makes the failure visible.
-    const { POSTHOG_PROJECT_ID, PRODUCTION_HOSTNAME, REPORT_TIMEZONE, buildPosthogLandingQuery, buildWeeklyWindows } = await import('../lib/growth-report.mjs');
+    const { POSTHOG_PROJECT_ID, PRODUCTION_HOSTNAME, REPORT_TIMEZONE, buildWeeklyWindows } = await import('../lib/growth-report.mjs');
+    const { buildPosthogLandingQuery } = await import('../generate-weekly-growth-report.mjs');
     const windows = buildWeeklyWindows({ now: new Date() });
     const window = windows.at(-1);
     const query = buildPosthogLandingQuery(window);
@@ -543,9 +589,10 @@ async function discoverFromPosthog() {
       title: titleFromPath(row[0]),
       source: 'implicit-discovery',
       rationale: `PostHog production landing on ${PRODUCTION_HOSTNAME} (${REPORT_TIMEZONE}): ${row[0]} (${row[1]} organic landings)`,
+      growth: { actionKind: 'refresh', pageType: String(row[0]).startsWith('/guide/') ? 'guide' : String(row[0]).startsWith('/directory/') ? 'directory' : 'blog', queryType: 'local-intent', url: `https://${PRODUCTION_HOSTNAME}${row[0]}` },
     })).filter((entry) => entry.title);
-  } catch (error) {
-    console.warn(`topic discovery: PostHog source failed: ${error?.message ?? error}`);
+  } catch {
+    console.warn('topic discovery: PostHog source failed (details withheld)');
     return [];
   }
 }
@@ -591,14 +638,29 @@ async function discoverFromSerpApi() {
   return found.slice(0, 8);
 }
 
-export async function discoverTopics({ now = new Date() } = {}) {
+export async function discoverTopics({ now = new Date(), publishedPosts = loadPublishedPosts(), businesses, weights } = {}) {
   const addedAt = iso(now);
+  if (!businesses) {
+    try { businesses = JSON.parse(fs.readFileSync(path.join(path.dirname(queuePath()), 'businesses.json'), 'utf8')); }
+    catch { businesses = []; }
+  }
+  if (!weights && !process.env.CONTENT_DATABASE_URL) weights = [];
+  if (!weights) {
+    let db;
+    try {
+      const { openDb } = await import('../content/db.mjs');
+      const { actionWeights } = await import('../content/ledger.mjs');
+      db = await openDb();
+      weights = await actionWeights(db);
+    } catch { weights = []; console.warn('topic discovery: learning weights unavailable; using neutral weights'); }
+    finally { if (db) await db.close(); }
+  }
   const [gsc, posthog, serp] = await Promise.all([
-    discoverFromGsc(),
-    discoverFromPosthog(),
-    discoverFromSerpApi(),
+    discoverFromGsc({ now, publishedPosts }), discoverFromPosthog(), discoverFromSerpApi(),
   ]);
-  return [...gsc, ...posthog, ...serp].map((entry) => ({ ...entry, addedAt }));
+  return rankTopicCandidates([...gsc, ...posthog, ...serp], weights).map(({ growth, ...entry }) => ({
+    ...entry, addedAt, rationale: entry.rationale + GROWTH_HINT + JSON.stringify({ ...growth, localEvidence: localEvidenceHints(entry, businesses) }),
+  }));
 }
 
 // Discovery-only near-duplicate key: paraphrased questions such as "Is Liberty
@@ -647,9 +709,46 @@ export function loadPublishedPosts(filePath = path.join(path.dirname(queuePath()
   }
 }
 
-export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [] } = {}) {
+// Separate from #216's paraphrase key: editorial wrappers and singular/plural
+// business names must not create a new URL for an already served local intent.
+const PRIMARY_INTENT_STOPWORDS = new Set('a an and are at best by complete directory find for guide guides how in is of on our review reviews the to top toronto updated what where which with your neighbourhood neighborhood'.split(' '));
+function primaryIntentKey(value) {
+  let text = String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const area = (text.match(OUTSIDE_PLACES)?.[0] ?? 'liberty village').toLowerCase().replace(/\s+/g, '-');
+  text = text.replace(OUTSIDE_PLACES, ' ').replace(/\bliberty village\b/g, ' ')
+    .replace(/\b(?:19|20)\d{2}\b/g, ' ')
+    .replace(/\b\d+\s+(?:best|top)\b|\b(?:best|top)\s+\d+\b/g, ' ')
+    .replace(/\b(?:dental(?:\s+(?:care|clinics?))?|dentistry|dentists?)\b/g, ' dentist ')
+    .replace(/\bcoffee\s+shops?\b|\bcafes?\b/g, ' coffee ');
+  if (/\bdentist\b/.test(text)) text = text.replace(/\bclinics?\b/g, ' ');
+  const words = [...new Set(text.split(/\s+/).filter((word) => word && !PRIMARY_INTENT_STOPWORDS.has(word))
+    .map((word) => word.endsWith('ies') ? `${word.slice(0, -3)}y`
+      : word.length > 3 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word))].sort();
+  return words.length ? `${area}|${words.join(' ')}` : '';
+}
+
+function primaryIntentPages({ services, guides, publishedPosts }) {
+  const primary = new Map();
+  // Directory category links resolve to /best/:service, not separate category URLs
+  // (app/directory/page.tsx). Prefer that stable category page when several exist.
+  for (const [route, records] of [['best', services], ['guide', guides], ['blog', publishedPosts]]) {
+    for (const record of records) {
+      if (!record || record.live === false || record.unpublished === true || record.draft === true
+        || (record.liveRev ?? record.live_rev) != null && Number(record.liveRev ?? record.live_rev) <= 0
+        || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(record.slug ?? '')) continue;
+      for (const value of [record.slug, record.title, record.name, record.pluralName]) {
+        const key = primaryIntentKey(value);
+        if (key && !primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
+      }
+    }
+  }
+  return primary;
+}
+
+export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [], services = [], guides = [], log = console.warn } = {}) {
   let next = queue ?? loadTopicQueue();
   const added = [];
+  const primaryPages = primaryIntentPages({ services, guides, publishedPosts });
   const seenIntents = new Set((next.topics ?? []).map((entry) => (
     `${entry?.kind ?? ''}|${intentFingerprint(entry?.title)}`
   )));
@@ -658,6 +757,14 @@ export async function appendDiscoveredTopics(queue, discoveries, { publishedPost
     ...publishedTitles(publishedPosts).flatMap((title) => existingNearKeys(title).map((key) => `blog|${key}`)),
   ]);
   for (const discovery of discoveries) {
+    if (added.length >= 25) break;
+    const primary = discovery?.kind === 'blog' && primaryPages.get(primaryIntentKey(discovery.title));
+    if (primary) {
+      // The ledger records completed actions, not suggestions. There is no
+      // suggestion writer in this branch: keep the existing URL and log the skip.
+      log(`topic discovery: intent already served; keeping ${primary}`);
+      continue;
+    }
     const normalized = normalizeDiscovery(discovery);
     if (!normalized) continue;
     const fingerprint = `${normalized?.kind ?? ''}|${intentFingerprint(normalized?.title)}`;
@@ -669,6 +776,7 @@ export async function appendDiscoveredTopics(queue, discoveries, { publishedPost
     next = result.queue;
     if (result.added) added.push(result.entry);
   }
+  next.topics = [...next.topics].sort((a, b) => (Number(growthHints(b).score) || 0) - (Number(growthHints(a).score) || 0));
   return { queue: next, added };
 }
 
@@ -715,7 +823,13 @@ async function main() {
   if (command === 'discover') {
     const current = loadTopicQueue();
     const discoveries = await discoverTopics();
-    const result = await appendDiscoveredTopics(current, discoveries, { publishedPosts: loadPublishedPosts() });
+    // The trusted runner exports current LIVE DB records before this command.
+    const dataDir = path.dirname(queuePath());
+    const result = await appendDiscoveredTopics(current, discoveries, {
+      publishedPosts: loadPublishedPosts(),
+      services: loadPublishedPosts(path.join(dataDir, 'services.json')),
+      guides: loadPublishedPosts(path.join(dataDir, 'topics.json')),
+    });
     saveTopicQueue(result.queue);
     writeOutput({
       added: String(result.added.length),

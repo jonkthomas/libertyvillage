@@ -18,7 +18,7 @@ test('six regular UTC jobs plus opt-in backfill have approved schedules; roundup
   const timed = Object.entries(JOBS).filter(([, spec]) => spec.calendar);
   assert.deepEqual(Object.fromEntries(timed.map(([job, spec]) => [job, spec.calendar])), {
     'topic-discovery': 'Mon *-*-* 10:00:00 UTC',
-    'seo-improvements': 'Mon *-*-* 10:11:00 UTC',
+    'seo-improvements': 'Tue *-*-* 04:23:00 UTC',
     'discover-businesses': 'Mon *-*-* 13:00:00 UTC',
     news: '*-*-* 12:17:00 UTC',
     'weekly-growth-report': 'Thu *-*-* 10:37:00 UTC',

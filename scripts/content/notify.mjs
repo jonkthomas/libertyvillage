@@ -57,7 +57,7 @@ function formatSuccessRaw({ submission, items, registry, siteUrl, scripted = fal
   const body = { prefix: scriptedPrefix(scripted), why: `${why}${stagingNote(submission.target)}`, todo: 'Nothing to do.', ref: ref(submission) };
   if (described.length === 1) {
     const [only] = described;
-    return slackBody({ ...body, what: `New ${noun(only.dataset)} live on ${site}: "${only.title}"`, link: only.routed ? only.url : null });
+    return slackBody({ ...body, what: `${submission.kind === 'refresh' ? 'Refreshed' : 'New'} ${noun(only.dataset)} live on ${site}: "${only.title}"`, link: only.routed ? only.url : null });
   }
   const shown = described.slice(0, MAX_SUCCESS_LINES).map((d) => `• ${capital(noun(d.dataset))}: ${d.title}${d.routed ? ` (${d.url})` : ''}`);
   if (described.length > MAX_SUCCESS_LINES) shown.push(`• … and ${described.length - MAX_SUCCESS_LINES} more`);

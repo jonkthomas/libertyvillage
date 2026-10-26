@@ -135,6 +135,33 @@ export function outsideNamesInPack(pack, businesses) {
     .filter((record) => !packed.has(record.slug) && !packedNames.has(record.name)).map((record) => record.name))];
 }
 
+// Refresh binding (scripts/content/refresh.mjs): a rewrite of a live post has no
+// new source pack; the trusted evidence is the post it replaces. The same rules
+// as checkDraftAgainstPack apply with the original standing in for the pack:
+// businesses only from the original, its topic and operational premises kept,
+// and every internal link resolving to a live record.
+export function checkRefreshAgainstOriginal(post, original, { businesses = [], posts = [], services = [], topics = [] } = {}) {
+  if (!post || typeof post !== 'object' || !original || typeof original !== 'object') return ['missing-draft'];
+  const errors = [];
+  const allowed = new Set(extractReferencedBusinesses(original, businesses).map((record) => record.slug));
+  const referenced = extractReferencedBusinesses(post, businesses);
+  if (allowed.size && !referenced.length) errors.push('no-attributed-business');
+  for (const record of referenced) if (!allowed.has(record.slug)) errors.push(`business-outside-pack:${record.slug}`);
+  const title = String(post.title ?? '').toLowerCase();
+  const topicWords = tokens(original.title);
+  if (topicWords.length && topicWords.filter((word) => title.includes(word)).length < Math.ceil(topicWords.length / 2)) errors.push('draft-changed-topic');
+  for (const premise of operationalPremisesIn(original.title)) if (!premise.core.test(`${post.slug ?? ''} ${post.title ?? ''}`.toLowerCase())) errors.push(`draft-dropped-premise:${premise.id}`);
+  const live = { blog: slugs(posts), best: slugs(services), guide: slugs(topics), directory: slugs(businesses) };
+  for (const [field, kind] of [['relatedPosts', 'blog'], ['relatedServices', 'best'], ['relatedTopics', 'guide'], ['relatedBusinesses', 'directory']]) {
+    for (const slug of array(post[field])) if (!live[kind].includes(slug)) errors.push(`invalid-${field}:${slug}`);
+  }
+  for (const match of String(post.content ?? '').matchAll(/\]\((\/(?:blog|guide|best|directory)\/[^)]+)\)/g)) {
+    const [kind, slug] = match[1].slice(1).split('/');
+    if (!live[kind].includes(slug)) errors.push(`invalid-internal-link:${match[1]}`);
+  }
+  return errors;
+}
+
 export function checkDraftAgainstPack(post, pack, { businesses, posts = [], services = [], topics = [], imagePaths = [], now, requireRealDate = false } = {}) {
   const errors = [...verifySourcePack(pack, { businesses, posts, services, topics, now }).errors];
   if (!post || typeof post !== 'object') return { ok: false, errors: [...errors, 'missing-draft'] };

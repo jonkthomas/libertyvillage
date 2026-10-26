@@ -1,0 +1,11 @@
+[Unit]
+Description=Liberty Village ops fixer pass every 3 hours (UTC)
+
+[Timer]
+# After the daily runner slots (10:00-15:37 UTC); one action per pass at most.
+OnCalendar=*-*-* 00/3:50:00 UTC
+Persistent=false
+Unit=lv-ops-fixer.service
+
+[Install]
+WantedBy=timers.target

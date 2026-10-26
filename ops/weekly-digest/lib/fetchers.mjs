@@ -257,3 +257,46 @@ export function gscDelta(weeks) {
       ? Math.round((latest.position - prev.position) * 10) / 10 : null,
   };
 }
+
+/** Read only: use the same root VM/env transport as GSC, keep DB credentials on VM. */
+export async function fetchLedgerOnVm({ since } = {}, execute = vmExec) {
+  if (!/^\d{4}-\d{2}-\d{2}(?:T[0-9:.]+Z)?$/.test(since ?? '')) throw new Error('invalid ledger since');
+  const out = await execute(`set -e
+cd /srv/lv-runner/repo
+set -a; . /etc/lv-runner.env; set +a
+set -a; . /etc/lv-runner-production.env; set +a
+node scripts/content/ledger.mjs list '${since}'`, { asRoot: true, timeoutMs: 60_000 });
+  const rows = JSON.parse(out.trim());
+  if (!Array.isArray(rows)) throw new Error('invalid ledger rows');
+  return rows;
+}
+
+// ── Ops fixer ("What the agent fixed") ───────────────────────────────────────
+
+const FIXER_LOG = '/var/lib/lv-ops-fixer/actions.jsonl';
+
+/** Parse the fixer's action log; keep well-formed records from `fromIso` on. */
+export function parseFixerActions(text, fromIso) {
+  const from = Date.parse(fromIso);
+  return String(text ?? '').split('\n').flatMap((line) => {
+    try {
+      const r = JSON.parse(line);
+      return r && typeof r === 'object' && typeof r.at === 'string' && Date.parse(r.at) >= from && typeof r.decision === 'string' ? [r] : [];
+    } catch { return []; }
+  });
+}
+
+/** The fixer's recent action records from the VM (empty when it is not installed yet). */
+export async function fetchVmFixerActions(fromIso) {
+  const out = await vmExec(`tail -n 2000 ${FIXER_LOG} 2>/dev/null || true`, { timeoutMs: 60_000, asRoot: true });
+  return parseFixerActions(out, fromIso);
+}
+
+/** Issues the fix-it agent filed in the window (label lv-digest-agent), via the Mac's gh login. */
+export async function fetchFixItIssues(fromIso, { exec } = {}) {
+  const run = exec ?? (await import('node:child_process')).execFileSync;
+  const out = run('gh', ['issue', 'list', '--repo', 'jonkthomas/libertyvillage', '--label', 'lv-digest-agent', '--state', 'all',
+    '--search', `created:>=${String(fromIso).slice(0, 10)}`, '--limit', '20', '--json', 'number,title,url,state,createdAt'],
+  { encoding: 'utf8', timeout: 30_000 });
+  return JSON.parse(out).filter((i) => Date.parse(i.createdAt) >= Date.parse(fromIso));
+}
