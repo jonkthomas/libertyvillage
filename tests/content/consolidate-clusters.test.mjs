@@ -32,7 +32,7 @@ const configuredRedirects = (variant) => {
 };
 
 const runningRoutes = '/blog/liberty-village-running-routes-martin-goodman-trail';
-const gscConfirmed = ['fitness', 'transit', 'farmers-market', 'things-to-do', 'printing'];
+const gscConfirmed = ['fitness', 'transit', 'farmers-market', 'things-to-do'];
 // Every confirmed source and the legacy running-routes redirect must land in one hop on an existing page.
 function assertSingleHop(variant, all = configuredRedirects(variant)) {
   const next = new Map(all.map(r => [r.source, r.destination]));
@@ -56,7 +56,7 @@ test('only GSC-verified clusters are confirmed; the rest produce no redirects', 
   const unconfirmed = new Set(plan.clusters.filter(c => c.confirmed !== true).flatMap(c => c.members.map(m => m.url)));
   assert.ok(!all.some(r => unconfirmed.has(r.source)));
   assert.deepEqual(all.filter(r => r.statusCode === 301), redirectsFor(plan));
-  assert.equal(redirectsFor(plan).length, 7);
+  assert.equal(redirectsFor(plan).length, 6);
   assert.equal(all.find(r => r.source === runningRoutes)?.destination, '/guide/fitness-guide');
 });
 

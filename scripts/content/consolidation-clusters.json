@@ -485,7 +485,7 @@
     {
       "id": "printing",
       "primary": "/best/printing-services",
-      "status": "CONFIRMED",
+      "status": "HOLD",
       "members": [
         {
           "url": "/best/printing-services",
@@ -508,9 +508,9 @@
           ]
         }
       ],
-      "decision": "confirm",
-      "reason": "The populated hub (1/111, pos 8.4) is the only measured member. The Jukebox post (published 2026-10-24, too new for data) lists the same print shops, which is the directory's intent.",
-      "confirmed": true
+      "decision": "hold",
+      "reason": "Only the hub is measured (1/111); the Jukebox post was published 2026-10-24 and has no GSC row, so no comparative winner is verified. Revisit with comparative data or an explicit owner decision to consolidate on editorial intent alone.",
+      "confirmed": false
     }
   ]
 }
