@@ -4,7 +4,7 @@ import test from 'node:test';
 import { isGeneratorKind } from '../../scripts/automation/candidate-state.mjs';
 import {
   appendDiscoveredTopics, buildSerpApiPaaEntries, checkTopicGroundability,
-  reserveGuideEligibility, intentFingerprint,
+  reserveGuideEligibility, intentFingerprint, discoverTopics,
 } from '../../scripts/automation/topic-queue.mjs';
 import { classifyFindings, preflightDecision } from '../../scripts/automation/preflight.mjs';
 import { GATE_MODEL, KIND_POLICIES } from '../../scripts/automation/constants.mjs';
@@ -154,6 +154,71 @@ test('a paraphrase of a published post is not queued; distinct intents all survi
     'What Is The Best Place To Eat In Liberty Village, Toronto?',
     'What To Do In Liberty Village, Toronto In Winter?',
   ]);
+});
+
+test('every place-to-live wording collapses to one livability topic; other intents stay distinct', async () => {
+  const discoveries = buildSerpApiPaaEntries([
+    { question: 'Is Liberty Village the best place to live?' },
+    { question: 'Is Liberty Village a place to live?' },
+    { question: 'Is Liberty Village an ideal neighbourhood?' },
+  ], 'Liberty Village Toronto');
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] }, discoveries);
+  assert.deepEqual(result.added.map((entry) => entry.title), ['Is Liberty Village, Toronto The Best Place To Live?']);
+
+  const queued = await appendDiscoveredTopics({ version: 1, topics: [] }, [
+    { kind: 'blog', title: 'Is Liberty Village, Toronto A Good Area?', source: 'serpapi', rationale: 'prior week' },
+  ]);
+  const controls = await appendDiscoveredTopics(queued.queue, [
+    { kind: 'blog', title: 'Living In Liberty Village, Toronto', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Is Liberty Village, Toronto Safe To Live?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Is Liberty Village, Toronto A Good Place For Kids?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'How Much Is Rent In Liberty Village, Toronto?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Where Should I Live In Liberty Village, Toronto?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Is Liberty Village, Toronto Worth Visiting?', source: 'serpapi', rationale: 'PAA' },
+  ]);
+  assert.deepEqual(controls.added.map((entry) => entry.title), [
+    'Is Liberty Village, Toronto Safe To Live?',
+    'Is Liberty Village, Toronto A Good Place For Kids?',
+    'How Much Is Rent In Liberty Village, Toronto?',
+    'Where Should I Live In Liberty Village, Toronto?',
+    'Is Liberty Village, Toronto Worth Visiting?',
+  ]);
+});
+
+test('historical raw GSC queue titles block their editorial directory-guide form', async () => {
+  // Stored exactly as the 2026-08/09 runs appended them, before editorial titles.
+  const queue = { version: 1, topics: [
+    { key: 'h', kind: 'blog', title: 'Liberty Village Happy Hour', source: 'gsc', rationale: 'Aug run' },
+    { key: 'g', kind: 'blog', title: 'Liberty Village Gyms', source: 'gsc', rationale: 'Sep run' },
+  ] };
+  const result = await appendDiscoveredTopics(queue, [
+    { kind: 'blog', title: 'Liberty Village Happy Hour', source: 'gsc', rationale: 'GSC top query' },
+    { kind: 'blog', title: 'liberty village gyms', source: 'gsc', rationale: 'GSC top query' },
+    { kind: 'blog', title: 'brunch liberty village', source: 'gsc', rationale: 'GSC top query' },
+  ]);
+  assert.deepEqual(result.added.map((entry) => entry.title), ['Brunch directory guide in Liberty Village, Toronto']);
+});
+
+test('a failing PostHog source is reported, never silent', async (t) => {
+  const names = ['GOOGLE_APPLICATION_CREDENTIALS', 'SERPAPI_API_KEY', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE'];
+  const saved = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  const realFetch = globalThis.fetch;
+  t.after(() => {
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+    globalThis.fetch = realFetch;
+  });
+  delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  delete process.env.SERPAPI_API_KEY;
+  process.env.POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE = 'test-token';
+  globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+  const warn = t.mock.method(console, 'warn', () => {});
+  const found = await discoverTopics({ now: new Date('2026-10-26T10:00:00Z') });
+  assert.deepEqual(found, []);
+  assert.equal(warn.mock.callCount(), 1);
+  assert.match(String(warn.mock.calls[0].arguments[0]), /^topic discovery: PostHog source failed: /);
 });
 
 test('unsupported GSC themes stay out while PostHog titles retain their source', async () => {

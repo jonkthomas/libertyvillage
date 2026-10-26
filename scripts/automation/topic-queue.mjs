@@ -518,6 +518,10 @@ async function discoverFromPosthog() {
   const token = neverEcho('POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE');
   if (!token) return [];
   try {
+    // ponytail: buildPosthogLandingQuery lives in ../generate-weekly-growth-report.mjs, so this
+    // source has never produced a topic. Importing it from there would start adding seo topics
+    // named after already-published pages to every weekly batch, which the gate has never
+    // reviewed. Left off deliberately; the warning below makes the failure visible.
     const { POSTHOG_PROJECT_ID, PRODUCTION_HOSTNAME, REPORT_TIMEZONE, buildPosthogLandingQuery, buildWeeklyWindows } = await import('../lib/growth-report.mjs');
     const windows = buildWeeklyWindows({ now: new Date() });
     const window = windows.at(-1);
@@ -528,7 +532,10 @@ async function discoverFromPosthog() {
       body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
       signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      console.warn(`topic discovery: PostHog source failed: HTTP ${response.status}`);
+      return [];
+    }
     const payload = await response.json();
     const rows = Array.isArray(payload?.results) ? payload.results : [];
     return rows.slice(0, 5).map((row) => ({
@@ -537,7 +544,8 @@ async function discoverFromPosthog() {
       source: 'implicit-discovery',
       rationale: `PostHog production landing on ${PRODUCTION_HOSTNAME} (${REPORT_TIMEZONE}): ${row[0]} (${row[1]} organic landings)`,
     })).filter((entry) => entry.title);
-  } catch {
+  } catch (error) {
+    console.warn(`topic discovery: PostHog source failed: ${error?.message ?? error}`);
     return [];
   }
 }
@@ -599,9 +607,11 @@ export async function discoverTopics({ now = new Date() } = {}) {
 // intentFingerprint, whose values are stored as consumed cadence intents.
 const NEAR_DUP_STOPWORDS = new Set(['a', 'an', 'the', 'in', 'of', 'for', 'to', 'on', 'at', 'is', 'are', 'it', 'its', 'there',
   'some', 'what', 'which', 'how', 'do', 'does', 'can', 'i', 'you', 'considered', 'really', 'actually', 'liberty', 'village', 'toronto']);
-const LIVABILITY_WORDS = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth', 'place', 'live', 'living',
+// A question built only from these words asks "is it a good place to live?".
+// Anything else (safe, families, rent, eat, visiting...) keeps its own intent.
+const LIVABILITY_EVALUATIVE = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth', 'best', 'ideal', 'top']);
+const LIVABILITY_WORDS = new Set([...LIVABILITY_EVALUATIVE, 'place', 'live', 'living',
   'area', 'neighbourhood', 'neighborhood', 'community']);
-const LIVABILITY_EVALUATIVE = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth']);
 
 export function nearDuplicateKey(title) {
   const text = (String(title ?? '').toLowerCase().match(/[a-z0-9]+/g) ?? []).join(' ')
@@ -611,8 +621,15 @@ export function nearDuplicateKey(title) {
     .filter((token) => token && !NEAR_DUP_STOPWORDS.has(token))
     .map((token) => (token.length > 3 && token.endsWith('s') && !token.endsWith('ss') ? token.slice(0, -1) : token)))];
   if (tokens.length && tokens.every((token) => LIVABILITY_WORDS.has(token))
-    && tokens.some((token) => LIVABILITY_EVALUATIVE.has(token))) return 'livability';
+    && tokens.some((token) => LIVABILITY_EVALUATIVE.has(token) || token === 'live' || token === 'living')) return 'livability';
   return tokens.sort().join(' ');
+}
+
+// Stored GSC titles are raw queries ("Liberty Village Happy Hour"); incoming GSC
+// discoveries are their editorial form. Key existing titles both ways.
+function existingNearKeys(title) {
+  const editorial = gscEditorialTitle(title);
+  return editorial ? [nearDuplicateKey(title), nearDuplicateKey(editorial)] : [nearDuplicateKey(title)];
 }
 
 function publishedTitles(posts) {
@@ -635,8 +652,8 @@ export async function appendDiscoveredTopics(queue, discoveries, { publishedPost
     `${entry?.kind ?? ''}|${intentFingerprint(entry?.title)}`
   )));
   const seenNear = new Set([
-    ...(next.topics ?? []).map((entry) => `${entry?.kind ?? ''}|${nearDuplicateKey(entry?.title)}`),
-    ...publishedTitles(publishedPosts).map((title) => `blog|${nearDuplicateKey(title)}`),
+    ...(next.topics ?? []).flatMap((entry) => existingNearKeys(entry?.title).map((key) => `${entry?.kind ?? ''}|${key}`)),
+    ...publishedTitles(publishedPosts).flatMap((title) => existingNearKeys(title).map((key) => `blog|${key}`)),
   ]);
   for (const discovery of discoveries) {
     const normalized = normalizeDiscovery(discovery);
