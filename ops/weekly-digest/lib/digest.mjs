@@ -4,6 +4,7 @@
 // fields must never break a digest) and every fetch may degrade to a note.
 
 import { explain, normalizeCode, jobName, siteName } from './plain-english.mjs';
+import { fixerSlackLine } from './fixer-section.mjs';
 
 export const TORONTO_TZ = 'America/Toronto';
 
@@ -227,7 +228,7 @@ export function decodeEntities(s) {
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
-export function buildModel({ generatedAt, window, runs, posted, titles = {}, queue, gsc, actions = [], notes = [], links = {} }) {
+export function buildModel({ generatedAt, window, runs, posted, titles = {}, queue, gsc, actions = [], fixer = null, notes = [], links = {} }) {
   const runsView = summarizeRuns(runs ?? []);
   return {
     generatedAt,
@@ -238,6 +239,7 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     queue: queue ?? { held: null, timers: [], note: 'not fetched' },
     gsc: gsc ?? { source: 'unavailable', note: 'not fetched' },
     actions,
+    fixer: fixer ?? { actions: [], issues: [] },
     notes,
     links,
   };
@@ -461,6 +463,7 @@ export function slackMessage(model) {
     'What we did → what it moved',
     ...(model.actions?.length ? actionMovementLines(model.actions) : ['No measured actions yet; outcomes appear after 2 and 4 weeks.']),
     `Problems: ${x.problems}${x.progressNote ? ` ${x.progressNote}` : ''}`,
+    fixerSlackLine(model),
     `What you need to do: ${x.ask}`,
     model.links?.digestUrl ? `Full report: ${model.links.digestUrl}` : '',
   ].filter(Boolean);

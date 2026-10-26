@@ -4,6 +4,7 @@
 // a collapsed appendix so nothing is lost. Plain system CSS, no JS, no external
 // assets. John prefers plain, simple, dense UIs.
 import { actionMovementLines, searchClicksLead, execSummary, fmtDate } from './digest.mjs';
+import { renderFixerSection } from './fixer-section.mjs';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -177,6 +178,7 @@ h3{font-size:14px;margin:0 0 6px}
 .tag.you{color:var(--bad);border-color:#f1c0c0}
 .k{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
 .where{color:var(--muted)}
+.fixed{margin:0;padding-left:18px;font-size:14px}.fixed li{margin:3px 0}.fixed time{color:var(--muted);margin-right:4px}
 .testonly{margin:10px 0 0;font-size:14px;color:var(--muted);display:grid;grid-template-columns:92px 1fr;gap:8px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 table{border-collapse:collapse;width:100%;font-size:13px}
@@ -236,6 +238,8 @@ ${renderActionMovements(model.actions)}
 
 <h2>What went wrong → what we did</h2>
 ${problems}
+
+${renderFixerSection(model)}
 
 <h2>Next week</h2>
 ${model.queue?.held ? '<p class="fail">Publishing is paused (hold switch on): nothing below publishes until it is lifted.</p>' : ''}

@@ -14,6 +14,8 @@ export const JOBS = Object.freeze({
   'october-blog-backfill': { calendar: '*-*-* 15:37:00 UTC', kind: 'blog' },
   // On-demand only (no timer): staging until John authorizes production.
   'weekly-roundup': { calendar: null, kind: 'roundup', stagingOnly: true },
+  // On-demand only: the ops fixer (ops/ops-fixer) retries a failed site rebuild.
+  'deploy-retry': { calendar: null, kind: null },
 });
 export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
 const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
@@ -1636,6 +1638,13 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
     const sources = Object.fromEntries(['gsc', 'posthog'].map((name) => [name, ['ok', 'unavailable'].includes(report.sources?.[name]) ? report.sources[name] : 'unknown']));
     logLine(log, 'growth-report', { sources, artifacts: ['weekly-growth.json', 'weekly-growth.md'] });
     return { report: true };
+  }
+  if (job === 'deploy-retry') {
+    // Re-POST the deploy hook, then smoke every published-but-pending submission.
+    const resumed = cli(['deploy', '--target', target], repo, [3]);
+    logLine(log, 'deploy-retry', { exit: resumed.code });
+    if (resumed.code === 3) throw new Error('publish or propagation pending');
+    return { id: null };
   }
   if (job === 'weekly-roundup') return runWeeklyRoundup({ target, slot, request, deps: await cadenceDeps(job, target, slot, log) });
   if (job === 'october-blog-backfill') {
