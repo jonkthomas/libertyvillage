@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "status": "PROVISIONAL",
+  "status": "GSC-REVIEWED",
   "evidence": {
     "content": "Public live content-snapshot exports, 2026-10-26 (74 posts)",
     "gscWindow": {
       "start": "2026-09-28",
       "end": "2026-10-25"
     },
-    "gscStatus": "UNAVAILABLE: confirm primaries from source-data.json (GSC 28d) before the post-merge apply",
-    "selection": "Provisional intent hubs preserve every directory category with listed businesses. No 28d numbers are inferred; confirm editorial membership and primaries from GSC without retiring populated directory hubs."
+    "gscStatus": "AVAILABLE: read-only source-data.json pulled 2026-10-26T21:19:22Z (309 pages, 3819 page-query rows). clicks28d/impressions28d null = no GSC row (unknown, not zero).",
+    "selection": "Primaries compared on 28d clicks, then impressions, then shared queries. Directory hubs with listed businesses stay primary or the cluster stays unconfirmed. Only clusters whose data verifies the primary are confirmed; each cluster records its decision and reason."
   },
   "protectedUrls": [
     "/blog/best-bars-restaurants-near-bmo-field-world-cup-2026",
@@ -41,7 +41,7 @@
     {
       "id": "dentists",
       "primary": "/best/dentists",
-      "status": "PROVISIONAL",
+      "status": "HOLD",
       "members": [
         {
           "url": "/best/dentists",
@@ -53,8 +53,8 @@
         },
         {
           "url": "/blog/dentist-liberty-village-complete-guide-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 110,
           "keepSections": [
             "What to Expect for Routine Care",
             "Insurance, Payment Plans, and Costs",
@@ -63,8 +63,8 @@
         },
         {
           "url": "/blog/best-dentists-liberty-village-clinic-reviews-guide-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 1,
+          "impressions28d": 47,
           "keepSections": [
             "Alternatives: Dentists Near Liberty Village",
             "Booking Your First Appointment"
@@ -81,17 +81,19 @@
           ]
         }
       ],
+      "decision": "hold",
+      "reason": "Hub primary has no GSC row and the 2026-10-25 post is too new; measured posts share 'liberty village dentist' but cannot verify the hub.",
       "confirmed": false
     },
     {
       "id": "restaurants",
       "primary": "/best/restaurants",
-      "status": "PROVISIONAL",
+      "status": "EXCLUDED",
       "members": [
         {
           "url": "/blog/best-restaurants-liberty-village-2026-definitive-guide",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 14,
+          "impressions28d": 1164,
           "keepSections": [
             "Vegetarian and vegan options",
             "Late-night eats"
@@ -99,8 +101,8 @@
         },
         {
           "url": "/blog/best-restaurants-liberty-village-locals-guide",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 35,
           "keepSections": [
             "Quick Bites and Casual",
             "The Practical Stuff"
@@ -108,33 +110,35 @@
         },
         {
           "url": "/best/restaurants",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 1,
+          "impressions28d": 150,
           "keepSections": [
             "Best for Healthy & Macro-Friendly Eating",
             "How the Restaurants Are Laid Out (and Reservations)"
           ]
         }
       ],
+      "decision": "exclude",
+      "reason": "Definitive guide (14/1164, pos 8.6 on 'liberty village restaurants') far outperforms the hub (1/150, pos 61 there); the populated hub must stay primary, so the cluster is excluded.",
       "confirmed": false
     },
     {
       "id": "patios",
       "primary": "/best/patios",
-      "status": "PROVISIONAL",
+      "status": "EXCLUDED",
       "members": [
         {
           "url": "/best/patios",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 5,
           "keepSections": [
             "Overview"
           ]
         },
         {
           "url": "/blog/best-patios-liberty-village-2026-guide",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 34,
           "keepSections": [
             "Seasonal Opening Schedule",
             "Patio Dining Etiquette and Tips"
@@ -142,8 +146,8 @@
         },
         {
           "url": "/blog/best-patios-liberty-village-summer-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 51,
           "keepSections": [
             "The Hidden Gems",
             "Patio Logistics and Pro Tips"
@@ -159,26 +163,19 @@
           ]
         }
       ],
+      "decision": "exclude",
+      "reason": "Zero clicks everywhere and the hub has the fewest impressions (5 vs 51 and 34) in an off-season window; the populated hub cannot be replaced, so re-check with a summer window.",
       "confirmed": false
     },
     {
       "id": "fitness",
       "primary": "/best/gyms",
-      "status": "PROVISIONAL",
+      "status": "CONFIRMED",
       "members": [
         {
-          "url": "/guide/fitness-guide",
-          "clicks28d": null,
-          "impressions28d": null,
-          "keepSections": [
-            "Outdoor Fitness",
-            "Condo Building Gyms"
-          ]
-        },
-        {
           "url": "/blog/liberty-village-fitness-guide-every-gym-compared",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 8,
+          "impressions28d": 790,
           "keepSections": [
             "The Comparison Table",
             "How to Choose"
@@ -186,32 +183,37 @@
         },
         {
           "url": "/best/gyms",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 8,
+          "impressions28d": 814,
           "keepSections": [
             "Overview"
           ]
         }
       ],
-      "confirmed": false
+      "removedMembers": [
+        "/guide/fitness-guide"
+      ],
+      "decision": "confirm",
+      "reason": "Clicks tie 8/8; the hub leads impressions (814 vs 790) and ranks better on shared gym queries ('gym liberty village' 5.3 vs 14.7). The fitness guide (no GSC row; yoga, running routes and outdoor scope) is broader than a gym directory, so it stays live outside the cluster as the running-routes target.",
+      "confirmed": true
     },
     {
       "id": "transit",
       "primary": "/guide/transit-guide",
-      "status": "PROVISIONAL",
+      "status": "CONFIRMED",
       "members": [
         {
           "url": "/guide/transit-guide",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 146,
           "keepSections": [
             "PRESTO and Fare Tips"
           ]
         },
         {
           "url": "/blog/liberty-village-car-free-transit-guide-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 32,
           "keepSections": [
             "Car-Share Options: When You Need Four Wheels",
             "Cost Comparison: Car vs. Car-Free",
@@ -220,20 +222,22 @@
         },
         {
           "url": "/blog/liberty-village-transit-guide-ttc-bike-share-go",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 39,
           "keepSections": [
             "Getting to Pearson Airport (YYZ)",
             "GO Transit — Regional Connections"
           ]
         }
       ],
-      "confirmed": false
+      "decision": "confirm",
+      "reason": "Clicks tie at 0; the primary leads impressions (146 vs 39 and 32) at pos 6.0. Queries are anonymised, so shared intent is editorial: all three are Liberty Village transit guides.",
+      "confirmed": true
     },
     {
       "id": "brunch",
       "primary": "/best/brunch-spots",
-      "status": "PROVISIONAL",
+      "status": "HOLD",
       "members": [
         {
           "url": "/best/brunch-spots",
@@ -245,8 +249,8 @@
         },
         {
           "url": "/blog/weekend-brunch-guide-liberty-village",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 1,
+          "impressions28d": 46,
           "keepSections": [
             "Brunch Strategy",
             "Liberty Village Brunch Comparison"
@@ -262,25 +266,27 @@
           ]
         }
       ],
+      "decision": "hold",
+      "reason": "Hub and brunch guide have no GSC rows; the only measured member is the weekend post (1/46, pos 25), so the data cannot verify the hub.",
       "confirmed": false
     },
     {
       "id": "nightlife",
       "primary": "/best/bars",
-      "status": "PROVISIONAL",
+      "status": "EXCLUDED",
       "members": [
         {
           "url": "/best/bars",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 1,
+          "impressions28d": 218,
           "keepSections": [
             "Overview"
           ]
         },
         {
           "url": "/blog/liberty-village-nightlife-bars-guide-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 1,
+          "impressions28d": 130,
           "keepSections": [
             "Nightlife by Occasion",
             "What Liberty Village Nightlife Is Not",
@@ -289,8 +295,8 @@
         },
         {
           "url": "/blog/best-bars-liberty-village-toronto-guide-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 87,
           "keepSections": [
             "Entertainment Venues",
             "Insider Tips for Liberty Village Bar-Hopping"
@@ -298,20 +304,22 @@
         },
         {
           "url": "/guide/nightlife-guide",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 5,
+          "impressions28d": 348,
           "keepSections": [
             "Live Music and Events",
             "Late-Night Eats"
           ]
         }
       ],
+      "decision": "exclude",
+      "reason": "Nightlife guide (5/348, 30 impr at pos 9.5 on 'liberty village bars') outperforms the hub (1/218, pos 18.1); the populated hub must stay primary, so the cluster is excluded.",
       "confirmed": false
     },
     {
       "id": "date-night",
       "primary": "/guide/date-night-ideas",
-      "status": "PROVISIONAL",
+      "status": "HOLD",
       "members": [
         {
           "url": "/guide/date-night-ideas",
@@ -333,50 +341,54 @@
           ]
         }
       ],
+      "decision": "hold",
+      "reason": "Neither member has a GSC row, so there is nothing to verify.",
       "confirmed": false
     },
     {
       "id": "farmers-market",
       "primary": "/guide/farmers-market",
-      "status": "PROVISIONAL",
+      "status": "CONFIRMED",
       "members": [
         {
           "url": "/guide/farmers-market",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 6,
+          "impressions28d": 187,
           "keepSections": [
             "Nearby Market Options"
           ]
         },
         {
           "url": "/blog/liberty-village-farmers-market",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 28,
           "keepSections": [
             "What to Make With Your Market Haul",
             "How to Stay Updated"
           ]
         }
       ],
-      "confirmed": false
+      "decision": "confirm",
+      "reason": "Primary leads clicks (6 vs 0) and impressions (187 vs 28) and wins the shared 'liberty village farmers market' query (pos 3.4 vs 11.5).",
+      "confirmed": true
     },
     {
       "id": "remote-work",
       "primary": "/best/coworking-spaces",
-      "status": "PROVISIONAL",
+      "status": "EXCLUDED",
       "members": [
         {
           "url": "/guide/remote-work-spots",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 3,
+          "impressions28d": 22,
           "keepSections": [
             "Condo Amenity Spaces"
           ]
         },
         {
           "url": "/blog/remote-work-cafes-coworking-liberty-village",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 11,
+          "impressions28d": 202,
           "keepSections": [
             "Cafes for the Occasional Work Day",
             "Building a Routine"
@@ -384,8 +396,8 @@
         },
         {
           "url": "/blog/coworking-spaces-liberty-village-compared-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 1,
+          "impressions28d": 54,
           "keepSections": [
             "Comparison Table: Coworking Spaces and Cafés",
             "Choosing Your Workspace: A Decision Framework",
@@ -394,19 +406,21 @@
         },
         {
           "url": "/best/coworking-spaces",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 3,
+          "impressions28d": 288,
           "keepSections": [
             "Overview"
           ]
         }
       ],
+      "decision": "exclude",
+      "reason": "The remote-work cafes post leads clicks (11 vs the hub's 3) and covers cafés, a broader intent than the coworking directory; the populated hub must stay primary, so the cluster is excluded.",
       "confirmed": false
     },
     {
       "id": "condos",
       "primary": "/blog/liberty-village-condo-market-2026-buyers-renters",
-      "status": "PROVISIONAL",
+      "status": "HOLD",
       "members": [
         {
           "url": "/blog/liberty-village-condo-market-2026-buyers-renters",
@@ -418,33 +432,35 @@
         },
         {
           "url": "/blog/liberty-village-condo-buying-renting-guide-2026",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 37,
           "keepSections": [
             "Top Condo Buildings",
             "What to Look For"
           ]
         }
       ],
+      "decision": "hold",
+      "reason": "Primary has no GSC row; the only measured member (buying-renting guide, 0/37) is too thin to confirm or replace the primary.",
       "confirmed": false
     },
     {
       "id": "things-to-do",
       "primary": "/guide/things-to-do",
-      "status": "PROVISIONAL",
+      "status": "CONFIRMED",
       "members": [
         {
           "url": "/guide/things-to-do",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 5,
+          "impressions28d": 389,
           "keepSections": [
             "Weekend Activities"
           ]
         },
         {
           "url": "/blog/weekend-activities-liberty-village-guide",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 0,
+          "impressions28d": 13,
           "keepSections": [
             "Active Weekends: Getting Outside",
             "Lazy Afternoons: Embrace the Chill",
@@ -462,17 +478,19 @@
           ]
         }
       ],
-      "confirmed": false
+      "decision": "confirm",
+      "reason": "Primary leads clicks (5 vs 0) and impressions (389 vs 13) and wins the shared 'things to do in liberty village' (17 impr, pos 8.9). The fun-things auto-post was published 2026-10-26, after the window.",
+      "confirmed": true
     },
     {
       "id": "printing",
       "primary": "/best/printing-services",
-      "status": "PROVISIONAL",
+      "status": "CONFIRMED",
       "members": [
         {
           "url": "/best/printing-services",
-          "clicks28d": null,
-          "impressions28d": null,
+          "clicks28d": 1,
+          "impressions28d": 111,
           "keepSections": [
             "Overview"
           ]
@@ -490,7 +508,9 @@
           ]
         }
       ],
-      "confirmed": false
+      "decision": "confirm",
+      "reason": "The populated hub (1/111, pos 8.4) is the only measured member. The Jukebox post (published 2026-10-24, too new for data) lists the same print shops, which is the directory's intent.",
+      "confirmed": true
     }
   ]
 }
