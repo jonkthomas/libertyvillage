@@ -373,7 +373,7 @@ export async function settleStaleRefreshes(db, { target = db.target, now = new D
     } else if (row.stale || ['rejected', 'blocked', 'error', 'compensated'].includes(row.submission_state)) {
       closed = await closeRefresh(db, { snapshotId: n(row.id), reasonCode: 'refresh-interrupted', now, deps });
     } else continue;
-    settled.push({ snapshotId: closed.snapshotId, slug: closed.slug, state: closed.state, reasonCode: closed.reasonCode, pending: Boolean(closed.pending) });
+    settled.push({ ...closed, pending: Boolean(closed.pending) });   // full outcome: the run logs it like a first-run result
   }
   return settled;
 }
@@ -405,6 +405,11 @@ export async function listRefreshes(db, { target = db.target, since = null } = {
 //   log(event, details)
 export async function runRefreshLoop({ deps }) {
   const plan = await deps.plan();
+  // Earlier refreshes this plan finished (a pending deploy now confirmed live, or an
+  // abandoned snapshot closed) are logged as outcomes too, so the digest shows the
+  // confirmed before/after; one still pending stays out of the log.
+  const recovered = (plan.settled ?? []).filter((o) => !o.pending);
+  for (const outcome of recovered) deps.log('refresh-outcome', { ...refreshLogLine(outcome), recovered: true });
   deps.log('refresh-plan', { isoWeek: plan.isoWeek, remaining: plan.remaining, attemptsLeft: plan.attemptsLeft,
     candidates: plan.candidates.map((c) => ({ slug: c.slug, score: c.score, mode: c.mode })), settled: plan.settled?.length ?? 0 });
   const outcomes = [];
@@ -429,7 +434,8 @@ export async function runRefreshLoop({ deps }) {
     // A deploy that did not confirm is not about this post either; the next plan resumes it.
     if (stop || outcome?.pending) break;
   }
-  return { refreshed: outcomes.filter((o) => o.state === 'published').length, attempted: outcomes.length, outcomes };
+  const published = (list) => list.filter((o) => o.state === 'published').length;
+  return { refreshed: published(outcomes) + published(recovered), recovered: published(recovered), attempted: outcomes.length, outcomes };
 }
 
 // Bounded, public-only fields for the runner JSONL the weekly digest reads.

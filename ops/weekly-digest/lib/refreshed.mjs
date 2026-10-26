@@ -13,7 +13,7 @@ const face = (v) => (v && typeof v === 'object' ? { title: text(v.title, 200), d
 export function refreshRow(ev, run = {}) {
   const b = ev?.baseline && typeof ev.baseline === 'object' ? ev.baseline : {};
   return {
-    at: text(ev?.at, 40), target: run.target ?? null, slug: text(ev?.slug, 128), url: text(ev?.url, 300),
+    at: text(ev?.at, 40), target: run.target ?? null, snapshotId: num(ev?.snapshotId), slug: text(ev?.slug, 128), url: text(ev?.url, 300),
     state: text(ev?.state, 20), reasonCode: text(ev?.reasonCode, 80), targetQuery: text(ev?.targetQuery, 200),
     lane: ev?.mode === 'snippet' || ev?.actionType === 'snippet' ? 'snippet' : 'full',
     baseline: { clicks: num(b.clicks), impressions: num(b.impressions), ctr: num(b.ctr), position: num(b.position) },
@@ -21,10 +21,14 @@ export function refreshRow(ev, run = {}) {
   };
 }
 
-/** Every refresh outcome in the window's runs, oldest first. */
+/** Every refresh outcome in the window's runs, oldest first; one row per snapshot
+ *  (a later run's outcome, e.g. a pending deploy confirmed live, replaces the earlier). */
 export function refreshedThisWeek(runs) {
-  return (Array.isArray(runs) ? runs : []).flatMap((run) => (run.refreshes ?? []).map((row) => ({ ...row, target: run.target ?? row.target })))
+  const rows = (Array.isArray(runs) ? runs : []).flatMap((run) => (run.refreshes ?? []).map((row) => ({ ...row, target: run.target ?? row.target })))
     .sort((a, b) => String(a.at ?? '').localeCompare(String(b.at ?? '')));
+  const latest = new Map();
+  rows.forEach((row, i) => latest.set(row.snapshotId != null ? `${row.target}:${row.snapshotId}` : `row:${i}`, row));
+  return [...latest.values()].sort((a, b) => String(a.at ?? '').localeCompare(String(b.at ?? '')));
 }
 
 const int = (n) => (n == null ? '—' : new Intl.NumberFormat('en-CA').format(Math.round(n)));

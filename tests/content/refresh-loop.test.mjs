@@ -135,9 +135,9 @@ const pass = async ({ contentSha }) => ({ overall: 9, findings: [], model: GATE_
 const livePosts = async (db) => (await store.readLive(db, { datasets: ['posts'] })).datasets.posts.records;
 
 // The runner's binding, in process: real store/submit/gate/deploy, fake generator.
-function loopDeps(db, site, { now, review = pass, rewrite, recordAction, seen }) {
+function loopDeps(db, site, { now, review = pass, rewrite, recordAction, seen, events }) {
   return {
-    plan: () => planRefresh(db, { gsc: GSC, now }),
+    plan: () => planRefresh(db, { gsc: GSC, now, env: site.env, checkout: REPO, deps: { gate: { review, smoke: FAST_SMOKE }, recordAction } }),
     reserve: (candidate) => reserveRefresh(db, { candidate, now }),
     generate: async (snapshot) => {
       // Snapshot first: the row exists and still equals what is live, before any change.
@@ -152,7 +152,7 @@ function loopDeps(db, site, { now, review = pass, rewrite, recordAction, seen })
       deps: { gate: { review, smoke: FAST_SMOKE }, recordAction },
     })).result,
     close: (fields) => closeRefresh(db, { ...fields, now }),
-    log: () => {},
+    log: (event, details) => events?.push({ event, ...details }),
   };
 }
 // The writer, faked: a snippet refresh rewrites title, description and intro only.
@@ -464,5 +464,43 @@ test('SOL-B-3: refresh runs the new-post source binding: links, businesses and t
     const bare = { ...(await liveRecord(db, 'posts', SLUGS[3])), title: 'Guide dogs: bare submit' };
     await assert.rejects(submitContent(db, { kind: 'refresh', idempotencyKey: 'bare', actor: 'uat', root: REPO, recordFile: tempJson(bare), dataset: 'posts', baseline: await baselineFile(db) }, { checkout: REPO }),
       /refresh submit requires its snapshot binding/);
+  } finally { await site.close(); await close(); }
+});
+
+test('SOL-B-2 round 2: run 1 hits a 503, run 2 confirms it; the digest shows that refresh once, as refreshed, with before/after', { skip }, async () => {
+  const { db, close } = await refreshDb();
+  const site = await localSite(db);
+  const { buildModel, parseRun } = await import('../../ops/weekly-digest/lib/digest.mjs');
+  try {
+    await site.build();
+    const actions = [];
+    const recordAction = async (_db, action) => { actions.push(action); };
+    const runLog = async (slot, hour) => {
+      const events = [];
+      const result = await runRefreshLoop({ deps: loopDeps(db, site, { now: MON, rewrite: byLane, recordAction, events }) });
+      const at = (i) => `2026-11-0${hour}T0${i % 10}:00:00Z`;
+      const lines = [{ at: at(0), event: 'start', job: 'seo-improvements', target: 'production', slot }, ...events.map((e, i) => ({ at: at(i + 1), ...e })),
+        { at: at(9), event: 'success', result: { reason: `refreshed ${result.refreshed} of ${result.attempted}` } }];
+      return { result, run: parseRun(`seo-improvements-production-${slot}.jsonl`, lines.map((l) => JSON.stringify(l)).join('\n')) };
+    };
+    site.state.hook = 503;
+    const first = await runLog('202611030423-scheduled', 3);
+    assert.equal(first.result.refreshed, 0);
+    assert.deepEqual(first.result.outcomes.map((o) => [o.slug, Boolean(o.pending)]), [[SLUGS[0], true]], 'run 1 stops on the pending deploy');
+    site.state.hook = 'build';
+    const second = await runLog('202611040423-ondemand', 4);
+    assert.equal(second.result.recovered, 1, 'run 2 confirmed the pending refresh');
+    assert.ok(second.run.refreshes.some((r) => r.slug === SLUGS[0] && r.state === 'published'), 'run 2 logs the confirmed outcome');
+    assert.match(site.state.deployment.pages.get(`/blog/${SLUGS[0]}`).body.toString(), /routes, timing and tips/);
+    assert.equal(actions.filter((a) => a.slug === SLUGS[0]).length, 1);
+
+    const model = buildModel({ generatedAt: '2026-11-09T13:00:00.000Z', window: { from: '2026-11-02T12:00:00.000Z', to: '2026-11-09T12:00:00.000Z' }, runs: [first.run, second.run], posted: [] });
+    const rows = model.refreshes.filter((r) => r.slug === SLUGS[0]);
+    assert.equal(rows.length, 1, 'exactly once');
+    assert.equal(rows[0].state, 'published');
+    assert.deepEqual([rows[0].before.title, rows[0].after.title], ['Guide walks', 'Guide walks: routes, timing and tips']);
+    const html = renderRefreshed(model.refreshes);
+    assert.doesNotMatch(html, /not live yet/, 'the pending entry is gone');
+    assert.match(html, /<s class="dim">Guide walks<\/s><br>Guide walks: routes, timing and tips/);
   } finally { await site.close(); await close(); }
 });
