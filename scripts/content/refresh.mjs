@@ -11,8 +11,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { recordSha, registry } from './canonical.mjs';
+import { registry } from './canonical.mjs';
 import { getSubmission, readLive, ValidationError } from './store.mjs';
+import { canonicalJson } from '../automation/blog-source-pack.mjs';
 import { isoWeekOf } from '../news-pilot/roundup.mjs';
 
 export const REFRESH = Object.freeze({
@@ -104,7 +105,7 @@ export function rankRefreshCandidates({ gsc, posts, exclude = new Set(), snippet
 }
 
 export class RefreshRefused extends Error {
-  constructor(reason, message = reason) { super(message); this.code = 'RefreshRefused'; this.reason = reason; }
+  constructor(reason, message = reason, detail = null) { super(message); this.code = 'RefreshRefused'; this.reason = reason; this.detail = detail; }
 }
 
 // Intro = the body before its first `## ` section (or its first paragraph when it
@@ -121,7 +122,7 @@ const SNIPPET_FIELDS = new Set(['title', 'description', 'content', 'updatedAt'])
 // the generator output, every fixer repair and every gate round.
 export function snippetOverreach(prior, record) {
   const keys = new Set([...Object.keys(prior ?? {}), ...Object.keys(record ?? {})]);
-  for (const key of keys) if (!SNIPPET_FIELDS.has(key) && JSON.stringify(prior?.[key]) !== JSON.stringify(record?.[key])) return `snippet refresh changed ${key}`;
+  for (const key of keys) if (!SNIPPET_FIELDS.has(key) && canonicalJson(prior?.[key]) !== canonicalJson(record?.[key])) return `snippet refresh changed ${key}`;
   if (splitIntro(prior?.content).rest !== splitIntro(record?.content).rest) return 'snippet refresh changed the body beyond the intro';
   return null;
 }
@@ -134,18 +135,30 @@ function checkSnippetOnly(prior, record) {
 // changed record: the snapshot's post, same slug and publish date, nothing else
 // added, removed or touched; in snippet mode only title, description and intro.
 export function extractRefreshedPost({ before, after, slug, mode = 'full' }) {
-  if (!Array.isArray(before) || !Array.isArray(after)) throw new RefreshRefused('refresh-off-target', 'posts are not arrays');
+  if (!Array.isArray(before) || !Array.isArray(after)) throw new RefreshRefused('refresh-off-target', 'posts are not arrays', { kind: 'invalid-posts', slug: null });
   const prior = new Map(before.map((post) => [post?.slug, post]));
   const next = new Map(after.map((post) => [post?.slug, post]));
-  if (!next.has(slug)) throw new RefreshRefused('refresh-slug-changed', `post ${slug} is missing after generation`);
+  if (!next.has(slug)) throw new RefreshRefused('refresh-slug-changed', `post ${slug} is missing after generation`, { kind: 'removed', slug });
   if (after.length !== before.length || next.size !== after.length || [...prior.keys()].some((key) => !next.has(key))) {
-    throw new RefreshRefused(after.some((post) => !prior.has(post?.slug)) ? 'refresh-slug-changed' : 'refresh-off-target', 'post set changed');
+    const added = after.find((post) => !prior.has(post?.slug));
+    const removed = before.find((post) => !next.has(post?.slug));
+    const seen = new Set();
+    const duplicate = after.find((post) => {
+      if (seen.has(post?.slug)) return true;
+      seen.add(post?.slug);
+      return false;
+    });
+    const detail = added ? { kind: 'added', slug: added.slug } : removed ? { kind: 'removed', slug: removed.slug }
+      : { kind: 'duplicate', slug: duplicate?.slug ?? null };
+    throw new RefreshRefused(added ? 'refresh-slug-changed' : 'refresh-off-target', 'post set changed', detail);
   }
-  for (const [key, post] of prior) if (key !== slug && JSON.stringify(next.get(key)) !== JSON.stringify(post)) throw new RefreshRefused('refresh-off-target', `post ${key} changed`);
+  // A JSON writer may reorder object keys throughout the file. Compare values
+  // recursively (array order still matters), without normalizing any post data.
+  for (const [key, post] of prior) if (key !== slug && canonicalJson(next.get(key)) !== canonicalJson(post)) throw new RefreshRefused('refresh-off-target', `post ${key} changed`, { kind: 'changed', slug: key });
   const record = next.get(slug);
   if (record.slug !== slug) throw new RefreshRefused('refresh-slug-changed');
   if (record.publishedAt !== prior.get(slug).publishedAt) throw new RefreshRefused('refresh-date-changed');
-  if (recordSha(record) === recordSha(prior.get(slug))) throw new RefreshRefused('refresh-no-change');
+  if (canonicalJson(record) === canonicalJson(prior.get(slug))) throw new RefreshRefused('refresh-no-change');
   if (mode === 'snippet') checkSnippetOnly(prior.get(slug), record);
   return record;
 }
@@ -153,7 +166,7 @@ export function extractRefreshedPost({ before, after, slug, mode = 'full' }) {
 const TRACKED = ['title', 'description', 'answerBlock', 'content', 'faqs', 'keyTakeaways', 'tags', 'relatedPosts', 'relatedServices', 'relatedTopics', 'image'];
 export function summarizeChange(before, after) {
   if (!after) return null;
-  const changed = TRACKED.filter((field) => JSON.stringify(before?.[field]) !== JSON.stringify(after?.[field]));
+  const changed = TRACKED.filter((field) => canonicalJson(before?.[field]) !== canonicalJson(after?.[field]));
   const parts = changed.map((field) => {
     if (field === 'content') {
       const delta = String(after.content ?? '').length - String(before?.content ?? '').length;
@@ -319,7 +332,7 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
     record = extractRefreshedPost({ before, after, slug: snap.key, mode: snap.mode });
   } catch (error) {
     if (error.code !== 'RefreshRefused') throw error;
-    return { result: await close({ reasonCode: error.reason }), exitCode: 2 };
+    return { result: { ...await close({ reasonCode: error.reason }), refusalDetail: error.detail }, exitCode: 2 };
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-refresh-'));
   let submissionId;
@@ -447,5 +460,8 @@ export function refreshLogLine(o) {
     actionType: MODES.includes(o.mode) ? actionTypeOf(o.mode) : null, state: o.pending ? 'pending' : o.state ?? null, reasonCode: o.reasonCode ?? null,
     submissionId: o.submissionId ?? null, targetQuery: clip(o.targetQuery, 200), baseline: o.baseline ?? null,
     before: clipFace(o.before), after: clipFace(o.after), change: clip(o.change, 300),
+    ...(o.refusalDetail && ['changed', 'added', 'removed', 'duplicate', 'invalid-posts'].includes(o.refusalDetail.kind) ? {
+      refusalDetail: { kind: o.refusalDetail.kind, slug: typeof o.refusalDetail.slug === 'string' && SLUG.test(o.refusalDetail.slug) ? o.refusalDetail.slug : null },
+    } : {}),
   };
 }

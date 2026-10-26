@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -130,7 +131,14 @@ export function copyGenerated(scratch, trusted, job, paths = changedPaths(scratc
   return paths;
 }
 
-export function acceptGeneratedOutput(scratch, trusted, job, paths, exportedPosts) {
+export function acceptGeneratedOutput(scratch, trusted, job, paths, exportedPosts, refresh = false) {
+  // Refresh reads only bounded posts JSON, without copying any scratch files.
+  // refreshDeps grafts the target into the export before writing the checkout.
+  // Other data, reports, images and code remain disposable in scratch.
+  if (job === 'seo-improvements' && refresh) {
+    return { posts: paths.includes('data/posts.json')
+      ? readBoundedJson(path.join(scratch, 'data/posts.json'), 20 * 1024 * 1024) : exportedPosts };
+  }
   // Validate type, symlinks and aggregate bytes before any untrusted JSON read.
   const changed = copyGenerated(scratch, trusted, job, paths);
   if (job === 'weekly-blog' && !hasOneNewBlogPost(exportedPosts, readJson(path.join(trusted, 'data', 'posts.json')))) throw new Error('blog generated no post');
@@ -402,7 +410,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     fs.rmSync(scratch, { recursive: true, force: true });
     fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
     copyScratchTree(repo, scratch);
-    const exportedPosts = job === 'weekly-blog' ? readJson(path.join(repo, 'data', 'posts.json')) : null;
+    const exportedPosts = job === 'weekly-blog' || topic?.refresh ? readJson(path.join(repo, 'data', 'posts.json')) : null;
     const requestDir = path.join(stateRoot, 'generator-requests');
     fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun, ...(topic?.refresh ? { refresh: topic.refresh } : {}) })}\n`, { mode: 0o600 });
@@ -423,10 +431,10 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
       logLine(log, 'seo-code-suggestion', { paths: discarded.filter(seoCodeSuggestionPath).slice(0, 20).map((rel) => rel.slice(0, 160)) });
     }
     let changed;
-    try { changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts); }
+    try { changed = acceptGeneratedOutput(scratch, repo, job, paths, exportedPosts, Boolean(topic?.refresh)); }
     catch (error) { if (job === 'weekly-blog' && error.message === 'blog generated no post') throw noPostError(diagnostic); throw error; }
     if (job === 'weekly-blog' && diagnostic?.postWritten === false) throw new Error('generator diagnostic contradicted post');
-    logLine(log, 'generator-output-accepted', { paths: changed.length });
+    logLine(log, 'generator-output-accepted', { paths: topic?.refresh ? 0 : changed.length });
     return changed;
   } catch (error) {
     failed = true;
@@ -1633,7 +1641,7 @@ async function cadenceDeps(job, target, slot, log) {
 // sandboxed generator -> trusted `content refresh submit` (same-slug check,
 // refresh gate, publish, deploy hook, smoke, ledger). A dry run only plans;
 // an on-demand --topic names the one ranked slug to refresh.
-export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, log }) {
+export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, writePosts, log }) {
   const write = (name, value) => { const file = path.join(run, name); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; };
   return {
     plan: () => {
@@ -1646,8 +1654,23 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
     generate: (snapshot, candidate) => {
       exportData();
       const before = readPosts();
-      generate({ title: candidate.title ?? snapshot.slug, refresh: { slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
-      return { before, after: readPosts() };
+      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
+      const posts = output?.posts ?? readPosts();
+      if (!Array.isArray(posts)) throw Object.assign(new Error('refresh posts are not an array'), { reason: 'refresh-off-target' });
+      const prior = new Map(before.map((post) => [post.slug, post]));
+      const next = new Map(posts.map((post) => [post?.slug, post]));
+      // Keep missing/duplicate targets visible to the strict CLI backstop.
+      // Discard every other membership/value change, including timestamps.
+      const targets = posts.filter((post) => post?.slug === snapshot.slug);
+      const after = before.flatMap((post) => post.slug === snapshot.slug ? targets : [post]);
+      const discardedOffTarget = [...new Set([...prior.keys(), ...next.keys()])]
+        .filter((slug) => slug !== snapshot.slug && !isDeepStrictEqual(prior.get(slug), next.get(slug)))
+        .filter((slug) => typeof slug === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/.test(slug)).slice(0, 20);
+      log('refresh-generator-output', { snapshotId: snapshot.snapshotId, discardedOffTarget });
+      // Refused missing/duplicate targets leave the checkout at the export.
+      // No raw generator file can reach a deploy or commit.
+      writePosts(targets.length === 1 ? after : before);
+      return { before, after };
     },
     submit: (snapshot, generated) => parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
       '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
@@ -1667,6 +1690,7 @@ async function runRefresh(target, slot, request, log, notifications) {
     export: () => { cli(['export', '--root', '.', '--target', target]); logLine(log, 'export'); },
     generate: (topic) => generator('seo-improvements', slot, topic, false, log, notifications),
     readPosts: () => readJson(path.join(repo, 'data', 'posts.json')),
+    writePosts: (posts) => fs.writeFileSync(path.join(repo, 'data', 'posts.json'), `${JSON.stringify(posts, null, 2)}\n`),
     log: (event, details) => logLine(log, event, details),
   }) });
   if (request.dryRun) return { dryRun: true };
