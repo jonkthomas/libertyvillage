@@ -3,7 +3,7 @@
 // Tolerant by contract: runner JSONL gains fields over time (unknown/missing
 // fields must never break a digest) and every fetch may degrade to a note.
 
-import { explain, jobName, siteName } from './plain-english.mjs';
+import { explain, normalizeCode, jobName, siteName } from './plain-english.mjs';
 
 export const TORONTO_TZ = 'America/Toronto';
 
@@ -310,14 +310,21 @@ export function nextWeekPlan(timers, now) {
     .sort((a, b) => (a.next ? Date.parse(a.next) : Infinity) - (b.next ? Date.parse(b.next) : Infinity));
 }
 
-/** Failure rows grouped by plain-English cause (largest group first). */
-export function problemGroups(failures) {
+/** A failed run is resolved when a later run of the same job on the same site succeeded. */
+function resolvedLater(f, runs) {
+  const t = Date.parse(f.startedAt);
+  return runs.some((r) => r.job === f.job && r.target === f.target && r.outcome === 'success' && Date.parse(r.startedAt) > t);
+}
+
+/** Failure rows grouped by plain-English cause (largest group first); `open` counts the unresolved ones. */
+export function problemGroups(failures, runs = []) {
   const groups = new Map();
   for (const f of Array.isArray(failures) ? failures : []) {
     const e = explain(f.reason);
     const key = e.title;
-    const g = groups.get(key) ?? { title: e.title, cause: e.cause, impact: e.impact, action: e.action, needsYou: e.needsYou, known: e.known, link: e.link, count: 0, live: 0, where: [] };
+    const g = groups.get(key) ?? { title: e.title, cause: e.cause, impact: e.impact, action: e.action, needsYou: e.needsYou, known: e.known, link: e.link, count: 0, live: 0, open: 0, where: [] };
     g.count += 1;
+    if (!resolvedLater(f, Array.isArray(runs) ? runs : [])) g.open += 1;
     if (f.target === 'production') g.live += 1;
     g.where.push({ job: jobName(f.job), site: siteName(f.target), at: f.startedAt });
     groups.set(key, g);
@@ -355,8 +362,16 @@ export function execSummary(model) {
   const live = items.length;
   const plan = WEEKLY_POST_PLAN;
   const s = model.runs?.summary ?? { total: 0, failure: 0 };
-  const groups = problemGroups(model.failures);
-  const needsYou = groups.filter((g) => g.needsYou);
+  // A week that ended on plan settles its earlier "behind plan" progress
+  // checks: one quiet line, not issues.
+  const onPlan = live >= plan;
+  const progressCheck = (f) => onPlan && normalizeCode(f.reason) === 'cadence content deficit';
+  const checks = (model.failures ?? []).filter(progressCheck).length;
+  const progressNote = checks
+    ? `Mid-week progress checks flagged the week as behind ${checks === 1 ? 'once' : checks === 2 ? 'twice' : `${checks} times`}; it finished on plan.`
+    : null;
+  const groups = problemGroups((model.failures ?? []).filter((f) => !progressCheck(f)), model.runs?.list ?? []);
+  const needsYou = groups.filter((g) => g.needsYou && g.open > 0);
   const weeks = model.gsc?.weeks ?? [];
   const [prev, cur] = weeks.length >= 2 ? weeks.slice(-2) : [null, weeks.at(-1) ?? null];
   const gscRange = cur?.start && cur?.end ? dateRange(`${cur.start}T12:00:00Z`, `${cur.end}T12:00:00Z`) : null;
@@ -364,13 +379,17 @@ export function execSummary(model) {
   const postsSentence = live >= plan ? `${live} of ${plan} planned posts went live.`
     : live === 0 ? `No posts went live this week (plan: ${plan}).`
       : `${live} of ${plan} planned posts went live, ${plan - live} short.`;
-  const failed = model.failures?.length ?? 0;
-  let problems;
-  if (!failed) problems = `All ${s.total} automated runs finished cleanly.`;
-  else {
-    const top = groups.slice(0, 2).map((g) => `"${g.title}" (${g.count})`).join(' and ');
-    problems = `${failed} of ${s.total} automated runs hit problems. Most common: ${top}.`;
-  }
+  // Count issues (causes), each resolved or still open, not raw failed runs.
+  const open = groups.filter((g) => g.open > 0);
+  const parts = [
+    [groups.length - open.length, 'resolved'],
+    [open.filter((g) => g.known && !g.needsYou).length, 'still being retried automatically'],
+    [open.filter((g) => !g.known).length, 'being investigated'],
+    [needsYou.length, needsYou.length === 1 ? 'needs you' : 'need you'],
+  ].filter(([n]) => n > 0).map(([n, words]) => `${n} ${words}`);
+  const problems = groups.length
+    ? `${groups.length} ${groups.length === 1 ? 'issue' : 'issues'} this week: ${parts.join(', ')}.`
+    : s.total ? `No issues this week: all ${s.total} automated runs did their job.` : 'No issues this week.';
   const ask = model.queue?.held ? 'Publishing is paused (hold switch on): lift it when ready.'
     : needsYou.length ? `${needsYou.length === 1 ? '1 thing needs' : `${needsYou.length} things need`} you: ${needsYou.map((g) => lowerFirst(g.action.replace(/\.$/, ''))).join('; ')}.`
       : 'Nothing needs you this week.';
@@ -394,7 +413,7 @@ export function execSummary(model) {
     weekShort: dateRange(model.window.from, model.window.to),
     gscRange,
     headline: `${postsSentence} ${searchSentence(model.gsc)}`,
-    problems, ask,
+    problems, progressNote, ask,
     kpis, groups, needsYou,
     shipped: items.map((p) => ({ title: p.title ?? String(p.url ?? '').replace(/^https?:\/\/[^/]+/, ''), url: p.url, date: p.lastmod, section: p.section })),
     next: nextWeekPlan(model.queue?.timers, model.window.to),
@@ -411,14 +430,11 @@ export function slackMessage(model) {
   const shipped = x.shipped.length
     ? `Published: ${x.shipped.map((p) => `"${p.title}"${p.date ? ` (${day(p.date)})` : ''}`).join('; ')}.`
     : 'Published: nothing this week.';
-  const investigating = x.groups.filter((g) => !g.known).reduce((n, g) => n + g.count, 0);
-  const handled = x.needsYou.length ? ''
-    : investigating ? ` ${investigating} not yet explained; the fix-it agent is investigating.` : ' All handled automatically.';
   const lines = [
     `Liberty Village content report, week of ${x.weekShort}`,
     x.headline,
     shipped,
-    `Problems: ${x.problems}${model.failures?.length ? handled : ''}`,
+    `Problems: ${x.problems}${x.progressNote ? ` ${x.progressNote}` : ''}`,
     `What you need to do: ${x.ask}`,
     model.links?.digestUrl ? `Full report: ${model.links.digestUrl}` : '',
   ].filter(Boolean);

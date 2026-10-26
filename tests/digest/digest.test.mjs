@@ -204,8 +204,7 @@ test('slackMessage reads as a plain report: verdict, shipped, problems, ask, one
   assert.match(lines[0], /^Liberty Village content report, week of Oct 19–26$/);
   assert.match(lines[1], /^2 of 2 planned posts went live\. Search: 120 clicks from 4,500 impressions\.$/);
   assert.match(msg, /Published: "\/blog\/best-coffee-shops" \(Oct 21\); "Parking in Liberty Village" \(Oct 23\)\./);
-  assert.match(msg, /Problems: 3 of 5 automated runs hit problems\./);
-  assert.match(msg, /not yet explained; the fix-it agent is investigating/);
+  assert.match(msg, /Problems: 3 issues this week: 1 resolved, 1 still being retried automatically, 1 being investigated\./);
   assert.match(msg, /What you need to do: Publishing is paused \(hold switch on\): lift it when ready\./);
   assert.equal(lines.at(-1), 'Full report: https://example/d');
   assert.equal((msg.match(/https?:\/\//g) ?? []).length, 1, 'exactly one link');

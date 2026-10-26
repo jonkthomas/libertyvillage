@@ -64,7 +64,7 @@ const nextStep = (action) => action.replace(/^Nothing to do(?: now| yet)?\.\s*/,
 
 function problemBlock(g) {
   return `<div class="problem${g.needsYou ? ' needs' : ''}">
-<div class="problem-head"><b>${esc(g.title)}</b><span class="count">${g.count}×</span>${g.needsYou ? '<span class="tag you">needs you</span>' : ''}${g.known ? '' : '<span class="tag">investigating</span>'}</div>
+<div class="problem-head"><b>${esc(g.title)}</b><span class="count">${g.count}×</span><span class="tag">${g.open ? 'open' : 'resolved'}</span>${g.needsYou ? '<span class="tag you">needs you</span>' : ''}${g.known ? '' : '<span class="tag">investigating</span>'}</div>
 <p><span class="k">Why</span><span>${esc(g.cause)} ${esc(g.impact)}</span></p>
 <p><span class="k">Next step</span><span>${esc(nextStep(g.action))}${g.known ? '' : ` ${link(g.link, 'Fix-it tickets')}`}</span></p>
 <p class="where"><span class="k">Where</span><span>${whereLine(g.where)}</span></p>
@@ -86,10 +86,11 @@ export function renderHtml(model) {
   // noise in one line, since readers never saw it.
   const testOnly = x.groups.filter((g) => g.live === 0 && !g.needsYou);
   const full = x.groups.filter((g) => !testOnly.includes(g));
+  const note = x.progressNote ? `<p class="testonly"><span class="k">Progress checks</span><span>${esc(x.progressNote)}</span></p>` : '';
   const problems = x.groups.length
-    ? [...full.map(problemBlock),
+    ? [...full.map(problemBlock), note,
       testOnly.length ? `<p class="testonly"><span class="k">Test site only</span><span>${testOnly.map((g) => `${esc(g.title)} (${g.count}×)`).join('; ')}. No reader impact; the raw log is in the appendix.</span></p>` : ''].join('\n')
-    : '<p class="empty">No problems this week: every automated run finished cleanly.</p>';
+    : `<p class="empty">No issues this week.</p>${note}`;
 
   const nextRows = x.next.map((n) => [
     n.next ? `<time>${esc(when(n.next))}</time>` : '<span class="dim">not scheduled</span>',
@@ -97,7 +98,8 @@ export function renderHtml(model) {
   ]);
 
   const pos = (n) => (n == null ? '—' : Number(n).toFixed(1));
-  const pagesRows = x.working.pages.map((p) => [link(p.keys?.[0] ?? '', path(p.keys?.[0])), int(p.clicks), int(p.impressions), pos(p.position)]);
+  const titleOf = new Map(x.shipped.map((p) => [p.url, p.title]));
+  const pagesRows = x.working.pages.map((p) => [link(p.keys?.[0] ?? '', titleOf.get(p.keys?.[0]) ?? path(p.keys?.[0])), int(p.clicks), int(p.impressions), pos(p.position)]);
   const queryRows = x.working.queries.map((q) => [esc(q.keys?.[0] ?? ''), int(q.clicks), int(q.impressions), pos(q.position)]);
 
   // ── Appendix (the previous page's tables, unchanged in content) ──

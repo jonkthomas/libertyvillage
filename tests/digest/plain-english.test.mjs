@@ -125,7 +125,18 @@ test('digest headline and KPIs render from the real-shaped 2026-10-26 model', ()
   const x = execSummary(model);
   assert.equal(x.week, 'Oct 19–26, 2026');
   assert.equal(x.headline, '2 of 2 planned posts went live. Search clicks fell 17% (100 → 83) while impressions rose 7%: we are showing up more but ranking lower (average position 9.4 → 12.0).');
-  assert.match(x.problems, /^8 of 19 automated runs hit problems\. Most common: "Behind the 2-posts-a-week plan" \(3\) and "Catch-up post did not publish" \(2\)\.$/);
+  // On plan: the 3 "behind plan" progress checks are settled, not issues; the
+  // rest count once per cause, resolved when a later run of the job succeeded.
+  assert.equal(x.problems, '4 issues this week: 1 resolved, 3 still being retried automatically.');
+  assert.equal(x.progressNote, 'Mid-week progress checks flagged the week as behind 3 times; it finished on plan.');
+  assert.ok(!x.groups.some((g) => g.title === 'Behind the 2-posts-a-week plan'));
+  assert.deepEqual(x.groups.map((g) => [g.title, g.count, g.open]), [
+    ['Catch-up post did not publish', 2, 2],
+    ['Quality review stopped a draft', 1, 1],
+    ['A content-system step failed', 1, 0],
+    ['Unexpected technical error', 1, 1],
+  ]);
+  assert.match(slackMessage(model), /\nProblems: 4 issues this week: 1 resolved, 3 still being retried automatically\. Mid-week progress checks flagged the week as behind 3 times; it finished on plan\.\n/);
   assert.equal(x.ask, 'Nothing needs you this week.');
   assert.deepEqual(x.kpis.map((k) => [k.label, k.display ?? k.value, k.delta, k.better]), [
     ['Posts live vs plan', '2 of 2', null, true],
@@ -134,7 +145,7 @@ test('digest headline and KPIs render from the real-shaped 2026-10-26 model', ()
     ['Average position', 12, 2.6, false],
   ]);
   // Grouped by cause, not one row per run; all 8 failures accounted for.
-  const groups = problemGroups(model.failures);
+  const groups = problemGroups(model.failures, model.runs.list);
   assert.equal(groups.reduce((n, g) => n + g.count, 0), model.failures.length);
   assert.equal(groups.length, 5);
   assert.deepEqual(x.next.map((n) => n.what).slice(0, 3), ['October catch-up post', 'News check', 'New blog post']);
@@ -142,7 +153,7 @@ test('digest headline and KPIs render from the real-shaped 2026-10-26 model', ()
   const html = renderHtml(model);
   for (const s of ['Week of Oct 19–26, 2026', x.headline, 'Posts live vs plan', '2 of 2', '▼ 17% vs 100 last week · worse',
     '▲ 2.6 vs 9.4 last week · worse (lower is better)', 'What shipped', 'Jukebox Print &amp; Liberty Village Printing Guide (2026)',
-    'What went wrong → what we did', 'Behind the 2-posts-a-week plan', 'Next week', 'Wed and Sun', "What's working",
+    'What went wrong → what we did', 'Mid-week progress checks flagged the week as behind 3 times; it finished on plan.', 'Catch-up post did not publish', 'Next week', 'Wed and Sun', "What's working",
     'Test site only', '<details>', 'Failures (raw)']) {
     assert.ok(html.includes(s), `missing from page: ${s}`);
   }
@@ -150,6 +161,18 @@ test('digest headline and KPIs render from the real-shaped 2026-10-26 model', ()
   const body = html.split('<details>')[0].split('</style>')[1];
   assert.doesNotMatch(body, /cadence content deficit|backfill publication incomplete|cli-operation|operational-error|\.jsonl|\d{8,}-scheduled|weekly-blog|october-blog-backfill/);
   assert.ok(!html.includes('<script'), 'digest must stay JS-free');
+});
+
+test('a week that missed its plan keeps "behind plan" as an open issue', () => {
+  const model = realShaped();
+  model.posted.items = model.posted.items.slice(0, 1);
+  const x = execSummary(model);
+  assert.equal(x.progressNote, null);
+  const behind = x.groups.find((g) => g.title === 'Behind the 2-posts-a-week plan');
+  // The two live-site checks were followed by a successful blog run; the test-site one was not.
+  assert.deepEqual([behind?.count, behind?.open], [3, 1]);
+  assert.equal(x.problems, '5 issues this week: 1 resolved, 4 still being retried automatically.');
+  assert.doesNotMatch(slackMessage(model), /progress checks/);
 });
 
 test('digest page and Slack post handle an empty, data-less week', () => {
@@ -164,5 +187,5 @@ test('digest page and Slack post handle an empty, data-less week', () => {
   assert.match(slackMessage(model), /Published: nothing this week\./);
   const html = renderHtml(model);
   assert.ok(html.includes('Nothing went live this week.'));
-  assert.ok(html.includes('every automated run finished cleanly'));
+  assert.ok(html.includes('No issues this week.'));
 });
