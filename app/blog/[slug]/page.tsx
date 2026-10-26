@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
-import { getAllPosts, getPostBySlug } from "@/lib/data";
+import { getAllBusinesses, getAllPosts, getPostBySlug } from "@/lib/data";
 import { generateBlogPostPageMeta } from "@/lib/meta";
 import {
   generateBlogPostSchema,
   generateSpeakableSchema,
   serializeJsonLd,
+  SITE_AUTHOR,
 } from "@/lib/schema";
 import {
   getRelatedPosts,
@@ -14,6 +15,7 @@ import {
   resolveCrossLinks,
 } from "@/lib/links";
 import { renderMarkdownContent } from "@/lib/markdown";
+import { linkifyHtml } from "@/lib/linkify";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import HeroImage from "@/components/HeroImage";
 import FAQSection from "@/components/FAQSection";
@@ -53,7 +55,11 @@ export default async function BlogPostPage({ params }: Props) {
   const speakableSchema = generateSpeakableSchema(`/blog/${post.slug}`);
   // FAQPage JSON-LD is emitted once by <FAQSection> below — do not duplicate it
   // here, or Google sees two FAQPage blocks on the same URL.
-  const contentHtml = renderMarkdownContent(post.content);
+  // Link the first mention of each business in the body to its directory page.
+  const directoryLookups = getAllBusinesses().map((b) => ({ name: b.name, href: `/directory/${b.slug}` }));
+  const contentHtml = linkifyHtml(renderMarkdownContent(post.content), directoryLookups, {
+    selfHref: `/blog/${post.slug}`,
+  });
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -98,9 +104,9 @@ export default async function BlogPostPage({ params }: Props) {
           href="/about"
           className="font-medium text-warm-700 hover:text-amber-600 transition-colors"
         >
-          {post.author}
+          {SITE_AUTHOR}
         </a>{" "}
-        — local residents covering Liberty Village since 2024.
+        — covering Liberty Village since 2024.
       </p>
 
       <AnswerBlock>{post.answerBlock}</AnswerBlock>
