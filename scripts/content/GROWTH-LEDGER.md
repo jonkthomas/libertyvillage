@@ -29,8 +29,12 @@ timestamp. Measurement errors log a bounded warning without blocking content.
 Outcomes cover seven days ending the day before the +14/+28-day anniversary,
 filtered by exact URL and query. The action must be due and the window end date
 plus three days must be at or before now (UTC) before the observation is fetched.
-Once filled it is immutable. An empty response or API failure leaves it pending
-for retry; only an explicit metric row can teach the planner a zero-click result.
+Once filled it is immutable. A site-level date query checks final-data availability
+once per distinct window per run. If site data exists, an empty page/query response
+is stored as zero clicks/impressions with unknown CTR/position, so unsuccessful
+actions contribute to learning and stop being fetched. Missing site data or a
+fetch error leaves the observation pending for retry. Availability is cached for
+both available and unavailable windows, then checked afresh on the next run.
 GoogleAuth/searchanalytics uses the existing runner credential path, web search,
 dataState final and 25,000-row pagination. Weekly snapshots use the latest full
 Mon–Sun week whose Sunday is at least three days old. For example, Monday

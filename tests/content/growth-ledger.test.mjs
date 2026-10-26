@@ -6,6 +6,7 @@ import { testDb } from './helpers/db.mjs';
 import { recordAction, fillOutcomes, actionWeights, listActions, writeWeeklySnapshot, baselineFor, lastFullWeek } from '../../scripts/content/ledger.mjs';
 import { recordPublishedPosts } from '../../scripts/content/submit.mjs';
 import { seedRecords, publishDirect } from './fixtures/content-db.mjs';
+import { actionMovementLines } from '../../ops/weekly-digest/lib/digest.mjs';
 const action = { actionKind: 'new_post', slug: 'coffee', url: 'https://libertyvillage.co/blog/coffee', pageType: 'blog', targetQuery: 'liberty village coffee', queryType: 'local-intent', actedAt: '2026-10-01T12:00:00Z', baseline: { clicks: 10, impressions: 100, ctr: 0.1, position: 15 } };
 
 test('growth migration applies twice and UTC daily action identity preserves T0', async () => {
@@ -66,31 +67,93 @@ test('fillOutcomes waits until window end plus three days for 2w/4w and never re
     assert.deepEqual(await fillOutcomes(db, { now: '2026-10-17T00:00:00Z', gscFetch }), { filled: 1 });
     let row = (await listActions(db))[0];
     assert.equal(row.outcome_2w.clicks, 30); assert.equal(row.outcome_4w, null);
-    assert.deepEqual(calls[0], { start: '2026-10-08', end: '2026-10-14', dimensions: [], page: action.url, query: action.targetQuery });
-    await fillOutcomes(db, { now: '2026-10-28T12:00:00Z', gscFetch }); assert.equal(calls.length, 1);
-    await fillOutcomes(db, { now: '2026-10-29T12:00:00Z', gscFetch }); assert.equal(calls.length, 1);
-    await fillOutcomes(db, { now: '2026-10-30T23:59:59.999Z', gscFetch }); assert.equal(calls.length, 1);
-    await fillOutcomes(db, { now: '2026-10-31T00:00:00Z', gscFetch }); assert.equal(calls.length, 2);
-    await fillOutcomes(db, { now: '2026-11-10T12:00:00Z', gscFetch }); assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0], { start: '2026-10-08', end: '2026-10-14', dimensions: ['date'] });
+    assert.deepEqual(calls[1], { start: '2026-10-08', end: '2026-10-14', dimensions: [], page: action.url, query: action.targetQuery });
+    await fillOutcomes(db, { now: '2026-10-28T12:00:00Z', gscFetch }); assert.equal(calls.length, 2);
+    await fillOutcomes(db, { now: '2026-10-29T12:00:00Z', gscFetch }); assert.equal(calls.length, 2);
+    await fillOutcomes(db, { now: '2026-10-30T23:59:59.999Z', gscFetch }); assert.equal(calls.length, 2);
+    await fillOutcomes(db, { now: '2026-10-31T00:00:00Z', gscFetch }); assert.equal(calls.length, 4);
+    await fillOutcomes(db, { now: '2026-11-10T12:00:00Z', gscFetch }); assert.equal(calls.length, 4);
     row = (await listActions(db))[0]; assert.equal(row.outcome_4w.clicks, 30);
   } finally { await close(); }
 });
 
-test('empty GSC outcomes stay pending and out of learning until an explicit metric row arrives', async () => {
+test('available site windows resolve empty page/query outcomes as zero, share checks and stop refetching', async () => {
   const { db, close } = await testDb();
   try {
     await recordAction(db, action);
-    let available = false;
-    const gscFetch = async () => available ? [{ clicks: 0, impressions: 10, ctr: 0, position: 20 }] : [];
+    await recordAction(db, { ...action, slug: 'no-impressions', url: 'https://libertyvillage.co/blog/no-impressions' });
+    const siteChecks = new Map();
+    let pageQueries = 0;
+    const gscFetch = async (request) => {
+      if (!request.page) {
+        assert.deepEqual(request.dimensions, ['date']);
+        assert.equal(request.query, undefined);
+        const key = `${request.start}/${request.end}`;
+        siteChecks.set(key, (siteChecks.get(key) ?? 0) + 1);
+        return [{ keys: [request.start], clicks: 100, impressions: 1000 }];
+      }
+      pageQueries += 1;
+      return request.page === action.url ? [{ clicks: 20, impressions: 100, ctr: 0.2, position: 8 }] : [];
+    };
+    assert.deepEqual(await fillOutcomes(db, { now: '2026-11-10', gscFetch }), { filled: 4 });
+    assert.deepEqual([...siteChecks.values()], [1, 1], 'one availability fetch per distinct 2w/4w window');
+    assert.equal(pageQueries, 4);
+    const zero = (await listActions(db)).find((row) => row.slug === 'no-impressions');
+    for (const outcome of [zero.outcome_2w, zero.outcome_4w]) {
+      assert.equal(outcome.clicks, 0); assert.equal(outcome.impressions, 0);
+      assert.equal(outcome.ctr, null); assert.equal(outcome.position, null);
+    }
+    const movement = actionMovementLines([zero])[0];
+    assert.match(movement, /\+2w 0 clicks/); assert.match(movement, /\+4w 0 clicks/);
+    assert.doesNotMatch(movement, /pending/);
+    const weights = await actionWeights(db);
+    assert.equal(weights[0].samples, 2);
+    assert.equal(weights[0].averageClickDelta, 0, 'the zero result offsets the successful action instead of being excluded');
+    assert.equal(weights[0].weight, 1);
+    assert.deepEqual(await fillOutcomes(db, { now: '2026-11-17', gscFetch }), { filled: 0 });
+    assert.equal(pageQueries, 4); assert.deepEqual([...siteChecks.values()], [1, 1]);
+  } finally { await close(); }
+});
+
+test('unavailable site windows remain pending and retry into zeroes when final site data arrives', async () => {
+  const { db, close } = await testDb();
+  try {
+    await recordAction(db, action);
+    await recordAction(db, { ...action, slug: 'also-pending' });
+    let available = false, siteChecks = 0, pageQueries = 0;
+    const gscFetch = async (request) => {
+      if (!request.page) { siteChecks += 1; return available ? [{ keys: [request.start], impressions: 100 }] : []; }
+      pageQueries += 1; return [];
+    };
     assert.deepEqual(await fillOutcomes(db, { now: '2026-11-10', gscFetch }), { filled: 0 });
-    const pending = (await listActions(db))[0];
-    assert.equal(pending.outcome_2w, null); assert.equal(pending.outcome_4w, null);
-    assert.deepEqual(await actionWeights(db), [], 'empty responses cannot teach a false negative click delta');
+    assert.equal(siteChecks, 2, 'cache missing availability across actions sharing a window too');
+    assert.equal(pageQueries, 0);
+    const pending = await listActions(db);
+    assert.ok(pending.every((row) => row.outcome_2w === null && row.outcome_4w === null));
+    assert.deepEqual(await actionWeights(db), []);
     available = true;
-    assert.deepEqual(await fillOutcomes(db, { now: '2026-11-10', gscFetch }), { filled: 2 });
-    const measured = (await listActions(db))[0];
-    assert.equal(measured.outcome_2w.clicks, 0); assert.equal(measured.outcome_4w.clicks, 0);
-    assert.equal((await actionWeights(db))[0].averageClickDelta, -10, 'an explicit zero-click observation is a valid outcome');
+    assert.deepEqual(await fillOutcomes(db, { now: '2026-11-10', gscFetch }), { filled: 4 });
+    assert.equal(siteChecks, 4); assert.equal(pageQueries, 4);
+    assert.ok((await listActions(db)).every((row) => row.outcome_2w.clicks === 0 && row.outcome_4w.clicks === 0));
+    assert.equal((await actionWeights(db))[0].averageClickDelta, -10);
+  } finally { await close(); }
+});
+
+test('site and page/query fetch failures leave observations pending instead of recording zeroes', async () => {
+  const { db, close } = await testDb();
+  try {
+    await recordAction(db, action);
+    for (const failAt of ['site', 'page']) {
+      const gscFetch = async (request) => {
+        if ((failAt === 'site' && !request.page) || (failAt === 'page' && request.page)) throw Error('GSC 503');
+        return [{ keys: [request.start], impressions: 100 }];
+      };
+      await assert.rejects(fillOutcomes(db, { now: '2026-11-10', gscFetch }), /GSC 503/);
+      const row = (await listActions(db))[0];
+      assert.equal(row.outcome_2w, null); assert.equal(row.outcome_4w, null);
+      assert.deepEqual(await actionWeights(db), []);
+    }
   } finally { await close(); }
 });
 

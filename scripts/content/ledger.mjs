@@ -83,6 +83,7 @@ export async function writeWeeklySnapshot(client, { now = new Date(), gscFetch =
 export async function fillOutcomes(client, { now = new Date(), gscFetch = fetchGscRows } = {}) {
   const actions = (await client.query(`select * from content.content_action_ledger
     where acted_at <= $1::timestamptz - interval '14 days' and (outcome_2w is null or outcome_4w is null)`, [now])).rows;
+  const siteAvailability = new Map();
   let filled = 0;
   for (const action of actions) for (const weeks of [2, 4]) {
     const field = `outcome_${weeks}w`;
@@ -90,11 +91,18 @@ export async function fillOutcomes(client, { now = new Date(), gscFetch = fetchG
     const start = day(due - 7 * DAY), end = day(due - DAY);
     const nowMs = new Date(now).getTime();
     if (action[field] != null || due > nowMs || new Date(end).getTime() + GSC_LAG > nowMs) continue;
+    // Check final site data once per window, including when it is unavailable.
+    // GSC omits zero-impression page/query rows even for an available window.
+    const windowKey = `${start}/${end}`;
+    if (!siteAvailability.has(windowKey)) {
+      const siteRows = await gscFetch({ start, end, dimensions: ['date'] });
+      siteAvailability.set(windowKey, siteRows.length > 0);
+    }
+    if (!siteAvailability.get(windowKey)) continue;
     // Comparable seven-day windows: week ending just before the anniversary.
     const rows = await gscFetch({ start, end, dimensions: [], page: action.url, query: action.target_query });
-    if (!rows.length) continue;
     const result = await client.query(`update content.content_action_ledger set ${field}=$2 where id=$1 and ${field} is null`,
-      [action.id, { ...metrics(rows[0]), start, end }]);
+      [action.id, { ...metrics(rows[0] ?? { clicks: 0, impressions: 0 }), start, end }]);
     filled += result.rowCount;
   }
   return { filled };

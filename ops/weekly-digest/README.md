@@ -142,7 +142,10 @@ These are observations, not causal attribution.
 After the parent applies migration 0006 and reinstalls the runner, the existing
 Monday 10:00 UTC topic-discovery job snapshots the latest full Mon–Sun week
 whose end is at least three days old and fills lag-safe due outcomes before
-discovery. Empty GSC results remain pending; learning requests final data.
+discovery. Learning requests final data and checks site availability once per
+window: empty page/query results become zeroes when site data exists; unavailable
+site windows and fetch failures stay pending. Empty whole-site snapshot fetches
+preserve existing snapshots.
 The 08:00 Toronto digest runs afterward.
 No new timer is added or enabled. The parent also reinstalls the Mac digest.
 The digest headline retains its existing live GSC windows and VM fallback.
