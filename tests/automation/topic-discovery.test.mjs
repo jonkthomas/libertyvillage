@@ -102,6 +102,60 @@ test('PR #115 discovery titles are geo-qualified and deduplicated by stable inte
   assert.deepEqual(crossRun.queue, priorRun.queue);
 });
 
+// 2026-10-26 production topic-discovery: the gate rejected the whole submission
+// because these two PAA paraphrases were appended as separate topics.
+test('near-paraphrase PAA questions collapse to one topic before submission', async () => {
+  const discoveries = buildSerpApiPaaEntries([
+    { question: 'Is Liberty Village a nice area?' },
+    { question: 'Is Liberty Village a good place to live?' },
+  ], 'Liberty Village Toronto');
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] }, discoveries);
+  assert.deepEqual(result.added.map((entry) => entry.title), ['Is Liberty Village, Toronto A Nice Area?']);
+
+  const exact = await appendDiscoveredTopics({ version: 1, topics: [] }, [
+    { kind: 'blog', title: 'Is Liberty Village, Toronto A Nice Area?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Is Liberty Village, Toronto A Good Place To Live?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'What Is Liberty Village, Toronto Known For?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'What Is Liberty Village, Toronto Famous For?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'What Is There To Do In Liberty Village, Toronto?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'What Are Some Fun Things To Do In Liberty Village, Toronto?', source: 'serpapi', rationale: 'PAA' },
+  ]);
+  assert.deepEqual(exact.added.map((entry) => entry.title), [
+    'Is Liberty Village, Toronto A Nice Area?',
+    'What Is Liberty Village, Toronto Known For?',
+    'What Is There To Do In Liberty Village, Toronto?',
+  ]);
+
+  const queued = await appendDiscoveredTopics({ version: 1, topics: [] }, [
+    { kind: 'blog', title: 'Is Liberty Village, Toronto A Good Area?', source: 'serpapi', rationale: 'prior week' },
+  ]);
+  const nextWeek = await appendDiscoveredTopics(queued.queue, [
+    { kind: 'blog', title: 'Is Liberty Village, Toronto A Good Place To Live?', source: 'serpapi', rationale: 'PAA' },
+  ]);
+  assert.equal(nextWeek.added.length, 0, 'a paraphrase of an already queued topic stays out');
+});
+
+test('a paraphrase of a published post is not queued; distinct intents all survive', async () => {
+  const publishedPosts = [{ title: 'Is Liberty Village, Toronto a Good Area to Live In?', slug: 'is-liberty-village-toronto-a-good-area' }];
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] }, [
+    { kind: 'blog', title: 'Is Liberty Village, Toronto A Nice Area?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Is Liberty Village, Toronto Safe?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'How Expensive Is Liberty Village, Toronto?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Is Liberty Village, Toronto Walkable?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'Is Liberty Village, Toronto Good For Families?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'What Is The Best Place To Eat In Liberty Village, Toronto?', source: 'serpapi', rationale: 'PAA' },
+    { kind: 'blog', title: 'What To Do In Liberty Village, Toronto In Winter?', source: 'serpapi', rationale: 'PAA' },
+  ], { publishedPosts });
+  assert.deepEqual(result.added.map((entry) => entry.title), [
+    'Is Liberty Village, Toronto Safe?',
+    'How Expensive Is Liberty Village, Toronto?',
+    'Is Liberty Village, Toronto Walkable?',
+    'Is Liberty Village, Toronto Good For Families?',
+    'What Is The Best Place To Eat In Liberty Village, Toronto?',
+    'What To Do In Liberty Village, Toronto In Winter?',
+  ]);
+});
+
 test('unsupported GSC themes stay out while PostHog titles retain their source', async () => {
   const discoveries = [
     { kind: 'blog', title: 'Liberty Village Farmers Market', source: 'gsc', rationale: 'GSC top query' },

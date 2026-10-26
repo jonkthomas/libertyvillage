@@ -593,18 +593,59 @@ export async function discoverTopics({ now = new Date() } = {}) {
   return [...gsc, ...posthog, ...serp].map((entry) => ({ ...entry, addedAt }));
 }
 
-export async function appendDiscoveredTopics(queue, discoveries) {
+// Discovery-only near-duplicate key: paraphrased questions such as "Is Liberty
+// Village a nice area?" and "...a good place to live?" are one search intent and
+// the gate rejects a submission that carries both. Kept separate from
+// intentFingerprint, whose values are stored as consumed cadence intents.
+const NEAR_DUP_STOPWORDS = new Set(['a', 'an', 'the', 'in', 'of', 'for', 'to', 'on', 'at', 'is', 'are', 'it', 'its', 'there',
+  'some', 'what', 'which', 'how', 'do', 'does', 'can', 'i', 'you', 'considered', 'really', 'actually', 'liberty', 'village', 'toronto']);
+const LIVABILITY_WORDS = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth', 'place', 'live', 'living',
+  'area', 'neighbourhood', 'neighborhood', 'community']);
+const LIVABILITY_EVALUATIVE = new Set(['nice', 'good', 'great', 'decent', 'bad', 'worth']);
+
+export function nearDuplicateKey(title) {
+  const text = (String(title ?? '').toLowerCase().match(/[a-z0-9]+/g) ?? []).join(' ')
+    .replace(/\bfamous\b/g, 'known')
+    .replace(/\b(?:(?:fun|cool|best) )?things to do\b|\bto do\b/g, 'todo');
+  const tokens = [...new Set(text.split(' ')
+    .filter((token) => token && !NEAR_DUP_STOPWORDS.has(token))
+    .map((token) => (token.length > 3 && token.endsWith('s') && !token.endsWith('ss') ? token.slice(0, -1) : token)))];
+  if (tokens.length && tokens.every((token) => LIVABILITY_WORDS.has(token))
+    && tokens.some((token) => LIVABILITY_EVALUATIVE.has(token))) return 'livability';
+  return tokens.sort().join(' ');
+}
+
+function publishedTitles(posts) {
+  return (Array.isArray(posts) ? posts : []).flatMap((post) => [post?.title, post?.slug?.replace(/-/g, ' ')]).filter(Boolean);
+}
+
+export function loadPublishedPosts(filePath = path.join(path.dirname(queuePath()), 'posts.json')) {
+  try {
+    const value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [] } = {}) {
   let next = queue ?? loadTopicQueue();
   const added = [];
   const seenIntents = new Set((next.topics ?? []).map((entry) => (
     `${entry?.kind ?? ''}|${intentFingerprint(entry?.title)}`
   )));
+  const seenNear = new Set([
+    ...(next.topics ?? []).map((entry) => `${entry?.kind ?? ''}|${nearDuplicateKey(entry?.title)}`),
+    ...publishedTitles(publishedPosts).map((title) => `blog|${nearDuplicateKey(title)}`),
+  ]);
   for (const discovery of discoveries) {
     const normalized = normalizeDiscovery(discovery);
     if (!normalized) continue;
     const fingerprint = `${normalized?.kind ?? ''}|${intentFingerprint(normalized?.title)}`;
-    if (seenIntents.has(fingerprint)) continue;
+    const near = `${normalized?.kind ?? ''}|${nearDuplicateKey(normalized?.title)}`;
+    if (seenIntents.has(fingerprint) || seenNear.has(near)) continue;
     seenIntents.add(fingerprint);
+    seenNear.add(near);
     const result = appendTopic(next, normalized);
     next = result.queue;
     if (result.added) added.push(result.entry);
@@ -655,7 +696,7 @@ async function main() {
   if (command === 'discover') {
     const current = loadTopicQueue();
     const discoveries = await discoverTopics();
-    const result = await appendDiscoveredTopics(current, discoveries);
+    const result = await appendDiscoveredTopics(current, discoveries, { publishedPosts: loadPublishedPosts() });
     saveTopicQueue(result.queue);
     writeOutput({
       added: String(result.added.length),
