@@ -1,4 +1,4 @@
-// Refresh loop (docs/specs/refresh-loop.md). Once a week: pick the weakest live
+// Refresh loop (docs/runbooks/refresh-loop.md). Once a week: pick the weakest live
 // blog posts from Search Console page rows, snapshot each one in the DB, rewrite
 // it with the existing generator, and send it through the `refresh` submission
 // kind: the same lint, grounding and review gate as a new blog post, then the

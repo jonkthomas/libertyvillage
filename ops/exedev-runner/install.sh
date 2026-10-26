@@ -28,6 +28,6 @@ visudo -cf /etc/sudoers.d/lv-runner-generator
 for file in "$root"/*.timer "$root/lv-runner@.service"; do install -m 0644 -o root -g root "$file" /etc/systemd/system/; done
 systemctl daemon-reload
 # The refresh loop (seo-improvements job) stays off on every reinstall until its
-# staging proof is accepted (#182, docs/specs/refresh-loop.md); go-live enables it by hand.
+# staging proof is accepted (#182, docs/runbooks/refresh-loop.md); go-live enables it by hand.
 systemctl disable --now lv-runner-seo-improvements.timer
 echo 'Installed runner. Refresh (SEO) timer disabled pending staging acceptance (#182); other timer states unchanged.'

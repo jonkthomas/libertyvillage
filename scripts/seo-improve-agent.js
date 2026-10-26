@@ -41,7 +41,7 @@ function seoModeClause() {
   return '';
 }
 
-// Refresh loop (docs/specs/refresh-loop.md): the trusted runner names one live
+// Refresh loop (docs/runbooks/refresh-loop.md): the trusted runner names one live
 // post. The runner refuses any output that touches another post, changes the
 // slug or publish date, and gates the rewrite like a new blog post.
 function refreshClause() {

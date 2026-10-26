@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
-  // Refresh loop (docs/specs/refresh-loop.md); the timer stays disabled until a staging proof.
+  // Refresh loop (docs/runbooks/refresh-loop.md); the timer stays disabled until a staging proof.
   'seo-improvements': { calendar: 'Tue *-*-* 04:23:00 UTC', kind: 'refresh' },
   'discover-businesses': { calendar: 'Mon *-*-* 13:00:00 UTC', kind: 'business' },
   news: { calendar: '*-*-* 12:17:00 UTC', kind: 'news' },
@@ -1624,7 +1624,7 @@ async function cadenceDeps(job, target, slot, log) {
   };
 }
 
-// Refresh loop (docs/specs/refresh-loop.md): GSC blog rows -> `content refresh
+// Refresh loop (docs/runbooks/refresh-loop.md): GSC blog rows -> `content refresh
 // plan` -> per post: DB snapshot (reserve, weekly cap) -> fresh export ->
 // sandboxed generator -> trusted `content refresh submit` (same-slug check,
 // refresh gate, publish, deploy hook, smoke, ledger). A dry run only plans;

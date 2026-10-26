@@ -1,4 +1,6 @@
-# Refresh loop: improve the 2 weakest live posts each week
+# Refresh loop runbook: improve the 2 weakest live posts each week
+
+> **Operational runbook (as built).** This describes how the refresh loop behaves and how to run, check and roll it back. It is not a specification: no approved spec drove this work, and this document claims no spec authority. The code and its tests are the source of truth.
 
 Slice 2 of the Liberty Village growth loop. The metric is weekly Google Search Console clicks, week over week. New posts add pages; the refresh loop makes the pages we already have earn more of the clicks Google is already offering them.
 
