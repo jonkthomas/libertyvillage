@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "node scripts/content/build-export.mjs",
+    "prebuild": "node scripts/content/build-export.mjs && node scripts/seo/generate-llms.mjs",
     "content": "node scripts/content/cli.mjs",
+    "test:seo-freshness": "node --import tsx --test --test-concurrency=1 tests/content/seo-freshness.test.mjs",
     "test:content": "node --test --test-concurrency=1 tests/content/*.test.mjs",
     "test:digest": "node --test tests/digest/*.test.mjs",
     "dev": "next dev",

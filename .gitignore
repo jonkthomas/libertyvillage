@@ -78,3 +78,7 @@ data/topics-part*.json
 
 # python bytecode caches
 __pycache__/
+
+# Regenerated from the build content export by npm prebuild.
+/public/llms.txt
+/public/llms-full.txt
