@@ -4,6 +4,7 @@
 // a collapsed appendix so nothing is lost. Plain system CSS, no JS, no external
 // assets. John prefers plain, simple, dense UIs.
 import { execSummary, fmtDate } from './digest.mjs';
+import { renderRefreshed } from './refreshed.mjs';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -229,6 +230,8 @@ footer{margin-top:28px;color:var(--faint);font-size:11px}
 
 <h2>What shipped</h2>
 ${shipped}
+
+${renderRefreshed(model.refreshes)}
 
 <h2>What went wrong → what we did</h2>
 ${problems}

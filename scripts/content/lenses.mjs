@@ -29,9 +29,16 @@ export const MANUAL_LENSES = Object.freeze({
     'the singleton keeps the guide-hub.json schema; quick facts and the answer summary must agree with its numeric stats.'),
 });
 
-// kind==='manual' ? MANUAL_LENSES[dataset] : LENSES[kind]; fail closed on anything else.
+// A refresh rewrites a live post: the new-post blog lenses verbatim, plus one
+// lens that holds the rewrite to the page it replaces (same URL and slug).
+export const REFRESH_LENSES = Object.freeze([
+  ...LENSES.blog,
+  'REFRESH lens: this rewrites an existing live post at the same URL. The new title, description and answer block must describe what the body actually covers; keep every still-true fact from the base, add no claim the base or references do not support, and do not change the slug or publish date.',
+]);
+
+// kind==='manual' ? MANUAL_LENSES[dataset] : kind==='refresh' ? REFRESH_LENSES : LENSES[kind]; fail closed on anything else.
 export function lensesFor(kind, dataset) {
-  const lenses = kind === 'manual' ? MANUAL_LENSES[dataset] : LENSES[kind];
+  const lenses = kind === 'manual' ? MANUAL_LENSES[dataset] : kind === 'refresh' ? REFRESH_LENSES : LENSES[kind];
   if (!Array.isArray(lenses) || lenses.length === 0) {
     throw new Error(`no review lenses for kind ${kind}${kind === 'manual' ? ` dataset ${dataset}` : ''}`);
   }

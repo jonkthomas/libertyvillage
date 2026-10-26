@@ -4,6 +4,7 @@
 // fields must never break a digest) and every fetch may degrade to a note.
 
 import { explain, normalizeCode, jobName, siteName } from './plain-english.mjs';
+import { refreshRow, refreshedThisWeek } from './refreshed.mjs';
 
 export const TORONTO_TZ = 'America/Toronto';
 
@@ -59,6 +60,7 @@ export function parseRun(fileName, text) {
     outcome: null, // success | failure | held | incomplete
     reason: null, error: null, detail: null,
     events: 0, badLines: 0, eventNames: [],
+    refreshes: [],
   };
   for (const line of String(text).split('\n')) {
     const trimmed = line.trim();
@@ -108,6 +110,8 @@ export function parseRun(fileName, text) {
           run.error = extra[0] ?? null;
         }
       }
+    } else if (ev.event === 'refresh-outcome') {
+      run.refreshes.push(refreshRow(ev, run));
     } else if (ev.event === 'roundup-hold-alerted') {
       if (!run.outcome) {
         run.outcome = 'held';
@@ -239,6 +243,7 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     gsc: gsc ?? { source: 'unavailable', note: 'not fetched' },
     notes,
     links,
+    refreshes: refreshedThisWeek(runs ?? []),
   };
 }
 
@@ -285,7 +290,7 @@ export function scheduleWords(schedule) {
 const TIMER_WORDS = {
   'weekly-blog': 'New blog post', 'october-blog-backfill': 'October catch-up post', 'topic-discovery': 'Topic research (fills the topic queue)',
   'discover-businesses': 'Business directory refresh', news: 'News check', 'weekly-growth-report': 'Growth report',
-  'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'SEO improvements',
+  'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'Refresh the 2 weakest posts',
 };
 
 /** Timers -> plain "next week" rows, production only, soonest first. */

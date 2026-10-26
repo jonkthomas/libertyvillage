@@ -18,6 +18,8 @@ const NEXT_TOPIC = 'Nothing to do. The next scheduled run tries again, with anot
 const SLOT_OPEN = 'No bad content went live, but that post slot is still open.';
 const NO_CHANGE = 'That run changed nothing on the site.';
 const FIX_IT = 'Nothing to do now. The fix-it agent reviews it on Monday; if it keeps happening it opens a ticket.';
+const REFRESH_KEPT = 'The live page kept its previous version; nothing changed for readers.';
+const REFRESH_NEXT = 'Nothing to do. Next week\'s refresh run picks again from the weakest posts.';
 
 // title: short group label (digest "what went wrong"); cause: why it happened;
 // impact: why it matters; action: what happens next / what John does.
@@ -263,6 +265,65 @@ const ENTRIES = {
     title: 'Content changed while the run worked',
     cause: 'Someone or something changed the same content during review, so this version was dropped.', impact: NO_CHANGE, action: RETRY,
   },
+  // Refresh loop outcomes (scripts/content/refresh.mjs). A failed refresh never
+  // changes the live page: the snapshot stays and the post keeps its old version.
+  'refresh-gate-failed': {
+    title: 'Refresh did not pass the quality review',
+    cause: 'The rewritten post did not pass the same quality review new posts get, so it was not published.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-fact-check': {
+    title: 'Refresh failed the fact check',
+    cause: 'The rewritten post included a detail our automatic fact check could not confirm, so it was not published.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-validation': {
+    title: 'Refresh failed validation',
+    cause: 'The rewritten post did not pass the format and safety checks, so it was refused.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-slug-changed': {
+    title: 'Refresh tried to change the page address',
+    cause: 'The writer changed the post\'s address (slug). Refreshes must keep the same URL, so it was refused.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-date-changed': {
+    title: 'Refresh tried to change the publish date',
+    cause: 'The writer changed the post\'s original publish date, which refreshes may not do, so it was refused.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-off-target': {
+    title: 'Refresh touched other pages',
+    cause: 'The writer changed posts other than the one being refreshed, so the whole refresh was refused.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-no-change': {
+    title: 'Refresh made no change',
+    cause: 'The writer finished without changing the post.', impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-conflict': {
+    title: 'Post changed during the refresh',
+    cause: 'Something else updated the same post while it was being refreshed, so this version was dropped.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-smoke-failed': {
+    title: 'Refreshed page failed its live check and was undone',
+    cause: 'The refreshed page did not load correctly after publishing, so it was rolled back automatically.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-generator-failed': {
+    title: 'Refresh writer did not finish',
+    cause: 'The writer stopped before producing a rewritten post.', impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-interrupted': {
+    title: 'Refresh run was interrupted',
+    cause: 'A refresh run stopped part-way and nothing was submitted; the next run closed it out.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-error': {
+    title: 'Refresh hit an unexpected problem',
+    cause: 'The refresh stopped on an error before publishing.', impact: REFRESH_KEPT, action: FIX_IT,
+  },
   'state-error': {
     title: 'Draft was in an unexpected state',
     cause: 'The draft was not in the state this step expected, so the run stopped safely.', impact: NO_CHANGE, action: FIX_IT,
@@ -362,7 +423,7 @@ export function codesInErrors(errors) {
 const JOBS = {
   'weekly-blog': 'Weekly blog post', 'october-blog-backfill': 'October catch-up post', 'topic-discovery': 'Topic research',
   'discover-businesses': 'Business directory refresh', news: 'Daily news check', 'weekly-growth-report': 'Weekly growth report',
-  'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'SEO improvements', blog: 'Blog post', admin: 'Manual content update', manual: 'Manual content change',
+  'weekly-roundup': 'Weekly news roundup', 'seo-improvements': 'Post refresh', refresh: 'Post refresh', blog: 'Blog post', admin: 'Manual content update', manual: 'Manual content change',
   'guide-hub': 'Neighbourhood guide',
 };
 /** "weekly-blog" -> "Weekly blog post"; unknown slugs become words. */

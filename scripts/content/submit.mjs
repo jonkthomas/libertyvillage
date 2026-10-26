@@ -29,6 +29,7 @@ const PACK_FACTS_MAX_CHARS = 48000;
 
 const INSERT = Object.freeze(['insert']);
 const EDIT = Object.freeze(['insert', 'update']);
+const UPDATE = Object.freeze(['update']);
 
 // kind -> datasets/ops, count limits and which deterministic checks apply.
 // Generation checks (lint, validateSubmittedPost, news publish-ready) apply only
@@ -45,6 +46,8 @@ export const KIND_RULES = Object.freeze({
     min: 1, max: 15, maxInserts: 2, images: true,
   },
   manual: { datasets: Object.fromEntries(MANUAL_DATASETS.map((d) => [d, EDIT])), min: 1, max: 1, images: true },
+  // Refresh loop: rewrite one existing post in place, held to the new-post lint.
+  refresh: { datasets: { posts: UPDATE }, min: 1, max: 1, lint: true, images: true },
 });
 
 export const itemLabel = ({ dataset, key }) => `data/${dataset}.json: ${key}`;

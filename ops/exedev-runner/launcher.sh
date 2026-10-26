@@ -25,6 +25,14 @@ env.update(HOME='/var/cache/lv-generator', PATH='/usr/local/bin:/usr/bin:/bin', 
 if job == 'weekly-blog' and request.get('topic'):
     env['TOPIC_OVERRIDE'] = request['topic']
 if job == 'seo-improvements': env['SEO_MODE'] = 'data'
+# Refresh loop: the trusted runner names one live post (slug) and its top search.
+refresh = request.get('refresh') if job == 'seo-improvements' else None
+if refresh is not None:
+    slug, query = refresh.get('slug'), refresh.get('query') or ''
+    if not isinstance(slug, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,127}', slug) or not isinstance(query, str) or len(query) > 200 or not query.isprintable():
+        sys.exit(2)
+    env['REFRESH_SLUG'] = slug
+    env['REFRESH_QUERY'] = query
 for key, value in env.items():
     if '\x00' in value or '\n' in value or '\r' in value: sys.exit(2)
 envfile = pathlib.Path(f'/run/lv-runner/generator-{slot}.env')
