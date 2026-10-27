@@ -9,6 +9,10 @@ import { refreshPage, refreshBindingRecord, refreshClaimRecord } from './refresh
 const hasOwn = (value, field) => value !== null && typeof value === 'object' && Object.hasOwn(value, field);
 const list = (value) => (Array.isArray(value) ? value : []);
 
+// These dataset fields render as text. Markdown belongs only in post/guide
+// content; reject it here so the writer can use its existing repair attempt.
+const MARKDOWN = /!?\[[^\]\n]+\]\s*(?:\([^\n)]*\)|\[[^\]\n]*\])|`+[^`]+`+|\*\*[^\n]+?\*\*|__[^\n]+?__|~~[^\n]+?~~|(?<!\w)([*_])[^\s*_][^\n]*?\1(?!\w)|^\s{0,3}(?:#{1,6}\s|>\s?|[-+*]\s|\d+[.)]\s|```|~~~|(?:[-*_]\s*){3,}$)/m;
+
 export class RefreshRefused extends Error {
   constructor(reason, message = reason, detail = null) { super(message); this.code = 'RefreshRefused'; this.reason = reason; this.detail = detail; }
 }
@@ -128,6 +132,13 @@ export function checkRefreshPreSubmission({ item, ctx = {}, live = {}, deps = {}
   const lint = [];
   const findings = [];
   const failures = [];
+  for (const field of ['description', ...(['posts', 'topics'].includes(item.dataset) ? ['title'] : [])]) {
+    if (typeof record?.[field] !== 'string' || !MARKDOWN.test(record[field])) continue;
+    const rule = 'refresh-plain-text-markdown';
+    const detail = `${item.dataset}.${field} is plain text; remove Markdown formatting`;
+    errors.push(detail);
+    findings.push({ rule, field, detail });
+  }
   const storage = (deps.validateRecord ?? validateRecord)(item.dataset, item.key, record);
   if (!storage?.ok) {
     const messages = storage?.errors?.length ? storage.errors : ['record failed storage validation'];

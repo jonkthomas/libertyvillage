@@ -11,6 +11,11 @@ file. The file contains only the target record. Never invent facts or broaden
 the task. The runtime supplies the referenced business records as evidence.
 Preserve all fields outside the allowed list, including slug and publishedAt.
 
+Titles and descriptions are plain text, including businesses/services description
+intros. Never use Markdown links, bold, emphasis, headings, lists or code there.
+Attribute business facts with the exact recorded name in plain text. Markdown
+is allowed only in posts/topics content.
+
 Grounding is non-negotiable: every named-business address, cross street, opening
 hour, price, phone, website and rating must be copied verbatim from that business's
 own provided record. Never introduce an address, price, hour or rating absent from
