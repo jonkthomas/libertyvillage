@@ -237,7 +237,7 @@ ${shipped}
 <h2>What we did → what it moved</h2>
 ${renderActionMovements(model.actions)}
 
-${renderRefreshed(model.refreshes)}
+${renderRefreshed(model.refreshes, model.refreshEvaluations)}
 
 <h2>What went wrong → what we did</h2>
 ${problems}

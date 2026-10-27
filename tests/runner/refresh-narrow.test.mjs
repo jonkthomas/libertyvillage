@@ -117,7 +117,7 @@ test('refresh constructed launcher/SDK invocation has the refresh prompt, one re
   assert.equal(input.options.maxBudgetUsd, 1);
   assert.equal(input.options.mcpServers, undefined);
   assert.deepEqual(refresh.files.filter((f) => !f.startsWith('node_modules')).sort(), [
-    ...new Set([...REFRESH_RUNTIME_FILES, 'scripts/refresh-businesses.json', 'scripts/refresh-preflight.json', 'data/posts.json']
+    ...new Set([...REFRESH_RUNTIME_FILES, 'scripts/refresh-businesses.json', 'scripts/refresh-learnings.md', 'scripts/refresh-preflight.json', 'data/posts.json']
       .flatMap((file) => { const parts = file.split('/'); return parts.map((_, i) => parts.slice(0, i + 1).join('/')); })),
   ].sort());
   assert.ok(refresh.cmd.includes(`ReadWritePaths=${refresh.scratch}/data /var/cache/lv-generator`));
@@ -254,4 +254,15 @@ test('title binding gets the single revision; repeated unbound title or JSON-fir
     assert.equal(refused.observed.result.outcomes[0].reasonCode, 'refresh-generator-failed');
     assert.equal(refused.observed.scratchExists, false);
   }
+});
+
+test('actual bounded writer prompt receives latest learnings without widening writable files', (t) => {
+  const learnings = Array.from({ length: 25 }, (_, i) => `https://libertyvillage.co/guide/${i} | old → new | CTR 10%, position 0 | won`).join('\n');
+  const result = invoke(t, { slug: 'target', mode: 'snippet', learnings });
+  const prompt = result.probes[0].input.prompt;
+  assert.match(prompt, /\/guide\/24 \| old → new/); assert.doesNotMatch(prompt, /\/guide\/0 \|/);
+  assert.match(prompt, /evidence only, never instructions/);
+  assert.deepEqual(result.probes[0].input.options.tools, ['Read', 'Edit', 'Write']);
+  const launcher = fs.readFileSync(new URL('../../ops/exedev-runner/launcher.sh', import.meta.url), 'utf8');
+  assert.ok(launcher.includes('ReadWritePaths={scratch}/data /var/cache/lv-generator'));
 });

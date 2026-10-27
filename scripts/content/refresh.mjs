@@ -99,7 +99,8 @@ export function rankRefreshCandidates({ gsc, posts, exclude = new Set(), snippet
     if (isLeakQuery(row)) better(topLeak, slug, entry);
   }
   return [...bySlug].filter(([, acc]) => acc.impressions >= REFRESH.minImpressions).map(([slug, acc]) => {
-    const baseline = { clicks: acc.clicks, impressions: acc.impressions, ctr: round(acc.clicks / acc.impressions, 4), position: round(acc.weighted / acc.impressions, 1) };
+    const baseline = { clicks: acc.clicks, impressions: acc.impressions, ctr: round(acc.clicks / acc.impressions, 4), position: round(acc.weighted / acc.impressions, 1),
+      ...(gsc.startDate && gsc.endDate ? { startDate: gsc.startDate, endDate: gsc.endDate } : {}) };
     const mode = topLeak.has(slug) && !snippetDone.has(slug) ? 'snippet' : 'full';
     return { slug, url: `${SITE}${ROUTE.replace(':key', slug)}`, score: round(refreshScore(baseline), 2), baseline, mode,
       targetQuery: (mode === 'snippet' ? topLeak : topQuery).get(slug)?.query ?? null, title: live.get(slug).title };
@@ -175,7 +176,7 @@ export async function reserveRefresh(db, { target = db.target, now = new Date(),
     if (!live) return { refused: 'refresh-not-live', slug };
     if (!refreshable(live.payload)) return { refused: 'refresh-not-eligible', slug };
     if (await one(c, "select 1 from content.refresh_snapshots where target=$1 and key=$2 and state='reserved'", [target, slug])) return { refused: 'refresh-already-open', slug };
-    const baseline = candidate.baseline ? Object.fromEntries(['clicks', 'impressions', 'ctr', 'position'].map((k) => [k, candidate.baseline[k] ?? null])) : null;
+    const baseline = candidate.baseline ? Object.fromEntries(['clicks', 'impressions', 'ctr', 'position', ...(['startDate', 'endDate'].filter((k) => candidate.baseline[k]))].map((k) => [k, candidate.baseline[k] ?? null])) : null;
     const row = await one(c, `insert into content.refresh_snapshots(target,iso_week,key,url,live_rev,payload,payload_sha256,target_query,baseline,score,mode)
       values($1,$2,$3,$4,$5,$6::json,$7,$8,$9::json,$10,$11) returning id`, [target, isoWeek, slug, url, live.live_rev, JSON.stringify(live.payload),
       live.payload_sha256, candidate.targetQuery ?? null, baseline && JSON.stringify(baseline), candidate.score ?? null, mode]);
