@@ -5,13 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import * as runner from '../../ops/exedev-runner/runner.mjs';
+import { extractRefreshedPost } from '../../scripts/content/refresh.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
 const launcher = fs.readFileSync(new URL('ops/exedev-runner/launcher.sh', ROOT), 'utf8').split("<<'PY'")[1].split('\nPY')[0];
 
 // Exercise the real launcher Python, real Node entry point and real query
 // options. Only systemd/root accounts and the paid SDK transport are replaced.
-function invoke(t, refresh) {
+function invoke(t, refresh, throughRunner = false) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-narrow-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = path.join(root, 'source');
@@ -28,7 +29,7 @@ function invoke(t, refresh) {
         posts[0].description = 'Clearer local guide.';
         fs.writeFileSync('data/posts.json', JSON.stringify(posts));
       }
-      yield { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit' }] } };
+      yield { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit' }, { type: 'tool_use', name: 'Write' }] } };
       yield { type: 'result', subtype: 'success', num_turns: 1 };
     }
   `);
@@ -42,7 +43,11 @@ function invoke(t, refresh) {
   fs.writeFileSync(path.join(source, '.claude/settings.json'), '{"broad":"settings"}');
   fs.writeFileSync(path.join(source, 'tsconfig.json'), '{}');
   fs.writeFileSync(path.join(source, 'data/businesses.json'), '[{"slug":"other-business"}]');
-  const posts = [{ slug: 'target', title: 'Target' }, { slug: 'off-target', title: 'Other' }];
+  const target = throughRunner
+    ? JSON.parse(fs.readFileSync(new URL('data/posts.json', ROOT))).find((p) => p.slug === refresh.slug)
+    : { slug: 'target', title: 'Target' };
+  assert.ok(target, 'refresh fixture target exists');
+  const posts = [target, { slug: 'off-target', title: 'Other' }];
   fs.writeFileSync(path.join(source, 'data/posts.json'), JSON.stringify(posts));
   // The base implementation copied the entire tree at this same runner seam.
   (runner.prepareGeneratorScratch ?? runner.copyScratchTree)(source, scratch, refresh);
@@ -84,12 +89,53 @@ sys.modules['generator_diag'] = types.SimpleNamespace(GeneratorDiagnostic=Diag, 
 sys.argv = ['launcher', 'seo-improvements', 'test-slot']
 exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
 `;
-  const proc = spawnSync('python3', ['-c', python], { encoding: 'utf8', timeout: 15000 });
+  let observed;
+  let proc;
+  if (throughRunner) {
+    // Include the private generator's return and scratch cleanup, as in the
+    // production binding; replace only sudo/systemd and the paid SDK transport.
+    const moduleFile = path.join(root, 'runner.mjs');
+    fs.writeFileSync(moduleFile, fs.readFileSync(new URL('ops/exedev-runner/runner.mjs', ROOT), 'utf8') + '\nexport { generator };\n');
+    const bin = path.join(root, 'bin');
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, 'sudo'), '#!/usr/bin/env python3\n' + python, { mode: 0o755 });
+    const observedFile = path.join(root, 'observed.json');
+    proc = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import fs from 'node:fs';
+      import { pathToFileURL } from 'node:url';
+      const { generator, refreshDeps } = await import(pathToFileURL(${JSON.stringify(moduleFile)}));
+      const events = [];
+      const file = ${JSON.stringify(path.join(source, 'data/posts.json'))};
+      const deps = refreshDeps({ target: 'staging', slot: 'test-slot', request: {}, run: ${JSON.stringify(run)},
+        export: () => {}, readPosts: () => JSON.parse(fs.readFileSync(file)),
+        writePosts: (posts) => fs.writeFileSync(file, JSON.stringify(posts)),
+        generate: (topic) => generator('seo-improvements', 'test-slot', topic, false, ${JSON.stringify(path.join(root, 'generator.jsonl'))}),
+        log: (event, details) => events.push({ event, ...details }),
+      });
+      const result = deps.generate({ snapshotId: 1, slug: ${JSON.stringify(refresh?.slug)}, mode: 'snippet' }, {});
+      fs.writeFileSync(${JSON.stringify(observedFile)}, JSON.stringify({ result, events, trusted: JSON.parse(fs.readFileSync(file)), scratchExists: fs.existsSync(${JSON.stringify(scratch)}) }));
+    `], { encoding: 'utf8', timeout: 15000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LV_RUNNER_REPO: source, LV_RUNNER_STATE_ROOT: state } });
+    if (proc.status === 0) observed = JSON.parse(fs.readFileSync(observedFile));
+  } else {
+    proc = spawnSync('python3', ['-c', python], { encoding: 'utf8', timeout: 15000 });
+  }
   assert.equal(proc.status, 0, proc.stderr + (fs.existsSync(resultFile) ? fs.readFileSync(resultFile) : ''));
   const result = JSON.parse(fs.readFileSync(resultFile));
   const probes = result.stdout.split('\n').filter((line) => line.startsWith('PROBE=')).map((line) => JSON.parse(line.slice(6)));
-  return { ...result, probes, files, scratch, posts: JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
+  return { ...result, probes, files, scratch, observed, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
 }
+
+test('refresh launcher Edit/Write reaches runner after through one-record scratch acceptance without false discards', (t) => {
+  const slug = 'goodlife-fitness-liberty-village-review-guide';
+  const generated = invoke(t, { slug, query: 'goodlife liberty village', mode: 'snippet' }, true);
+  const { result, trusted, events, scratchExists } = generated.observed;
+  assert.equal(extractRefreshedPost({ ...result, slug, mode: 'snippet' }).description, 'Clearer local guide.');
+  assert.deepEqual(trusted, result.after);
+  assert.equal(scratchExists, false, 'accepted target survives scratch cleanup');
+  assert.deepEqual(result.after[1], result.before[1]);
+  assert.deepEqual(events.find((e) => e.event === 'refresh-generator-output').discardedOffTarget, []);
+  t.diagnostic('Real generator + launcher + Node writer: one GoodLife record edited; accepted target survives scratch deletion, reaches runner after and passes strict snippet extraction; other post unchanged; discardedOffTarget=[].');
+});
 
 test('refresh constructed launcher/SDK invocation has the refresh prompt, one record, one writable file and bounded runtime; legacy stays broad', (t) => {
   const refresh = invoke(t, { slug: 'target', query: 'target guide', mode: 'snippet' });
