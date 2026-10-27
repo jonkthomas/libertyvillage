@@ -14,7 +14,8 @@ import { loadSiteLinkIndex } from '../news-pilot/draft-evidence.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
 import { canonicalJson, checkDraftAgainstPack, checkRefreshAgainstOriginal, verifySourcePack } from '../automation/blog-source-pack.mjs';
-import { snippetOverreach, splitIntro } from './refresh.mjs';
+import { snippetOverreach } from './refresh.mjs';
+import { refreshLintRecord } from '../lib/refresh-lint.mjs';
 import { refreshFailureDetail, refreshBindingDetail } from './refresh-diagnostics.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { roundupCoverageErrors, ROUNDUP_COVERAGE_MAX_KEYS, validateRecord } from './validate.mjs';
@@ -111,9 +112,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     // Snippet mode cannot repair the immutable body/FAQs/answer block. Lint
     // every writable text field, including the entire new intro, instead.
     // The snapshot binding below still rejects edits to any excluded field.
-    const lintRecord = kind === 'refresh' && ctx.refresh?.mode === 'snippet'
-      ? { slug: record?.slug, publishedAt: record?.publishedAt, title: record?.title, description: record?.description, content: splitIntro(record?.content).intro }
-      : record;
+    const lintRecord = kind === 'refresh' ? refreshLintRecord(record, ctx.refresh?.mode) : record;
     const result = lintPost(lintRecord, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
       roundup: item.dataset === 'posts' && hasOwn(record, 'roundupCoverage') });
     if (!result.ok && mode === 'fail') lint.push(...result.findings.map((finding) => `[${finding.rule}] ${finding.claim} — ${finding.detail}`));
