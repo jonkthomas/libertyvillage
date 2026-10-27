@@ -37,8 +37,10 @@ function invoke(t, refresh, throughRunner = false, scenario = 'edit') {
         try {
           if (['failed', 'all-failed'].includes(${JSON.stringify(scenario)})) throw Object.assign(new Error('PRIVATE'), { code: 'EROFS' });
           // Claude Code saves atomically beside the target, then renames it.
-          fs.writeFileSync('data/posts.json.tmp', JSON.stringify(posts));
+          fs.writeFileSync('data/posts.json.tmp', JSON.stringify(posts), { mode: ${scenario === 'private-edit' ? '0o600' : '0o644'} });
           fs.renameSync('data/posts.json.tmp', 'data/posts.json');
+          if (${scenario === 'invalid-json' ? 'true' : 'false'}) fs.writeFileSync('data/posts.json', 'PRIVATE malformed JSON');
+          if (${scenario === 'read-denied' ? 'true' : 'false'}) fs.chmodSync('data/posts.json', 0);
         } catch (error) { writeError = error.code; }
         yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'edit-1',
           is_error: Boolean(writeError), content: (writeError || '') + ' PRIVATE TOOL OUTPUT'
@@ -83,10 +85,16 @@ function invoke(t, refresh, throughRunner = false, scenario = 'edit') {
   const block = launcher.replaceAll('/var/lib/lv-runner', state).replaceAll('/run/lv-runner', run).replaceAll('/var/log/lv-generator', logs);
   const resultFile = path.join(root, 'result.json');
   const python = `
-import os, sys, types, json, pathlib, subprocess, pwd, importlib.util
+import os, sys, types, json, pathlib, subprocess, pwd, importlib.util, errno
 os.geteuid = lambda: 0
-os.chown = lambda *a, **kw: None
-pwd.getpwnam = lambda name: types.SimpleNamespace(pw_uid=0, pw_gid=0)
+def chown(file, uid, gid, **kwargs):
+    if pathlib.Path(file).name == 'posts.json':
+        info = pathlib.Path(file).lstat()
+        with pathlib.Path(${JSON.stringify(path.join(root, 'ownership.jsonl'))}).open('a') as output:
+            output.write(json.dumps(dict(uid=uid, inode=info.st_ino, mode=info.st_mode & 0o777)) + '\\n')
+        if uid == 102 and ${scenario === 'ownership-error' ? 'True' : 'False'}: raise OSError(errno.EPERM, 'PRIVATE')
+os.chown = chown
+pwd.getpwnam = lambda name: types.SimpleNamespace(pw_uid=101 if name == 'lv-generator' else 102, pw_gid=101)
 real_run = subprocess.run
 def system_run(args, **kwargs):
     if args[0] == 'systemctl':
@@ -120,8 +128,9 @@ def capture(cmd, diag, timeout):
     diag.feed_lines(proc.stdout.encode())
     if ${scenario === 'host-divergence' ? 'True' : 'False'}: posts_file.write_bytes(before)
     pathlib.Path(${JSON.stringify(resultFile)}).write_text(json.dumps(dict(cmd=cmd, timeout=timeout, env=env, stdout=proc.stdout, stderr=proc.stderr)))
-    return proc.returncode
+    return 1 if ${scenario === 'helper-exit' ? 'True' : 'False'} else proc.returncode
 diagnostics.capture_generator = capture
+if ${scenario === 'relay-malformed' ? 'True' : 'False'}: diagnostics.GeneratorDiagnostic.refresh_relay = lambda self: b'PRIVATE malformed relay'
 sys.modules['generator_diag'] = diagnostics
 sys.argv = ['launcher', 'seo-improvements', 'test-slot']
 exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
@@ -151,7 +160,7 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
       });
       const snapshot = { snapshotId: 1, slug: ${JSON.stringify(refresh?.slug)}, mode: 'snippet' };
       let result;
-      if (${scenario === 'all-failed' ? 'true' : 'false'}) {
+      if (${['all-failed', 'invalid-json', 'read-denied', 'helper-exit', 'relay-malformed', 'ownership-error'].includes(scenario) ? 'true' : 'false'}) {
         const { runRefreshLoop } = await import(${JSON.stringify(new URL('scripts/content/refresh.mjs', ROOT).href)});
         result = await runRefreshLoop({ deps: { ...deps,
           plan: () => ({ candidates: [{ slug: snapshot.slug }], remaining: 1 }),
@@ -171,9 +180,39 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
   const probes = result.stdout.split('\n').filter((line) => line.startsWith('PROBE=')).map((line) => JSON.parse(line.slice(6)));
   const diagnostics = fs.readdirSync(logs).flatMap((file) => fs.readFileSync(path.join(logs, file), 'utf8').trim().split('\n').map(JSON.parse));
   const unitChecks = fs.readFileSync(path.join(root, 'unit-checks.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-  const generatorEvents = throughRunner ? fs.readFileSync(path.join(root, 'generator.jsonl'), 'utf8').trim().split('\n').map(JSON.parse) : [];
-  return { ...result, generatorEvents, probes, files, scratch, observed, diagnostics, unitChecks, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
+  const generatorLog = path.join(root, 'generator.jsonl');
+  const generatorEvents = throughRunner && fs.existsSync(generatorLog) ? fs.readFileSync(generatorLog, 'utf8').trim().split('\n').map(JSON.parse) : [];
+  const ownership = fs.readFileSync(path.join(root, 'ownership.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  return { ...result, ownership, generatorEvents, probes, files, scratch, observed, diagnostics, unitChecks, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
 }
+
+test('atomic inode replacement with mode 0600 restores the replacement to the runner and accepts it', (t) => {
+  const generated = invoke(t, { slug: 'goodlife-fitness-liberty-village-review-guide', query: 'goodlife', mode: 'snippet' }, true, 'private-edit');
+  const [handoff, restored] = generated.ownership;
+  assert.notEqual(handoff.inode, restored.inode, 'temp-file rename replaces the original inode');
+  assert.equal(restored.uid, 102, 'ownership walk restores the replacement, not the original inode');
+  assert.equal(restored.mode, 0o600);
+  assert.equal(generated.observed.result.after[0].description, 'Clearer local guide.');
+  assert.equal(generated.observed.scratchExists, false);
+  t.diagnostic('Mode-0600 replacement is readable and accepted after ownership restoration; this case also passes on 8053ea2, refuting mode alone as the cause.');
+});
+
+test('handoff errors reach refresh-outcome with bounded stage/code and no private content', (t) => {
+  for (const [scenario, expected] of [
+    ['invalid-json', { stage: 'output-read', code: 'invalid-json' }],
+    ['read-denied', { stage: 'output-read', code: 'EACCES' }],
+    ['helper-exit', { stage: 'helper-exit', code: 'helper-exit', exit: 1 }],
+    ['relay-malformed', { stage: 'relay-parse', code: 'invalid-json' }],
+    ['ownership-error', { stage: 'ownership-restore', code: 'EPERM' }],
+  ]) {
+    const generated = invoke(t, { slug: 'goodlife-fitness-liberty-village-review-guide', query: 'goodlife', mode: 'snippet' }, true, scenario);
+    const outcome = generated.observed.events.find((e) => e.event === 'refresh-outcome');
+    assert.equal(outcome.reasonCode, 'refresh-generator-failed', scenario);
+    assert.deepEqual(outcome.failureDetail, expected, scenario);
+    assert.ok(!JSON.stringify(generated.observed.events).includes('PRIVATE'), scenario);
+    assert.equal(generated.observed.scratchExists, false, scenario);
+  }
+});
 
 test('refresh launcher Edit/Write reaches runner after through one-record scratch acceptance without false discards', (t) => {
   const slug = 'goodlife-fitness-liberty-village-review-guide';

@@ -440,13 +440,18 @@ export async function runRefreshLoop({ deps }) {
     if (snapshot.refused) { deps.log('refresh-skipped', { slug: candidate.slug, reasonCode: snapshot.refused }); continue; }
     let outcome;
     let stop = false;
+    let stage = 'generate';
     try {
       const generated = await deps.generate(snapshot, candidate);
+      stage = 'submit';
       outcome = await deps.submit(snapshot, generated);
     } catch (error) {
       // A technical failure (writer, CLI, DB) is not about this post: close it
       // honestly and end the run rather than spend the next attempt the same way.
       outcome = await deps.close({ snapshotId: snapshot.snapshotId, reasonCode: error?.reason ?? 'refresh-generator-failed' });
+      outcome = { ...outcome, failureDetail: refreshFailureCause(error?.failureDetail ?? {
+        stage, code: error instanceof SyntaxError ? 'invalid-json' : error?.code, exit: error?.cliFailure?.exit,
+      }) };
       stop = true;
     }
     deps.log('refresh-outcome', refreshLogLine(outcome));
@@ -461,12 +466,22 @@ export async function runRefreshLoop({ deps }) {
 // Bounded, public-only fields for the runner JSONL the weekly digest reads.
 const clip = (text, max) => (typeof text === 'string' ? text.slice(0, max) : null);
 const clipFace = (value) => (value ? { title: clip(value.title, 200), description: clip(value.description, 400) } : null);
+// Never log messages, stacks, paths or arbitrary exception properties. These
+// fixed stages/codes survive both the root-helper relay and the CLI close.
+const FAILURE_STAGES = new Set(['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read', 'generate', 'submit']);
+const FAILURE_CODES = new Set(['unknown', 'invalid-json', 'invalid-relay', 'invalid-artifact', 'artifact-changed', 'helper-exit',
+  'EACCES', 'EPERM', 'ELOOP', 'ENOENT', 'ENOTDIR', 'EISDIR', 'ENOSPC', 'EROFS', 'EBUSY', 'EMFILE', 'ENFILE', 'ENOMEM', 'ETIMEDOUT', 'ENOBUFS', 'EIO', 'EINVAL']);
+export function refreshFailureCause(value) {
+  return { stage: FAILURE_STAGES.has(value?.stage) ? value.stage : 'generate', code: FAILURE_CODES.has(value?.code) ? value.code : 'unknown',
+    ...(Number.isInteger(value?.exit) && value.exit >= 0 && value.exit <= 255 ? { exit: value.exit } : {}) };
+}
 export function refreshLogLine(o) {
   return {
     snapshotId: o.snapshotId ?? null, slug: o.slug ?? null, url: o.url ?? null, mode: MODES.includes(o.mode) ? o.mode : null,
     actionType: MODES.includes(o.mode) ? actionTypeOf(o.mode) : null, state: o.pending ? 'pending' : o.state ?? null, reasonCode: o.reasonCode ?? null,
     submissionId: o.submissionId ?? null, targetQuery: clip(o.targetQuery, 200), baseline: o.baseline ?? null,
     before: clipFace(o.before), after: clipFace(o.after), change: clip(o.change, 300),
+    ...(o.failureDetail || o.reasonCode === 'refresh-generator-failed' ? { failureDetail: refreshFailureCause(o.failureDetail) } : {}),
     ...(refreshFailureDetail(o.refusalDetail?.failures) ? { refusalDetail: refreshFailureDetail(o.refusalDetail.failures) } : {}),
     ...(o.refusalDetail && ['changed', 'added', 'removed', 'duplicate', 'invalid-posts'].includes(o.refusalDetail.kind) ? {
       refusalDetail: { kind: o.refusalDetail.kind, slug: typeof o.refusalDetail.slug === 'string' && SLUG.test(o.refusalDetail.slug) ? o.refusalDetail.slug : null },

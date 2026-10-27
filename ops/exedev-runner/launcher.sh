@@ -4,7 +4,7 @@ umask 077
 mode=$(basename "$0")
 if [[ "$mode" == lv-runner-generator ]]; then
   exec python3 - "$@" <<'PY'
-import json, os, pathlib, pwd, re, subprocess, sys, time
+import errno, json, os, pathlib, pwd, re, subprocess, sys, time
 sys.path.insert(0, '/usr/local/libexec')
 from generator_diag import GeneratorDiagnostic, capture_generator
 if os.geteuid() != 0 or len(sys.argv) != 3:
@@ -80,6 +80,11 @@ def _stop_unit(unit):
 unit = None
 stop_ok = True
 relay = None
+stage = 'ownership-transfer'
+def failure_relay(error):
+    return (json.dumps({'reasonCode': 'refresh-generator-failed', 'failureDetail': {
+        'stage': stage, 'code': errno.errorcode.get(getattr(error, 'errno', None), 'unknown')
+    }}, separators=(',', ':')) + '\n').encode()
 try:
     ownership(generator.pw_uid, generator.pw_gid)
     unit = f'lv-generator-{slot}-{os.urandom(4).hex()}'
@@ -90,6 +95,7 @@ try:
     diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl', refresh=refresh is not None)
     try:
         if refresh is not None: diag.refresh_file(scratch / 'data/posts.json', 'handoff')
+        stage = 'unit-run'
         result = capture_generator(cmd, diag, CLIENT_TIMEOUT)
         if refresh is not None:
             # The read-back fingerprint must describe the stopped writer, not
@@ -99,15 +105,17 @@ try:
                 if not stop_ok:
                     sys.exit(1)
                 sys.exit(result or 1)
+        stage = 'unit-read-back'
         if refresh is not None: diag.refresh_file(scratch / 'data/posts.json', 'read-back')
         diag.event('unit-exit', code=result)
     except subprocess.TimeoutExpired:
         stop_ok = _stop_unit(unit)
         diag.event('unit-timeout')
         sys.exit(124 if stop_ok else 1)
-    except Exception:
+    except Exception as error:
         stop_ok = _stop_unit(unit) if unit else True
         diag.event('unit-error')
+        if refresh is not None: relay = failure_relay(error)
         sys.exit(1)
     finally:
         try:
@@ -124,17 +132,27 @@ try:
         sys.exit(result or 1)
     # Normal completion (the agent exits 1 for a designed no-post outcome): the
     # exit code is unchanged and stdout gets exactly one validated relay line.
+    stage = 'relay-build'
     if result in (0, 1):
         relay = diag.refresh_relay() if refresh is not None else diag.relay(result)
     sys.exit(result)
+except Exception as error:
+    if refresh is None: raise
+    relay = failure_relay(error)
+    sys.exit(1)
 finally:
     try:
+        stage = 'ownership-restore'
         if stop_ok:
             ownership(worker.pw_uid, worker.pw_gid)
+    except Exception as error:
+        if refresh is None: raise
+        relay = failure_relay(error)
+        sys.exit(1)
     finally:
         envfile.unlink(missing_ok=True)
-    if relay is not None:
-        os.write(1, relay)
+        if relay is not None:
+            os.write(1, relay)
 PY
 fi
 if [[ "$mode" == lv-runner-service ]]; then
