@@ -37,7 +37,7 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
         yield { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'edit-1', name: 'Edit', input: {
           file_path: path.join(input.options.cwd, 'data/posts.json'), old_string: 'PRIVATE OLD CONTENT', new_string: 'PRIVATE NEW CONTENT'
         } }] } };
-        posts[0].description = 'Clearer local guide.';
+        posts[0].description = ${JSON.stringify(scenario === 'voice-warn' ? 'A vibrant local guide.' : 'Clearer local guide.')};
         if (${['lint-repair', 'lint-stays', 'json-then-lint', 'lint-spent', 'lint-unknown-budget'].includes(scenario) ? 'true' : 'false'}) {
           const body = posts[0].content.slice(posts[0].content.indexOf('## '));
           posts[0].content = (calls === 1 || ${scenario !== 'lint-repair' ? 'true' : 'false'}

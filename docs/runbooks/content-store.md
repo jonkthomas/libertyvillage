@@ -64,3 +64,17 @@ kill "$L2_NEXT_PID"
 For a local restore build, set `CONTENT_SOURCE=json`; never use the DB build flag during the L2 drill. The manifest is live-only and carries no draft, verdict, gate context, or private evidence. A media hash failure or identity drift invalidates the drill.
 
 For a real L2 rollback, restore into the fresh rollback worktree and stage the verified files with `git add data/` and `git add -f public/media/` before committing. `/public/media/` remains ignored so normal writer checkouts cannot commit generated build output.
+
+## Editorial voice rollout
+
+Blog, news, roundup and refresh writers share `scripts/prompts/lv-voice.md`.
+The banned-phrase, stock-framing and em-dash checks in `scripts/blog-lint.mjs`
+are warn-only from 2026-10-27 for at least two weeks. Existing claim and content
+checks keep their current blocking behavior. `node scripts/blog-lint.mjs --post
+<post.json>` prints editorial warnings with exit 0 when the draft otherwise
+passes. Submit receipts carry bounded warning identifiers; runner logs retain
+these for the digest appendix. Review the warning/refusal rate after 2026-11-10;
+blocking never enables itself. Explicitly set `LV_VOICE_BLOCKING=1` on trusted
+submit/gate commands, or change the single `VOICE_POLICY.blocking` config line,
+only after that review. See [the refresh runbook](refresh-loop.md#writer-prechecks-and-house-voice)
+for recurrence evidence, verification and the staging ops handoff.

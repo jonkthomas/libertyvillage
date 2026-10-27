@@ -21,7 +21,7 @@ export const JOBS = Object.freeze({
   'deploy-retry': { calendar: null, kind: null },
 });
 export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
-const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
+const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV', 'LV_VOICE_BLOCKING'];
 const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DB_NAME', 'CONTENT_TARGET', 'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'CONTENT_DEPLOY_HOOK_URL', 'SLACK_WEBHOOK_URL', 'INDEXNOW_ENABLED'];
 const SOURCE_ENV = {
   'topic-discovery': ['CONTENT_DATABASE_URL', 'CONTENT_DB_NAME', 'GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE', 'SERPAPI_API_KEY'],
@@ -391,6 +391,8 @@ export function copyScratchTree(from, to) {
 export const REFRESH_RUNTIME_FILES = [
   'scripts/seo-improve-agent.js',
   'scripts/prompts/seo-refresh-system.md',
+  'scripts/prompts/lv-voice.md',
+  'scripts/lib/lv-voice-lint.mjs',
   'scripts/blog-lint.mjs',
   'scripts/lib/referenced-businesses.mjs',
   'scripts/lib/refresh-lint.mjs',
@@ -560,6 +562,7 @@ function submitAndGate(job, target, slot, log, extra = [], onSubmission = null) 
   const identity = slotKey(job, target, slot);
   const actor = `runner:${job}#${slot}`;
   const submitted = parseJson(cli(['submit', '--dir', '.', '--kind', kind, '--idempotency-key', identity, '--actor', actor, ...extra]).stdout);
+  if (submitted.voiceWarnings) logLine(log, 'lv-voice-warning', submitted.voiceWarnings);
   const id = submitted.submissionId;
   logLine(log, 'submission', { id });
   if (id == null) return { id: null, success: true };
@@ -990,6 +993,7 @@ function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing
     }
     throw error;
   }
+  if (submitted.voiceWarnings) deps.log('lv-voice-warning', submitted.voiceWarnings);
   if (submitted.submissionId == null) return fail('no-submission');
   deps.log('submission', { id: submitted.submissionId });
   call('attach', ['--idempotency-key', key, '--token', token, '--submission-id', submitted.submissionId]);
@@ -1783,6 +1787,7 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
       const result = parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
         '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
         '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout);
+      if (result.voiceWarnings) log('lv-voice-warning', result.voiceWarnings);
       if (result.reasonCode === 'refresh-no-change') log('refresh-no-change', { snapshotId: snapshot.snapshotId, ...generated.targetDiff });
       return result;
     },

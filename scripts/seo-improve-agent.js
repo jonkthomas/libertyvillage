@@ -120,7 +120,8 @@ function refreshFileDiagnostic(phase, sequence) {
 
 async function runStage(label, opts) {
   const { query } = await import('@anthropic-ai/claude-agent-sdk');
-  const systemPrompt = fs.readFileSync(opts.systemPromptPath, 'utf8');
+  const systemPrompt = fs.readFileSync(opts.systemPromptPath, 'utf8')
+    + (process.env.REFRESH_SLUG ? '\n\n' + fs.readFileSync(P('lv-voice.md'), 'utf8') : '');
   console.log(`\n=== STAGE: ${label} ===`);
   const refreshWrites = new Map();
   if (process.env.REFRESH_SLUG) refreshFileDiagnostic('writer-handoff');
@@ -286,6 +287,7 @@ async function main() {
           resolveAssets: async () => { throw new Error('refresh cannot upload images'); },
         }) },
       });
+      if (result.warnings?.length) console.log(JSON.stringify((await import('./lib/lv-voice-lint.mjs')).voiceWarningEvent(result.warnings)));
       console.log('[refresh-self-check] ' + JSON.stringify({ attempt, ok: result.ok,
         ruleCodes: [...new Set(result.findings.map((finding) => finding.rule))] }));
       return result;

@@ -4,6 +4,7 @@
 // fields must never break a digest) and every fetch may degrade to a note.
 
 import { explain, normalizeCode, jobName, siteName } from './plain-english.mjs';
+import { rejectionEvent, precheckCandidates } from './precheck-candidates.mjs';
 import { fixerSlackLine } from './fixer-section.mjs';
 import { refreshRow, refreshedThisWeek } from './refreshed.mjs';
 
@@ -61,7 +62,7 @@ export function parseRun(fileName, text) {
     outcome: null, // success | failure | held | incomplete
     reason: null, error: null, detail: null,
     events: 0, badLines: 0, eventNames: [],
-    refreshes: [],
+    refreshes: [], rejections: [], voiceWarnings: [],
   };
   for (const line of String(text).split('\n')) {
     const trimmed = line.trim();
@@ -69,6 +70,12 @@ export function parseRun(fileName, text) {
     let ev;
     try { ev = JSON.parse(trimmed); } catch { run.badLines += 1; continue; }
     if (!ev || typeof ev !== 'object' || typeof ev.event !== 'string') { run.badLines += 1; continue; }
+    const rejection = rejectionEvent(ev, run.job);
+    if (rejection?.codes.length) run.rejections.push(rejection);
+    if (ev.event === 'lv-voice-warning' && Array.isArray(ev.ruleCodes)) {
+      const ruleCodes = ev.ruleCodes.filter((c) => ['voice-banned-phrase', 'voice-framing', 'voice-em-dash-density'].includes(c));
+      if (ruleCodes.length) run.voiceWarnings.push({ ruleCodes: [...new Set(ruleCodes)] });
+    }
     run.events += 1;
     run.eventNames.push(ev.event);
     if (!run.startedAt && typeof ev.at === 'string') run.startedAt = ev.at;
@@ -247,6 +254,7 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     notes,
     links,
     refreshes: refreshedThisWeek(runs ?? []),
+    precheckCandidates: precheckCandidates(runs ?? []),
   };
 }
 
