@@ -209,6 +209,7 @@ test('handoff errors reach refresh-outcome with bounded stage/code and no privat
     const outcome = generated.observed.events.find((e) => e.event === 'refresh-outcome');
     assert.equal(outcome.reasonCode, 'refresh-generator-failed', scenario);
     assert.deepEqual(outcome.failureDetail, expected, scenario);
+    assert.deepEqual(generated.generatorEvents.find((e) => e.event === 'refresh-generator-failed').failureDetail, expected, 'installed runner retains cause with an older pinned loop');
     assert.ok(!JSON.stringify(generated.observed.events).includes('PRIVATE'), scenario);
     assert.equal(generated.observed.scratchExists, false, scenario);
   }

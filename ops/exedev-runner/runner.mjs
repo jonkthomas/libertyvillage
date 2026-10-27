@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { constants as osConstants } from 'node:os';
 
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
@@ -476,10 +477,17 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     return changed;
   } catch (error) {
     failed = true;
-    if (topic?.refresh && !error.failureDetail) error.failureDetail = {
-      stage, code: error instanceof SyntaxError ? 'invalid-json' : error.code ?? 'unknown',
-      exit: error.exit ?? error.cliFailure?.exit,
-    };
+    if (topic?.refresh) {
+      const detail = error.failureDetail ?? { stage, code: error instanceof SyntaxError ? 'invalid-json' : error.code, exit: error.exit ?? error.cliFailure?.exit };
+      error.failureDetail = {
+        stage: ['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read'].includes(detail.stage) ? detail.stage : stage,
+        code: Object.hasOwn(osConstants.errno, detail.code) || ['invalid-json', 'invalid-relay', 'invalid-artifact', 'artifact-changed', 'helper-exit'].includes(detail.code) ? detail.code : 'unknown',
+        ...(Number.isInteger(detail.exit) && detail.exit >= 0 && detail.exit <= 255 ? { exit: detail.exit } : {}),
+      };
+      // Installed runner and pinned checkout can be on different releases. Keep
+      // the cause even when the older refresh loop drops exception properties.
+      logLine(log, 'refresh-generator-failed', { failureDetail: error.failureDetail });
+    }
     throw error;
   } finally {
     try { fs.rmSync(scratch, { recursive: true, force: true }); }
