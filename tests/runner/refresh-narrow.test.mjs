@@ -108,7 +108,8 @@ test('refresh constructed launcher/SDK invocation has the refresh prompt, one re
   assert.equal(refresh.probes.length, 1, 'no judge, reader or revision stage');
   const { input, posts } = refresh.probes[0];
   assert.deepEqual(posts.map((p) => p.slug), ['target']);
-  assert.equal(input.options.systemPrompt, fs.readFileSync(new URL('scripts/prompts/seo-refresh-system.md', ROOT), 'utf8'));
+  assert.equal(input.options.systemPrompt, fs.readFileSync(new URL('scripts/prompts/seo-refresh-system.md', ROOT), 'utf8')
+    + '\n\n' + fs.readFileSync(new URL('scripts/prompts/lv-voice.md', ROOT), 'utf8'));
   assert.match(input.prompt, /SNIPPET REFRESH MODE/);
   assert.deepEqual(input.options.settingSources, []);
   assert.deepEqual(input.options.skills, []);
@@ -254,4 +255,13 @@ test('title binding gets the single revision; repeated unbound title or JSON-fir
     assert.equal(refused.observed.result.outcomes[0].reasonCode, 'refresh-generator-failed');
     assert.equal(refused.observed.scratchExists, false);
   }
+});
+
+
+test('voice warnings survive writer output without consuming the single revision or refusing submit', (t) => {
+  const generated = invoke(t, { slug: 'goodlife-fitness-liberty-village-review-guide', query: 'goodlife', mode: 'snippet' }, true, 'voice-warn');
+  assert.equal(generated.probes.length, 1, 'editorial warnings spend no repair attempt');
+  assert.match(generated.stdout, /"event":"lv-voice-warning"/);
+  assert.match(generated.stdout, /"voice-banned-phrase"/);
+  assert.equal(generated.observed.result.after[0].description, 'A vibrant local guide.');
 });

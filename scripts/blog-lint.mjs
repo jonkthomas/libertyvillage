@@ -9,6 +9,7 @@
 //
 // Pure and deterministic: no network, no model, no clock unless one is injected.
 import fs from 'node:fs';
+import { lintVoiceFields, voiceBlocking, voiceWarningEvent } from './lib/lv-voice-lint.mjs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -364,7 +365,7 @@ function postYear(post, now) {
   return new Date(Number.isFinite(fallback) ? fallback : Date.now()).getUTCFullYear();
 }
 
-function collectFields(post) {
+export function collectFields(post) {
   const fields = [];
   for (const field of TEXT_FIELDS) {
     if (typeof post?.[field] === 'string') fields.push({ field, text: post[field] });
@@ -412,7 +413,7 @@ function blankOut(text, start, length) {
  *                 roundup?: true for a weekly news roundup (see ROUNDUP_SOURCE_GROUNDED_RULES) }
  * @returns      { ok, findings: [{ rule, severity, claim, detail }] }
  */
-export function lintPost(post, { businesses = [], now, roundup = false } = {}) {
+export function lintPost(post, { businesses = [], now, roundup = false, voiceBlocking: blocking = voiceBlocking() } = {}) {
   const index = indexBusinesses(businesses);
   const findings = [];
   const add = (rule, claim, detail, field, businessSlug = null) => {
@@ -493,7 +494,10 @@ export function lintPost(post, { businesses = [], now, roundup = false } = {}) {
     }
   }
 
-  return { ok: findings.length === 0, findings };
+  const voice = lintVoiceFields(collectFields(post), { blocking });
+  if (blocking) findings.push(...voice.findings);
+  return { ok: findings.length === 0, findings,
+    ...(!blocking && voice.findings.length ? { warnings: voice.findings } : {}) };
 }
 
 export function formatFindings(findings) {
@@ -502,6 +506,7 @@ export function formatFindings(findings) {
 }
 
 export function formatCliFinding(post, finding) {
+  if (finding.rule.startsWith('voice-')) return `  [${finding.rule}] ${finding.claim} — ${finding.detail}. Read scripts/prompts/lv-voice.md and rerun this command.`;
   const context = ['content', 'intro', 'proTip', 'conclusion']
     .map((field) => typeof post?.[field] === 'string' ? post[field] : '')
     .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 360);
@@ -557,9 +562,16 @@ async function main() {
   }
   const lines = [];
   let total = 0;
+  let voiceFailures = 0;
   for (const post of posts) {
-    const { ok, findings } = lintPost(post, { businesses });
+    const { ok, findings, warnings = [] } = lintPost(post, { businesses });
+    if (warnings.length) {
+      console.log(JSON.stringify(voiceWarningEvent(warnings)));
+      for (const warning of warnings) console.log(`  WARN [${warning.rule}] ${warning.claim} — ${warning.detail}`);
+      lines.push('Voice warnings (non-blocking):', formatFindings(warnings), '');
+    }
     total += findings.length;
+    voiceFailures += findings.filter((f) => f.rule.startsWith('voice-')).length;
     lines.push(`### blog-lint \`${post?.slug ?? 'unknown'}\` — ${ok ? 'clean' : `${findings.length} finding(s)`}`, '', formatFindings(findings), '');
     console.log(`blog-lint ${post?.slug ?? 'unknown'}: ${ok ? 'clean' : `${findings.length} finding(s)`}`);
     for (const finding of findings) console.log(formatCliFinding(post, finding));
@@ -567,8 +579,8 @@ async function main() {
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${['## Blog claim linter', '', `Mode: \`${mode}\``, '', ...lines].join('\n')}\n`);
   }
-  if (total > 0 && mode === 'fail') {
-    throw new Error(`blog-lint refused the draft: ${total} ungrounded claim(s). No pull request was opened.`);
+  if ((total > 0 && mode === 'fail') || voiceFailures > 0) {
+    throw new Error(`blog-lint refused the draft: ${total} blocking finding(s). No pull request was opened.`);
   }
   if (total > 0) console.log(`blog-lint mode=warn: ${total} finding(s) reported but not blocking (L1 rollback is active).`);
 }

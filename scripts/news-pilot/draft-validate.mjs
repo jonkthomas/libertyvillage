@@ -5,6 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { lintVoiceFields, voiceBlocking } from '../lib/lv-voice-lint.mjs';
 
 export const DRAFT_VALIDATION_CONFIG = Object.freeze({
   maxQuoteWords: 25,
@@ -524,6 +525,12 @@ export function validateDraft({
   const humanGates = [];
   /** @type {{code:string,message:string,field?:string,detail?:unknown}[]} */
   const warnings = [...(Array.isArray(repairWarnings) ? repairWarnings : [])];
+
+  const voice = lintVoiceFields(['title', 'description', 'answerBlock', 'content'].map((field) => ({ field, text: post?.[field] ?? '' })), { blocking: voiceBlocking() });
+  for (const finding of voice.findings) {
+    const row = { code: finding.rule, message: finding.detail, field: finding.field };
+    (voice.ok ? warnings : failures).push(row);
+  }
 
   const fmIssues = validateFrontmatter(post, config);
   const fmOk = fmIssues.length === 0;

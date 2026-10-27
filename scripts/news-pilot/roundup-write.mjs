@@ -4,6 +4,7 @@ import { generateDraftWithModel, parseModelJson, resolveModelProvider } from './
 import { evidenceStatesClock, roundupCoverageFromPack } from './roundup-verify.mjs';
 import { roundupSlug } from './roundup.mjs';
 import { lintPost } from '../blog-lint.mjs';
+import { voiceWarningEvent } from '../lib/lv-voice-lint.mjs';
 
 const unsafeImpact = /\b(?:crowd(?:s|ing)?|congestion|detours?|traffic disruption|parking restrictions?|road closures?)\b/i;
 const unsafeCopy = /\b(?:crime|murder|stabbing|robbery|election|candidate|vote for)\b/i;
@@ -116,7 +117,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     if (remaining <= 0) throw new Error('roundup_model_wall_clock_exceeded');
     return countingCall({ ...args, timeoutMs: Math.min(args.timeoutMs, remaining) });
   };
-  const instructions = 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts stated in the same unit subject, unit.when, evidence quotes or typed fields (unitId is an opaque key, not a fact); one short factual sentence is fine, so do not add descriptions, qualifiers or relationships to fill space. State a time only when unit.when has it, in the terms the source uses (never turn opening hours into an event start). No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
+  const instructions = fs.readFileSync(new URL('../prompts/lv-voice.md', import.meta.url), 'utf8') + '\n\n' + 'Return JSON {intro:string,units:[{unitId,heading,body}]}. Neutral, useful Liberty Village voice. 1–3 sentences per unit; 1–2 intro sentences. Say in Liberty Village only for core; near Liberty Village for adjacent. State actual dates, not this week for old news. Only facts stated in the same unit subject, unit.when, evidence quotes or typed fields (unitId is an opaque key, not a fact); one short factual sentence is fine, so do not add descriptions, qualifiers or relationships to fill space. State a time only when unit.when has it, in the terms the source uses (never turn opening hours into an event start). No new people, figures, links, claims of congestion, detours or crowding without explicit verified evidence. Do not reproduce Instagram captions; paraphrase.';
   // One shared targeted retry for the inherited lint on the draft (§9.2),
   // inside the six-call ceiling. A second failure — or an exhausted budget
   // with no call left — is a writer-failed HOLD, never a silent pass. Lint
@@ -142,6 +143,7 @@ export async function writeRoundup(pack, { env = process.env, resolved, reviewer
     let lint;
     try { lint = lintPostFn(shaped, { businesses, now: planNow, roundup: true }); }
     catch { return ['lint-unavailable']; }
+    if (lint?.warnings?.length) console.warn(JSON.stringify(voiceWarningEvent(lint.warnings)));
     if (lint?.ok) return [];
     const groups = new Map();
     for (const finding of (lint?.findings || []).slice(0, 12)) {
