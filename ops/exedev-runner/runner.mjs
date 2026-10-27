@@ -393,12 +393,18 @@ export function prepareGeneratorScratch(from, to, refresh = null) {
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(refresh.slug ?? '')) throw new Error('invalid refresh slug');
   const targets = readJson(path.join(from, 'data/posts.json')).filter((post) => post.slug === refresh.slug);
   if (targets.length !== 1) throw new Error('refresh target missing or duplicated');
-  for (const rel of ['scripts/seo-improve-agent.js', 'scripts/prompts/seo-refresh-system.md']) {
+  for (const rel of ['scripts/seo-improve-agent.js', 'scripts/prompts/seo-refresh-system.md',
+    'scripts/blog-lint.mjs', 'scripts/lib/referenced-businesses.mjs', 'scripts/lib/refresh-lint.mjs']) {
     fs.mkdirSync(path.dirname(path.join(to, rel)), { recursive: true });
     fs.copyFileSync(path.join(from, rel), path.join(to, rel));
   }
+  // The full business export preserves the trusted linter's attribution index.
+  // Keep it outside writable data/: only posts.json can be changed by the writer.
+  const businesses = readJson(path.join(from, 'data/businesses.json'));
+  if (!Array.isArray(businesses)) throw new Error('refresh business records missing');
+  fs.writeFileSync(path.join(to, 'scripts/refresh-businesses.json'), JSON.stringify(businesses) + '\n');
   // Copy runtime dependencies, as on the legacy path. No application tree, Git
-  // metadata, settings, skills or other data records enter this scratch tree.
+  // metadata, settings or skills enter this scratch tree.
   copyScratchTree(fs.realpathSync(path.join(from, 'node_modules')), path.join(to, 'node_modules'));
   fs.mkdirSync(path.join(to, 'data'), { recursive: true });
   fs.writeFileSync(path.join(to, 'data/posts.json'), JSON.stringify(targets) + '\n');

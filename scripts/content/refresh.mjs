@@ -16,6 +16,8 @@ import { getSubmission, readLive, ValidationError } from './store.mjs';
 import { canonicalJson } from '../automation/blog-source-pack.mjs';
 import { refreshFailureDetail } from './refresh-diagnostics.mjs';
 import { isoWeekOf } from '../news-pilot/roundup.mjs';
+import { splitIntro } from '../lib/refresh-lint.mjs';
+export { splitIntro } from '../lib/refresh-lint.mjs';
 
 export const REFRESH = Object.freeze({
   weeklyCap: 2,          // published (or in-flight) refreshes per ISO week
@@ -109,14 +111,6 @@ export class RefreshRefused extends Error {
   constructor(reason, message = reason, detail = null) { super(message); this.code = 'RefreshRefused'; this.reason = reason; this.detail = detail; }
 }
 
-// Intro = the body before its first `## ` section (or its first paragraph when it
-// has none); a snippet refresh may rewrite only that, the title and description.
-export function splitIntro(content) {
-  const text = String(content ?? '');
-  const heading = /^## /m.exec(text);
-  const cut = heading ? heading.index : (text.indexOf('\n\n') >= 0 ? text.indexOf('\n\n') : text.length);
-  return { intro: text.slice(0, cut), rest: text.slice(cut) };
-}
 const SNIPPET_FIELDS = new Set(['title', 'description', 'content', 'updatedAt']);
 // Null when `record` changes only what a snippet refresh may change relative to
 // `prior` (the snapshot). Shared with the submit/gate kind policy, so it holds for
