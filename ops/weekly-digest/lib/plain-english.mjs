@@ -24,6 +24,16 @@ const REFRESH_NEXT = 'Nothing to do. Next week\'s refresh run picks again from t
 // title: short group label (digest "what went wrong"); cause: why it happened;
 // impact: why it matters; action: what happens next / what John does.
 const ENTRIES = {
+  'refresh-no-candidates': {
+    title: 'No snippet option passed the checks',
+    cause: 'Every proposed snippet failed a required fact, scope, title or description check.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
+  'refresh-candidate-format': {
+    title: 'Snippet options were missing or malformed',
+    cause: 'The writer did not supply 3–5 bounded snippet options in the target record.',
+    impact: REFRESH_KEPT, action: REFRESH_NEXT,
+  },
   'business-outside-pack': {
     title: 'Draft named a business we could not verify',
     cause: 'The draft mentioned a business that is not in the checked source list for its topic, so it was rejected before publishing.',

@@ -52,6 +52,7 @@ VALIDATION_CODES = frozenset({
 
 
 REFRESH_CHECK_CODES = frozenset(['unrecorded-business', 'unsupported-address', 'unsupported-price', 'unsupported-hours', 'unsupported-date', 'unsupported-operational-premise', 'missing-draft', 'no-attributed-business', 'business-outside-pack', 'draft-changed-topic', 'draft-dropped-premise', 'invalid-relatedPosts', 'invalid-relatedServices', 'invalid-relatedTopics', 'invalid-relatedBusinesses', 'invalid-internal-link', 'storage', 'missing-snapshot-binding', 'roundup-coverage', 'refresh-off-target', 'refresh-slug-changed', 'refresh-date-changed', 'refresh-no-change', 'refresh-snippet-overreach', 'image-invalid', 'image-missing', 'image-outside-root', 'image-size', 'image-type'])
+REFRESH_CHECK_CODES = REFRESH_CHECK_CODES | frozenset(['refresh-candidate-format', 'refresh-candidate-fields', 'refresh-precheck', 'refresh-title-length', 'refresh-description-length', 'refresh-query-late', 'refresh-title-duplicate'])
 
 class GeneratorDiagnostic:
     def __init__(self, path, refresh=False):
