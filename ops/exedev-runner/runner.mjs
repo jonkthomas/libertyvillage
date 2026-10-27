@@ -432,6 +432,10 @@ export function prepareGeneratorScratch(from, to, refresh = null) {
   // Keep it outside writable data/: only posts.json can be changed by the writer.
   const businesses = readJson(path.join(from, 'data/businesses.json'));
   if (!Array.isArray(businesses)) throw new Error('refresh business records missing');
+  // Read-only evidence under the existing scripts/ sandbox boundary, bounded to 20 lines.
+  const learningLines = String(refresh.learnings ?? '').split('\n').slice(-20);
+  while (Buffer.byteLength(learningLines.join('\n')) > 24000) learningLines.shift();
+  fs.writeFileSync(path.join(to, 'scripts/refresh-learnings.md'), learningLines.join('\n'));
   fs.writeFileSync(path.join(to, 'scripts/refresh-businesses.json'), JSON.stringify(businesses) + '\n');
   // Link and image inventories are trusted, read-only evidence outside data/.
   const live = Object.fromEntries(['posts', 'services', 'topics'].map((dataset) => [dataset,
@@ -1761,7 +1765,7 @@ function refreshTargetDiff(before, emitted, dataset = 'posts') {
   };
 }
 
-export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, writePosts, log }) {
+export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, writePosts, log, learnings = '' }) {
   const write = (name, value) => { const file = path.join(run, name); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; };
   return {
     plan: () => {
@@ -1774,7 +1778,7 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
     generate: (snapshot, candidate) => {
       exportData();
       const before = readPosts(snapshot.dataset ?? 'posts');
-      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, dataset: snapshot.dataset ?? 'posts', slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
+      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, dataset: snapshot.dataset ?? 'posts', slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full', ...(learnings ? { learnings } : {}) } });
       const posts = output?.posts ?? readPosts(snapshot.dataset ?? 'posts');
       if (!Array.isArray(posts)) throw Object.assign(new Error('refresh posts are not an array'), { reason: 'refresh-off-target' });
       const prior = new Map(before.map((post) => [post.slug, post]));
@@ -1808,13 +1812,25 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
   };
 }
 
+export function evaluateRefreshRun({ cli, target, log, dryRun = false }) {
+  if (dryRun) return { learnings: '' };
+  const result = parseJson(cli(['refresh', 'evaluate', '--target', target]).stdout);
+  for (const outcome of result.outcomes ?? []) log('refresh-evaluation', outcome);
+  log('refresh-evaluated', { evaluated: result.evaluated, reverted: result.reverted, won: result.won,
+    deferred: result.deferred, skipped: result.skipped });
+  return result;
+}
+
 async function runRefresh(target, slot, request, log, notifications) {
   const run = path.join(stateRoot, 'refresh', target, slot);
   fs.mkdirSync(run, { recursive: true, mode: 0o700 });
+  const evaluation = evaluateRefreshRun({ cli: (args) => command(node, ['scripts/content/cli.mjs', ...args], { cwd: repo,
+    env: { ...trustedEnv(process.env), ...childEnv(process.env, ['GOOGLE_APPLICATION_CREDENTIALS']) } }), target, dryRun: request.dryRun,
+    log: (event, details) => logLine(log, event, details) });
   if (!fs.existsSync(path.join(run, 'gsc.json'))) source('scripts/content/refresh-gsc.mjs', ['--out', path.join(run, 'gsc.json')], 'seo-improvements', log);
   const { runRefreshLoop } = await import(pathToFileURL(path.join(repo, 'scripts/content/refresh.mjs')).href);
   const result = await runRefreshLoop({ deps: refreshDeps({
-    target, slot, request, run, cli: (args, allowExit = []) => cli(args, repo, allowExit),
+    target, slot, request, run, learnings: evaluation.learnings, cli: (args, allowExit = []) => cli(args, repo, allowExit),
     export: () => { cli(['export', '--root', '.', '--target', target]); logLine(log, 'export'); },
     generate: (topic) => generator('seo-improvements', slot, topic, false, log, notifications),
     readPosts: (dataset = 'posts') => readJson(path.join(repo, 'data', `${dataset}.json`)),
