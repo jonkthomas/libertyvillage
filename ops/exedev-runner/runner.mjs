@@ -433,8 +433,14 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     // The root-owned helper validates this path, changes ownership, and starts a
     // transient service as lv-generator with strict filesystem protection.
     const helper = '/usr/local/libexec/lv-runner-generator';
-    const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' ? [1] : [] });
+    const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' || topic?.refresh ? [1] : [] });
     if (topic?.refresh) {
+      const failure = parseJson(helperResult.stdout);
+      if (failure?.reasonCode === 'refresh-write-failed' && ['unknown', 'EROFS', 'EACCES', 'EBUSY', 'ENOENT', 'ENOSPC'].includes(failure.errorCode)) {
+        logLine(log, 'refresh-write-failed', { reasonCode: failure.reasonCode, errorCode: failure.errorCode });
+        throw Object.assign(new Error('refresh writes failed'), { reason: failure.reasonCode, errorCode: failure.errorCode });
+      }
+      if (helperResult.code !== 0) throw new Error('refresh generator failed');
       // The isolated tree intentionally has no Git checkout. Only its one
       // bounded output is read; refreshDeps retains the strict graft backstop.
       const output = acceptGeneratedOutput(scratch, repo, job, ['data/posts.json'], exportedPosts, true);

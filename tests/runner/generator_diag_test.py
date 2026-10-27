@@ -16,6 +16,20 @@ spec.loader.exec_module(diag)
 
 
 class GeneratorDiagnosticTest(unittest.TestCase):
+    def test_refresh_relay_reports_only_all_failed_writes_with_first_error(self):
+        for errors, expected in [
+                ([], {}), ([True, True], {'reasonCode': 'refresh-write-failed', 'errorCode': 'EROFS'}),
+                ([True, False], {}), ([False, True], {}), ([True, None], {})]:
+            with self.subTest(errors=errors), tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+                log = diag.GeneratorDiagnostic(str(pathlib.Path(directory) / 'slot.jsonl'), refresh=True)
+                for seq, error in enumerate(errors, 1):
+                    log.feed_lines(('[refresh-write] ' + json.dumps(dict(sequence=seq, tool='Edit', file_path='data/posts.json')) + '\n').encode())
+                    if error is not None:
+                        log.feed_lines(('[refresh-write-result] ' + json.dumps(dict(sequence=seq, isError=error, errorCode=('EROFS' if seq == 1 else 'ENOSPC') if error else None)) + '\n').encode())
+                self.assertEqual(json.loads(log.refresh_relay()), {}, 'wait for EOF')
+                log.close()
+                self.assertEqual(json.loads(log.refresh_relay()), expected)
+
     def test_refresh_diagnostics_preserve_paths_hashes_and_status_only(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
             path = pathlib.Path(directory) / 'slot.jsonl'
