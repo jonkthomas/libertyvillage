@@ -277,6 +277,31 @@ const ENTRIES = {
   },
   // Refresh loop outcomes (scripts/content/refresh.mjs). A failed refresh never
   // changes the live page: the snapshot stays and the post keeps its old version.
+  'refresh-eval-lost': {
+    title: 'Refresh lost clicks at a steady position',
+    cause: 'With at least 200 impressions and position within two places, its click rate fell more than 10% after the site-wide adjustment.',
+    impact: 'The previous version is restored automatically through the normal rollback path.', action: 'Check the restore confirmation in the digest.',
+  },
+  'refresh-eval-won': {
+    title: 'Refresh won clicks', cause: 'Its click rate improved after adjusting for the site-wide change, while position held within two places.',
+    impact: 'The refreshed version stays live.', action: 'The writer receives this result for future refreshes.',
+  },
+  'refresh-eval-low-impressions': {
+    title: 'Too few impressions to judge', cause: 'The measurement window had fewer than 200 impressions.',
+    impact: 'No automatic restore was attempted.', action: 'The page stays live.',
+  },
+  'refresh-eval-position-moved': {
+    title: 'Search position moved too much to judge the title', cause: 'Position changed by more than two places.',
+    impact: 'The title effect is inconclusive; the page stays live.', action: 'No automatic action.',
+  },
+  'refresh-eval-zero-baseline': {
+    title: 'No baseline clicks to compare', cause: 'The old version had no clicks, so a relative click-rate change cannot be measured.',
+    impact: 'The result is inconclusive; the page stays live.', action: 'No automatic action.',
+  },
+  'refresh-eval-steady': {
+    title: 'Refresh result was inconclusive', cause: 'The adjusted click rate did not improve and did not fall more than 10%.',
+    impact: 'The page stays live.', action: 'The writer receives the measurement for future refreshes.',
+  },
   'refresh-gate-failed': {
     title: 'Refresh did not pass the quality review',
     cause: 'The rewritten post did not pass the same quality review new posts get, so it was not published.',

@@ -183,6 +183,7 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
       const events = [];
       const file = ${JSON.stringify(path.join(source, dataFile))};
       const deps = refreshDeps({ target: 'staging', slot: 'test-slot', request: {}, run: ${JSON.stringify(run)},
+        learnings: ${JSON.stringify(refresh?.learnings ?? '')},
         export: () => {}, readPosts: () => JSON.parse(fs.readFileSync(file)),
         writePosts: (posts) => fs.writeFileSync(file, JSON.stringify(posts)),
         generate: (topic) => generator('seo-improvements', 'test-slot', topic, false, ${JSON.stringify(path.join(root, 'generator.jsonl'))}),

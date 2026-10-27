@@ -376,3 +376,126 @@ The timer stays **disabled** until the staging proof is accepted. The calendar i
 - backfill: daily 15:37
 
 A run makes at most 4 generator attempts, each capped at about 40 minutes, so it finishes well before the 12:17 news run. The single-instance runner lock (`flock -n`) would otherwise make the news run skip. A Tuesday run lands in the next Monday's digest.
+
+## Four-week follow-up and automatic restore
+
+Before sourcing/planning new refreshes, the weekly runner runs:
+
+```sh
+node scripts/content/cli.mjs refresh evaluate --target staging --expect-db lv_staging
+```
+
+The existing runner lock covers evaluation and planning. Dry runs skip evaluation.
+Apply content migration `0009_refresh_evaluations.sql` before installing this runner.
+It adds one durable decision per snapshot; the table also supplies the writer's
+latest 20 learning lines. No extra service or timer is needed.
+
+Snapshots from `posts`, `topics`, `services` and `businesses` share this evaluator.
+Rollback uses the snapshot id and resolves its own dataset. Only confirmed
+`published` snapshots at least 28 days old qualify. The evaluator
+checks that the current entry's `live_rev` still equals the refresh submission's
+published revision; a later edit, unpublish or rollback is skipped. It measures
+**days +7 through +27** after `closed_at` (the confirmed publication time), leaving
+the first seven days out. It waits until that whole fixed window is at least three
+days old for GSC final data; in practice the first evaluation can be about day 30.
+It does not use a rolling window if a weekly run is late.
+
+The page baseline is the snapshot's original clicks/impressions and position.
+New snapshots retain their GSC start/end dates. Older snapshots use the original
+28-day source window ending three days before reservation. The evaluator fetches
+final GSC aggregates for the exact snapshot URL, plus the entire site's CTR in
+both the baseline and measurement windows (all page kinds, with no blog filter).
+CTR is calculated from clicks divided by impressions, not rounded stored CTR.
+
+```
+adjusted CTR change = (page CTR after / page CTR baseline)
+                      / (site CTR after / site CTR before) - 1
+```
+
+A **lost** result requires at least 200 measurement-window impressions, position
+within ±2 of baseline, and adjusted CTR falling strictly more than 10%. A positive
+adjusted change with the same impression/position guards is **won**. Lower volume,
+a position move over two places, no baseline clicks, or a steady/slightly lower
+adjusted CTR is **inconclusive** and causes no restore. Missing or invalid page,
+site or baseline data defers the decision; a GSC error changes no content.
+
+A loser calls the existing `refresh rollback --snapshot` implementation with actor
+`auto-revert`: same snapshot integrity check, admin revision, deploy hook and smoke.
+The decision is claimed durably before calling rollback, so another evaluation
+never repeats the decision or rollback. A propagation failure is reported as
+pending; the existing deploy retry handles propagation. A failed or interrupted
+restore claim needs operator inspection (do not delete the decision to retry it).
+The evaluator never creates a new refresh submission or loosens a content gate.
+
+Each learning line contains page, old title → new title, raw and adjusted CTR
+change, position change and won/lost/inconclusive. The trusted runner copies at
+most 24 KB into `scripts/refresh-learnings.md` in scratch. Both writer stages read
+the latest 20 lines into their prompt as evidence. `scripts/` remains read-only;
+only the existing `data/` write boundary is available to the writer. The digest
+reports evaluated / reverted / won with plain-English reasons, and distinguishes
+pending/failed restores. Staging measurements are labelled test-site only.
+
+### Staging proof handoff (ops worker only, after authorization)
+
+Do not run these against production. Use the staging runner environment already
+bound to `lv_staging` and its staging site/deploy hook. First apply migrations via
+`node scripts/content/cli.mjs migrate --target staging --expect-db lv_staging`.
+Create a refresh through the usual reserve → sandboxed writer → submit/gate flow
+(the staging on-demand `seo-improvements --topic <ranked-slug>` run is suitable).
+Then find that **published**, still-current snapshot:
+
+```sh
+node scripts/content/cli.mjs refresh list --target staging --expect-db lv_staging
+```
+
+Set `REFRESH_PROOF_SNAPSHOT` to its id. The following synthetic measurement proof
+backdates only the snapshot's mutable confirmation timestamp/baseline and calls
+the evaluator; it uses the real rollback, deploy and smoke, without waiting a month
+or depending on a real CTR loss. Run once in the pinned staging checkout, under
+the runner lock, with no other staging writer running:
+
+```sh
+node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+import { openDb } from './scripts/content/db.mjs';
+import { evaluateRefreshes } from './scripts/content/refresh-evaluate.mjs';
+const db = await openDb({ expectDb: 'lv_staging' });
+try {
+  assert.equal(db.target, 'staging');
+  const id = Number(process.env.REFRESH_PROOF_SNAPSHOT);
+  assert.ok(Number.isSafeInteger(id) && id > 0);
+  const snap = (await db.query(`select s.* from content.refresh_snapshots s
+    join content.submission_items i on i.submission_id=s.submission_id and i.dataset=s.dataset and i.key=s.key
+    join content.entries e on e.dataset=s.dataset and e.key=s.key
+    where s.id=$1 and s.target='staging' and s.state='published' and e.live_rev=i.published_rev`, [id])).rows[0];
+  assert.ok(snap, 'use a still-current published staging refresh');
+  assert.equal((await db.query('select 1 from content.refresh_evaluations where snapshot_id=$1', [id])).rowCount, 0);
+  await db.query(`update content.refresh_snapshots set closed_at=now()-interval '35 days',
+    baseline=$2::json where id=$1`, [id, JSON.stringify({ clicks: 20, impressions: 1000, position: 8 })]);
+  const measure = async (s) => Number(s.id) === id ? {
+    page: { clicks: 16, impressions: 1000, position: 8 },
+    siteBefore: { clicks: 200, impressions: 10000, position: 8 },
+    siteAfter: { clicks: 200, impressions: 10000, position: 8 },
+  } : {};
+  const result = await evaluateRefreshes(db, { target: 'staging', deps: { measure } });
+  console.log(JSON.stringify(result));
+  assert.equal(result.reverted, 1);
+  assert.equal((await db.query('select state from content.refresh_snapshots where id=$1', [id])).rows[0].state, 'rolled-back');
+  const restored = (await db.query(`select r.payload_sha256 from content.entries e
+    join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev
+    where e.dataset=$1 and e.key=$2`, [snap.dataset, snap.key])).rows[0];
+  assert.equal(restored.payload_sha256, snap.payload_sha256);
+  assert.equal((await evaluateRefreshes(db, { target: 'staging', deps: { measure } })).evaluated, 0);
+} finally { await db.close(); }
+JS
+```
+
+Expected: `evaluated:1,reverted:1,won:0`, verdict `lost`, rollbackState `reverted`,
+then `evaluated:0` on retry. Confirm the staging URL for this snapshot returns 200
+and the old title; inspect the `auto-revert` admin action and successful smoke.
+Run the regular `refresh evaluate` CLI once afterward to prove the wrapper is a
+no-op for this id, and include its stdout, the URL/title, and admin revision in
+the ops report. The synthetic call above does not itself emit runner JSONL: to
+prove the digest end to end, capture its outcome as a `refresh-evaluation` event
+in a staging proof log or run a seeded weekly runner fixture; the local verify
+suite already exercises runner-event parsing and digest rendering.

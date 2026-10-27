@@ -110,7 +110,8 @@ export function rankRefreshCandidates({ gsc, posts = [], topics = [], services =
     const { dataset, record } = live.get(key), slug = record.slug;
     // Non-blog pages never enter the full rewrite lane, even after a snippet.
     if (dataset !== 'posts' && !topLeak.has(key)) return null;
-    const baseline = { clicks: acc.clicks, impressions: acc.impressions, ctr: round(acc.clicks / acc.impressions, 4), position: round(acc.weighted / acc.impressions, 1) };
+    const baseline = { clicks: acc.clicks, impressions: acc.impressions, ctr: round(acc.clicks / acc.impressions, 4), position: round(acc.weighted / acc.impressions, 1),
+      ...(gsc.startDate && gsc.endDate ? { startDate: gsc.startDate, endDate: gsc.endDate } : {}) };
     const mode = dataset !== 'posts' || (topLeak.has(key) && !excluded(snippetDone, dataset, slug)) ? 'snippet' : 'full';
     return { dataset, pageKind: refreshPage(dataset).kind, slug, url: `${SITE}${registry[dataset].route.replace(':key', slug)}`, score: round(refreshScore(baseline), 2), baseline, mode,
       targetQuery: (mode === 'snippet' ? topLeak : topQuery).get(key)?.query ?? null, title: refreshBindingRecord(record, dataset).title };
@@ -191,7 +192,7 @@ export async function reserveRefresh(db, { target = db.target, now = new Date(),
     if (dataset === 'posts' && !refreshable(live.payload)) return { refused: 'refresh-not-eligible', slug };
     if (await one(c, "select 1 from content.refresh_snapshots where target=$1 and key=$2 and dataset=$3 and state='reserved'", [target, slug, dataset])) return { refused: 'refresh-already-open', slug };
     if (await one(c, "select 1 from content.refresh_snapshots where target=$1 and dataset=$2 and key=$3 and state in ('published','rolled-back') and created_at > $4::timestamptz - make_interval(days => $5)", [target, dataset, slug, now, REFRESH.cooldownDays])) return { refused: 'refresh-cooldown', slug };
-    const baseline = candidate.baseline ? Object.fromEntries(['clicks', 'impressions', 'ctr', 'position'].map((k) => [k, candidate.baseline[k] ?? null])) : null;
+    const baseline = candidate.baseline ? Object.fromEntries(['clicks', 'impressions', 'ctr', 'position', ...(['startDate', 'endDate'].filter((k) => candidate.baseline[k]))].map((k) => [k, candidate.baseline[k] ?? null])) : null;
     const row = await one(c, `insert into content.refresh_snapshots(target,iso_week,key,url,live_rev,payload,payload_sha256,target_query,baseline,score,mode,dataset)
       values($1,$2,$3,$4,$5,$6::json,$7,$8,$9::json,$10,$11,$12) returning id`, [target, isoWeek, slug, url, live.live_rev, JSON.stringify(live.payload),
       live.payload_sha256, candidate.targetQuery ?? null, baseline && JSON.stringify(baseline), candidate.score ?? null, mode, dataset]);

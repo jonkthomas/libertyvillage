@@ -183,6 +183,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
         const json = (file, name) => JSON.parse(fs.readFileSync(required(file, name), 'utf8'));
         const snapshotId = () => Number(required(opts.snapshot, '--snapshot'));
         switch (argv[1]) {
+          case 'evaluate': result = await (await import('./refresh-evaluate.mjs')).evaluateRefreshes(db, { target }); break;
           case 'plan': result = await refresh.planRefresh(db, { target, gsc: json(opts.gsc, '--gsc') }); break;
           case 'reserve': result = await refresh.reserveRefresh(db, { target, candidate: json(opts.candidate, '--candidate') }); break;
           case 'submit': {
