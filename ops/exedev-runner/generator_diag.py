@@ -80,6 +80,7 @@ class GeneratorDiagnostic:
         self.refresh = refresh
         self.refresh_writes = {}
         self.refresh_results = {}
+        self.refresh_output_error = False
 
     def refresh_file(self, path, phase):
         """Host view, before handoff and after systemd-run --wait returns."""
@@ -99,13 +100,18 @@ class GeneratorDiagnostic:
             self.event('refresh-file', phase=phase, status='unreadable')
 
     def refresh_line(self, text):
-        for marker in ('refresh-write', 'refresh-write-result', 'refresh-file'):
+        for marker in ('refresh-write', 'refresh-write-result', 'refresh-file', 'refresh-output'):
             prefix = '[' + marker + '] '
             if not text.startswith(prefix):
                 continue
             try:
                 value = json.loads(text[len(prefix):], object_pairs_hook=_reject_duplicate_keys)
                 if type(value) is not dict:
+                    return
+                if marker == 'refresh-output':
+                    if type(value.get('attempt')) is int and value['attempt'] in (1, 2) and value.get('status') in ('valid', 'invalid-json'):
+                        self.refresh_output_error = value['status'] == 'invalid-json'
+                        self.event(marker, attempt=value['attempt'], status=value['status'])
                     return
                 sequence = value.get('sequence')
                 if marker != 'refresh-file' or value.get('phase') == 'tool-result':
@@ -141,7 +147,9 @@ class GeneratorDiagnostic:
     def refresh_relay(self):
         """Content-free failure summary; an incomplete/successful write is not all-failed."""
         failure = {}
-        if self.finalized and self.refresh_writes and all(
+        if self.finalized and self.refresh_output_error:
+            failure = {'reasonCode': 'refresh-generator-failed', 'failureDetail': {'stage': 'output-validate', 'code': 'invalid-json'}}
+        elif self.finalized and self.refresh_writes and all(
                 self.refresh_results.get(seq, (False,))[0] for seq in self.refresh_writes):
             first = next(iter(self.refresh_writes))
             failure = {'reasonCode': 'refresh-write-failed', 'errorCode': self.refresh_results[first][1]}

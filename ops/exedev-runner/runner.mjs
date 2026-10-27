@@ -480,7 +480,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     if (topic?.refresh) {
       const detail = error.failureDetail ?? { stage, code: error instanceof SyntaxError ? 'invalid-json' : error.code, exit: error.exit ?? error.cliFailure?.exit };
       error.failureDetail = {
-        stage: ['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read'].includes(detail.stage) ? detail.stage : stage,
+        stage: ['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read', 'output-validate'].includes(detail.stage) ? detail.stage : stage,
         code: Object.hasOwn(osConstants.errno, detail.code) || ['invalid-json', 'invalid-relay', 'invalid-artifact', 'artifact-changed', 'helper-exit'].includes(detail.code) ? detail.code : 'unknown',
         ...(Number.isInteger(detail.exit) && detail.exit >= 0 && detail.exit <= 255 ? { exit: detail.exit } : {}),
       };

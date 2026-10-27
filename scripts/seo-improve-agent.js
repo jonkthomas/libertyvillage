@@ -95,6 +95,7 @@ const MCP = {
 };
 
 let totalCost = 0;
+let refreshSequence = 0;
 
 // Refresh diagnostics contain paths, hashes and status only, never tool inputs
 // other than file_path, tool output, article text or raw errors.
@@ -122,7 +123,6 @@ async function runStage(label, opts) {
   const systemPrompt = fs.readFileSync(opts.systemPromptPath, 'utf8');
   console.log(`\n=== STAGE: ${label} ===`);
   const refreshWrites = new Map();
-  let refreshSequence = 0;
   if (process.env.REFRESH_SLUG) refreshFileDiagnostic('writer-handoff');
   const conversation = query({
     prompt: opts.prompt,
@@ -184,7 +184,26 @@ async function runStage(label, opts) {
   totalCost += cost;
   const success = result?.subtype === 'success';
   console.log(`[${label}] done — success:${success} cost:$${cost.toFixed(4)} turns:${result?.num_turns || 0}`);
-  return { success, cost, turns: result?.num_turns || 0, text: textChunks.join('\n') };
+  return { success, cost, turns: result?.num_turns || 0, text: textChunks.join('\n'),
+    budgetKnown: Number.isFinite(result?.total_cost_usd) && result.total_cost_usd >= 0 && Number.isInteger(result?.num_turns) && result.num_turns > 0 };
+}
+
+// A successful Edit/Write says only that bytes were saved. Validate the same
+// bounded, no-follow JSON the runner will read before reporting success.
+function validRefreshJson(attempt) {
+  const fd = fs.openSync(path.join(ROOT, 'data/posts.json'), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  let valid;
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > 20 * 1024 * 1024) throw new Error('invalid refresh file');
+    const bytes = Buffer.alloc(stat.size + 1);
+    const count = fs.readSync(fd, bytes, 0, bytes.length, 0);
+    if (count !== stat.size) throw new Error('refresh file changed while reading');
+    try { JSON.parse(bytes.subarray(0, count).toString('utf8')); valid = true; }
+    catch (error) { if (!(error instanceof SyntaxError)) throw error; valid = false; }
+  } finally { fs.closeSync(fd); }
+  console.log('[refresh-output] ' + JSON.stringify({ attempt, status: valid ? 'valid' : 'invalid-json' }));
+  return valid;
 }
 
 function extractJson(text) {
@@ -239,10 +258,18 @@ const weightedOverall = (j, r) => {
 
 async function main() {
   if (process.env.REFRESH_SLUG) {
-    // One bounded writer. The trusted refresh submission owns validation and
-    // review; the broad SEO build/browser/revise pipeline has no role here.
-    const result = await runStage('REFRESH', { ...writerOptions(), maxTurns: 20, budget: 1.0 });
-    process.exit(result.success ? 0 : 1);
+    // One syntax-repair attempt may use only the first writer's unspent caps.
+    // Content, snippet and fact-check policy remain with the trusted submission.
+    let result = await runStage('REFRESH', { ...writerOptions(), maxTurns: 20, budget: 1.0 });
+    let valid = validRefreshJson(1);
+    if (!valid && result.success && result.budgetKnown && result.turns < 20 && result.cost < 1) {
+      result = await runStage('REFRESH-JSON-REPAIR', {
+        ...writerOptions({ revision: 'Repair JSON syntax only in data/posts.json. Read the file, then use Edit or Write to produce strict JSON. Escape quotes, backslashes and newlines inside string values. Preserve the intended values and every existing field; do not make further content edits or broaden the allowed target/fields.' }),
+        maxTurns: 20 - result.turns, budget: 1 - result.cost,
+      });
+      valid = validRefreshJson(2);
+    }
+    process.exit(result.success && valid ? 0 : 1);
     return;
   }
   const t0 = Date.now();

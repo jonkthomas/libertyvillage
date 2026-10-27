@@ -468,7 +468,7 @@ const clip = (text, max) => (typeof text === 'string' ? text.slice(0, max) : nul
 const clipFace = (value) => (value ? { title: clip(value.title, 200), description: clip(value.description, 400) } : null);
 // Never log messages, stacks, paths or arbitrary exception properties. These
 // fixed stages/codes survive both the root-helper relay and the CLI close.
-const FAILURE_STAGES = new Set(['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read', 'generate', 'submit']);
+const FAILURE_STAGES = new Set(['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read', 'output-validate', 'generate', 'submit']);
 const FAILURE_CODES = new Set(['unknown', 'invalid-json', 'invalid-relay', 'invalid-artifact', 'artifact-changed', 'helper-exit',
   'EACCES', 'EPERM', 'ELOOP', 'ENOENT', 'ENOTDIR', 'EISDIR', 'ENOSPC', 'EROFS', 'EBUSY', 'EMFILE', 'ENFILE', 'ENOMEM', 'ETIMEDOUT', 'ENOBUFS', 'EIO', 'EINVAL']);
 export function refreshFailureCause(value) {
