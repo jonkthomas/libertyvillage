@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/directory/movati-athletic-liberty-village",
-        destination: "/directory?category=gyms",
+        destination: "/best/gyms",
         statusCode: 301,
       },
       // Only GSC-confirmed primaries may receive consolidation redirects.

@@ -42,7 +42,7 @@ const movatiRedirects = [
   },
   {
     source: '/directory/movati-athletic-liberty-village',
-    destination: '/directory?category=gyms',
+    destination: '/best/gyms',
     statusCode: 301,
   },
 ];
