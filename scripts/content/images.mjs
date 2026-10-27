@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ValidationError } from './store.mjs';
+import { ValidationError } from './validation-error.mjs';
 
 export const MAX_IMAGE_BYTES = 2_000_000;
 export const MEDIA_PATH_PATTERN = /^\/media\/[0-9a-f]{16}\/[a-z0-9][a-z0-9._-]{0,120}\.(jpg|png|webp)$/;

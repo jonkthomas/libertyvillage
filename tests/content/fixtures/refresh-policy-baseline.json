@@ -1,0 +1,172 @@
+{
+  "valid": {
+    "errors": [],
+    "lint": [],
+    "refusalDetail": null
+  },
+  "title-binding": {
+    "errors": [
+      "refresh draft is not bound to its original post: draft-changed-topic"
+    ],
+    "lint": [],
+    "refusalDetail": {
+      "kind": "fact-check",
+      "failures": [
+        {
+          "code": "draft-changed-topic",
+          "field": "title",
+          "businessSlug": null
+        }
+      ]
+    }
+  },
+  "storage-fields": {
+    "errors": [
+      "empty smoke marker: title",
+      "unknown field: unexpected",
+      "invalid type: title",
+      "refresh draft is not bound to its original post: draft-changed-topic",
+      "refresh-snippet-overreach: snippet refresh changed unexpected"
+    ],
+    "lint": [],
+    "refusalDetail": {
+      "kind": "fact-check",
+      "failures": [
+        {
+          "code": "draft-changed-topic",
+          "field": "title",
+          "businessSlug": null
+        }
+      ]
+    }
+  },
+  "storage-size": {
+    "errors": [
+      "record exceeds 200 KB"
+    ],
+    "lint": [],
+    "refusalDetail": null
+  },
+  "link-binding": {
+    "errors": [
+      "refresh draft is not bound to its original post: invalid-internal-link:/blog/missing"
+    ],
+    "lint": [],
+    "refusalDetail": {
+      "kind": "fact-check",
+      "failures": [
+        {
+          "code": "invalid-internal-link",
+          "field": "content",
+          "businessSlug": null
+        }
+      ]
+    }
+  },
+  "snippet-body": {
+    "errors": [
+      "refresh-snippet-overreach: snippet refresh changed the body beyond the intro"
+    ],
+    "lint": [],
+    "refusalDetail": null
+  },
+  "snippet-field": {
+    "errors": [
+      "refresh-snippet-overreach: snippet refresh changed faqs"
+    ],
+    "lint": [],
+    "refusalDetail": null
+  },
+  "coverage": {
+    "errors": [
+      "roundupCoverage is only valid on a weekly roundup news post",
+      "refresh-snippet-overreach: snippet refresh changed roundupCoverage",
+      "roundupCoverage must be preserved byte-identically by a refresh edit"
+    ],
+    "lint": [],
+    "refusalDetail": null
+  },
+  "missing-binding": {
+    "errors": [
+      "refresh draft is not bound to its original post: missing-snapshot-binding"
+    ],
+    "lint": [],
+    "refusalDetail": {
+      "kind": "fact-check",
+      "failures": [
+        {
+          "code": "missing-draft",
+          "field": null,
+          "businessSlug": null
+        }
+      ]
+    }
+  },
+  "full": {
+    "errors": [],
+    "lint": [],
+    "refusalDetail": null
+  },
+  "business-binding": {
+    "errors": [
+      "refresh draft is not bound to its original post: business-outside-pack:new-gym"
+    ],
+    "lint": [],
+    "refusalDetail": {
+      "kind": "fact-check",
+      "failures": [
+        {
+          "code": "business-outside-pack",
+          "field": null,
+          "businessSlug": "new-gym"
+        }
+      ]
+    }
+  },
+  "lint": {
+    "errors": [
+      "refresh draft is not bound to its original post: business-outside-pack:local-gym"
+    ],
+    "lint": [
+      "[unsupported-address] 999 Wrong St. — content: address is not verbatim in the record for Local Gym"
+    ],
+    "refusalDetail": {
+      "kind": "fact-check",
+      "failures": [
+        {
+          "code": "unsupported-address",
+          "field": "content",
+          "businessSlug": "local-gym"
+        },
+        {
+          "code": "business-outside-pack",
+          "field": null,
+          "businessSlug": "local-gym"
+        }
+      ]
+    }
+  },
+  "warn-lint": {
+    "errors": [
+      "refresh draft is not bound to its original post: business-outside-pack:local-gym"
+    ],
+    "lint": [],
+    "refusalDetail": {
+      "kind": "fact-check",
+      "failures": [
+        {
+          "code": "business-outside-pack",
+          "field": null,
+          "businessSlug": "local-gym"
+        }
+      ]
+    }
+  },
+  "image": {
+    "errors": [
+      "image-missing: fixture"
+    ],
+    "lint": [],
+    "refusalDetail": null
+  }
+}

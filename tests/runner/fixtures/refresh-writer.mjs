@@ -36,8 +36,13 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
         if (${['lint-repair', 'lint-stays', 'json-then-lint', 'lint-spent', 'lint-unknown-budget'].includes(scenario) ? 'true' : 'false'}) {
           const body = posts[0].content.slice(posts[0].content.indexOf('## '));
           posts[0].content = (calls === 1 || ${scenario !== 'lint-repair' ? 'true' : 'false'}
-            ? 'GoodLife Fitness Liberty Village is at 85 Hanna Ave Suite 200.'
-            : 'GoodLife Fitness Liberty Village is at 47 Jefferson Ave, Toronto, ON M6K 1Y3.') + '\\n\\n' + body;
+            ? 'GoodLife Fitness Liberty Village is at 47 Jefferson Ave.'
+            : 'GoodLife Fitness Liberty Village is at 85 Hanna Ave Suite 200, Toronto, ON M6K 3S3.') + '\\n\\n' + body;
+        }
+        if (${['title-repair', 'title-stays', 'json-then-title'].includes(scenario) ? 'true' : 'false'}) {
+          posts[0].title = calls === 1 || ${scenario !== 'title-repair' ? 'true' : 'false'}
+            ? 'GoodLife Liberty Village: 3.8★ Review, Hours & Tips'
+            : 'GoodLife Fitness Review: Prices, Hours & Tips';
         }
         let writeError;
         try {
@@ -45,7 +50,7 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
           // Claude Code saves atomically beside the target, then renames it.
           fs.writeFileSync('data/posts.json.tmp', JSON.stringify(posts), { mode: ${scenario === 'private-edit' ? '0o600' : '0o644'} });
           fs.renameSync('data/posts.json.tmp', 'data/posts.json');
-          if (${['invalid-json', 'invalid-spent', 'invalid-unknown-budget'].includes(scenario) ? 'true' : 'false'} || (${['repair-once', 'json-then-lint'].includes(scenario) ? 'true' : 'false'} && calls === 1)) fs.writeFileSync('data/posts.json', 'PRIVATE malformed JSON');
+          if (${['invalid-json', 'invalid-spent', 'invalid-unknown-budget'].includes(scenario) ? 'true' : 'false'} || (${['repair-once', 'json-then-lint', 'json-then-title'].includes(scenario) ? 'true' : 'false'} && calls === 1)) fs.writeFileSync('data/posts.json', 'PRIVATE malformed JSON');
         } catch (error) { writeError = error.code; }
         yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'edit-1',
           is_error: Boolean(writeError), content: (writeError || '') + ' PRIVATE TOOL OUTPUT'
@@ -61,19 +66,22 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
         ${['invalid-unknown-budget', 'lint-unknown-budget'].includes(scenario) ? '' : `total_cost_usd: ${['invalid-spent', 'lint-spent'].includes(scenario) ? '1' : '0.1'},`} };
     }
   `);
-  for (const rel of ['scripts/seo-improve-agent.js', 'scripts/prompts/seo-refresh-system.md', 'scripts/prompts/seo-improve-system.md', 'scripts/blog-lint.mjs', 'scripts/lib/referenced-businesses.mjs', 'scripts/lib/refresh-lint.mjs']) {
+  for (const rel of [...runner.REFRESH_RUNTIME_FILES, 'scripts/prompts/seo-improve-system.md']) {
     fs.mkdirSync(path.dirname(path.join(source, rel)), { recursive: true });
     fs.copyFileSync(new URL(rel, ROOT), path.join(source, rel));
   }
   fs.mkdirSync(path.join(source, 'data'));
   fs.mkdirSync(path.join(source, '.claude'));
-  fs.mkdirSync(path.join(source, '.git'));
+  if (!refresh) fs.mkdirSync(path.join(source, '.git'));
+  else fs.writeFileSync(path.join(source, '.git'), fs.statSync(new URL('.git', ROOT)).isFile()
+    ? fs.readFileSync(new URL('.git', ROOT)) : `gitdir: ${new URL('.git', ROOT).pathname}\n`);
   fs.writeFileSync(path.join(source, '.claude/settings.json'), '{"broad":"settings"}');
   fs.writeFileSync(path.join(source, 'tsconfig.json'), '{}');
-  fs.copyFileSync(new URL('data/businesses.json', ROOT), path.join(source, 'data/businesses.json'));
+  for (const dataset of ['businesses', 'services', 'topics']) fs.copyFileSync(new URL(`data/${dataset}.json`, ROOT), path.join(source, `data/${dataset}.json`));
   const target = targetOverride ?? (throughRunner
     ? JSON.parse(fs.readFileSync(new URL('data/posts.json', ROOT))).find((p) => p.slug === refresh.slug)
-    : { slug: 'target', title: 'Target' });
+    : { ...JSON.parse(fs.readFileSync(new URL('data/posts.json', ROOT)))[0], slug: 'target', title: 'Target',
+      content: 'Local guide.\n\n## Details\nLocal details.', answerBlock: 'Local guide.', faqs: [], keyTakeaways: [], relatedPosts: [], relatedServices: [], relatedTopics: [] });
   assert.ok(target, 'refresh fixture target exists');
   const posts = [target, { slug: 'off-target', title: 'Other' }];
   fs.writeFileSync(path.join(source, 'data/posts.json'), JSON.stringify(posts));
@@ -169,7 +177,7 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
       const snapshot = { snapshotId: 1, slug: ${JSON.stringify(refresh?.slug)}, mode: 'snippet' };
       let result;
       let submissions = 0;
-      if (${['all-failed', 'invalid-json', 'host-invalid-json', 'invalid-spent', 'invalid-unknown-budget', 'read-denied', 'helper-exit', 'relay-malformed', 'ownership-error', 'lint-stays', 'json-then-lint', 'lint-spent', 'lint-unknown-budget'].includes(scenario) ? 'true' : 'false'}) {
+      if (${['all-failed', 'invalid-json', 'host-invalid-json', 'invalid-spent', 'invalid-unknown-budget', 'read-denied', 'helper-exit', 'relay-malformed', 'ownership-error', 'lint-stays', 'json-then-lint', 'lint-spent', 'lint-unknown-budget', 'title-stays', 'json-then-title'].includes(scenario) ? 'true' : 'false'}) {
         const { runRefreshLoop } = await import(${JSON.stringify(new URL('scripts/content/refresh.mjs', ROOT).href)});
         result = await runRefreshLoop({ deps: { ...deps,
           plan: () => ({ candidates: [{ slug: snapshot.slug }], remaining: 1 }),
@@ -184,7 +192,7 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
   } else {
     proc = spawnSync('python3', ['-c', python], { encoding: 'utf8', timeout: 15000 });
   }
-  assert.equal(proc.status, 0, proc.stderr + (fs.existsSync(resultFile) ? fs.readFileSync(resultFile) : ''));
+  assert.equal(proc.status, !throughRunner && ['restore', 'failed', 'old-layout'].includes(scenario) ? 1 : 0, proc.stderr + (fs.existsSync(resultFile) ? fs.readFileSync(resultFile) : ''));
   const result = JSON.parse(fs.readFileSync(resultFile));
   const probes = result.stdout.split('\n').filter((line) => line.startsWith('PROBE=')).map((line) => JSON.parse(line.slice(6)));
   const diagnostics = fs.readdirSync(logs).flatMap((file) => fs.readFileSync(path.join(logs, file), 'utf8').trim().split('\n').map(JSON.parse));

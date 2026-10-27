@@ -85,7 +85,7 @@ const allFaqs = {
     {
       question: "Are there 24-hour gyms in Liberty Village?",
       answer:
-        "GoodLife Fitness on Jefferson Ave has the longest hours, open from 5am to 11pm on weekdays. Movati Athletic on Lynn Williams St has similar extended hours. For true 24/7 access, the nearest options are just outside the neighbourhood on King Street West.",
+        "GoodLife Fitness on Hanna Ave has the longest hours, open from 5am to 11pm on weekdays. Movati Athletic on Lynn Williams St has similar extended hours. For true 24/7 access, the nearest options are just outside the neighbourhood on King Street West.",
     },
     {
       question: "What fitness classes are available in Liberty Village?",
@@ -495,7 +495,7 @@ const allFaqs = {
     {
       question: "Do Liberty Village gyms include personal training?",
       answer:
-        "GoodLife Fitness on Jefferson Ave and Altea Active on Western Battery Rd both offer in-house personal training at additional cost beyond membership. F45 Training on East Liberty provides coach-led group sessions included in membership that feel semi-personal. Movati Athletic also has a personal training program.",
+        "GoodLife Fitness on Hanna Ave and Altea Active on Western Battery Rd both offer in-house personal training at additional cost beyond membership. F45 Training on East Liberty provides coach-led group sessions included in membership that feel semi-personal. Movati Athletic also has a personal training program.",
     },
   ],
 

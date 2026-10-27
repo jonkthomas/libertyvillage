@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { extractRefreshedPost } from '../../scripts/content/refresh.mjs';
+import { REFRESH_RUNTIME_FILES } from '../../ops/exedev-runner/runner.mjs';
 import { invoke } from './fixtures/refresh-writer.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
@@ -116,8 +117,9 @@ test('refresh constructed launcher/SDK invocation has the refresh prompt, one re
   assert.equal(input.options.maxBudgetUsd, 1);
   assert.equal(input.options.mcpServers, undefined);
   assert.deepEqual(refresh.files.filter((f) => !f.startsWith('node_modules')).sort(), [
-    'data', 'data/posts.json', 'scripts', 'scripts/blog-lint.mjs', 'scripts/lib', 'scripts/lib/referenced-businesses.mjs', 'scripts/lib/refresh-lint.mjs', 'scripts/prompts', 'scripts/prompts/seo-refresh-system.md', 'scripts/refresh-businesses.json', 'scripts/seo-improve-agent.js',
-  ]);
+    ...new Set([...REFRESH_RUNTIME_FILES, 'scripts/refresh-businesses.json', 'scripts/refresh-preflight.json', 'data/posts.json']
+      .flatMap((file) => { const parts = file.split('/'); return parts.map((_, i) => parts.slice(0, i + 1).join('/')); })),
+  ].sort());
   assert.ok(refresh.cmd.includes(`ReadWritePaths=${refresh.scratch}/data /var/cache/lv-generator`));
   assert.equal(fs.statSync(path.join(refresh.scratch, 'data')).isDirectory(), true);
   assert.deepEqual(fs.readdirSync(path.join(refresh.scratch, 'data')), ['posts.json']);
@@ -176,7 +178,7 @@ for (const scenario of ['restore', 'failed', 'wrong-path', 'host-divergence']) {
 test('atomic refresh save fails with old file-only writable layout and passes with directory layout', (t) => {
   const refresh = { slug: 'target', query: 'target guide', mode: 'snippet' };
   const old = invoke(t, refresh, false, 'old-layout');
-  assert.equal(old.posts[0].description, undefined, 'read-only parent prevents temp-file creation');
+  assert.equal(old.posts[0].description, old.probes[0].posts[0].description, 'read-only parent prevents temp-file creation');
   const failure = old.diagnostics.find((e) => e.event === 'refresh-write-result');
   assert.equal(failure.isError, true);
   assert.equal(failure.errorCode, 'EACCES', 'chmod simulation reports EACCES; systemd read-only mount reports EROFS');
@@ -197,7 +199,7 @@ test('all refresh writes failing relays first error and closes with refresh-writ
   assert.equal(generated.observed.result.outcomes[0].reasonCode, 'refresh-write-failed');
   assert.equal(generated.observed.scratchExists, false);
   assert.ok(!generated.observed.events.some((e) => e.event === 'refresh-no-change'));
-  assert.equal(generated.diagnostics.filter((e) => e.event === 'refresh-write-result').length, 2);
+  assert.equal(generated.diagnostics.filter((e) => e.event === 'refresh-write-result').length, 4);
   t.diagnostic('Real launcher + Node writer + runner loop: EROFS then ENOSPC closes refresh-write-failed, records first errorCode EROFS, never submits, and cleans scratch.');
 });
 
@@ -211,11 +213,11 @@ test('unsupported address gets one grounded revision; persistent findings and sh
   assert.deepEqual(records.find((b) => b.slug === record.slug), record, 'exact full business record is supplied as evidence');
   assert.match(first.options.systemPrompt, /must be copied verbatim/);
   assert.match(second.prompt, /unsupported-address/);
-  assert.match(second.prompt, /85 Hanna Ave Suite 200/);
+  assert.match(second.prompt, /47 Jefferson Ave/);
   assert.match(second.prompt, /content/);
   assert.equal(second.options.maxTurns, 19);
   assert.equal(second.options.maxBudgetUsd, 0.9);
-  assert.match(fixed.observed.result.after[0].content, /^GoodLife Fitness Liberty Village is at 47 Jefferson Ave/);
+  assert.match(fixed.observed.result.after[0].content, /^GoodLife Fitness Liberty Village is at 85 Hanna Ave/);
   const checks = fixed.stdout.split('\n').filter((line) => line.startsWith('[refresh-self-check] '))
     .map((line) => JSON.parse(line.slice('[refresh-self-check] '.length)));
   assert.deepEqual(checks.map((e) => e.ok), [false, true]);
@@ -228,4 +230,28 @@ test('unsupported address gets one grounded revision; persistent findings and sh
     assert.ok(!failed.observed.events.some((e) => e.event === 'generator-output-accepted'));
   }
   t.diagnostic('Real launcher/writer/runner: unsupported-address findings delivered once; grounded edit accepted; persistent lint or exhausted/unknown caps produce zero submit calls.');
+});
+
+
+test('title binding gets the single revision; repeated unbound title or JSON-first exhaustion never submits', (t) => {
+  const refresh = { slug: 'goodlife-fitness-liberty-village-review-guide', query: 'goodlife', mode: 'snippet' };
+  const fixed = invoke(t, refresh, true, 'title-repair');
+  assert.equal(fixed.probes.length, 2);
+  const repair = fixed.probes[1].input;
+  assert.match(repair.prompt, /draft-changed-topic/);
+  assert.match(repair.prompt, /title must keep at least 4 of these words from the original: goodlife, fitnes, honest, review, price, hour, 2026/);
+  assert.match(fixed.probes[0].input.options.systemPrompt, /keep at least half of the original title's key words/);
+  assert.equal(repair.options.maxTurns, 19);
+  assert.equal(repair.options.maxBudgetUsd, 0.9);
+  assert.deepEqual(fixed.diagnostics.filter((e) => e.event === 'refresh-self-check'), [
+    { event: 'refresh-self-check', attempt: 1, ok: false, ruleCodes: ['draft-changed-topic'] },
+    { event: 'refresh-self-check', attempt: 2, ok: true, ruleCodes: [] },
+  ]);
+  for (const scenario of ['title-stays', 'json-then-title']) {
+    const refused = invoke(t, refresh, true, scenario);
+    assert.equal(refused.probes.length, 2);
+    assert.equal(refused.observed.submissions, 0);
+    assert.equal(refused.observed.result.outcomes[0].reasonCode, 'refresh-generator-failed');
+    assert.equal(refused.observed.scratchExists, false);
+  }
 });

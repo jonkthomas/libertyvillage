@@ -388,13 +388,29 @@ export function copyScratchTree(from, to) {
   fs.cpSync(from, to, { recursive: true, force: true, verbatimSymlinks: true });
 }
 
+export const REFRESH_RUNTIME_FILES = [
+  'scripts/seo-improve-agent.js',
+  'scripts/prompts/seo-refresh-system.md',
+  'scripts/blog-lint.mjs',
+  'scripts/lib/referenced-businesses.mjs',
+  'scripts/lib/refresh-lint.mjs',
+  'scripts/lib/refresh-precheck.mjs',
+  'scripts/lib/topic-key.mjs',
+  'scripts/content/validate.mjs',
+  'scripts/content/canonical.mjs',
+  'scripts/content/refresh-diagnostics.mjs',
+  'scripts/content/images.mjs',
+  'scripts/content/validation-error.mjs',
+  'scripts/automation/blog-source-pack.mjs',
+  'lib/content/datasets.json',
+];
+
 export function prepareGeneratorScratch(from, to, refresh = null) {
   if (!refresh) return copyScratchTree(from, to);
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(refresh.slug ?? '')) throw new Error('invalid refresh slug');
   const targets = readJson(path.join(from, 'data/posts.json')).filter((post) => post.slug === refresh.slug);
   if (targets.length !== 1) throw new Error('refresh target missing or duplicated');
-  for (const rel of ['scripts/seo-improve-agent.js', 'scripts/prompts/seo-refresh-system.md',
-    'scripts/blog-lint.mjs', 'scripts/lib/referenced-businesses.mjs', 'scripts/lib/refresh-lint.mjs']) {
+  for (const rel of REFRESH_RUNTIME_FILES) {
     fs.mkdirSync(path.dirname(path.join(to, rel)), { recursive: true });
     fs.copyFileSync(path.join(from, rel), path.join(to, rel));
   }
@@ -403,6 +419,20 @@ export function prepareGeneratorScratch(from, to, refresh = null) {
   const businesses = readJson(path.join(from, 'data/businesses.json'));
   if (!Array.isArray(businesses)) throw new Error('refresh business records missing');
   fs.writeFileSync(path.join(to, 'scripts/refresh-businesses.json'), JSON.stringify(businesses) + '\n');
+  // Link and image inventories are trusted, read-only evidence outside data/.
+  const live = Object.fromEntries(['posts', 'services', 'topics'].map((dataset) => [dataset,
+    readJson(path.join(from, `data/${dataset}.json`)).map((record) => ({ slug: record.slug,
+      ...(Object.hasOwn(record, 'roundupCoverage') ? { roundupCoverage: record.roundupCoverage } : {}) }))]));
+  const sourceRef = refresh.target === 'production' ? 'origin/main' : refresh.target === 'staging' ? 'origin/staging' : 'HEAD';
+  const tracked = spawnSync('git', ['ls-tree', '-r', '-z', sourceRef, '--', 'public/images'], { cwd: from, encoding: 'utf8' });
+  if (tracked.status !== 0) throw new Error('refresh image inventory unavailable');
+  const images = Object.fromEntries(tracked.stdout.split('\0').filter(Boolean).map((entry) => {
+    const [meta, file] = entry.split('\t');
+    return [file, meta.split(' ')[2]];
+  }));
+  const manifest = path.join(from, '.content-export/manifest.json');
+  const mediaPaths = fs.existsSync(manifest) ? (readJson(manifest).media ?? []).map((asset) => asset.path) : [];
+  fs.writeFileSync(path.join(to, 'scripts/refresh-preflight.json'), JSON.stringify({ live, images, mediaPaths, sourceRef }) + '\n');
   // Copy runtime dependencies, as on the legacy path. No application tree, Git
   // metadata, settings or skills enter this scratch tree.
   copyScratchTree(fs.realpathSync(path.join(from, 'node_modules')), path.join(to, 'node_modules'));
@@ -1728,7 +1758,7 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
     generate: (snapshot, candidate) => {
       exportData();
       const before = readPosts();
-      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
+      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
       const posts = output?.posts ?? readPosts();
       if (!Array.isArray(posts)) throw Object.assign(new Error('refresh posts are not an array'), { reason: 'refresh-off-target' });
       const prior = new Map(before.map((post) => [post.slug, post]));

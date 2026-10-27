@@ -6,7 +6,8 @@ export { openDb, TargetError } from './db.mjs';
 export class ConflictError extends Error { constructor(conflicts) { super('live revision conflict'); this.code = 'ConflictError'; this.conflicts = conflicts; } }
 export class StateError extends Error { constructor(message) { super(message); this.code = 'StateError'; } }
 export class ClaimError extends Error { constructor(message = 'lease-lost') { super(message); this.code = 'ClaimError'; } }
-export class ValidationError extends Error { constructor(message) { super(message); this.code = 'ValidationError'; } }
+import { ValidationError } from './validation-error.mjs';
+export { ValidationError } from './validation-error.mjs';
 const rows = (q) => q.rows;
 const one = (q) => q.rows[0];
 const n = (value) => value == null ? null : Number(value);

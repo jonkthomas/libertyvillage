@@ -1,4 +1,4 @@
-import { topicKey } from '../automation/topic-queue.mjs';
+import { topicKey } from '../lib/topic-key.mjs';
 import { registry } from './canonical.mjs';
 
 export const SECRET_FINGERPRINT = /(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|sk-[A-Za-z0-9_-]{16,}|-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----)/i;
