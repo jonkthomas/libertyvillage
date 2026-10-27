@@ -22,6 +22,7 @@ const NOISE = new Set(['liberty', 'village', 'toronto', 'best', 'guide', 'near',
 const array = (value) => Array.isArray(value) ? value : [];
 const slugs = (items) => [...new Set(array(items).map((item) => typeof item === 'string' ? item : item?.slug).filter((item) => typeof item === 'string' && item))].sort();
 const tokens = (value) => [...new Set(String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((word) => word.length > 2 && !NOISE.has(word)).map((word) => word.replace(/s$/, '')))];
+export const refreshTitleWords = tokens;
 const intentKey = (topic) => String(topic).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const isIso = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 const fieldSpan = (record, field) => {

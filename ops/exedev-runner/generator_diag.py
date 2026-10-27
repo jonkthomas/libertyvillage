@@ -51,6 +51,8 @@ VALIDATION_CODES = frozenset({
 })
 
 
+REFRESH_CHECK_CODES = frozenset(['unrecorded-business', 'unsupported-address', 'unsupported-price', 'unsupported-hours', 'unsupported-date', 'unsupported-operational-premise', 'missing-draft', 'no-attributed-business', 'business-outside-pack', 'draft-changed-topic', 'draft-dropped-premise', 'invalid-relatedPosts', 'invalid-relatedServices', 'invalid-relatedTopics', 'invalid-relatedBusinesses', 'invalid-internal-link', 'storage', 'missing-snapshot-binding', 'roundup-coverage', 'refresh-off-target', 'refresh-slug-changed', 'refresh-date-changed', 'refresh-no-change', 'refresh-snippet-overreach', 'image-invalid', 'image-missing', 'image-outside-root', 'image-size', 'image-type'])
+
 class GeneratorDiagnostic:
     def __init__(self, path, refresh=False):
         if os.geteuid() != 0:
@@ -100,13 +102,20 @@ class GeneratorDiagnostic:
             self.event('refresh-file', phase=phase, status='unreadable')
 
     def refresh_line(self, text):
-        for marker in ('refresh-write', 'refresh-write-result', 'refresh-file', 'refresh-output'):
+        for marker in ('refresh-write', 'refresh-write-result', 'refresh-file', 'refresh-output', 'refresh-self-check'):
             prefix = '[' + marker + '] '
             if not text.startswith(prefix):
                 continue
             try:
                 value = json.loads(text[len(prefix):], object_pairs_hook=_reject_duplicate_keys)
                 if type(value) is not dict:
+                    return
+                if marker == 'refresh-self-check':
+                    codes = value.get('ruleCodes')
+                    if (type(value.get('attempt')) is int and value['attempt'] in (1, 2)
+                            and type(value.get('ok')) is bool and type(codes) is list
+                            and all(type(code) is str and code in REFRESH_CHECK_CODES for code in codes)):
+                        self.event(marker, attempt=value['attempt'], ok=value['ok'], ruleCodes=list(dict.fromkeys(codes))[:30])
                     return
                 if marker == 'refresh-output':
                     if type(value.get('attempt')) is int and value['attempt'] in (1, 2) and value.get('status') in ('valid', 'invalid-json'):

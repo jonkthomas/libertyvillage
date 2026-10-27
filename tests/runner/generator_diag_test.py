@@ -103,6 +103,27 @@ class GeneratorDiagnosticTest(unittest.TestCase):
             ])
             self.assertNotIn('PRIVATE', path.read_text())
 
+    def test_refresh_self_check_relays_status_and_allowlisted_codes_only(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            log = diag.GeneratorDiagnostic(str(path), refresh=True)
+            values = [
+                dict(attempt=1, ok=False, ruleCodes=['draft-changed-topic', 'storage'], claim='PRIVATE', field='PRIVATE'),
+                dict(attempt=2, ok=True, ruleCodes=[], title='PRIVATE'),
+                dict(attempt=1, ok=False, ruleCodes=['PRIVATE']),
+                dict(attempt=True, ok=False, ruleCodes=[]),
+                dict(attempt=2, ok='PRIVATE', ruleCodes=[]),
+            ]
+            for value in values:
+                log.feed_lines(('[refresh-self-check] ' + json.dumps(value) + '\n').encode())
+            log.close()
+            rows = [json.loads(row) for row in path.read_text().splitlines()]
+            self.assertEqual([row for row in rows if row['event'] == 'refresh-self-check'], [
+                dict(event='refresh-self-check', attempt=1, ok=False, ruleCodes=['draft-changed-topic', 'storage']),
+                dict(event='refresh-self-check', attempt=2, ok=True, ruleCodes=[]),
+            ])
+            self.assertNotIn('PRIVATE', path.read_text())
+
     def test_keeps_only_structured_outcome_and_never_persists_content(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
             path = pathlib.Path(directory) / 'slot.jsonl'

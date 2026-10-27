@@ -16,7 +16,6 @@ import { getSubmission, readLive, ValidationError } from './store.mjs';
 import { canonicalJson } from '../automation/blog-source-pack.mjs';
 import { refreshFailureDetail } from './refresh-diagnostics.mjs';
 import { isoWeekOf } from '../news-pilot/roundup.mjs';
-import { splitIntro } from '../lib/refresh-lint.mjs';
 export { splitIntro } from '../lib/refresh-lint.mjs';
 
 export const REFRESH = Object.freeze({
@@ -107,56 +106,8 @@ export function rankRefreshCandidates({ gsc, posts, exclude = new Set(), snippet
   }).filter((candidate) => candidate.score > 0).sort((a, b) => b.score - a.score || b.baseline.impressions - a.baseline.impressions || a.slug.localeCompare(b.slug)).slice(0, limit);
 }
 
-export class RefreshRefused extends Error {
-  constructor(reason, message = reason, detail = null) { super(message); this.code = 'RefreshRefused'; this.reason = reason; this.detail = detail; }
-}
-
-const SNIPPET_FIELDS = new Set(['title', 'description', 'content', 'updatedAt']);
-// Null when `record` changes only what a snippet refresh may change relative to
-// `prior` (the snapshot). Shared with the submit/gate kind policy, so it holds for
-// the generator output, every fixer repair and every gate round.
-export function snippetOverreach(prior, record) {
-  const keys = new Set([...Object.keys(prior ?? {}), ...Object.keys(record ?? {})]);
-  for (const key of keys) if (!SNIPPET_FIELDS.has(key) && canonicalJson(prior?.[key]) !== canonicalJson(record?.[key])) return `snippet refresh changed ${key}`;
-  if (splitIntro(prior?.content).rest !== splitIntro(record?.content).rest) return 'snippet refresh changed the body beyond the intro';
-  return null;
-}
-function checkSnippetOnly(prior, record) {
-  const overreach = snippetOverreach(prior, record);
-  if (overreach) throw new RefreshRefused('refresh-snippet-overreach', overreach);
-}
-
-// The generator rewrites data/posts.json in a scratch copy. Accept exactly one
-// changed record: the snapshot's post, same slug and publish date, nothing else
-// added, removed or touched; in snippet mode only title, description and intro.
-export function extractRefreshedPost({ before, after, slug, mode = 'full' }) {
-  if (!Array.isArray(before) || !Array.isArray(after)) throw new RefreshRefused('refresh-off-target', 'posts are not arrays', { kind: 'invalid-posts', slug: null });
-  const prior = new Map(before.map((post) => [post?.slug, post]));
-  const next = new Map(after.map((post) => [post?.slug, post]));
-  if (!next.has(slug)) throw new RefreshRefused('refresh-slug-changed', `post ${slug} is missing after generation`, { kind: 'removed', slug });
-  if (after.length !== before.length || next.size !== after.length || [...prior.keys()].some((key) => !next.has(key))) {
-    const added = after.find((post) => !prior.has(post?.slug));
-    const removed = before.find((post) => !next.has(post?.slug));
-    const seen = new Set();
-    const duplicate = after.find((post) => {
-      if (seen.has(post?.slug)) return true;
-      seen.add(post?.slug);
-      return false;
-    });
-    const detail = added ? { kind: 'added', slug: added.slug } : removed ? { kind: 'removed', slug: removed.slug }
-      : { kind: 'duplicate', slug: duplicate?.slug ?? null };
-    throw new RefreshRefused(added ? 'refresh-slug-changed' : 'refresh-off-target', 'post set changed', detail);
-  }
-  // A JSON writer may reorder object keys throughout the file. Compare values
-  // recursively (array order still matters), without normalizing any post data.
-  for (const [key, post] of prior) if (key !== slug && canonicalJson(next.get(key)) !== canonicalJson(post)) throw new RefreshRefused('refresh-off-target', `post ${key} changed`, { kind: 'changed', slug: key });
-  const record = next.get(slug);
-  if (record.slug !== slug) throw new RefreshRefused('refresh-slug-changed');
-  if (record.publishedAt !== prior.get(slug).publishedAt) throw new RefreshRefused('refresh-date-changed');
-  if (canonicalJson(record) === canonicalJson(prior.get(slug))) throw new RefreshRefused('refresh-no-change');
-  if (mode === 'snippet') checkSnippetOnly(prior.get(slug), record);
-  return record;
-}
+export { RefreshRefused, snippetOverreach, extractRefreshedPost } from '../lib/refresh-precheck.mjs';
+import { RefreshRefused, extractRefreshedPost } from '../lib/refresh-precheck.mjs';
 
 const TRACKED = ['title', 'description', 'answerBlock', 'content', 'faqs', 'keyTakeaways', 'tags', 'relatedPosts', 'relatedServices', 'relatedTopics', 'image'];
 export function summarizeChange(before, after) {

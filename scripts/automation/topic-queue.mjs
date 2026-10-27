@@ -5,7 +5,8 @@
 // ladder issue stays one-per-kind; the topics{} block inside it is what rotates.
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { topicKey } from '../lib/topic-key.mjs';
+export { topicKey } from '../lib/topic-key.mjs';
 import { fileURLToPath } from 'node:url';
 import {
   emptyCandidateState,
@@ -41,22 +42,6 @@ const nowMs = (now) => {
   if (typeof now === 'number') return now;
   return Date.parse(String(now));
 };
-
-function hashLowerHex(value) {
-  return createHash('sha256').update(String(value), 'utf8').digest('hex');
-}
-
-function normalizeTitle(title) {
-  return String(title ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function normalizeBranchPrefix(prefix) {
-  return String(prefix ?? '').trim().toLowerCase();
-}
-
-export function topicKey(kind, title, branchPrefix) {
-  return hashLowerHex(`${kind}|${normalizeTitle(title)}|${normalizeBranchPrefix(branchPrefix)}`);
-}
 
 function defaultBranchPrefix(kind) {
   const prefixes = KIND_POLICIES[kind]?.headPrefixes;
