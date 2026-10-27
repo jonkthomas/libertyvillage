@@ -118,6 +118,9 @@ export function parseRun(fileName, text) {
           run.error = extra[0] ?? null;
         }
       }
+    } else if (ev.event === 'refresh-evaluation') {
+      (run.refreshEvaluations ??= []).push({ at: ev.at, target: run.target,
+        snapshotId: ev.snapshotId, slug: ev.slug, verdict: ev.verdict, reasonCode: ev.reasonCode, rollbackState: ev.rollbackState });
     } else if (ev.event === 'refresh-outcome') {
       run.refreshes.push(refreshRow(ev, run));
     } else if (ev.event === 'roundup-hold-alerted') {
@@ -254,6 +257,7 @@ export function buildModel({ generatedAt, window, runs, posted, titles = {}, que
     notes,
     links,
     refreshes: refreshedThisWeek(runs ?? []),
+    refreshEvaluations: (runs ?? []).flatMap((run) => run.refreshEvaluations ?? []),
     precheckCandidates: precheckCandidates(runs ?? []),
   };
 }

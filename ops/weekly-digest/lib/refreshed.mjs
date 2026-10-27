@@ -39,7 +39,7 @@ const pair = (label, before, after) => {
 };
 
 /** The page section. Live-site refreshes in full; test-site ones in one line. */
-export function renderRefreshed(rows) {
+export function renderRefreshed(rows, evaluations = []) {
   const all = Array.isArray(rows) ? rows : [];
   const live = all.filter((r) => r.target !== 'staging');
   const test = all.filter((r) => r.target === 'staging');
@@ -64,5 +64,17 @@ ${published ? `${pair('Title', r.before?.title, r.after?.title)}${pair('Descript
   const done = live.filter((r) => r.state === 'published' || r.state === 'rolled-back');
   const snippets = done.filter((r) => r.lane === 'snippet').length;
   const lanes = done.length ? `<p class="dim">${done.length - snippets} full rewrite${done.length - snippets === 1 ? '' : 's'} · ${snippets} snippet-only (searches at position 4–20 with a weak click rate get a new title, description and intro first)</p>\n` : '';
-  return `<h2>Refreshed this week</h2>\n${lanes}${body}${note}`;
+  const decisions = [...new Map(evaluations.map((row) => [`${row.target}:${row.snapshotId}`, row])).values()];
+  const measured = decisions.filter((r) => r.target !== 'staging');
+  const evaluated = measured.length;
+  const reverted = measured.filter((r) => r.rollbackState === 'reverted').length;
+  const won = measured.filter((r) => r.verdict === 'won').length;
+  const evaluationNote = decisions.length ? `<p class="dim">Refresh follow-up: ${evaluated} evaluated · ${reverted} reverted · ${won} won.</p>${decisions.map((r) => {
+    const why = explain(r.reasonCode);
+    const state = r.rollbackState === 'pending' ? ' Restore is saved; deploy confirmation is pending.'
+      : ['failed', 'claimed'].includes(r.rollbackState) ? ' Automatic restore did not confirm; operator follow-up is needed.'
+        : r.rollbackState === 'superseded' ? ' A later edit was kept.' : '';
+    return `<p>${r.target === 'staging' ? 'Test site only: ' : ''}${esc(r.slug)}: ${esc(why.title)}. ${esc(why.cause)}${esc(state)}</p>`;
+  }).join('')}` : '';
+  return `<h2>Refreshed this week</h2>\n${evaluationNote}${lanes}${body}${note}`;
 }
