@@ -33,16 +33,22 @@ function invoke(t, refresh, throughRunner = false, scenario = 'edit') {
           file_path: path.join(input.options.cwd, 'data/posts.json'), old_string: 'PRIVATE OLD CONTENT', new_string: 'PRIVATE NEW CONTENT'
         } }] } };
         posts[0].description = 'Clearer local guide.';
-        if (${JSON.stringify(scenario)} !== 'failed') fs.writeFileSync('data/posts.json', JSON.stringify(posts));
+        let writeError;
+        try {
+          if (['failed', 'all-failed'].includes(${JSON.stringify(scenario)})) throw Object.assign(new Error('PRIVATE'), { code: 'EROFS' });
+          // Claude Code saves atomically beside the target, then renames it.
+          fs.writeFileSync('data/posts.json.tmp', JSON.stringify(posts));
+          fs.renameSync('data/posts.json.tmp', 'data/posts.json');
+        } catch (error) { writeError = error.code; }
         yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'edit-1',
-          is_error: ${JSON.stringify(scenario)} === 'failed', content: 'EROFS PRIVATE TOOL OUTPUT'
+          is_error: Boolean(writeError), content: (writeError || '') + ' PRIVATE TOOL OUTPUT'
         }] } };
         const writePath = ${JSON.stringify(scenario)} === 'wrong-path' ? '../other/posts.json' : './data/posts.json';
         yield { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'write-2', name: 'Write', input: {
           file_path: writePath, content: 'PRIVATE WRITE CONTENT'
         } }] } };
         if (${JSON.stringify(scenario)} === 'restore') fs.writeFileSync('data/posts.json', original);
-        yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'write-2', content: 'PRIVATE TOOL OUTPUT' }] } };
+        yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'write-2', is_error: ['all-failed', 'old-layout'].includes(${JSON.stringify(scenario)}), content: 'ENOSPC PRIVATE TOOL OUTPUT' }] } };
       }
       yield { type: 'result', subtype: 'success', num_turns: 1 };
     }
@@ -94,6 +100,9 @@ spec = importlib.util.spec_from_file_location('generator_diag', ${JSON.stringify
 diagnostics = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(diagnostics)
 def capture(cmd, diag, timeout):
+    if ${scenario === 'old-layout' ? 'True' : 'False'}:
+        writable = f'ReadWritePaths={scratch}/data /var/cache/lv-generator'
+        cmd[cmd.index(writable)] = f'ReadWritePaths={scratch}/data/posts.json /var/cache/lv-generator'
     props = [cmd[i+1] for i,v in enumerate(cmd) if v == '-p']
     values = dict(p.split('=', 1) for p in props)
     envtext = pathlib.Path(values['EnvironmentFile']).read_text()
@@ -102,7 +111,12 @@ def capture(cmd, diag, timeout):
     env['PATH'] = os.environ['PATH']
     posts_file = pathlib.Path(values['WorkingDirectory']) / 'data/posts.json'
     before = posts_file.read_bytes()
+    # Simulate ProtectSystem=strict's read-only parent on macOS, keeping the
+    # target file writable in both layouts. Use the real constructed unit path.
+    data = posts_file.parent
+    data.chmod(0o755 if str(data) in values['ReadWritePaths'].split() else 0o555)
     proc = real_run(cmd[-2:], cwd=values['WorkingDirectory'], env=env, capture_output=True, text=True)
+    data.chmod(0o755)
     diag.feed_lines(proc.stdout.encode())
     if ${scenario === 'host-divergence' ? 'True' : 'False'}: posts_file.write_bytes(before)
     pathlib.Path(${JSON.stringify(resultFile)}).write_text(json.dumps(dict(cmd=cmd, timeout=timeout, env=env, stdout=proc.stdout, stderr=proc.stderr)))
@@ -135,7 +149,17 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
         generate: (topic) => generator('seo-improvements', 'test-slot', topic, false, ${JSON.stringify(path.join(root, 'generator.jsonl'))}),
         log: (event, details) => events.push({ event, ...details }),
       });
-      const result = deps.generate({ snapshotId: 1, slug: ${JSON.stringify(refresh?.slug)}, mode: 'snippet' }, {});
+      const snapshot = { snapshotId: 1, slug: ${JSON.stringify(refresh?.slug)}, mode: 'snippet' };
+      let result;
+      if (${scenario === 'all-failed' ? 'true' : 'false'}) {
+        const { runRefreshLoop } = await import(${JSON.stringify(new URL('scripts/content/refresh.mjs', ROOT).href)});
+        result = await runRefreshLoop({ deps: { ...deps,
+          plan: () => ({ candidates: [{ slug: snapshot.slug }], remaining: 1 }),
+          reserve: () => snapshot,
+          submit: () => { throw new Error('failed writes must never reach submit'); },
+          close: ({ snapshotId, reasonCode }) => ({ snapshotId, reasonCode, state: 'failed' }),
+        } });
+      } else result = deps.generate(snapshot, {});
       fs.writeFileSync(${JSON.stringify(observedFile)}, JSON.stringify({ result, events, trusted: JSON.parse(fs.readFileSync(file)), scratchExists: fs.existsSync(${JSON.stringify(scratch)}) }));
     `], { encoding: 'utf8', timeout: 15000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LV_RUNNER_REPO: source, LV_RUNNER_STATE_ROOT: state } });
     if (proc.status === 0) observed = JSON.parse(fs.readFileSync(observedFile));
@@ -147,7 +171,8 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
   const probes = result.stdout.split('\n').filter((line) => line.startsWith('PROBE=')).map((line) => JSON.parse(line.slice(6)));
   const diagnostics = fs.readdirSync(logs).flatMap((file) => fs.readFileSync(path.join(logs, file), 'utf8').trim().split('\n').map(JSON.parse));
   const unitChecks = fs.readFileSync(path.join(root, 'unit-checks.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-  return { ...result, probes, files, scratch, observed, diagnostics, unitChecks, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
+  const generatorEvents = throughRunner ? fs.readFileSync(path.join(root, 'generator.jsonl'), 'utf8').trim().split('\n').map(JSON.parse) : [];
+  return { ...result, generatorEvents, probes, files, scratch, observed, diagnostics, unitChecks, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
 }
 
 test('refresh launcher Edit/Write reaches runner after through one-record scratch acceptance without false discards', (t) => {
@@ -180,7 +205,7 @@ test('refresh launcher Edit/Write reaches runner after through one-record scratc
   t.diagnostic('Real generator + launcher + Node writer: one GoodLife record edited; accepted target survives scratch deletion, reaches runner after and passes strict snippet extraction; other post unchanged; discardedOffTarget=[].');
 });
 
-test('refresh constructed launcher/SDK invocation has the refresh prompt, one record, one writable file and bounded runtime; legacy stays broad', (t) => {
+test('refresh constructed launcher/SDK invocation has the refresh prompt, one record, one writable directory and bounded runtime; legacy stays broad', (t) => {
   const refresh = invoke(t, { slug: 'target', query: 'target guide', mode: 'snippet' });
   assert.deepEqual(refresh.env.REFRESH_SLUG, 'target');
   assert.equal(refresh.env.REFRESH_MODE, 'snippet');
@@ -199,7 +224,9 @@ test('refresh constructed launcher/SDK invocation has the refresh prompt, one re
   assert.deepEqual(refresh.files.filter((f) => !f.startsWith('node_modules')).sort(), [
     'data', 'data/posts.json', 'scripts', 'scripts/prompts', 'scripts/prompts/seo-refresh-system.md', 'scripts/seo-improve-agent.js',
   ]);
-  assert.ok(refresh.cmd.includes(`ReadWritePaths=${refresh.scratch}/data/posts.json /var/cache/lv-generator`));
+  assert.ok(refresh.cmd.includes(`ReadWritePaths=${refresh.scratch}/data /var/cache/lv-generator`));
+  assert.equal(fs.statSync(path.join(refresh.scratch, 'data')).isDirectory(), true);
+  assert.deepEqual(fs.readdirSync(path.join(refresh.scratch, 'data')), ['posts.json']);
   assert.ok(refresh.cmd.includes('RuntimeMaxSec=10min'));
   assert.equal(refresh.timeout, 12 * 60);
   assert.match(refresh.stdout, /\[tool_use\] Edit/);
@@ -250,3 +277,32 @@ for (const scenario of ['restore', 'failed', 'wrong-path', 'host-divergence']) {
     assert.ok(!JSON.stringify(diagnostics).includes('PRIVATE'));
   });
 }
+
+
+test('atomic refresh save fails with old file-only writable layout and passes with directory layout', (t) => {
+  const refresh = { slug: 'target', query: 'target guide', mode: 'snippet' };
+  const old = invoke(t, refresh, false, 'old-layout');
+  assert.equal(old.posts[0].description, undefined, 'read-only parent prevents temp-file creation');
+  const failure = old.diagnostics.find((e) => e.event === 'refresh-write-result');
+  assert.equal(failure.isError, true);
+  assert.equal(failure.errorCode, 'EACCES', 'chmod simulation reports EACCES; systemd read-only mount reports EROFS');
+  const current = invoke(t, refresh);
+  assert.equal(current.posts[0].description, 'Clearer local guide.');
+  assert.equal(current.diagnostics.find((e) => e.event === 'refresh-write-result').isError, false);
+  assert.deepEqual(fs.readdirSync(path.join(current.scratch, 'data')), ['posts.json'], 'temp file renamed into the target');
+  t.diagnostic('Atomic temp-write + rename: old file-only layout denied with EACCES; new directory layout saved the one-record file.');
+});
+
+test('all refresh writes failing relays first error and closes with refresh-write-failed', (t) => {
+  const generated = invoke(t, { slug: 'goodlife-fitness-liberty-village-review-guide', query: 'goodlife', mode: 'snippet' }, true, 'all-failed');
+  const { at, ...failure } = generated.generatorEvents.find((e) => e.event === 'refresh-write-failed');
+  assert.ok(at);
+  assert.deepEqual(failure, {
+    event: 'refresh-write-failed', reasonCode: 'refresh-write-failed', errorCode: 'EROFS',
+  });
+  assert.equal(generated.observed.result.outcomes[0].reasonCode, 'refresh-write-failed');
+  assert.equal(generated.observed.scratchExists, false);
+  assert.ok(!generated.observed.events.some((e) => e.event === 'refresh-no-change'));
+  assert.equal(generated.diagnostics.filter((e) => e.event === 'refresh-write-result').length, 2);
+  t.diagnostic('Real launcher + Node writer + runner loop: EROFS then ENOSPC closes refresh-write-failed, records first errorCode EROFS, never submits, and cleans scratch.');
+});

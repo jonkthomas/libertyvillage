@@ -3,9 +3,10 @@
 Only root may create/read these files. Generator stdout is consumed in memory, but
 candidate text, tool output, environment values and raw errors are never persisted.
 
-relay() is the helper's only stdout: one fixed-vocabulary line derived from exactly
+The helper emits one fixed-vocabulary stdout line. For blogs, relay() derives it from exactly
 one EOF-finalized [outcome] that directly follows the single Success: line. Anything
 doubtful (duplicate, early/late, malformed, unknown enum, contradiction) is 'absent'.
+For refreshes, refresh_relay() reports when every Edit/Write failed, with the first error code.
 """
 import json
 import hashlib
@@ -77,6 +78,8 @@ class GeneratorDiagnostic:
         self.relay_successes = 0
         self.relay_after_success = False
         self.refresh = refresh
+        self.refresh_writes = {}
+        self.refresh_results = {}
 
     def refresh_file(self, path, phase):
         """Host view, before handoff and after systemd-run --wait returns."""
@@ -115,10 +118,12 @@ class GeneratorDiagnostic:
                              any(ord(c) < 32 or ord(c) == 127 for c in file_path))):
                         return
                     self.event(marker, sequence=sequence, tool=tool, file_path=file_path)
+                    self.refresh_writes[sequence] = True
                 elif marker == 'refresh-write-result':
                     if type(value.get('isError')) is not bool or value.get('errorCode') not in (None, 'unknown', 'EROFS', 'EACCES', 'EBUSY', 'ENOENT', 'ENOSPC'):
                         return
                     self.event(marker, sequence=sequence, isError=value['isError'], errorCode=value.get('errorCode'))
+                    self.refresh_results[sequence] = (value['isError'], value.get('errorCode') or 'unknown')
                 else:
                     phase = value.get('phase')
                     if phase not in ('writer-handoff', 'writer-read-back', 'tool-result'):
@@ -132,6 +137,15 @@ class GeneratorDiagnostic:
             except (ValueError, TypeError, RecursionError):
                 pass
             return
+
+    def refresh_relay(self):
+        """Content-free failure summary; an incomplete/successful write is not all-failed."""
+        failure = {}
+        if self.finalized and self.refresh_writes and all(
+                self.refresh_results.get(seq, (False,))[0] for seq in self.refresh_writes):
+            first = next(iter(self.refresh_writes))
+            failure = {'reasonCode': 'refresh-write-failed', 'errorCode': self.refresh_results[first][1]}
+        return (json.dumps(failure, separators=(',', ':')) + '\n').encode()
 
     def event(self, event, **fields):
         if self.truncated or self.failed:

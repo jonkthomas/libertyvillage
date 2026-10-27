@@ -34,6 +34,12 @@ if refresh is not None:
     env['REFRESH_SLUG'] = slug
     env['REFRESH_QUERY'] = query
     env['REFRESH_MODE'] = refresh_mode
+    # Atomic Edit/Write saves need a writable parent. This directory contains
+    # only the one-record target; never expose a broader data tree writable.
+    data = scratch / 'data'
+    post = data / 'posts.json'
+    if data.is_symlink() or not data.is_dir() or {p.name for p in data.iterdir()} != {'posts.json'} or post.is_symlink() or not post.is_file():
+        sys.exit(2)
 for key, value in env.items():
     if '\x00' in value or '\n' in value or '\r' in value: sys.exit(2)
 envfile = pathlib.Path(f'/run/lv-runner/generator-{slot}.env')
@@ -80,7 +86,7 @@ try:
     cmd = ['systemd-run', '--wait', '--pipe', '--collect', '--quiet', f'--unit={unit}', '-p', 'User=lv-generator', '-p', 'NoNewPrivileges=yes', '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes', '-p', 'PrivateTmp=yes', '-p', 'CapabilityBoundingSet=', '-p', 'RestrictSUIDSGID=yes', '-p', 'RuntimeMaxSec=40min', '-p', f'WorkingDirectory={scratch}', '-p', f'ReadWritePaths={scratch} /var/cache/lv-generator', '-p', f'EnvironmentFile={envfile}', 'node', script]
     if refresh is not None:
         cmd[cmd.index('RuntimeMaxSec=40min')] = 'RuntimeMaxSec=10min'
-        cmd[cmd.index(f'ReadWritePaths={scratch} /var/cache/lv-generator')] = f'ReadWritePaths={scratch}/data/posts.json /var/cache/lv-generator'
+        cmd[cmd.index(f'ReadWritePaths={scratch} /var/cache/lv-generator')] = f'ReadWritePaths={scratch}/data /var/cache/lv-generator'
     diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl', refresh=refresh is not None)
     try:
         if refresh is not None: diag.refresh_file(scratch / 'data/posts.json', 'handoff')
@@ -119,7 +125,7 @@ try:
     # Normal completion (the agent exits 1 for a designed no-post outcome): the
     # exit code is unchanged and stdout gets exactly one validated relay line.
     if result in (0, 1):
-        relay = diag.relay(result)
+        relay = diag.refresh_relay() if refresh is not None else diag.relay(result)
     sys.exit(result)
 finally:
     try:
