@@ -13,8 +13,10 @@ import { structuredData } from '../automation/news-preflight.mjs';
 import { loadSiteLinkIndex } from '../news-pilot/draft-evidence.mjs';
 import { createLocalImageExists } from '../news-pilot/draft-validate.mjs';
 import { isoWeekOf, roundupSlug } from '../news-pilot/roundup.mjs';
-import { canonicalJson, checkDraftAgainstPack, checkRefreshAgainstOriginal, verifySourcePack } from '../automation/blog-source-pack.mjs';
-import { snippetOverreach } from './refresh.mjs';
+import { canonicalJson, checkDraftAgainstPack, verifySourcePack } from '../automation/blog-source-pack.mjs';
+import { checkRefreshPreSubmission, roundupCoverageIntegrityErrors } from '../lib/refresh-precheck.mjs';
+export { roundupCoverageIntegrityErrors } from '../lib/refresh-precheck.mjs';
+import { refreshFailureDetail } from './refresh-diagnostics.mjs';
 import { fromFile, keyOf, recordSha, registry, serialize } from './canonical.mjs';
 import { roundupCoverageErrors, ROUNDUP_COVERAGE_MAX_KEYS, validateRecord } from './validate.mjs';
 import { createSubmission, getSubmission, readLive, resolveAssets, ValidationError } from './store.mjs';
@@ -91,6 +93,10 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
   const lint = [];
   if (!rules) return { errors: [`unsupported submit kind: ${kind}`], lint };
   if (typeof deps.validateRecord !== 'function') throw new Error('kind policy requires deps.validateRecord');
+  if (kind === 'refresh') {
+    const { errors, lint, refusalDetail } = checkRefreshPreSubmission({ item, ctx, live, deps });
+    return { errors, lint, refusalDetail };
+  }
   const record = item.payload;
   const storage = deps.validateRecord(item.dataset, item.key, record);
   if (!storage?.ok) errors.push(...(storage?.errors?.length ? storage.errors : ['record failed storage validation']));
@@ -106,7 +112,8 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     const mode = deps.lintMode || resolveLintMode(process.env);
     // A roundup (trusted roundupCoverage marker, integrity-checked below) is
     // source-grounded: directory address/price comparisons do not apply.
-    const result = lintPost(record, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
+    const lintRecord = record;
+    const result = lintPost(lintRecord, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
       roundup: item.dataset === 'posts' && hasOwn(record, 'roundupCoverage') });
     if (!result.ok && mode === 'fail') lint.push(...result.findings.map((finding) => `[${finding.rule}] ${finding.claim} — ${finding.detail}`));
   }
@@ -119,7 +126,6 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     }
     if (deps.submittedAt !== undefined) errors.push(...checkGeneratedAt(ctx.now, deps.submittedAt));
   }
-  if (kind === 'refresh') errors.push(...refreshBindingErrors({ item, record, ctx, live }));
   if (rules.news) errors.push(...checkNewsRecord({ record, ctx, live, news: deps.news }));
   if (rules.roundup) errors.push(...checkRoundupRecordV2({ item, record, ctx, news: deps.news }));
   errors.push(...roundupCoverageIntegrityErrors({ kind, item, ctx, live }));
@@ -137,14 +143,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
 // the original post is its evidence (checkRefreshAgainstOriginal, the new-post
 // rules), and a snippet refresh may change only title, description and intro.
 // Fail closed without the binding.
-export function refreshBindingErrors({ item, record, ctx = {}, live = {} }) {
-  const bound = ctx.refresh;
-  if (!bound?.original || bound.original.slug !== item.key || !['snippet', 'full'].includes(bound.mode)) return ['refresh draft is not bound to its original post: missing-snapshot-binding'];
-  const errors = checkRefreshAgainstOriginal(record, bound.original, { businesses: live.businesses ?? [], posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [] })
-    .slice(0, 20).map((error) => `refresh draft is not bound to its original post: ${error}`);
-  const overreach = bound.mode === 'snippet' ? snippetOverreach(bound.original, record) : null;
-  return overreach ? [...errors, `refresh-snippet-overreach: ${overreach}`] : errors;
-}
+export { refreshBindingErrors } from '../lib/refresh-precheck.mjs';
 
 // --generated-at must be the DATA_SHA commit time, within 36 h before submit.
 export function checkGeneratedAt(generatedAt, submittedAt) {
@@ -273,28 +272,6 @@ export function projectRoundupUnit(unit) {
     citations: list(unit?.citations).slice(0, 6).map(citation),
     evidence: list(unit?.evidence).slice(0, 6).map(evidence),
   };
-}
-
-// §6.6 integrity of roundupCoverage on EVERY write path (submit of every kind and
-// the gate fixer, both of which call checkRecordPolicy). Only kind='roundup' may
-// set it, and only to the value submit re-derived from the verified pack; every
-// other kind may not create it and must preserve it byte-identically, including
-// absence. Deleting a whole post is an admin unpublish and never reaches here.
-export function roundupCoverageIntegrityErrors({ kind, item, ctx = {}, live = {} }) {
-  if (item?.dataset !== 'posts') return [];
-  const record = item.payload;
-  const has = hasOwn(record, 'roundupCoverage');
-  if (kind === 'roundup') {
-    if (!has) return ['roundup post requires roundupCoverage'];
-    if (!hasOwn(ctx, 'roundupCoverage')) return ['roundup context lacks its verified roundupCoverage'];
-    return canonicalJson(record.roundupCoverage) === canonicalJson(ctx.roundupCoverage) ? [] : ['roundupCoverage does not match the verified pack'];
-  }
-  if (item.op === 'insert') return has ? [`roundupCoverage is roundup-only trusted metadata; a ${kind} insert may not create it`] : [];
-  const current = list(live.posts).find((post) => post?.slug === item.key);
-  const liveHas = hasOwn(current, 'roundupCoverage');
-  if (has !== liveHas || (has && canonicalJson(record.roundupCoverage) !== canonicalJson(current.roundupCoverage)))
-    return [`roundupCoverage must be preserved byte-identically by a ${kind} edit`];
-  return [];
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -565,15 +542,18 @@ export function checkKindPolicy({ kind, items, ctx = {}, live = {}, deps = {} })
   const shape = checkKindShape({ kind, items });
   const errors = [...shape.errors];
   const lint = [];
+  const refreshFailures = [];
   if (KIND_RULES[kind]) {
     for (const item of items) {
       const result = checkRecordPolicy({ kind, item, ctx, live, deps });
       errors.push(...result.errors.map((error) => `${itemLabel(item)}: ${error}`));
       lint.push(...result.lint.map((finding) => `${itemLabel(item)}: ${finding}`));
+      refreshFailures.push(...(result.refusalDetail?.failures ?? []));
     }
   }
   const ok = errors.length === 0 && lint.length === 0;
-  return { ok, decision: ok ? null : (errors.length ? 'validation' : 'lint'), errors: [...errors, ...lint], lint };
+  return { ok, decision: ok ? null : (errors.length ? 'validation' : 'lint'), errors: [...errors, ...lint], lint,
+    ...(kind === 'refresh' ? { refusalDetail: refreshFailureDetail(refreshFailures) } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -845,7 +825,7 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
       kind, items: images.items, ctx: context, live: liveCtx.live,
       deps: policyDeps({ kind, context: { root: liveCtx.root }, checkout: root }),
     });
-    if (!policy.ok) throw new ValidationError(policy.errors.join('; '));
+    if (!policy.ok) throw Object.assign(new ValidationError(policy.errors.join('; ')), { refusalDetail: policy.refusalDetail });
   } finally {
     liveCtx.cleanup();
   }

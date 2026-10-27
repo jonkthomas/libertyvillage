@@ -13,19 +13,109 @@ import { refreshDeps, acceptGeneratedOutput } from '../../ops/exedev-runner/runn
 
 import { GATE_MODEL } from '../../scripts/automation/constants.mjs';
 import { canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
+import { checkKindPolicy } from '../../scripts/content/submit.mjs';
+import { validateRecord } from '../../scripts/content/validate.mjs';
+import { lintPost } from '../../scripts/blog-lint.mjs';
 import * as store from '../../scripts/content/store.mjs';
 import { keyOf, recordSha } from '../../scripts/content/canonical.mjs';
 import { explain } from '../../ops/weekly-digest/lib/plain-english.mjs';
 import {
   REFRESH, closeRefresh, expectedCtr, extractRefreshedPost, isLeakQuery, listRefreshes, planRefresh, rankRefreshCandidates, refreshScore,
-  refreshLogLine, reserveRefresh, rollbackRefresh, runRefreshLoop, splitIntro, submitRefresh,
+  refreshLogLine, refreshIdempotencyKey, reserveRefresh, rollbackRefresh, runRefreshLoop, splitIntro, submitRefresh,
 } from '../../scripts/content/refresh.mjs';
 import { refreshRow, renderRefreshed } from '../../ops/weekly-digest/lib/refreshed.mjs';
 import { baselineFile, FAST_SMOKE, hasTestDb, liveRecord, localSite, publishDirect, seededDb, tempJson } from './fixtures/content-db.mjs';
+import { invoke as invokeRefreshWriter } from '../runner/fixtures/refresh-writer.mjs';
 
 const skip = !hasTestDb && 'CONTENT_TEST_DATABASE_URL not set';
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
 const IMAGE = JSON.parse(fs.readFileSync(new URL('../../data/posts.json', import.meta.url), 'utf8'))[0].image;
+
+test('GoodLife starts with a heading: the intro is empty and a snippet may prepend one without changing its body', () => {
+  const original = JSON.parse(fs.readFileSync(new URL('../../data/posts.json', import.meta.url), 'utf8'))
+    .find((post) => post.slug === 'goodlife-fitness-liberty-village-review-guide');
+  assert.match(original.content, /^## /);
+  assert.deepEqual(splitIntro(original.content), { intro: '', rest: original.content });
+  const updated = { ...original, content: `Compare the gym using this local guide.\n\n${original.content}` };
+  assert.equal(extractRefreshedPost({ before: [original], after: [updated], slug: original.slug, mode: 'snippet' }), updated);
+  assert.equal(splitIntro(updated.content).rest, original.content);
+  assert.throws(() => extractRefreshedPost({ before: [original], after: [{ ...updated, content: updated.content + '\nBody edit' }],
+    slug: original.slug, mode: 'snippet' }), (error) => error.reason === 'refresh-snippet-overreach');
+});
+
+test('round3: realistic GoodLife snippet passes despite immutable legacy findings, but new unsupported facts and edits remain refused', () => {
+  const read = (name) => JSON.parse(fs.readFileSync(new URL(`../../data/${name}.json`, import.meta.url)));
+  const live = Object.fromEntries(['posts', 'businesses', 'services', 'topics'].map((name) => [name, read(name)]));
+  const original = { ...live.posts.find((p) => p.slug === 'goodlife-fitness-liberty-village-review-guide'),
+    answerBlock: 'GoodLife Fitness Liberty Village is at 47 Jefferson Ave.' };
+  assert.ok(lintPost(original, { businesses: live.businesses }).findings.some((f) => f.detail.startsWith('answerBlock:')));
+  const record = { ...original, title: 'GoodLife Fitness Liberty Village: Prices & Hours',
+    description: 'Compare GoodLife Fitness Liberty Village membership, equipment and classes before choosing your gym.',
+    content: `Compare GoodLife Fitness Liberty Village membership, equipment and classes.\n\n${splitIntro(original.content).rest}` };
+  const policy = (payload, mode = 'snippet') => checkKindPolicy({ kind: 'refresh', items: [{ dataset: 'posts', key: original.slug, op: 'update', payload }],
+    ctx: { refresh: { mode, original } }, live, deps: { validateRecord, lintMode: 'fail' } });
+  assert.deepEqual(policy(record).errors, [], 'a realistic rewrite is not blocked by immutable legacy text');
+  assert.equal(policy(record, 'full').ok, false, 'full refresh retains whole-post lint');
+  const invented = policy({ ...record, content: `GoodLife Fitness Liberty Village charges $99999.\n\n${splitIntro(original.content).rest}` });
+  assert.equal(invented.ok, false);
+  assert.ok(invented.lint.some((e) => e.includes('[unsupported-price]')));
+  assert.deepEqual(invented.refusalDetail, { kind: 'fact-check', failures: [{ code: 'unsupported-price', field: 'content', businessSlug: 'goodlife-fitness-liberty-village' }] });
+  assert.equal(policy({ ...record, faqs: [] }).ok, false, 'excluded fields cannot be modified');
+  assert.equal(policy({ ...record, content: record.content + '\nChanged body.' }).ok, false);
+  assert.equal(policy({ ...record, content: `[Guide](/blog/invented-guide)\n\n${splitIntro(original.content).rest}` }).ok, false);
+});
+
+test('round3: fact-check rule/field/business identifiers survive submit, close, replay and the runner log without bodies', { skip }, async (t) => {
+  const handle = await refreshDb();
+  t.after(() => handle.close());
+  const { db } = handle;
+  const before = await livePosts(db);
+  const business = (await store.readLive(db, { datasets: ['businesses'] })).datasets.businesses.records[0];
+  const original = { ...before.find((p) => p.slug === SLUGS[0]), content: `Local guide.\n\n## Details\n\n[${business.name}](/directory/${business.slug}) charges $98765.\n` };
+  const rev = (await db.query("select live_rev from content.entries where dataset='posts' and key=$1", [original.slug])).rows[0].live_rev;
+  await publishDirect(db, { kind: 'manual', items: [{ dataset: 'posts', key: original.slug, payload: original, expectedLiveRev: Number(rev) }], idempotencyKey: 'round3:legacy' });
+  const posts = await livePosts(db);
+  const snapshot = await reserveRefresh(db, { candidate: { slug: original.slug, mode: 'snippet' }, now: MON });
+  const record = { ...original, title: `${original.title}: local tips`, content: `[${business.name}](/directory/${business.slug}) charges $99999.\n\n${splitIntro(original.content).rest}` };
+  const out = await submitRefresh(db, { snapshotId: snapshot.snapshotId, before: posts, after: posts.map((p) => p.slug === original.slug ? record : p),
+    actor: 'uat:round3', checkout: REPO, now: MON });
+  assert.equal(out.exitCode, 2);
+  assert.equal(out.result.reasonCode, 'refresh-fact-check');
+  const expected = { kind: 'fact-check', failures: [{ code: 'unsupported-price', field: 'content', businessSlug: business.slug }] };
+  assert.deepEqual(refreshLogLine(out.result).refusalDetail, expected);
+  assert.deepEqual(refreshLogLine(await closeRefresh(db, { snapshotId: snapshot.snapshotId })).refusalDetail, expected, 'durable on replay');
+  assert.equal((await liveRecord(db, 'posts', original.slug)).content, original.content, 'refused draft never published');
+  const hostile = refreshLogLine({ refusalDetail: { kind: 'fact-check', failures: [
+    { code: 'PRIVATE BODY', field: 'content', businessSlug: business.slug },
+    ...Array.from({ length: 30 }, () => ({ code: 'unsupported-price', field: 'PRIVATE BODY', businessSlug: 'PRIVATE BODY', claim: 'PRIVATE BODY' })),
+  ] } });
+  assert.equal(hostile.refusalDetail.failures.length, 20);
+  assert.ok(!JSON.stringify(hostile).includes('PRIVATE BODY'));
+  const site = await localSite(db);
+  t.after(() => site.close());
+  // A resumed submission hits g1, rather than the initial submit policy. Its
+  // terminal gate round must preserve the same identifiers through close.
+  const gated = await reserveRefresh(db, { candidate: { slug: original.slug, mode: 'snippet' }, now: MON });
+  await store.createSubmission(db, { kind: 'refresh', target: db.target, actor: 'uat:round3',
+    idempotencyKey: refreshIdempotencyKey(db.target, gated.snapshotId),
+    context: { now: MON.toISOString(), refresh: { snapshotId: gated.snapshotId, mode: 'snippet', original } },
+    items: [{ dataset: 'posts', key: original.slug, op: 'update', payload: record, expectedLiveRev: gated.liveRev }] });
+  const gateRefused = await submitRefresh(db, { snapshotId: gated.snapshotId, actor: 'uat:round3', checkout: REPO, now: MON,
+    env: site.env, deps: { gate: { review: pass, smoke: FAST_SMOKE } } });
+  assert.equal(gateRefused.exitCode, 2);
+  assert.deepEqual(refreshLogLine(gateRefused.result).refusalDetail, expected, 'gate g1 preserves detail');
+  const retry = await reserveRefresh(db, { candidate: { slug: original.slug, mode: 'snippet' }, now: MON });
+  const valid = { ...original, title: `${original.title}: local tips`, content: `Plan your local walk.\n\n${splitIntro(original.content).rest}` };
+  const published = await submitRefresh(db, { snapshotId: retry.snapshotId, before: posts, after: posts.map((p) => p.slug === original.slug ? valid : p),
+    actor: 'uat:round3', checkout: REPO, now: MON, env: site.env, deps: { gate: { review: pass, smoke: FAST_SMOKE } } });
+  assert.equal(published.exitCode, 0);
+  const url = `${site.origin}/blog/${original.slug}`;
+  const response = await fetch(url);
+  assert.equal(response.status, 200);
+  assert.ok((await response.text()).includes(valid.title));
+  assert.equal((await liveRecord(db, 'posts', original.slug)).content, valid.content);
+  t.diagnostic(`GET ${url} -> 200; snippet with immutable legacy claim published; unsupported-price refused with field=content businessSlug=${business.slug}; replay retains detail`);
+});
 const MON = new Date('2026-11-02T05:00:00Z');   // ISO week 2026-W45
 const NEXT_MON = new Date('2026-11-09T05:00:00Z');
 
@@ -137,6 +227,84 @@ async function refreshDb() {
 
 const pass = async ({ contentSha }) => ({ overall: 9, findings: [], model: GATE_MODEL, commit_sha: contentSha });
 const livePosts = async (db) => (await store.readLive(db, { datasets: ['posts'] })).datasets.posts.records;
+
+test('writer repairs unsupported-address once, then the existing refresh gate publishes and serves the grounded snippet', { skip }, async (t) => {
+  const handle = await refreshDb();
+  t.after(() => handle.close());
+  const { db } = handle;
+  const business = JSON.parse(fs.readFileSync(new URL('../../data/businesses.json', import.meta.url)))
+    .find((b) => b.slug === 'goodlife-fitness-liberty-village');
+  const original = { ...post(SLUGS[0], 'GoodLife Fitness Liberty Village guide'),
+    content: '## Details\n\nGoodLife Fitness Liberty Village is at 85 Hanna Ave Suite 200.' };
+  const rev = (await db.query("select live_rev from content.entries where dataset='posts' and key=$1", [original.slug])).rows[0].live_rev;
+  await publishDirect(db, { kind: 'manual', idempotencyKey: 'seed:grounding-writer', items: [
+    { dataset: 'businesses', key: business.slug, payload: business },
+    { dataset: 'posts', key: original.slug, payload: original, expectedLiveRev: Number(rev) },
+  ] });
+  const before = await livePosts(db);
+  const snapshot = await reserveRefresh(db, { candidate: { slug: original.slug, mode: 'snippet' }, now: MON });
+  const written = invokeRefreshWriter(t, { slug: original.slug, query: 'goodlife guide', mode: 'snippet' }, true, 'lint-repair', { target: original });
+  assert.equal(written.probes.length, 2, 'unsupported intro must receive a revision before submission');
+  const record = extractRefreshedPost({ ...written.observed.result, slug: original.slug, mode: 'snippet' });
+  assert.match(record.content, /^GoodLife Fitness Liberty Village is at 85 Hanna Ave/);
+  const site = await localSite(db);
+  t.after(() => site.close());
+  const out = await submitRefresh(db, { snapshotId: snapshot.snapshotId, before,
+    after: before.map((p) => p.slug === record.slug ? record : p),
+    actor: 'uat:writer-grounding', checkout: REPO, now: MON, env: site.env,
+    deps: { gate: { review: pass, smoke: FAST_SMOKE } } });
+  assert.equal(out.exitCode, 0, JSON.stringify(out.result));
+  assert.equal(out.result.state, 'published');
+  assert.equal(splitIntro(record.content).rest, original.content, 'legacy body remains byte-for-byte unchanged');
+  const url = `${site.origin}/blog/${record.slug}`;
+  const response = await fetch(url);
+  assert.equal(response.status, 200);
+  assert.ok((await response.text()).includes(record.title.replaceAll('&', '&amp;')));
+  const exported = await fetch(`${site.origin}/content-snapshot/posts.json`);
+  assert.equal(exported.status, 200);
+  assert.equal((await exported.json()).find((p) => p.slug === record.slug).content, record.content);
+  assert.equal((await liveRecord(db, 'posts', record.slug)).content, record.content);
+  t.diagnostic(`GET ${url} -> 200; GET ${site.origin}/content-snapshot/posts.json -> 200, grounded intro exported; writer received unsupported-address and revised once; existing gate published; immutable stale body preserved.`);
+});
+
+test('writer repairs draft-changed-topic once, then the unchanged gate publishes and serves the bound title', { skip }, async (t) => {
+  const handle = await refreshDb();
+  t.after(() => handle.close());
+  const { db } = handle;
+  const business = JSON.parse(fs.readFileSync(new URL('../../data/businesses.json', import.meta.url)))
+    .find((b) => b.slug === 'goodlife-fitness-liberty-village');
+  const original = { ...post(SLUGS[0], 'GoodLife Fitness: Honest Review, Prices & Hours 2026'),
+    content: '## Details\n\nGoodLife Fitness Liberty Village is at 85 Hanna Ave Suite 200.' };
+  const rev = (await db.query("select live_rev from content.entries where dataset='posts' and key=$1", [original.slug])).rows[0].live_rev;
+  await publishDirect(db, { kind: 'manual', idempotencyKey: 'seed:binding-writer', items: [
+    { dataset: 'businesses', key: business.slug, payload: business },
+    { dataset: 'posts', key: original.slug, payload: original, expectedLiveRev: Number(rev) },
+  ] });
+  const before = await livePosts(db);
+  const snapshot = await reserveRefresh(db, { candidate: { slug: original.slug, mode: 'snippet' }, now: MON });
+  const written = invokeRefreshWriter(t, { slug: original.slug, query: 'goodlife guide', mode: 'snippet' }, true, 'title-repair', { target: original });
+  assert.equal(written.probes.length, 2, 'unbound title must receive a revision before submission');
+  const record = extractRefreshedPost({ ...written.observed.result, slug: original.slug, mode: 'snippet' });
+  assert.equal(record.title, 'GoodLife Fitness Review: Prices, Hours & Tips');
+  const site = await localSite(db);
+  t.after(() => site.close());
+  const out = await submitRefresh(db, { snapshotId: snapshot.snapshotId, before,
+    after: before.map((p) => p.slug === record.slug ? record : p),
+    actor: 'uat:writer-binding', checkout: REPO, now: MON, env: site.env,
+    deps: { gate: { review: pass, smoke: FAST_SMOKE } } });
+  assert.equal(out.exitCode, 0, JSON.stringify(out.result));
+  assert.equal(out.result.state, 'published');
+  assert.equal(splitIntro(record.content).rest, original.content, 'legacy body remains byte-for-byte unchanged');
+  const url = `${site.origin}/blog/${record.slug}`;
+  const response = await fetch(url);
+  assert.equal(response.status, 200);
+  assert.ok((await response.text()).includes(record.title.replaceAll('&', '&amp;')));
+  const exported = await fetch(`${site.origin}/content-snapshot/posts.json`);
+  assert.equal(exported.status, 200);
+  assert.equal((await exported.json()).find((p) => p.slug === record.slug).content, record.content);
+  assert.equal((await liveRecord(db, 'posts', record.slug)).content, record.content);
+  t.diagnostic(`GET ${url} -> 200; GET ${site.origin}/content-snapshot/posts.json -> 200, grounded intro exported; writer received draft-changed-topic and revised once; existing gate published; immutable stale body preserved.`);
+});
 
 // The runner's binding, in process: real store/submit/gate/deploy, fake generator.
 function loopDeps(db, site, { now, review = pass, rewrite, recordAction, seen, events }) {

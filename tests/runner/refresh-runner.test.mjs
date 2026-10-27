@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { acceptGeneratedOutput, copyScratchTree, refreshDeps } from '../../ops/exedev-runner/runner.mjs';
-import { extractRefreshedPost, runRefreshLoop } from '../../scripts/content/refresh.mjs';
+import { extractRefreshedPost, refreshLogLine, runRefreshLoop } from '../../scripts/content/refresh.mjs';
 import { canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
 import seoAgent from '../../scripts/seo-improve-agent.js';
 import { hasTestDb, seededDb } from '../content/fixtures/content-db.mjs';
@@ -55,7 +55,7 @@ test('refresh runner: plan -> reserve -> export -> generator(refresh slug) -> su
   const h = harness({});
   const result = await runRefreshLoop({ deps: h.deps });
   assert.equal(result.refreshed, 2);
-  assert.deepEqual(h.generated, [{ title: 'A', refresh: { slug: 'a', query: 'q a', mode: 'full' } }, { title: 'B', refresh: { slug: 'b', query: 'q b', mode: 'snippet' } }], 'the lane reaches the generator request');
+  assert.deepEqual(h.generated, [{ title: 'A', refresh: { target: 'staging', slug: 'a', query: 'q a', mode: 'full' } }, { title: 'B', refresh: { target: 'staging', slug: 'b', query: 'q b', mode: 'snippet' } }], 'the lane reaches the generator request');
   const submit = h.calls.find((c) => c.args[1] === 'submit');
   assert.deepEqual(submit.allowExit, [2, 3], 'refused/rejected (2) and propagation pending (3) are outcomes, not crashes');
   assert.ok(submit.args.includes('runner:seo-improvements#202611030423-abcd1234'));
@@ -81,6 +81,10 @@ test('refresh runner: a generator failure closes the snapshot with a reason and 
   assert.equal(result.attempted, 1);
   assert.deepEqual(h.events.find((e) => e.event === 'refresh-outcome').details.reasonCode, 'refresh-generator-failed');
   assert.ok(h.calls.some((c) => c.args[1] === 'close' && c.args.includes('refresh-generator-failed')));
+  assert.deepEqual(h.events.find((e) => e.event === 'refresh-outcome').details.failureDetail, { stage: 'generate', code: 'unknown' });
+  assert.deepEqual(refreshLogLine({ reasonCode: 'refresh-generator-failed', failureDetail: {
+    stage: 'PRIVATE'.repeat(1000), code: 'PRIVATE', exit: 1000, message: 'PRIVATE',
+  } }).failureDetail, { stage: 'generate', code: 'unknown' });
 });
 
 // Real export -> runner before -> scratch writer -> accepted output -> runner
@@ -161,6 +165,49 @@ test('refresh discard log caps slug count and excludes invalid slugs and bodies'
   const details = h.events.find((e) => e.details?.discardedOffTarget).details;
   assert.deepEqual(details.discardedOffTarget, Array.from({ length: 20 }, (_, i) => `added-${i}`));
   assert.ok(!JSON.stringify(details).includes('PRIVATE BODY'));
+});
+
+test('refresh-no-change logs only emitted target snippet differences and lengths, including exact no-op', (t) => {
+  const run = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-refresh-diff-'));
+  t.after(() => fs.rmSync(run, { recursive: true, force: true }));
+  const before = { slug: 'a', title: 'PRIVATE TITLE', description: 'PRIVATE DESCRIPTION', content: 'PRIVATE INTRO\n\n## Body\nPRIVATE BODY' };
+  for (const [original, emitted, reasonCode, expected] of [
+    [before, { ...before }, 'refresh-no-change', { generatorNoOp: true, fields: {
+      title: { changed: false, beforeLength: 13, afterLength: 13 },
+      description: { changed: false, beforeLength: 19, afterLength: 19 },
+      intro: { changed: false, beforeLength: 15, afterLength: 15 },
+    } }],
+    [before, { ...before, title: 'CHANGED TITLE', description: 'CHANGED', content: 'NEW INTRO\n\n## Body\nPRIVATE BODY' }, 'refresh-no-change', { generatorNoOp: false, fields: {
+      title: { changed: true, beforeLength: 13, afterLength: 13 },
+      description: { changed: true, beforeLength: 19, afterLength: 7 },
+      intro: { changed: true, beforeLength: 15, afterLength: 11 },
+    } }],
+    [{ ...before, content: 'FIRST\n\nPRIVATE BODY' }, { ...before, content: 'NEW FIRST\n\nPRIVATE BODY' }, 'refresh-no-change', { generatorNoOp: false, fields: {
+      title: { changed: false, beforeLength: 13, afterLength: 13 },
+      description: { changed: false, beforeLength: 19, afterLength: 19 },
+      intro: { changed: true, beforeLength: 5, afterLength: 9 },
+    } }],
+    [before, { ...before, title: 'CHANGED TITLE' }, null, null],
+  ]) {
+    let posts = [original, { slug: 'other', title: 'PRIVATE OTHER' }];
+    const events = [];
+    const deps = refreshDeps({ target: 'staging', slot: 'diff', request: {}, run,
+      export: () => {}, readPosts: () => posts, writePosts: (value) => { posts = value; },
+      generate: () => ({ posts: [emitted] }),
+      cli: () => ({ stdout: JSON.stringify({ state: reasonCode ? 'failed' : 'published', reasonCode }) }),
+      log: (event, details) => events.push({ event, ...details }),
+    });
+    const snapshot = { snapshotId: 1, slug: 'a', mode: 'snippet' };
+    const generated = deps.generate(snapshot, {});
+    // Diagnose the generator's emitted record even if the submit reports no
+    // change unexpectedly. Reading the checkout again would hide this evidence.
+    posts = [original];
+    deps.submit(snapshot, generated);
+    const diagnostic = events.find((e) => e.event === 'refresh-no-change');
+    assert.deepEqual(diagnostic, expected ? { event: 'refresh-no-change', snapshotId: 1, ...expected } : undefined);
+    assert.doesNotMatch(JSON.stringify(events), /PRIVATE|CHANGED|NEW INTRO|NEW FIRST/);
+  }
+  t.diagnostic('refresh-no-change: emitted title/description/intro flags and lengths observed; exact emitted no-op logs generatorNoOp:true; first-paragraph fallback covered; no field text logged.');
 });
 
 test('refresh output stays in scratch until grafted; other data and task files never transfer', (t) => {

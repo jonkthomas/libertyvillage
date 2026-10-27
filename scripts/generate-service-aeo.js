@@ -60,7 +60,7 @@ const aeoData = {
   },
   gyms: {
     answerBlock:
-      'Liberty Village has 6 gyms to fit every budget and workout style. F45 Training leads with a 4.5 rating for group HIIT classes on East Liberty Street, while Altea Active on Western Battery Rd offers a premium experience with pool and spa starting around $150 per month. GoodLife Fitness on Jefferson Ave handles the basics, and SpinCo and Orangetheory add boutique studio options.',
+      'Liberty Village has 6 gyms to fit every budget and workout style. F45 Training leads with a 4.5 rating for group HIIT classes on East Liberty Street, while Altea Active on Western Battery Rd offers a premium experience with pool and spa starting around $150 per month. GoodLife Fitness on Hanna Ave handles the basics, and SpinCo and Orangetheory add boutique studio options.',
     definition:
       'Gyms in Liberty Village range from budget-friendly chains to luxury athletic clubs, reflecting the neighbourhood\'s young professional demographic and fitness-focused culture.',
   },

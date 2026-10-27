@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { constants as osConstants } from 'node:os';
 
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
@@ -192,6 +193,7 @@ export function command(binary, args, { cwd, env, allowExit = [] } = {}) {
   if (result.error || (result.status !== 0 && !allowExit.includes(result.status))) {
     const failure = new Error(`${path.basename(binary)} ${args[0] ?? ''} exit ${result.status ?? 'signal'}`);
     failure.cliFailure = classifyCliFailure(binary, args, result);
+    failure.code = result.error?.code;
     throw failure;
   }
   return { code: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
@@ -386,6 +388,58 @@ export function copyScratchTree(from, to) {
   fs.cpSync(from, to, { recursive: true, force: true, verbatimSymlinks: true });
 }
 
+export const REFRESH_RUNTIME_FILES = [
+  'scripts/seo-improve-agent.js',
+  'scripts/prompts/seo-refresh-system.md',
+  'scripts/blog-lint.mjs',
+  'scripts/lib/referenced-businesses.mjs',
+  'scripts/lib/refresh-lint.mjs',
+  'scripts/lib/refresh-precheck.mjs',
+  'scripts/lib/topic-key.mjs',
+  'scripts/content/validate.mjs',
+  'scripts/content/canonical.mjs',
+  'scripts/content/refresh-diagnostics.mjs',
+  'scripts/content/images.mjs',
+  'scripts/content/validation-error.mjs',
+  'scripts/automation/blog-source-pack.mjs',
+  'lib/content/datasets.json',
+];
+
+export function prepareGeneratorScratch(from, to, refresh = null) {
+  if (!refresh) return copyScratchTree(from, to);
+  if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(refresh.slug ?? '')) throw new Error('invalid refresh slug');
+  const targets = readJson(path.join(from, 'data/posts.json')).filter((post) => post.slug === refresh.slug);
+  if (targets.length !== 1) throw new Error('refresh target missing or duplicated');
+  for (const rel of REFRESH_RUNTIME_FILES) {
+    fs.mkdirSync(path.dirname(path.join(to, rel)), { recursive: true });
+    fs.copyFileSync(path.join(from, rel), path.join(to, rel));
+  }
+  // The full business export preserves the trusted linter's attribution index.
+  // Keep it outside writable data/: only posts.json can be changed by the writer.
+  const businesses = readJson(path.join(from, 'data/businesses.json'));
+  if (!Array.isArray(businesses)) throw new Error('refresh business records missing');
+  fs.writeFileSync(path.join(to, 'scripts/refresh-businesses.json'), JSON.stringify(businesses) + '\n');
+  // Link and image inventories are trusted, read-only evidence outside data/.
+  const live = Object.fromEntries(['posts', 'services', 'topics'].map((dataset) => [dataset,
+    readJson(path.join(from, `data/${dataset}.json`)).map((record) => ({ slug: record.slug,
+      ...(Object.hasOwn(record, 'roundupCoverage') ? { roundupCoverage: record.roundupCoverage } : {}) }))]));
+  const sourceRef = refresh.target === 'production' ? 'origin/main' : refresh.target === 'staging' ? 'origin/staging' : 'HEAD';
+  const tracked = spawnSync('git', ['ls-tree', '-r', '-z', sourceRef, '--', 'public/images'], { cwd: from, encoding: 'utf8' });
+  if (tracked.status !== 0) throw new Error('refresh image inventory unavailable');
+  const images = Object.fromEntries(tracked.stdout.split('\0').filter(Boolean).map((entry) => {
+    const [meta, file] = entry.split('\t');
+    return [file, meta.split(' ')[2]];
+  }));
+  const manifest = path.join(from, '.content-export/manifest.json');
+  const mediaPaths = fs.existsSync(manifest) ? (readJson(manifest).media ?? []).map((asset) => asset.path) : [];
+  fs.writeFileSync(path.join(to, 'scripts/refresh-preflight.json'), JSON.stringify({ live, images, mediaPaths, sourceRef }) + '\n');
+  // Copy runtime dependencies, as on the legacy path. No application tree, Git
+  // metadata, settings or skills enter this scratch tree.
+  copyScratchTree(fs.realpathSync(path.join(from, 'node_modules')), path.join(to, 'node_modules'));
+  fs.mkdirSync(path.join(to, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(to, 'data/posts.json'), JSON.stringify(targets) + '\n');
+}
+
 // Scratch Git metadata is untrusted after the SDK runs. Inspect only a small,
 // regular detached HEAD; never block on a FIFO or read an unbounded device/file.
 export function readScratchHead(scratch) {
@@ -406,10 +460,11 @@ export function readScratchHead(scratch) {
 function generator(job, slot, topic, dryRun, log, notifications = {}) {
   const scratch = path.join(stateRoot, 'scratch', slot);
   let failed = false;
+  let stage = 'scratch-prepare';
   try {
     fs.rmSync(scratch, { recursive: true, force: true });
     fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
-    copyScratchTree(repo, scratch);
+    prepareGeneratorScratch(repo, scratch, topic?.refresh);
     const exportedPosts = job === 'weekly-blog' || topic?.refresh ? readJson(path.join(repo, 'data', 'posts.json')) : null;
     const requestDir = path.join(stateRoot, 'generator-requests');
     fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
@@ -417,7 +472,27 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     // The root-owned helper validates this path, changes ownership, and starts a
     // transient service as lv-generator with strict filesystem protection.
     const helper = '/usr/local/libexec/lv-runner-generator';
-    const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' ? [1] : [] });
+    stage = 'helper-exit';
+    const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' || topic?.refresh ? [1] : [] });
+    if (topic?.refresh) {
+      stage = 'relay-parse';
+      if (Buffer.byteLength(helperResult.stdout) > 1024) throw Object.assign(new Error('invalid refresh relay'), { code: 'invalid-relay' });
+      const failure = parseJson(helperResult.stdout);
+      if (!failure || typeof failure !== 'object' || Array.isArray(failure)) throw Object.assign(new Error('invalid refresh relay'), { code: 'invalid-relay' });
+      if (failure.reasonCode === 'refresh-generator-failed') throw Object.assign(new Error('refresh helper failed'), { failureDetail: failure.failureDetail });
+      if (failure?.reasonCode === 'refresh-write-failed' && ['unknown', 'EROFS', 'EACCES', 'EBUSY', 'ENOENT', 'ENOSPC'].includes(failure.errorCode)) {
+        logLine(log, 'refresh-write-failed', { reasonCode: failure.reasonCode, errorCode: failure.errorCode });
+        throw Object.assign(new Error('refresh writes failed'), { reason: failure.reasonCode, errorCode: failure.errorCode });
+      }
+      stage = 'helper-exit';
+      if (helperResult.code !== 0) throw Object.assign(new Error('refresh generator failed'), { code: 'helper-exit', exit: helperResult.code });
+      // The isolated tree intentionally has no Git checkout. Only its one
+      // bounded output is read; refreshDeps retains the strict graft backstop.
+      stage = 'output-read';
+      const output = acceptGeneratedOutput(scratch, repo, job, ['data/posts.json'], exportedPosts, true);
+      logLine(log, 'generator-output-accepted', { paths: 0 });
+      return output;
+    }
     const diagnostic = job === 'weekly-blog' ? readGeneratorRelay(helperResult) : null;
     const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
     if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
@@ -438,6 +513,17 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     return changed;
   } catch (error) {
     failed = true;
+    if (topic?.refresh) {
+      const detail = error.failureDetail ?? { stage, code: error instanceof SyntaxError ? 'invalid-json' : error.code, exit: error.exit ?? error.cliFailure?.exit };
+      error.failureDetail = {
+        stage: ['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read', 'output-validate'].includes(detail.stage) ? detail.stage : stage,
+        code: Object.hasOwn(osConstants.errno, detail.code) || ['invalid-json', 'invalid-relay', 'invalid-artifact', 'artifact-changed', 'helper-exit'].includes(detail.code) ? detail.code : 'unknown',
+        ...(Number.isInteger(detail.exit) && detail.exit >= 0 && detail.exit <= 255 ? { exit: detail.exit } : {}),
+      };
+      // Installed runner and pinned checkout can be on different releases. Keep
+      // the cause even when the older refresh loop drops exception properties.
+      logLine(log, 'refresh-generator-failed', { failureDetail: error.failureDetail });
+    }
     throw error;
   } finally {
     try { fs.rmSync(scratch, { recursive: true, force: true }); }
@@ -533,9 +619,9 @@ export function readBoundedJson(file, maxBytes) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.size > maxBytes) throw new Error('artifact is not a bounded regular file');
+    if (!stat.isFile() || stat.size > maxBytes) throw Object.assign(new Error('artifact is not a bounded regular file'), { code: 'invalid-artifact' });
     const bytes = Buffer.alloc(stat.size);
-    if (fs.readSync(fd, bytes, 0, stat.size, 0) !== stat.size) throw new Error('artifact changed while reading');
+    if (fs.readSync(fd, bytes, 0, stat.size, 0) !== stat.size) throw Object.assign(new Error('artifact changed while reading'), { code: 'artifact-changed' });
     return JSON.parse(bytes.toString('utf8'));
   } finally { fs.closeSync(fd); }
 }
@@ -1641,6 +1727,24 @@ async function cadenceDeps(job, target, slot, log) {
 // sandboxed generator -> trusted `content refresh submit` (same-slug check,
 // refresh gate, publish, deploy hook, smoke, ledger). A dry run only plans;
 // an on-demand --topic names the one ranked slug to refresh.
+function refreshTargetDiff(before, emitted) {
+  const fields = (post) => {
+    const content = String(post.content ?? '');
+    // Match refresh.mjs splitIntro: before the first ## heading, otherwise
+    // the first paragraph. Never retain field text in the diagnostic.
+    const heading = /^## /m.exec(content);
+    const cut = heading ? heading.index : (content.indexOf('\n\n') >= 0 ? content.indexOf('\n\n') : content.length);
+    return { title: String(post.title ?? ''), description: String(post.description ?? ''), intro: content.slice(0, cut) };
+  };
+  const prior = fields(before), next = fields(emitted);
+  return {
+    generatorNoOp: JSON.stringify(before) === JSON.stringify(emitted),
+    fields: Object.fromEntries(Object.keys(prior).map((field) => [field, {
+      changed: prior[field] !== next[field], beforeLength: prior[field].length, afterLength: next[field].length,
+    }])),
+  };
+}
+
 export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, writePosts, log }) {
   const write = (name, value) => { const file = path.join(run, name); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; };
   return {
@@ -1654,7 +1758,7 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
     generate: (snapshot, candidate) => {
       exportData();
       const before = readPosts();
-      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
+      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
       const posts = output?.posts ?? readPosts();
       if (!Array.isArray(posts)) throw Object.assign(new Error('refresh posts are not an array'), { reason: 'refresh-off-target' });
       const prior = new Map(before.map((post) => [post.slug, post]));
@@ -1663,18 +1767,25 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
       // Discard every other membership/value change, including timestamps.
       const targets = posts.filter((post) => post?.slug === snapshot.slug);
       const after = before.flatMap((post) => post.slug === snapshot.slug ? targets : [post]);
-      const discardedOffTarget = [...new Set([...prior.keys(), ...next.keys()])]
+      // Scratch starts with only the target. Absent export records were never
+      // available to the writer, so they are not generator removals/edits.
+      const discardedOffTarget = [...next.keys()]
         .filter((slug) => slug !== snapshot.slug && !isDeepStrictEqual(prior.get(slug), next.get(slug)))
         .filter((slug) => typeof slug === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/.test(slug)).slice(0, 20);
       log('refresh-generator-output', { snapshotId: snapshot.snapshotId, discardedOffTarget });
       // Refused missing/duplicate targets leave the checkout at the export.
       // No raw generator file can reach a deploy or commit.
       writePosts(targets.length === 1 ? after : before);
-      return { before, after };
+      return { before, after, targetDiff: targets.length === 1 && prior.has(snapshot.slug)
+        ? refreshTargetDiff(prior.get(snapshot.slug), targets[0]) : null };
     },
-    submit: (snapshot, generated) => parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
-      '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
-      '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout),
+    submit: (snapshot, generated) => {
+      const result = parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
+        '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
+        '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout);
+      if (result.reasonCode === 'refresh-no-change') log('refresh-no-change', { snapshotId: snapshot.snapshotId, ...generated.targetDiff });
+      return result;
+    },
     close: ({ snapshotId, reasonCode }) => parseJson(cli(['refresh', 'close', '--snapshot', String(snapshotId), '--reason', reasonCode, '--target', target]).stdout),
     log,
   };

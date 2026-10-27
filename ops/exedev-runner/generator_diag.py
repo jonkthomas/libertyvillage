@@ -3,15 +3,18 @@
 Only root may create/read these files. Generator stdout is consumed in memory, but
 candidate text, tool output, environment values and raw errors are never persisted.
 
-relay() is the helper's only stdout: one fixed-vocabulary line derived from exactly
+The helper emits one fixed-vocabulary stdout line. For blogs, relay() derives it from exactly
 one EOF-finalized [outcome] that directly follows the single Success: line. Anything
 doubtful (duplicate, early/late, malformed, unknown enum, contradiction) is 'absent'.
+For refreshes, refresh_relay() reports when every Edit/Write failed, with the first error code.
 """
 import json
+import hashlib
 import os
 import re
 import selectors
 import subprocess
+import stat
 import time
 
 MAX_BYTES = 64 * 1024
@@ -48,8 +51,10 @@ VALIDATION_CODES = frozenset({
 })
 
 
+REFRESH_CHECK_CODES = frozenset(['unrecorded-business', 'unsupported-address', 'unsupported-price', 'unsupported-hours', 'unsupported-date', 'unsupported-operational-premise', 'missing-draft', 'no-attributed-business', 'business-outside-pack', 'draft-changed-topic', 'draft-dropped-premise', 'invalid-relatedPosts', 'invalid-relatedServices', 'invalid-relatedTopics', 'invalid-relatedBusinesses', 'invalid-internal-link', 'storage', 'missing-snapshot-binding', 'roundup-coverage', 'refresh-off-target', 'refresh-slug-changed', 'refresh-date-changed', 'refresh-no-change', 'refresh-snippet-overreach', 'image-invalid', 'image-missing', 'image-outside-root', 'image-size', 'image-type'])
+
 class GeneratorDiagnostic:
-    def __init__(self, path):
+    def __init__(self, path, refresh=False):
         if os.geteuid() != 0:
             raise PermissionError('generator diagnostic must be created by root')
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -74,6 +79,90 @@ class GeneratorDiagnostic:
         self.relay_outcomes = 0
         self.relay_successes = 0
         self.relay_after_success = False
+        self.refresh = refresh
+        self.refresh_writes = {}
+        self.refresh_results = {}
+        self.refresh_output_error = False
+
+    def refresh_file(self, path, phase):
+        """Host view, before handoff and after systemd-run --wait returns."""
+        if not self.refresh:
+            return
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, 'rb') as source:
+                info = os.fstat(source.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_size > 20 * 1024 * 1024:
+                    raise ValueError('invalid refresh file')
+                data = source.read(info.st_size + 1)
+                if len(data) != info.st_size:
+                    raise ValueError('refresh file changed while reading')
+            self.event('refresh-file', phase=phase, bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
+        except (OSError, ValueError):
+            self.event('refresh-file', phase=phase, status='unreadable')
+
+    def refresh_line(self, text):
+        for marker in ('refresh-write', 'refresh-write-result', 'refresh-file', 'refresh-output', 'refresh-self-check'):
+            prefix = '[' + marker + '] '
+            if not text.startswith(prefix):
+                continue
+            try:
+                value = json.loads(text[len(prefix):], object_pairs_hook=_reject_duplicate_keys)
+                if type(value) is not dict:
+                    return
+                if marker == 'refresh-self-check':
+                    codes = value.get('ruleCodes')
+                    if (type(value.get('attempt')) is int and value['attempt'] in (1, 2)
+                            and type(value.get('ok')) is bool and type(codes) is list
+                            and all(type(code) is str and code in REFRESH_CHECK_CODES for code in codes)):
+                        self.event(marker, attempt=value['attempt'], ok=value['ok'], ruleCodes=list(dict.fromkeys(codes))[:30])
+                    return
+                if marker == 'refresh-output':
+                    if type(value.get('attempt')) is int and value['attempt'] in (1, 2) and value.get('status') in ('valid', 'invalid-json'):
+                        self.refresh_output_error = value['status'] == 'invalid-json'
+                        self.event(marker, attempt=value['attempt'], status=value['status'])
+                    return
+                sequence = value.get('sequence')
+                if marker != 'refresh-file' or value.get('phase') == 'tool-result':
+                    if type(sequence) is not int or not 1 <= sequence <= 1000:
+                        return
+                if marker == 'refresh-write':
+                    tool, file_path = value.get('tool'), value.get('file_path')
+                    if tool not in ('Edit', 'Write') or (file_path is not None and
+                            (not isinstance(file_path, str) or len(file_path) > 512 or file_path.startswith('/') or
+                             any(ord(c) < 32 or ord(c) == 127 for c in file_path))):
+                        return
+                    self.event(marker, sequence=sequence, tool=tool, file_path=file_path)
+                    self.refresh_writes[sequence] = True
+                elif marker == 'refresh-write-result':
+                    if type(value.get('isError')) is not bool or value.get('errorCode') not in (None, 'unknown', 'EROFS', 'EACCES', 'EBUSY', 'ENOENT', 'ENOSPC'):
+                        return
+                    self.event(marker, sequence=sequence, isError=value['isError'], errorCode=value.get('errorCode'))
+                    self.refresh_results[sequence] = (value['isError'], value.get('errorCode') or 'unknown')
+                else:
+                    phase = value.get('phase')
+                    if phase not in ('writer-handoff', 'writer-read-back', 'tool-result'):
+                        return
+                    fields = {'phase': phase, **({'sequence': sequence} if phase == 'tool-result' else {})}
+                    if value.get('status') == 'unreadable':
+                        self.event(marker, **fields, status='unreadable')
+                    elif (type(value.get('bytes')) is int and 0 <= value['bytes'] <= 20 * 1024 * 1024 and
+                          isinstance(value.get('sha256'), str) and re.fullmatch(r'[0-9a-f]{64}', value['sha256'])):
+                        self.event(marker, **fields, bytes=value['bytes'], sha256=value['sha256'])
+            except (ValueError, TypeError, RecursionError):
+                pass
+            return
+
+    def refresh_relay(self):
+        """Content-free failure summary; an incomplete/successful write is not all-failed."""
+        failure = {}
+        if self.finalized and self.refresh_output_error:
+            failure = {'reasonCode': 'refresh-generator-failed', 'failureDetail': {'stage': 'output-validate', 'code': 'invalid-json'}}
+        elif self.finalized and self.refresh_writes and all(
+                self.refresh_results.get(seq, (False,))[0] for seq in self.refresh_writes):
+            first = next(iter(self.refresh_writes))
+            failure = {'reasonCode': 'refresh-write-failed', 'errorCode': self.refresh_results[first][1]}
+        return (json.dumps(failure, separators=(',', ':')) + '\n').encode()
 
     def event(self, event, **fields):
         if self.truncated or self.failed:
@@ -132,6 +221,9 @@ class GeneratorDiagnostic:
     def line(self, raw):
         text = raw.decode('utf-8', 'replace').strip()
         self._relay_track(text)
+        if self.refresh and text.startswith('[refresh-'):
+            self.refresh_line(text)
+            return
         if text.startswith('[agent]'):
             self.seen_agent = True
             return  # Neither candidate text nor assistant reasoning is persisted.

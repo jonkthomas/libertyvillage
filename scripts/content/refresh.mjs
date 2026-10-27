@@ -14,7 +14,9 @@ import path from 'node:path';
 import { registry } from './canonical.mjs';
 import { getSubmission, readLive, ValidationError } from './store.mjs';
 import { canonicalJson } from '../automation/blog-source-pack.mjs';
+import { refreshFailureDetail } from './refresh-diagnostics.mjs';
 import { isoWeekOf } from '../news-pilot/roundup.mjs';
+export { splitIntro } from '../lib/refresh-lint.mjs';
 
 export const REFRESH = Object.freeze({
   weeklyCap: 2,          // published (or in-flight) refreshes per ISO week
@@ -104,64 +106,8 @@ export function rankRefreshCandidates({ gsc, posts, exclude = new Set(), snippet
   }).filter((candidate) => candidate.score > 0).sort((a, b) => b.score - a.score || b.baseline.impressions - a.baseline.impressions || a.slug.localeCompare(b.slug)).slice(0, limit);
 }
 
-export class RefreshRefused extends Error {
-  constructor(reason, message = reason, detail = null) { super(message); this.code = 'RefreshRefused'; this.reason = reason; this.detail = detail; }
-}
-
-// Intro = the body before its first `## ` section (or its first paragraph when it
-// has none); a snippet refresh may rewrite only that, the title and description.
-export function splitIntro(content) {
-  const text = String(content ?? '');
-  const heading = /^## /m.exec(text);
-  const cut = heading ? heading.index : (text.indexOf('\n\n') >= 0 ? text.indexOf('\n\n') : text.length);
-  return { intro: text.slice(0, cut), rest: text.slice(cut) };
-}
-const SNIPPET_FIELDS = new Set(['title', 'description', 'content', 'updatedAt']);
-// Null when `record` changes only what a snippet refresh may change relative to
-// `prior` (the snapshot). Shared with the submit/gate kind policy, so it holds for
-// the generator output, every fixer repair and every gate round.
-export function snippetOverreach(prior, record) {
-  const keys = new Set([...Object.keys(prior ?? {}), ...Object.keys(record ?? {})]);
-  for (const key of keys) if (!SNIPPET_FIELDS.has(key) && canonicalJson(prior?.[key]) !== canonicalJson(record?.[key])) return `snippet refresh changed ${key}`;
-  if (splitIntro(prior?.content).rest !== splitIntro(record?.content).rest) return 'snippet refresh changed the body beyond the intro';
-  return null;
-}
-function checkSnippetOnly(prior, record) {
-  const overreach = snippetOverreach(prior, record);
-  if (overreach) throw new RefreshRefused('refresh-snippet-overreach', overreach);
-}
-
-// The generator rewrites data/posts.json in a scratch copy. Accept exactly one
-// changed record: the snapshot's post, same slug and publish date, nothing else
-// added, removed or touched; in snippet mode only title, description and intro.
-export function extractRefreshedPost({ before, after, slug, mode = 'full' }) {
-  if (!Array.isArray(before) || !Array.isArray(after)) throw new RefreshRefused('refresh-off-target', 'posts are not arrays', { kind: 'invalid-posts', slug: null });
-  const prior = new Map(before.map((post) => [post?.slug, post]));
-  const next = new Map(after.map((post) => [post?.slug, post]));
-  if (!next.has(slug)) throw new RefreshRefused('refresh-slug-changed', `post ${slug} is missing after generation`, { kind: 'removed', slug });
-  if (after.length !== before.length || next.size !== after.length || [...prior.keys()].some((key) => !next.has(key))) {
-    const added = after.find((post) => !prior.has(post?.slug));
-    const removed = before.find((post) => !next.has(post?.slug));
-    const seen = new Set();
-    const duplicate = after.find((post) => {
-      if (seen.has(post?.slug)) return true;
-      seen.add(post?.slug);
-      return false;
-    });
-    const detail = added ? { kind: 'added', slug: added.slug } : removed ? { kind: 'removed', slug: removed.slug }
-      : { kind: 'duplicate', slug: duplicate?.slug ?? null };
-    throw new RefreshRefused(added ? 'refresh-slug-changed' : 'refresh-off-target', 'post set changed', detail);
-  }
-  // A JSON writer may reorder object keys throughout the file. Compare values
-  // recursively (array order still matters), without normalizing any post data.
-  for (const [key, post] of prior) if (key !== slug && canonicalJson(next.get(key)) !== canonicalJson(post)) throw new RefreshRefused('refresh-off-target', `post ${key} changed`, { kind: 'changed', slug: key });
-  const record = next.get(slug);
-  if (record.slug !== slug) throw new RefreshRefused('refresh-slug-changed');
-  if (record.publishedAt !== prior.get(slug).publishedAt) throw new RefreshRefused('refresh-date-changed');
-  if (canonicalJson(record) === canonicalJson(prior.get(slug))) throw new RefreshRefused('refresh-no-change');
-  if (mode === 'snippet') checkSnippetOnly(prior.get(slug), record);
-  return record;
-}
+export { RefreshRefused, snippetOverreach, extractRefreshedPost } from '../lib/refresh-precheck.mjs';
+import { RefreshRefused, extractRefreshedPost } from '../lib/refresh-precheck.mjs';
 
 const TRACKED = ['title', 'description', 'answerBlock', 'content', 'faqs', 'keyTakeaways', 'tags', 'relatedPosts', 'relatedServices', 'relatedTopics', 'image'];
 export function summarizeChange(before, after) {
@@ -268,13 +214,14 @@ async function defaultRecordAction(db, action) {
 
 // Close a reserved snapshot from its submission (or a refusal before submit).
 // A published refresh writes one ledger row; the ledger is optional.
-export async function closeRefresh(db, { snapshotId, submissionId = null, reasonCode = null, now = new Date(), deps = {} }) {
+export async function closeRefresh(db, { snapshotId, submissionId = null, reasonCode = null, refusalDetail = null, now = new Date(), deps = {} }) {
   const snap = await getSnapshot(db, snapshotId);
   const result = (row, extra = {}) => ({
     snapshotId: n(row.id), slug: row.key, url: row.url, target: row.target, isoWeek: row.iso_week, mode: row.mode, actionType: actionTypeOf(row.mode),
     state: row.state, reasonCode: row.reason_code,
     submissionId: n(row.submission_id), baseline: row.baseline, targetQuery: row.target_query,
-    before: row.summary?.before ?? face(row.payload), after: row.summary?.after ?? null, change: row.summary?.change ?? null, ...extra,
+    before: row.summary?.before ?? face(row.payload), after: row.summary?.after ?? null, change: row.summary?.change ?? null,
+    ...(row.summary?.refusalDetail ? { refusalDetail: row.summary.refusalDetail } : {}), ...extra,
   });
   if (snap.state !== 'reserved') return result(snap, { existing: true });
   // A submission under this snapshot's key decides the outcome even when the
@@ -295,9 +242,14 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
       after = (await one(db, 'select payload from content.revisions where dataset=$1 and key=$2 and rev=$3', ['posts', snap.key, item.published_rev])).payload;
       state = 'published';
       reason = null;
-    } else reason = failedReason(submission, rounds);
+    } else {
+      reason = failedReason(submission, rounds);
+      refusalDetail = rounds.at(-1)?.lint?.refusalDetail;
+    }
   }
   const summary = { before: face(snap.payload), after: face(after), change: summarizeChange(snap.payload, after) };
+  const safeDetail = refreshFailureDetail(refusalDetail?.failures);
+  if (safeDetail) summary.refusalDetail = safeDetail;
   const closed = (await db.query(`update content.refresh_snapshots set state=$2, reason_code=$3, submission_id=$4, summary=$5::json, closed_at=$6
     where id=$1 and state='reserved' returning *`, [snap.id, state, reason, submissionId, JSON.stringify(summary), now])).rows[0];
   if (!closed) return result(await getSnapshot(db, snapshotId), { existing: true });
@@ -353,7 +305,7 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
       }, { env, checkout }));
     } catch (error) {
       if (!['ValidationError', 'ConflictError'].includes(error.code)) throw error;
-      return { result: await close({ reasonCode: error.code === 'ConflictError' ? 'refresh-conflict' : refusalReason(error.message) }), exitCode: 2 };
+      return { result: await close({ reasonCode: error.code === 'ConflictError' ? 'refresh-conflict' : refusalReason(error.message), refusalDetail: error.refusalDetail }), exitCode: 2 };
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   if (submissionId == null) return { result: await close({ reasonCode: 'refresh-no-change' }), exitCode: 2 };
@@ -433,13 +385,18 @@ export async function runRefreshLoop({ deps }) {
     if (snapshot.refused) { deps.log('refresh-skipped', { slug: candidate.slug, reasonCode: snapshot.refused }); continue; }
     let outcome;
     let stop = false;
+    let stage = 'generate';
     try {
       const generated = await deps.generate(snapshot, candidate);
+      stage = 'submit';
       outcome = await deps.submit(snapshot, generated);
     } catch (error) {
       // A technical failure (writer, CLI, DB) is not about this post: close it
       // honestly and end the run rather than spend the next attempt the same way.
       outcome = await deps.close({ snapshotId: snapshot.snapshotId, reasonCode: error?.reason ?? 'refresh-generator-failed' });
+      outcome = { ...outcome, failureDetail: refreshFailureCause(error?.failureDetail ?? {
+        stage, code: error instanceof SyntaxError ? 'invalid-json' : error?.code, exit: error?.cliFailure?.exit,
+      }) };
       stop = true;
     }
     deps.log('refresh-outcome', refreshLogLine(outcome));
@@ -454,12 +411,23 @@ export async function runRefreshLoop({ deps }) {
 // Bounded, public-only fields for the runner JSONL the weekly digest reads.
 const clip = (text, max) => (typeof text === 'string' ? text.slice(0, max) : null);
 const clipFace = (value) => (value ? { title: clip(value.title, 200), description: clip(value.description, 400) } : null);
+// Never log messages, stacks, paths or arbitrary exception properties. These
+// fixed stages/codes survive both the root-helper relay and the CLI close.
+const FAILURE_STAGES = new Set(['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read', 'output-validate', 'generate', 'submit']);
+const FAILURE_CODES = new Set(['unknown', 'invalid-json', 'invalid-relay', 'invalid-artifact', 'artifact-changed', 'helper-exit',
+  'EACCES', 'EPERM', 'ELOOP', 'ENOENT', 'ENOTDIR', 'EISDIR', 'ENOSPC', 'EROFS', 'EBUSY', 'EMFILE', 'ENFILE', 'ENOMEM', 'ETIMEDOUT', 'ENOBUFS', 'EIO', 'EINVAL']);
+export function refreshFailureCause(value) {
+  return { stage: FAILURE_STAGES.has(value?.stage) ? value.stage : 'generate', code: FAILURE_CODES.has(value?.code) ? value.code : 'unknown',
+    ...(Number.isInteger(value?.exit) && value.exit >= 0 && value.exit <= 255 ? { exit: value.exit } : {}) };
+}
 export function refreshLogLine(o) {
   return {
     snapshotId: o.snapshotId ?? null, slug: o.slug ?? null, url: o.url ?? null, mode: MODES.includes(o.mode) ? o.mode : null,
     actionType: MODES.includes(o.mode) ? actionTypeOf(o.mode) : null, state: o.pending ? 'pending' : o.state ?? null, reasonCode: o.reasonCode ?? null,
     submissionId: o.submissionId ?? null, targetQuery: clip(o.targetQuery, 200), baseline: o.baseline ?? null,
     before: clipFace(o.before), after: clipFace(o.after), change: clip(o.change, 300),
+    ...(o.failureDetail || o.reasonCode === 'refresh-generator-failed' ? { failureDetail: refreshFailureCause(o.failureDetail) } : {}),
+    ...(refreshFailureDetail(o.refusalDetail?.failures) ? { refusalDetail: refreshFailureDetail(o.refusalDetail.failures) } : {}),
     ...(o.refusalDetail && ['changed', 'added', 'removed', 'duplicate', 'invalid-posts'].includes(o.refusalDetail.kind) ? {
       refusalDetail: { kind: o.refusalDetail.kind, slug: typeof o.refusalDetail.slug === 'string' && SLUG.test(o.refusalDetail.slug) ? o.refusalDetail.slug : null },
     } : {}),

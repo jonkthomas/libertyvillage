@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import pathlib
 import re
@@ -15,6 +16,114 @@ spec.loader.exec_module(diag)
 
 
 class GeneratorDiagnosticTest(unittest.TestCase):
+    def test_refresh_relay_reports_only_all_failed_writes_with_first_error(self):
+        for errors, expected in [
+                ([], {}), ([True, True], {'reasonCode': 'refresh-write-failed', 'errorCode': 'EROFS'}),
+                ([True, False], {}), ([False, True], {}), ([True, None], {})]:
+            with self.subTest(errors=errors), tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+                log = diag.GeneratorDiagnostic(str(pathlib.Path(directory) / 'slot.jsonl'), refresh=True)
+                for seq, error in enumerate(errors, 1):
+                    log.feed_lines(('[refresh-write] ' + json.dumps(dict(sequence=seq, tool='Edit', file_path='data/posts.json')) + '\n').encode())
+                    if error is not None:
+                        log.feed_lines(('[refresh-write-result] ' + json.dumps(dict(sequence=seq, isError=error, errorCode=('EROFS' if seq == 1 else 'ENOSPC') if error else None)) + '\n').encode())
+                self.assertEqual(json.loads(log.refresh_relay()), {}, 'wait for EOF')
+                log.close()
+                self.assertEqual(json.loads(log.refresh_relay()), expected)
+
+    def test_refresh_output_validation_relay_is_bounded_and_clears_after_repair(self):
+        for repaired in (False, True):
+            with self.subTest(repaired=repaired), tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+                path = pathlib.Path(directory) / 'slot.jsonl'
+                log = diag.GeneratorDiagnostic(str(path), refresh=True)
+                log.feed_lines(b'[refresh-output] {"attempt":1,"status":"invalid-json","message":"PRIVATE"}\n')
+                log.feed_lines(b'[refresh-output] {"attempt":3,"status":"valid"}\n')
+                log.feed_lines(b'[refresh-output] {"attempt":true,"status":"valid"}\n')
+                log.feed_lines(b'[refresh-output] {"attempt":2,"status":"PRIVATE"}\n')
+                if repaired:
+                    log.feed_lines(b'[refresh-output] {"attempt":2,"status":"valid"}\n')
+                log.close()
+                expected = {} if repaired else {'reasonCode': 'refresh-generator-failed', 'failureDetail': {'stage': 'output-validate', 'code': 'invalid-json'}}
+                self.assertEqual(json.loads(log.refresh_relay()), expected)
+                self.assertNotIn('PRIVATE', path.read_text())
+
+    def test_refresh_diagnostics_preserve_paths_hashes_and_status_only(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            log = diag.GeneratorDiagnostic(str(path), refresh=True)
+            entries = [
+                ('refresh-write', dict(sequence=1, tool='Edit', file_path='data/posts.json', old_string='PRIVATE BODY')),
+                ('refresh-write', dict(sequence=2, tool='Write', file_path='../other/posts.json', content='PRIVATE BODY')),
+                ('refresh-write-result', dict(sequence=1, isError=True, errorCode='EROFS', content='PRIVATE ERROR')),
+                ('refresh-file', dict(phase='writer-handoff', bytes=17, sha256='a' * 64, content='PRIVATE BODY')),
+                ('refresh-file', dict(phase='tool-result', sequence=1, status='unreadable', error='PRIVATE ERROR')),
+                ('refresh-file', dict(phase='writer-read-back', bytes=19, sha256='b' * 64)),
+            ]
+            for marker, value in entries:
+                log.feed_lines(('[' + marker + '] ' + json.dumps(value) + '\n').encode())
+            # Invalid fields are not persisted, even if they resemble article text.
+            for marker, value in [
+                ('refresh-write', dict(sequence=3, tool='Read', file_path='data/posts.json')),
+                ('refresh-write', dict(sequence=3, tool='Edit', file_path='/PRIVATE/absolute')),
+                ('refresh-write', dict(sequence=3, tool='Edit', file_path='PRIVATE\nBODY')),
+                ('refresh-write', dict(sequence=3, tool='Edit', file_path='x' * 513)),
+                ('refresh-write-result', dict(sequence=1, isError=True, errorCode='PRIVATE ERROR')),
+                ('refresh-file', dict(phase='writer-read-back', bytes=-1, sha256='a' * 64)),
+                ('refresh-file', dict(phase='writer-read-back', bytes=22, sha256='PRIVATE BODY')),
+            ]:
+                log.feed_lines(('[' + marker + '] ' + json.dumps(value) + '\n').encode())
+            log.close()
+            rows = [json.loads(row) for row in path.read_text().splitlines()]
+            self.assertEqual(rows[:-1], [{'event': marker, **{key: val for key, val in value.items()
+                              if key not in ('content', 'old_string', 'error')}} for marker, value in entries])
+            self.assertNotIn('PRIVATE', path.read_text())
+            legacy = pathlib.Path(directory) / 'legacy.jsonl'
+            log = diag.GeneratorDiagnostic(str(legacy))
+            log.feed_lines(b'[refresh-write] {"sequence":1,"tool":"Edit","file_path":"data/posts.json"}\n')
+            log.close()
+            self.assertNotIn('refresh-write', legacy.read_text())
+
+    def test_refresh_host_fingerprint_reads_exact_bytes_and_reports_unreadable_without_content(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            post = pathlib.Path(directory) / 'posts.json'
+            data = b'[{"description":"PRIVATE BODY"}]\n'
+            post.write_bytes(data)
+            log = diag.GeneratorDiagnostic(str(path), refresh=True)
+            log.refresh_file(post, 'handoff')
+            post.write_bytes(data + b' ')
+            log.refresh_file(post, 'read-back')
+            post.unlink()
+            log.refresh_file(post, 'read-back')
+            log.close()
+            rows = [json.loads(row) for row in path.read_text().splitlines()]
+            self.assertEqual(rows[:3], [
+                dict(event='refresh-file', phase='handoff', bytes=len(data), sha256=hashlib.sha256(data).hexdigest()),
+                dict(event='refresh-file', phase='read-back', bytes=len(data)+1, sha256=hashlib.sha256(data+b' ').hexdigest()),
+                dict(event='refresh-file', phase='read-back', status='unreadable'),
+            ])
+            self.assertNotIn('PRIVATE', path.read_text())
+
+    def test_refresh_self_check_relays_status_and_allowlisted_codes_only(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            log = diag.GeneratorDiagnostic(str(path), refresh=True)
+            values = [
+                dict(attempt=1, ok=False, ruleCodes=['draft-changed-topic', 'storage'], claim='PRIVATE', field='PRIVATE'),
+                dict(attempt=2, ok=True, ruleCodes=[], title='PRIVATE'),
+                dict(attempt=1, ok=False, ruleCodes=['PRIVATE']),
+                dict(attempt=True, ok=False, ruleCodes=[]),
+                dict(attempt=2, ok='PRIVATE', ruleCodes=[]),
+            ]
+            for value in values:
+                log.feed_lines(('[refresh-self-check] ' + json.dumps(value) + '\n').encode())
+            log.close()
+            rows = [json.loads(row) for row in path.read_text().splitlines()]
+            self.assertEqual([row for row in rows if row['event'] == 'refresh-self-check'], [
+                dict(event='refresh-self-check', attempt=1, ok=False, ruleCodes=['draft-changed-topic', 'storage']),
+                dict(event='refresh-self-check', attempt=2, ok=True, ruleCodes=[]),
+            ])
+            self.assertNotIn('PRIVATE', path.read_text())
+
     def test_keeps_only_structured_outcome_and_never_persists_content(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
             path = pathlib.Path(directory) / 'slot.jsonl'

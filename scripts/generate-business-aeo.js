@@ -158,7 +158,7 @@ function generateAEO(biz) {
 
     // === GYMS & FITNESS ===
     'goodlife-fitness-liberty-village': {
-      answerBlock: `GoodLife Fitness on Jefferson Ave is one of the busiest locations in the chain, serving Liberty Village's young professional crowd. Rated ${rating} stars, the facility covers cardio, free weights, and group fitness classes and is walkable from virtually every condo in the area. Avoid the 5:30 to 7:30pm rush and hit the 6am or 8:30pm sweet spots instead.`,
+      answerBlock: `GoodLife Fitness on Hanna Ave is one of the busiest locations in the chain, serving Liberty Village's young professional crowd. Rated ${rating} stars, the facility covers cardio, free weights, and group fitness classes and is walkable from virtually every condo in the area. Avoid the 5:30 to 7:30pm rush and hit the 6am or 8:30pm sweet spots instead.`,
       bestFor: ['convenient daily gym close to your condo', 'early morning workout before the office', 'drop-in group fitness class on a whim', 'straightforward gym membership without the premium price']
     },
 

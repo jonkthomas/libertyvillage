@@ -52,7 +52,7 @@ test('unknown manager/status output is never classified as confirmed inactive', 
 
 test('diagnostic IO failure cannot bypass transient-unit stop ordering', () => {
   assert.match(generatorBlock, /except subprocess\.TimeoutExpired:\s+stop_ok = _stop_unit\(unit\)\s+diag\.event\('unit-timeout'\)/);
-  assert.match(generatorBlock, /except Exception:\s+stop_ok = _stop_unit\(unit\) if unit else True\s+diag\.event\('unit-error'\)/);
+  assert.match(generatorBlock, /except Exception as error:\s+stop_ok = _stop_unit\(unit\) if unit else True\s+diag\.event\('unit-error'\)/);
   assert.match(fs.readFileSync(path.join(owned, 'generator_diag.py'), 'utf8'), /except OSError:\s+# Logging is best-effort/);
   assert.match(generatorBlock, /finally:\s+try:\s+diag\.close\(\)\s+except Exception:\s+# Diagnostics must not skip[\s\S]*?pass\s+[\s\S]*?if not _unit_inactive\(unit\):\s+stop_ok = _stop_unit\(unit\)/);
 });
@@ -65,7 +65,7 @@ test('generator path persists only bounded root diagnostics and never raw model 
   // The only stdout write is the validated relay, after cleanup in the outer finally.
   assert.equal((generatorBlock.match(/os\.write\(|sys\.stdout/g) || []).length, 1);
   assert.match(generatorBlock, /envfile\.unlink\(missing_ok=True\)\s+if relay is not None:\s+os\.write\(1, relay\)\s*$/);
-  assert.match(generatorBlock, /if result in \(0, 1\):\s+relay = diag\.relay\(result\)/);
+  assert.match(generatorBlock, /if result in \(0, 1\):\s+relay = diag\.refresh_relay\(\) if refresh is not None else diag\.relay\(result\)/);
   const sanitizer = fs.readFileSync(path.join(owned, 'generator_diag.py'), 'utf8');
   assert.match(sanitizer, /MAX_BYTES = 64 \* 1024/);
   assert.match(sanitizer, /O_NOFOLLOW, 0o600/);

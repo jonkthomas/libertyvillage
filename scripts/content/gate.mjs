@@ -416,7 +416,7 @@ async function drive({ db, id, token, actor, script, env, deps, checkout, rt }) 
           const failed = policy.decision === 'lint' && errors.length === policy.errors.length ? 'lint' : 'validation';
           await recordRound(db, id, token, {
             round: n, contentSha: doc.contentSha, candidateDigest: digest, verdict: null, overall: null, passed: false,
-            blockingCount: 0, lint: { errors }, decision: failed, scripted: Boolean(script),
+            blockingCount: 0, lint: { errors, ...(policy.refusalDetail ? { refusalDetail: policy.refusalDetail } : {}) }, decision: failed, scripted: Boolean(script),
           });
           rt.onPhase('recordRound:terminal');
           continue;
