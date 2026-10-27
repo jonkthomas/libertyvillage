@@ -9,6 +9,16 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      {
+        source: "/blog/goodlife-vs-movati-liberty-village-gym-comparison-2026",
+        destination: "/blog/goodlife-fitness-liberty-village-review-guide",
+        statusCode: 301,
+      },
+      {
+        source: "/directory/movati-athletic-liberty-village",
+        destination: "/directory?category=gyms",
+        statusCode: 301,
+      },
       // Only GSC-confirmed primaries may receive consolidation redirects.
       // Explicit 301: Next's permanent:true uses 308 instead.
       ...consolidation.clusters.filter((cluster) => cluster.confirmed === true).flatMap((cluster) =>
