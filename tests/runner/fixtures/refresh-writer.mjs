@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import * as runner from '../../../ops/exedev-runner/runner.mjs';
 
 const ROOT = new URL('../../../', import.meta.url);
@@ -14,6 +14,11 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-narrow-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = path.join(root, 'source');
+  if (refresh) {
+    // Own the inventory ref, including in depth-1 CI checkouts without origin/staging.
+    execFileSync('git', ['clone', '--quiet', '--shared', '--single-branch', '--no-checkout', ROOT.pathname, source]);
+    execFileSync('git', ['update-ref', 'refs/remotes/origin/staging', 'HEAD'], { cwd: source });
+  }
   const scratch = path.join(root, 'state/scratch/test-slot');
   const sdk = path.join(source, 'node_modules/@anthropic-ai/claude-agent-sdk');
   fs.mkdirSync(sdk, { recursive: true });
@@ -73,8 +78,6 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
   fs.mkdirSync(path.join(source, 'data'));
   fs.mkdirSync(path.join(source, '.claude'));
   if (!refresh) fs.mkdirSync(path.join(source, '.git'));
-  else fs.writeFileSync(path.join(source, '.git'), fs.statSync(new URL('.git', ROOT)).isFile()
-    ? fs.readFileSync(new URL('.git', ROOT)) : `gitdir: ${new URL('.git', ROOT).pathname}\n`);
   fs.writeFileSync(path.join(source, '.claude/settings.json'), '{"broad":"settings"}');
   fs.writeFileSync(path.join(source, 'tsconfig.json'), '{}');
   for (const dataset of ['businesses', 'services', 'topics']) fs.copyFileSync(new URL(`data/${dataset}.json`, ROOT), path.join(source, `data/${dataset}.json`));
