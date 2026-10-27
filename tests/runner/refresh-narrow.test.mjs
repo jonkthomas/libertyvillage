@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import * as runner from '../../ops/exedev-runner/runner.mjs';
 import { extractRefreshedPost } from '../../scripts/content/refresh.mjs';
 
@@ -12,7 +13,7 @@ const launcher = fs.readFileSync(new URL('ops/exedev-runner/launcher.sh', ROOT),
 
 // Exercise the real launcher Python, real Node entry point and real query
 // options. Only systemd/root accounts and the paid SDK transport are replaced.
-function invoke(t, refresh, throughRunner = false) {
+function invoke(t, refresh, throughRunner = false, scenario = 'edit') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-narrow-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = path.join(root, 'source');
@@ -22,14 +23,27 @@ function invoke(t, refresh, throughRunner = false) {
   fs.writeFileSync(path.join(sdk, 'package.json'), JSON.stringify({ type: 'module', exports: './index.js' }));
   fs.writeFileSync(path.join(sdk, 'index.js'), `
     import fs from 'node:fs';
+    import path from 'node:path';
     export async function* query(input) {
+      const original = fs.readFileSync('data/posts.json');
       const posts = JSON.parse(fs.readFileSync('data/posts.json'));
       console.log('PROBE=' + JSON.stringify({ input, posts }));
       if (process.env.REFRESH_SLUG) {
+        yield { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'edit-1', name: 'Edit', input: {
+          file_path: path.join(input.options.cwd, 'data/posts.json'), old_string: 'PRIVATE OLD CONTENT', new_string: 'PRIVATE NEW CONTENT'
+        } }] } };
         posts[0].description = 'Clearer local guide.';
-        fs.writeFileSync('data/posts.json', JSON.stringify(posts));
+        if (${JSON.stringify(scenario)} !== 'failed') fs.writeFileSync('data/posts.json', JSON.stringify(posts));
+        yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'edit-1',
+          is_error: ${JSON.stringify(scenario)} === 'failed', content: 'EROFS PRIVATE TOOL OUTPUT'
+        }] } };
+        const writePath = ${JSON.stringify(scenario)} === 'wrong-path' ? '../other/posts.json' : './data/posts.json';
+        yield { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'write-2', name: 'Write', input: {
+          file_path: writePath, content: 'PRIVATE WRITE CONTENT'
+        } }] } };
+        if (${JSON.stringify(scenario)} === 'restore') fs.writeFileSync('data/posts.json', original);
+        yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'write-2', content: 'PRIVATE TOOL OUTPUT' }] } };
       }
-      yield { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit' }, { type: 'tool_use', name: 'Write' }] } };
       yield { type: 'result', subtype: 'success', num_turns: 1 };
     }
   `);
@@ -58,23 +72,27 @@ function invoke(t, refresh, throughRunner = false) {
   fs.mkdirSync(path.join(run, 'agent-secrets'), { recursive: true });
   fs.writeFileSync(path.join(state, 'generator-requests/test-slot.json'), JSON.stringify({ dryRun: false, ...(refresh ? { refresh } : {}) }));
   fs.writeFileSync(path.join(run, 'agent-secrets/test-slot.json'), '{}');
-  const block = launcher.replaceAll('/var/lib/lv-runner', state).replaceAll('/run/lv-runner', run);
+  const logs = path.join(root, 'logs');
+  fs.mkdirSync(logs);
+  const block = launcher.replaceAll('/var/lib/lv-runner', state).replaceAll('/run/lv-runner', run).replaceAll('/var/log/lv-generator', logs);
   const resultFile = path.join(root, 'result.json');
   const python = `
-import os, sys, types, json, pathlib, subprocess, pwd
+import os, sys, types, json, pathlib, subprocess, pwd, importlib.util
 os.geteuid = lambda: 0
 os.chown = lambda *a, **kw: None
 pwd.getpwnam = lambda name: types.SimpleNamespace(pw_uid=0, pw_gid=0)
 real_run = subprocess.run
 def system_run(args, **kwargs):
-    if args[0] == 'systemctl': return types.SimpleNamespace(returncode=0, stdout=b'inactive\\n')
+    if args[0] == 'systemctl':
+        rows = [json.loads(line) for file in pathlib.Path(${JSON.stringify(logs)}).glob('*.jsonl') for line in file.read_text().splitlines()]
+        with pathlib.Path(${JSON.stringify(path.join(root, 'unit-checks.jsonl'))}).open('a') as output:
+            output.write(json.dumps(dict(readBackPresent=any(row.get('phase') == 'read-back' for row in rows))) + '\\n')
+        return types.SimpleNamespace(returncode=0, stdout=b'inactive\\n')
     return real_run(args, **kwargs)
 subprocess.run = system_run
-class Diag:
-    def __init__(self, *a): pass
-    def event(self, *a, **kw): pass
-    def close(self): pass
-    def relay(self, result): return None
+spec = importlib.util.spec_from_file_location('generator_diag', ${JSON.stringify(new URL('ops/exedev-runner/generator_diag.py', ROOT).pathname)})
+diagnostics = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(diagnostics)
 def capture(cmd, diag, timeout):
     props = [cmd[i+1] for i,v in enumerate(cmd) if v == '-p']
     values = dict(p.split('=', 1) for p in props)
@@ -82,10 +100,15 @@ def capture(cmd, diag, timeout):
     env = dict(line.split('=',1) for line in envtext.splitlines())
     env = {k: json.loads(v) for k,v in env.items()}
     env['PATH'] = os.environ['PATH']
+    posts_file = pathlib.Path(values['WorkingDirectory']) / 'data/posts.json'
+    before = posts_file.read_bytes()
     proc = real_run(cmd[-2:], cwd=values['WorkingDirectory'], env=env, capture_output=True, text=True)
+    diag.feed_lines(proc.stdout.encode())
+    if ${scenario === 'host-divergence' ? 'True' : 'False'}: posts_file.write_bytes(before)
     pathlib.Path(${JSON.stringify(resultFile)}).write_text(json.dumps(dict(cmd=cmd, timeout=timeout, env=env, stdout=proc.stdout, stderr=proc.stderr)))
     return proc.returncode
-sys.modules['generator_diag'] = types.SimpleNamespace(GeneratorDiagnostic=Diag, capture_generator=capture)
+diagnostics.capture_generator = capture
+sys.modules['generator_diag'] = diagnostics
 sys.argv = ['launcher', 'seo-improvements', 'test-slot']
 exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
 `;
@@ -122,7 +145,9 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
   assert.equal(proc.status, 0, proc.stderr + (fs.existsSync(resultFile) ? fs.readFileSync(resultFile) : ''));
   const result = JSON.parse(fs.readFileSync(resultFile));
   const probes = result.stdout.split('\n').filter((line) => line.startsWith('PROBE=')).map((line) => JSON.parse(line.slice(6)));
-  return { ...result, probes, files, scratch, observed, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
+  const diagnostics = fs.readdirSync(logs).flatMap((file) => fs.readFileSync(path.join(logs, file), 'utf8').trim().split('\n').map(JSON.parse));
+  const unitChecks = fs.readFileSync(path.join(root, 'unit-checks.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  return { ...result, probes, files, scratch, observed, diagnostics, unitChecks, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
 }
 
 test('refresh launcher Edit/Write reaches runner after through one-record scratch acceptance without false discards', (t) => {
@@ -134,6 +159,24 @@ test('refresh launcher Edit/Write reaches runner after through one-record scratc
   assert.equal(scratchExists, false, 'accepted target survives scratch cleanup');
   assert.deepEqual(result.after[1], result.before[1]);
   assert.deepEqual(events.find((e) => e.event === 'refresh-generator-output').discardedOffTarget, []);
+  const hashes = generated.diagnostics.filter((e) => e.event === 'refresh-file');
+  const fingerprint = (bytes) => ({ bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
+  const beforeBytes = Buffer.from(JSON.stringify([result.before[0]]) + '\n');
+  const afterBytes = Buffer.from(JSON.stringify([result.after[0]]));
+  assert.deepEqual(hashes, [
+    { event: 'refresh-file', phase: 'handoff', ...fingerprint(beforeBytes) },
+    { event: 'refresh-file', phase: 'writer-handoff', ...fingerprint(beforeBytes) },
+    { event: 'refresh-file', phase: 'tool-result', sequence: 1, ...fingerprint(afterBytes) },
+    { event: 'refresh-file', phase: 'tool-result', sequence: 2, ...fingerprint(afterBytes) },
+    { event: 'refresh-file', phase: 'writer-read-back', ...fingerprint(afterBytes) },
+    { event: 'refresh-file', phase: 'read-back', ...fingerprint(afterBytes) },
+  ]);
+  assert.deepEqual(generated.diagnostics.filter((e) => e.event === 'refresh-write'), [
+    { event: 'refresh-write', sequence: 1, tool: 'Edit', file_path: 'data/posts.json' },
+    { event: 'refresh-write', sequence: 2, tool: 'Write', file_path: 'data/posts.json' },
+  ]);
+  assert.ok(!JSON.stringify(generated.diagnostics).includes('PRIVATE'));
+  assert.deepEqual(generated.unitChecks, [{ readBackPresent: false }, { readBackPresent: true }], 'host read-back is measured only after confirming the writer stopped');
   t.diagnostic('Real generator + launcher + Node writer: one GoodLife record edited; accepted target survives scratch deletion, reaches runner after and passes strict snippet extraction; other post unchanged; discardedOffTarget=[].');
 });
 
@@ -178,5 +221,32 @@ test('refresh constructed launcher/SDK invocation has the refresh prompt, one re
   assert.ok(legacy.cmd.includes(`ReadWritePaths=${legacy.scratch} /var/cache/lv-generator`));
   assert.ok(legacy.cmd.includes('RuntimeMaxSec=40min'));
   assert.equal(legacy.timeout, 45 * 60);
+  assert.ok(!legacy.diagnostics.some((e) => e.event.startsWith('refresh-')), 'legacy diagnostics stay unchanged');
   t.diagnostic('Real launcher + Node writer: REFRESH_MODE=snippet; one target record; refresh system prompt; tools=Read,Edit,Write; no skills/settings/MCP; 20 turns/$1; RuntimeMaxSec=10min; legacy prompt/options/tree/runtime preserved.');
 });
+
+for (const scenario of ['restore', 'failed', 'wrong-path', 'host-divergence']) {
+  test(`refresh diagnostics distinguish ${scenario} without content`, (t) => {
+    const { diagnostics } = invoke(t, { slug: 'target', query: 'target guide', mode: 'snippet' }, false, scenario);
+    const hashes = diagnostics.filter((e) => e.event === 'refresh-file');
+    const handoff = hashes.find((e) => e.phase === 'handoff').sha256;
+    const afterEdit = hashes.find((e) => e.sequence === 1).sha256;
+    const afterWrite = hashes.find((e) => e.sequence === 2).sha256;
+    assert.equal(hashes.find((e) => e.phase === 'writer-read-back').sha256, afterWrite);
+    assert.equal(hashes.find((e) => e.phase === 'read-back').sha256, scenario === 'host-divergence' ? handoff : afterWrite);
+    if (scenario === 'restore') {
+      assert.notEqual(afterEdit, handoff);
+      assert.equal(afterWrite, handoff, 'the second write restored the original bytes');
+    } else if (scenario === 'failed') {
+      assert.equal(afterEdit, handoff);
+      assert.deepEqual(diagnostics.find((e) => e.event === 'refresh-write-result'), {
+        event: 'refresh-write-result', sequence: 1, isError: true, errorCode: 'EROFS',
+      });
+    } else if (scenario === 'wrong-path') {
+      assert.equal(diagnostics.filter((e) => e.event === 'refresh-write')[1].file_path, '../other/posts.json');
+    } else {
+      assert.notEqual(afterWrite, handoff, 'writer and host views diverged after the helper returned');
+    }
+    assert.ok(!JSON.stringify(diagnostics).includes('PRIVATE'));
+  });
+}

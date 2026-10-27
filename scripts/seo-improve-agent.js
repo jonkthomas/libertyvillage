@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const { createHash } = require('crypto');
 const { spawn, execSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -95,10 +96,34 @@ const MCP = {
 
 let totalCost = 0;
 
+// Refresh diagnostics contain paths, hashes and status only, never tool inputs
+// other than file_path, tool output, article text or raw errors.
+function refreshFileDiagnostic(phase, sequence) {
+  let fd;
+  let detail;
+  try {
+    fd = fs.openSync(path.join(ROOT, 'data/posts.json'), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > 20 * 1024 * 1024) throw new Error('invalid refresh file');
+    const buffer = Buffer.alloc(stat.size + 1);
+    const bytes = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    if (bytes !== stat.size) throw new Error('refresh file changed while reading');
+    detail = { bytes, sha256: createHash('sha256').update(buffer.subarray(0, bytes)).digest('hex') };
+  } catch {
+    detail = { status: 'unreadable' };
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+  console.log('[refresh-file] ' + JSON.stringify({ phase, ...(sequence ? { sequence } : {}), ...detail }));
+}
+
 async function runStage(label, opts) {
   const { query } = await import('@anthropic-ai/claude-agent-sdk');
   const systemPrompt = fs.readFileSync(opts.systemPromptPath, 'utf8');
   console.log(`\n=== STAGE: ${label} ===`);
+  const refreshWrites = new Map();
+  let refreshSequence = 0;
+  if (process.env.REFRESH_SLUG) refreshFileDiagnostic('writer-handoff');
   const conversation = query({
     prompt: opts.prompt,
     options: {
@@ -133,9 +158,28 @@ async function runStage(label, opts) {
         console.log(`[${label}:tool] ${t.name}`);
         // Shared bounded diagnostic parser recognizes this format.
         if (process.env.REFRESH_SLUG) console.log(`[tool_use] ${t.name}`);
+        if (process.env.REFRESH_SLUG && ['Edit', 'Write'].includes(t.name)) {
+          const raw = t.input?.file_path;
+          const file_path = typeof raw === 'string' && raw.length <= 512 && !/[\x00-\x1f\x7f]/.test(raw)
+            ? path.relative(ROOT, path.resolve(ROOT, raw)) : null;
+          const sequence = ++refreshSequence;
+          refreshWrites.set(t.id, sequence);
+          console.log('[refresh-write] ' + JSON.stringify({ sequence, tool: t.name, file_path }));
+        }
+      }
+    } else if (process.env.REFRESH_SLUG && m.type === 'user') {
+      for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
+        if (block.type !== 'tool_result' || !refreshWrites.has(block.tool_use_id)) continue;
+        const sequence = refreshWrites.get(block.tool_use_id);
+        refreshWrites.delete(block.tool_use_id);
+        const isError = block.is_error === true;
+        const errorCode = isError ? (/\b(EROFS|EACCES|EBUSY|ENOENT|ENOSPC)\b/.exec(JSON.stringify(block.content))?.[1] ?? 'unknown') : null;
+        console.log('[refresh-write-result] ' + JSON.stringify({ sequence, isError, errorCode }));
+        refreshFileDiagnostic('tool-result', sequence);
       }
     } else if (m.type === 'result') { result = m; }
   }
+  if (process.env.REFRESH_SLUG) refreshFileDiagnostic('writer-read-back');
   const cost = result?.total_cost_usd || 0;
   totalCost += cost;
   const success = result?.subtype === 'success';

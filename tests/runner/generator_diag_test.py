@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import pathlib
 import re
@@ -15,6 +16,63 @@ spec.loader.exec_module(diag)
 
 
 class GeneratorDiagnosticTest(unittest.TestCase):
+    def test_refresh_diagnostics_preserve_paths_hashes_and_status_only(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            log = diag.GeneratorDiagnostic(str(path), refresh=True)
+            entries = [
+                ('refresh-write', dict(sequence=1, tool='Edit', file_path='data/posts.json', old_string='PRIVATE BODY')),
+                ('refresh-write', dict(sequence=2, tool='Write', file_path='../other/posts.json', content='PRIVATE BODY')),
+                ('refresh-write-result', dict(sequence=1, isError=True, errorCode='EROFS', content='PRIVATE ERROR')),
+                ('refresh-file', dict(phase='writer-handoff', bytes=17, sha256='a' * 64, content='PRIVATE BODY')),
+                ('refresh-file', dict(phase='tool-result', sequence=1, status='unreadable', error='PRIVATE ERROR')),
+                ('refresh-file', dict(phase='writer-read-back', bytes=19, sha256='b' * 64)),
+            ]
+            for marker, value in entries:
+                log.feed_lines(('[' + marker + '] ' + json.dumps(value) + '\n').encode())
+            # Invalid fields are not persisted, even if they resemble article text.
+            for marker, value in [
+                ('refresh-write', dict(sequence=3, tool='Read', file_path='data/posts.json')),
+                ('refresh-write', dict(sequence=3, tool='Edit', file_path='/PRIVATE/absolute')),
+                ('refresh-write', dict(sequence=3, tool='Edit', file_path='PRIVATE\nBODY')),
+                ('refresh-write', dict(sequence=3, tool='Edit', file_path='x' * 513)),
+                ('refresh-write-result', dict(sequence=1, isError=True, errorCode='PRIVATE ERROR')),
+                ('refresh-file', dict(phase='writer-read-back', bytes=-1, sha256='a' * 64)),
+                ('refresh-file', dict(phase='writer-read-back', bytes=22, sha256='PRIVATE BODY')),
+            ]:
+                log.feed_lines(('[' + marker + '] ' + json.dumps(value) + '\n').encode())
+            log.close()
+            rows = [json.loads(row) for row in path.read_text().splitlines()]
+            self.assertEqual(rows[:-1], [{'event': marker, **{key: val for key, val in value.items()
+                              if key not in ('content', 'old_string', 'error')}} for marker, value in entries])
+            self.assertNotIn('PRIVATE', path.read_text())
+            legacy = pathlib.Path(directory) / 'legacy.jsonl'
+            log = diag.GeneratorDiagnostic(str(legacy))
+            log.feed_lines(b'[refresh-write] {"sequence":1,"tool":"Edit","file_path":"data/posts.json"}\n')
+            log.close()
+            self.assertNotIn('refresh-write', legacy.read_text())
+
+    def test_refresh_host_fingerprint_reads_exact_bytes_and_reports_unreadable_without_content(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            post = pathlib.Path(directory) / 'posts.json'
+            data = b'[{"description":"PRIVATE BODY"}]\n'
+            post.write_bytes(data)
+            log = diag.GeneratorDiagnostic(str(path), refresh=True)
+            log.refresh_file(post, 'handoff')
+            post.write_bytes(data + b' ')
+            log.refresh_file(post, 'read-back')
+            post.unlink()
+            log.refresh_file(post, 'read-back')
+            log.close()
+            rows = [json.loads(row) for row in path.read_text().splitlines()]
+            self.assertEqual(rows[:3], [
+                dict(event='refresh-file', phase='handoff', bytes=len(data), sha256=hashlib.sha256(data).hexdigest()),
+                dict(event='refresh-file', phase='read-back', bytes=len(data)+1, sha256=hashlib.sha256(data+b' ').hexdigest()),
+                dict(event='refresh-file', phase='read-back', status='unreadable'),
+            ])
+            self.assertNotIn('PRIVATE', path.read_text())
+
     def test_keeps_only_structured_outcome_and_never_persists_content(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
             path = pathlib.Path(directory) / 'slot.jsonl'
