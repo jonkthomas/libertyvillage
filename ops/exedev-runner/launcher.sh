@@ -81,9 +81,19 @@ try:
     if refresh is not None:
         cmd[cmd.index('RuntimeMaxSec=40min')] = 'RuntimeMaxSec=10min'
         cmd[cmd.index(f'ReadWritePaths={scratch} /var/cache/lv-generator')] = f'ReadWritePaths={scratch}/data/posts.json /var/cache/lv-generator'
-    diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl')
+    diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl', refresh=refresh is not None)
     try:
+        if refresh is not None: diag.refresh_file(scratch / 'data/posts.json', 'handoff')
         result = capture_generator(cmd, diag, CLIENT_TIMEOUT)
+        if refresh is not None:
+            # The read-back fingerprint must describe the stopped writer, not
+            # a transient view while its unit could still be writing.
+            if not _unit_inactive(unit):
+                stop_ok = _stop_unit(unit)
+                if not stop_ok:
+                    sys.exit(1)
+                sys.exit(result or 1)
+        if refresh is not None: diag.refresh_file(scratch / 'data/posts.json', 'read-back')
         diag.event('unit-exit', code=result)
     except subprocess.TimeoutExpired:
         stop_ok = _stop_unit(unit)

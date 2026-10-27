@@ -30,6 +30,18 @@ const skip = !hasTestDb && 'CONTENT_TEST_DATABASE_URL not set';
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
 const IMAGE = JSON.parse(fs.readFileSync(new URL('../../data/posts.json', import.meta.url), 'utf8'))[0].image;
 
+test('GoodLife starts with a heading: the intro is empty and a snippet may prepend one without changing its body', () => {
+  const original = JSON.parse(fs.readFileSync(new URL('../../data/posts.json', import.meta.url), 'utf8'))
+    .find((post) => post.slug === 'goodlife-fitness-liberty-village-review-guide');
+  assert.match(original.content, /^## /);
+  assert.deepEqual(splitIntro(original.content), { intro: '', rest: original.content });
+  const updated = { ...original, content: `Compare the gym using this local guide.\n\n${original.content}` };
+  assert.equal(extractRefreshedPost({ before: [original], after: [updated], slug: original.slug, mode: 'snippet' }), updated);
+  assert.equal(splitIntro(updated.content).rest, original.content);
+  assert.throws(() => extractRefreshedPost({ before: [original], after: [{ ...updated, content: updated.content + '\nBody edit' }],
+    slug: original.slug, mode: 'snippet' }), (error) => error.reason === 'refresh-snippet-overreach');
+});
+
 test('round3: realistic GoodLife snippet passes despite immutable legacy findings, but new unsupported facts and edits remain refused', () => {
   const read = (name) => JSON.parse(fs.readFileSync(new URL(`../../data/${name}.json`, import.meta.url)));
   const live = Object.fromEntries(['posts', 'businesses', 'services', 'topics'].map((name) => [name, read(name)]));
