@@ -50,7 +50,7 @@ export const KIND_RULES = Object.freeze({
   },
   manual: { datasets: Object.fromEntries(MANUAL_DATASETS.map((d) => [d, EDIT])), min: 1, max: 1, images: true },
   // Refresh loop: rewrite one existing post in place, held to the new-post lint.
-  refresh: { datasets: { posts: UPDATE }, min: 1, max: 1, lint: true, images: true },
+  refresh: { datasets: Object.fromEntries(['posts', 'topics', 'services', 'businesses'].map((dataset) => [dataset, UPDATE])), min: 1, max: 1, lint: true, images: true },
 });
 
 export const itemLabel = ({ dataset, key }) => `data/${dataset}.json: ${key}`;
@@ -768,7 +768,7 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live
     }
     const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
     if (prior?.context?.refresh) return prior.context;
-    return { now: new Date(clock()).toISOString(), refresh: { snapshotId: bound.snapshotId ?? null, mode: bound.mode, original: bound.original } };
+    return { now: new Date(clock()).toISOString(), refresh: { snapshotId: bound.snapshotId ?? null, dataset: bound.dataset ?? 'posts', mode: bound.mode, original: bound.original } };
   }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];

@@ -5,7 +5,7 @@ title. The deterministic check lowercases, drops common location/noise words and
 short words, strips a trailing s, and requires ceil(key-word count / 2) matches
 in the new title. Retain those words even when shortening the title.
 
-Improve only the target record named in the user instruction in `data/posts.json`.
+Improve only the target record named in the user instruction in the single `data/<dataset>.json` file named in the user instruction.
 Follow its full or snippet field limits exactly. Preserve every other record and
 file. The file contains only the target record. Never invent facts or broaden
 the task. The runtime supplies the referenced business records as evidence.
@@ -30,7 +30,7 @@ For snippet mode, preserve all content from the first `## ` heading onward
 byte-for-byte. Improve the search result and intro using grounded facts only.
 For full mode, improve the target's clarity and usefulness within its allowed fields.
 
-Only `data/posts.json` is writable. Use Read, Edit or Write to update that file.
+Only the single `data/<dataset>.json` file named in the user instruction is writable. Use Read, Edit or Write to update that file.
 Keep it a valid JSON array: escape double quotes, backslashes and newlines inside
 string values. An Edit tool success confirms the save, not JSON validity.
 After a valid save, the writer stage runs the same deterministic pre-submission checks as submission: storage
@@ -38,3 +38,5 @@ fields/limits, projected claim lint, original-topic/business/link binding,
 snippet scope and image availability. It may return findings for one revision using the remaining
 original budget; JSON syntax repair and all validation repair share that one attempt.
 The trusted runner still handles final validation and review. A no-op is refused by the runner and never submitted.
+
+For topics, the title/description/content map directly to guide metadata and intro. Services allow only description, which supplies meta description and intro; pluralName stays immutable. Businesses allow only the first paragraph of description (intro); name and the fact-derived title/meta stay immutable. Never create metadata fields or edit code. Non-blog pages always use snippet mode.

@@ -37,6 +37,13 @@ export const BLOCKING_SEVERITIES = Object.freeze(['critical', 'high']);
 export const ALL_SEVERITIES = Object.freeze(['critical', 'high', 'medium', 'low']);
 
 const GENERATOR_POLICIES = {
+  // Same review/repair limits as blog, bounded to the refresh datasets.
+  refresh: {
+    base: 'staging', headPrefixes: [],
+    allowedPaths: ['data/posts.json', 'data/topics.json', 'data/services.json', 'data/businesses.json'],
+    repairablePaths: ['data/posts.json', 'data/topics.json', 'data/services.json', 'data/businesses.json'],
+    maxFiles: 1, maxRepairBytes: 300_000,
+  },
   seo: {
     base: 'staging',
     headPrefixes: ['seo/auto-'],

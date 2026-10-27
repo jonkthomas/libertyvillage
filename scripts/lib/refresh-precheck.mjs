@@ -4,7 +4,8 @@ import { lintPost, resolveLintMode } from '../blog-lint.mjs';
 import { canonicalJson, checkRefreshAgainstOriginal, refreshTitleWords } from '../automation/blog-source-pack.mjs';
 import { validateRecord } from '../content/validate.mjs';
 import { refreshFailureDetail, refreshBindingDetail } from '../content/refresh-diagnostics.mjs';
-import { refreshLintRecord, splitIntro } from './refresh-lint.mjs';
+import { splitIntro } from './refresh-lint.mjs';
+import { refreshPage, refreshBindingRecord, refreshClaimRecord } from './refresh-pages.mjs';
 const hasOwn = (value, field) => value !== null && typeof value === 'object' && Object.hasOwn(value, field);
 const list = (value) => (Array.isArray(value) ? value : []);
 
@@ -12,25 +13,28 @@ export class RefreshRefused extends Error {
   constructor(reason, message = reason, detail = null) { super(message); this.code = 'RefreshRefused'; this.reason = reason; this.detail = detail; }
 }
 
-const SNIPPET_FIELDS = new Set(['title', 'description', 'content', 'updatedAt']);
 // Null when `record` changes only what a snippet refresh may change relative to
 // `prior` (the snapshot). Shared with the submit/gate kind policy, so it holds for
 // the generator output, every fixer repair and every gate round.
-export function snippetOverreach(prior, record) {
+export function snippetOverreach(prior, record, dataset = 'posts') {
+  const page = refreshPage(dataset);
+  const SNIPPET_FIELDS = new Set(page.fields);
   const keys = new Set([...Object.keys(prior ?? {}), ...Object.keys(record ?? {})]);
   for (const key of keys) if (!SNIPPET_FIELDS.has(key) && canonicalJson(prior?.[key]) !== canonicalJson(record?.[key])) return `snippet refresh changed ${key}`;
-  if (splitIntro(prior?.content).rest !== splitIntro(record?.content).rest) return 'snippet refresh changed the body beyond the intro';
+  if (splitIntro(prior?.[page.intro]).rest !== splitIntro(record?.[page.intro]).rest) return 'snippet refresh changed the body beyond the intro';
   return null;
 }
-function checkSnippetOnly(prior, record) {
-  const overreach = snippetOverreach(prior, record);
+function checkSnippetOnly(prior, record, dataset) {
+  const overreach = snippetOverreach(prior, record, dataset);
   if (overreach) throw new RefreshRefused('refresh-snippet-overreach', overreach);
 }
 
 // The generator rewrites data/posts.json in a scratch copy. Accept exactly one
 // changed record: the snapshot's post, same slug and publish date, nothing else
 // added, removed or touched; in snippet mode only title, description and intro.
-export function extractRefreshedPost({ before, after, slug, mode = 'full' }) {
+export function extractRefreshedPost({ before, after, slug, mode = 'full', dataset = 'posts' }) {
+  refreshPage(dataset);
+  if (dataset !== 'posts' && mode !== 'snippet') throw new RefreshRefused('refresh-snippet-overreach', 'non-blog refresh must use snippet mode');
   if (!Array.isArray(before) || !Array.isArray(after)) throw new RefreshRefused('refresh-off-target', 'posts are not arrays', { kind: 'invalid-posts', slug: null });
   const prior = new Map(before.map((post) => [post?.slug, post]));
   const next = new Map(after.map((post) => [post?.slug, post]));
@@ -52,19 +56,22 @@ export function extractRefreshedPost({ before, after, slug, mode = 'full' }) {
   // recursively (array order still matters), without normalizing any post data.
   for (const [key, post] of prior) if (key !== slug && canonicalJson(next.get(key)) !== canonicalJson(post)) throw new RefreshRefused('refresh-off-target', `post ${key} changed`, { kind: 'changed', slug: key });
   const record = next.get(slug);
+  if (!prior.has(slug)) throw new RefreshRefused('refresh-off-target', 'target missing before generation');
   if (record.slug !== slug) throw new RefreshRefused('refresh-slug-changed');
   if (record.publishedAt !== prior.get(slug).publishedAt) throw new RefreshRefused('refresh-date-changed');
   if (canonicalJson(record) === canonicalJson(prior.get(slug))) throw new RefreshRefused('refresh-no-change');
-  if (mode === 'snippet') checkSnippetOnly(prior.get(slug), record);
+  if (mode === 'snippet') checkSnippetOnly(prior.get(slug), record, dataset);
   return record;
 }
 
 export function refreshBindingErrors({ item, record, ctx = {}, live = {} }) {
   const bound = ctx.refresh;
+  const dataset = item.dataset;
+  if (!['posts', 'topics', 'services', 'businesses'].includes(dataset) || (bound?.dataset ?? 'posts') !== dataset || (dataset !== 'posts' && bound?.mode !== 'snippet')) return ['refresh draft is not bound to its original post: missing-snapshot-binding'];
   if (!bound?.original || bound.original.slug !== item.key || !['snippet', 'full'].includes(bound.mode)) return ['refresh draft is not bound to its original post: missing-snapshot-binding'];
-  const errors = checkRefreshAgainstOriginal(record, bound.original, { businesses: live.businesses ?? [], posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [], mode: bound.mode })
+  const errors = checkRefreshAgainstOriginal(refreshBindingRecord(record, dataset), refreshBindingRecord(bound.original, dataset), { businesses: live.businesses ?? [], posts: live.posts ?? [], services: live.services ?? [], topics: live.topics ?? [], mode: bound.mode })
     .slice(0, 20).map((error) => `refresh draft is not bound to its original post: ${error}`);
-  const overreach = bound.mode === 'snippet' ? snippetOverreach(bound.original, record) : null;
+  const overreach = bound.mode === 'snippet' ? snippetOverreach(bound.original, record, dataset) : null;
   return overreach ? [...errors, `refresh-snippet-overreach: ${overreach}`] : errors;
 }
 
@@ -96,7 +103,7 @@ export function checkRefreshPreSubmission({ item, ctx = {}, live = {}, deps = {}
   const withExtraction = (result) => withFailure(result, extractionFailure, extractionFailure?.reason);
   if (before !== undefined || after !== undefined) {
     try {
-      const payload = extractRefreshedPost({ before, after, slug: item.key, mode: ctx.refresh?.mode });
+      const payload = extractRefreshedPost({ before, after, slug: item.key, mode: ctx.refresh?.mode, dataset: item.dataset });
       item = { ...item, payload };
     } catch (error) {
       if (error.code !== 'RefreshRefused') throw error;
@@ -116,6 +123,7 @@ export function checkRefreshPreSubmission({ item, ctx = {}, live = {}, deps = {}
     });
   }
   const record = item.payload;
+  if (!['posts', 'topics', 'services', 'businesses'].includes(item.dataset)) return { ok: false, errors: ['unknown refresh dataset'], lint: [], findings: [{ rule: 'storage', detail: 'unknown refresh dataset' }], refusalDetail: null };
   const errors = [];
   const lint = [];
   const findings = [];
@@ -128,7 +136,7 @@ export function checkRefreshPreSubmission({ item, ctx = {}, live = {}, deps = {}
   }
   const mode = deps.lintMode || resolveLintMode(process.env);
   const now = ctx.now ? new Date(ctx.now) : null;
-  const checked = lintPost(refreshLintRecord(record, ctx.refresh?.mode), {
+  const checked = lintPost(refreshClaimRecord(record, ctx.refresh?.mode, item.dataset), {
     businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
     roundup: item.dataset === 'posts' && hasOwn(record, 'roundupCoverage'),
   });
@@ -139,9 +147,9 @@ export function checkRefreshPreSubmission({ item, ctx = {}, live = {}, deps = {}
   }
   const binding = refreshBindingErrors({ item, record, ctx, live });
   errors.push(...binding);
-  const detail = refreshBindingDetail(checkRefreshAgainstOriginal(record, ctx.refresh?.original, { ...live, mode: ctx.refresh?.mode }));
+  const detail = refreshBindingDetail(checkRefreshAgainstOriginal(refreshBindingRecord(record, item.dataset), refreshBindingRecord(ctx.refresh?.original, item.dataset), { ...live, mode: ctx.refresh?.mode }));
   failures.push(...detail);
-  const words = refreshTitleWords(ctx.refresh?.original?.title);
+  const words = refreshTitleWords(refreshBindingRecord(ctx.refresh?.original, item.dataset)?.title);
   for (const message of binding) {
     const rule = message.startsWith('refresh-snippet-overreach:') ? 'refresh-snippet-overreach'
       : message.split(': ')[1]?.split(':')[0] ?? 'missing-snapshot-binding';

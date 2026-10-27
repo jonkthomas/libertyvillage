@@ -6,6 +6,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { constants as osConstants } from 'node:os';
 
+// The installed runner is a standalone file; keep its path allowlist local.
+function refreshFileFor(dataset = 'posts') {
+  if (!['posts', 'topics', 'services', 'businesses'].includes(dataset)) throw new Error('unknown refresh dataset');
+  return `data/${dataset}.json`;
+}
+
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
   // Refresh loop (docs/runbooks/refresh-loop.md); the timer stays disabled until a staging proof.
@@ -137,8 +143,10 @@ export function acceptGeneratedOutput(scratch, trusted, job, paths, exportedPost
   // refreshDeps grafts the target into the export before writing the checkout.
   // Other data, reports, images and code remain disposable in scratch.
   if (job === 'seo-improvements' && refresh) {
-    return { posts: paths.includes('data/posts.json')
-      ? readBoundedJson(path.join(scratch, 'data/posts.json'), 20 * 1024 * 1024) : exportedPosts };
+    const dataset = typeof refresh === 'object' ? refresh.dataset ?? 'posts' : 'posts';
+    refreshFileFor(dataset);
+    const file = `data/${dataset}.json`;
+    return { posts: paths.includes(file) ? readBoundedJson(path.join(scratch, file), 20 * 1024 * 1024) : exportedPosts };
   }
   // Validate type, symlinks and aggregate bytes before any untrusted JSON read.
   const changed = copyGenerated(scratch, trusted, job, paths);
@@ -394,6 +402,7 @@ export const REFRESH_RUNTIME_FILES = [
   'scripts/blog-lint.mjs',
   'scripts/lib/referenced-businesses.mjs',
   'scripts/lib/refresh-lint.mjs',
+  'scripts/lib/refresh-pages.mjs',
   'scripts/lib/refresh-precheck.mjs',
   'scripts/lib/topic-key.mjs',
   'scripts/content/validate.mjs',
@@ -408,7 +417,10 @@ export const REFRESH_RUNTIME_FILES = [
 export function prepareGeneratorScratch(from, to, refresh = null) {
   if (!refresh) return copyScratchTree(from, to);
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(refresh.slug ?? '')) throw new Error('invalid refresh slug');
-  const targets = readJson(path.join(from, 'data/posts.json')).filter((post) => post.slug === refresh.slug);
+  const dataset = refresh.dataset ?? 'posts';
+  refreshFileFor(dataset);
+  if (dataset !== 'posts' && refresh.mode !== 'snippet') throw new Error('non-blog refresh must use snippet mode');
+  const targets = readJson(path.join(from, `data/${dataset}.json`)).filter((post) => post.slug === refresh.slug);
   if (targets.length !== 1) throw new Error('refresh target missing or duplicated');
   for (const rel of REFRESH_RUNTIME_FILES) {
     fs.mkdirSync(path.dirname(path.join(to, rel)), { recursive: true });
@@ -437,7 +449,7 @@ export function prepareGeneratorScratch(from, to, refresh = null) {
   // metadata, settings or skills enter this scratch tree.
   copyScratchTree(fs.realpathSync(path.join(from, 'node_modules')), path.join(to, 'node_modules'));
   fs.mkdirSync(path.join(to, 'data'), { recursive: true });
-  fs.writeFileSync(path.join(to, 'data/posts.json'), JSON.stringify(targets) + '\n');
+  fs.writeFileSync(path.join(to, `data/${dataset}.json`), JSON.stringify(targets) + '\n');
 }
 
 // Scratch Git metadata is untrusted after the SDK runs. Inspect only a small,
@@ -465,7 +477,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     fs.rmSync(scratch, { recursive: true, force: true });
     fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
     prepareGeneratorScratch(repo, scratch, topic?.refresh);
-    const exportedPosts = job === 'weekly-blog' || topic?.refresh ? readJson(path.join(repo, 'data', 'posts.json')) : null;
+    const exportedPosts = job === 'weekly-blog' || topic?.refresh ? readJson(path.join(repo, 'data', `${topic?.refresh?.dataset ?? 'posts'}.json`)) : null;
     const requestDir = path.join(stateRoot, 'generator-requests');
     fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun, ...(topic?.refresh ? { refresh: topic.refresh } : {}) })}\n`, { mode: 0o600 });
@@ -489,7 +501,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
       // The isolated tree intentionally has no Git checkout. Only its one
       // bounded output is read; refreshDeps retains the strict graft backstop.
       stage = 'output-read';
-      const output = acceptGeneratedOutput(scratch, repo, job, ['data/posts.json'], exportedPosts, true);
+      const output = acceptGeneratedOutput(scratch, repo, job, [`data/${topic.refresh.dataset ?? 'posts'}.json`], exportedPosts, topic.refresh);
       logLine(log, 'generator-output-accepted', { paths: 0 });
       return output;
     }
@@ -1727,14 +1739,14 @@ async function cadenceDeps(job, target, slot, log) {
 // sandboxed generator -> trusted `content refresh submit` (same-slug check,
 // refresh gate, publish, deploy hook, smoke, ledger). A dry run only plans;
 // an on-demand --topic names the one ranked slug to refresh.
-function refreshTargetDiff(before, emitted) {
+function refreshTargetDiff(before, emitted, dataset = 'posts') {
   const fields = (post) => {
-    const content = String(post.content ?? '');
+    const content = String((dataset === 'services' || dataset === 'businesses' ? post.description : post.content) ?? '');
     // Match refresh.mjs splitIntro: before the first ## heading, otherwise
     // the first paragraph. Never retain field text in the diagnostic.
     const heading = /^## /m.exec(content);
     const cut = heading ? heading.index : (content.indexOf('\n\n') >= 0 ? content.indexOf('\n\n') : content.length);
-    return { title: String(post.title ?? ''), description: String(post.description ?? ''), intro: content.slice(0, cut) };
+    return { title: String(post[dataset === 'services' ? 'pluralName' : dataset === 'businesses' ? 'name' : 'title'] ?? ''), description: String(post.description ?? ''), intro: content.slice(0, cut) };
   };
   const prior = fields(before), next = fields(emitted);
   return {
@@ -1751,15 +1763,15 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
     plan: () => {
       const plan = parseJson(cli(['refresh', 'plan', '--gsc', path.join(run, 'gsc.json'), '--target', target]).stdout);
       // On-demand `--topic <slug>` (staging proof): refresh only that ranked post.
-      return request.topic ? { ...plan, candidates: plan.candidates.filter((c) => c.slug === request.topic).slice(0, 1) } : plan;
+      return request.topic ? { ...plan, candidates: plan.candidates.filter((c) => (c.slug === request.topic || c.url === request.topic || `${c.pageKind}/${c.slug}` === request.topic)).slice(0, 1) } : plan;
     },
     reserve: (candidate) => (request.dryRun ? { capReached: true, isoWeek: 'dry-run' }
-      : parseJson(cli(['refresh', 'reserve', '--candidate', write(`candidate-${candidate.slug}.json`, candidate), '--target', target]).stdout)),
+      : parseJson(cli(['refresh', 'reserve', '--candidate', write(`candidate-${candidate.dataset ?? 'posts'}-${candidate.slug}.json`, candidate), '--target', target]).stdout)),
     generate: (snapshot, candidate) => {
       exportData();
-      const before = readPosts();
-      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
-      const posts = output?.posts ?? readPosts();
+      const before = readPosts(snapshot.dataset ?? 'posts');
+      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, dataset: snapshot.dataset ?? 'posts', slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
+      const posts = output?.posts ?? readPosts(snapshot.dataset ?? 'posts');
       if (!Array.isArray(posts)) throw Object.assign(new Error('refresh posts are not an array'), { reason: 'refresh-off-target' });
       const prior = new Map(before.map((post) => [post.slug, post]));
       const next = new Map(posts.map((post) => [post?.slug, post]));
@@ -1775,9 +1787,9 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
       log('refresh-generator-output', { snapshotId: snapshot.snapshotId, discardedOffTarget });
       // Refused missing/duplicate targets leave the checkout at the export.
       // No raw generator file can reach a deploy or commit.
-      writePosts(targets.length === 1 ? after : before);
+      writePosts(targets.length === 1 ? after : before, snapshot.dataset ?? 'posts');
       return { before, after, targetDiff: targets.length === 1 && prior.has(snapshot.slug)
-        ? refreshTargetDiff(prior.get(snapshot.slug), targets[0]) : null };
+        ? refreshTargetDiff(prior.get(snapshot.slug), targets[0], snapshot.dataset ?? 'posts') : null };
     },
     submit: (snapshot, generated) => {
       const result = parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
@@ -1800,8 +1812,8 @@ async function runRefresh(target, slot, request, log, notifications) {
     target, slot, request, run, cli: (args, allowExit = []) => cli(args, repo, allowExit),
     export: () => { cli(['export', '--root', '.', '--target', target]); logLine(log, 'export'); },
     generate: (topic) => generator('seo-improvements', slot, topic, false, log, notifications),
-    readPosts: () => readJson(path.join(repo, 'data', 'posts.json')),
-    writePosts: (posts) => fs.writeFileSync(path.join(repo, 'data', 'posts.json'), `${JSON.stringify(posts, null, 2)}\n`),
+    readPosts: (dataset = 'posts') => readJson(path.join(repo, 'data', `${dataset}.json`)),
+    writePosts: (posts, dataset = 'posts') => fs.writeFileSync(path.join(repo, 'data', `${dataset}.json`), `${JSON.stringify(posts, null, 2)}\n`),
     log: (event, details) => logLine(log, event, details),
   }) });
   if (request.dryRun) return { dryRun: true };
