@@ -5,6 +5,7 @@
 // assets. John prefers plain, simple, dense UIs.
 import { actionMovementLines, searchClicksLead, execSummary, fmtDate } from './digest.mjs';
 import { renderFixerSection } from './fixer-section.mjs';
+import { renderPrecheckDiagnostics } from './precheck-candidates.mjs';
 import { renderRefreshed } from './refreshed.mjs';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -261,6 +262,7 @@ ${table(['Section', 'Page', 'Last mod'], model.posted.items.map((p) => [
     esc(p.section), link(p.url, p.title ?? p.url),
     `<time>${esc(isDay(p.lastmod) ? p.lastmod : new Date(p.lastmod).toISOString().slice(0, 16).replace('T', ' '))}</time>`,
   ]), { empty: 'nothing posted in the window' })}
+${renderPrecheckDiagnostics(model)}
 <h2>Loop runs</h2>
 <p class="dim">${s.total} runs: ${s.success} ok · ${s.failure} failed · ${s.held} held · ${s.incomplete} incomplete${model.queue?.held ? ' · <b>loops HELD</b>' : ''}</p>
 <div class="scroll">${table(['Job', 'Target', 'Slot', 'Started', 'Outcome', 'Note', 'SHA'], runRows, { empty: 'no runs recorded in the window' })}</div>

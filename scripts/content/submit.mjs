@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { lintPost, resolveLintMode } from '../blog-lint.mjs';
+import { lintVoiceFields, voiceWarningEvent } from '../lib/lv-voice-lint.mjs';
+import { lintPost, collectFields, resolveLintMode } from '../blog-lint.mjs';
 import { validateSubmittedPost } from '../supervisor/pi-session.mjs';
 import { validateDraft } from '../news-pilot/draft-validate.mjs';
 import { AUTO_PUBLISH_CONFIG, evaluatePublishReadyDraft } from '../news-pilot/publish-gate.mjs';
@@ -50,7 +51,7 @@ export const KIND_RULES = Object.freeze({
   },
   manual: { datasets: Object.fromEntries(MANUAL_DATASETS.map((d) => [d, EDIT])), min: 1, max: 1, images: true },
   // Refresh loop: rewrite one existing post in place, held to the new-post lint.
-  refresh: { datasets: { posts: UPDATE }, min: 1, max: 1, lint: true, images: true },
+  refresh: { datasets: Object.fromEntries(['posts', 'topics', 'services', 'businesses'].map((dataset) => [dataset, UPDATE])), min: 1, max: 1, lint: true, images: true },
 });
 
 export const itemLabel = ({ dataset, key }) => `data/${dataset}.json: ${key}`;
@@ -94,10 +95,11 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
   if (!rules) return { errors: [`unsupported submit kind: ${kind}`], lint };
   if (typeof deps.validateRecord !== 'function') throw new Error('kind policy requires deps.validateRecord');
   if (kind === 'refresh') {
-    const { errors, lint, refusalDetail } = checkRefreshPreSubmission({ item, ctx, live, deps });
-    return { errors, lint, refusalDetail };
+    const { errors, lint, refusalDetail, warnings } = checkRefreshPreSubmission({ item, ctx, live, deps });
+    return { errors, lint, refusalDetail, ...(warnings?.length ? { warnings } : {}) };
   }
   const record = item.payload;
+  const warnings = [];
   const storage = deps.validateRecord(item.dataset, item.key, record);
   if (!storage?.ok) errors.push(...(storage?.errors?.length ? storage.errors : ['record failed storage validation']));
   const now = ctx.now ? new Date(ctx.now) : null;
@@ -115,7 +117,14 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     const lintRecord = record;
     const result = lintPost(lintRecord, { businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
       roundup: item.dataset === 'posts' && hasOwn(record, 'roundupCoverage') });
-    if (!result.ok && mode === 'fail') lint.push(...result.findings.map((finding) => `[${finding.rule}] ${finding.claim} — ${finding.detail}`));
+    warnings.push(...(result.warnings ?? []));
+    lint.push(...result.findings.filter((f) => mode === 'fail' || f.rule.startsWith('voice-'))
+      .map((finding) => `[${finding.rule}] ${finding.claim} — ${finding.detail}`));
+  }
+  if (item.dataset === 'posts' && !rules.lint) {
+    const voice = lintVoiceFields(collectFields(record));
+    if (voice.ok) warnings.push(...voice.findings);
+    else lint.push(...voice.findings.map((f) => `[${f.rule}] ${f.detail}`));
   }
   if (rules.submitted) {
     if (!ctx.topicKey) errors.push('blog-live requires context.topicKey');
@@ -136,7 +145,7 @@ export function checkRecordPolicy({ kind, item, ctx = {}, live = {}, deps = {} }
     if (title && queue.some((entry) => normalizeTitle(entry?.title) === title)) errors.push('duplicate topic title already in the live queue');
   }
   if (rules.images && typeof deps.checkImages === 'function') errors.push(...deps.checkImages(item));
-  return { errors, lint };
+  return { errors, lint, ...(warnings.length ? { warnings } : {}) };
 }
 
 // A refresh is bound to its snapshot (context.refresh, written by trusted submit):
@@ -543,16 +552,19 @@ export function checkKindPolicy({ kind, items, ctx = {}, live = {}, deps = {} })
   const errors = [...shape.errors];
   const lint = [];
   const refreshFailures = [];
+  const warnings = [];
   if (KIND_RULES[kind]) {
     for (const item of items) {
       const result = checkRecordPolicy({ kind, item, ctx, live, deps });
       errors.push(...result.errors.map((error) => `${itemLabel(item)}: ${error}`));
       lint.push(...result.lint.map((finding) => `${itemLabel(item)}: ${finding}`));
+      warnings.push(...(result.warnings ?? []));
       refreshFailures.push(...(result.refusalDetail?.failures ?? []));
     }
   }
   const ok = errors.length === 0 && lint.length === 0;
   return { ok, decision: ok ? null : (errors.length ? 'validation' : 'lint'), errors: [...errors, ...lint], lint,
+    ...(warnings.length ? { warnings } : {}),
     ...(kind === 'refresh' ? { refusalDetail: refreshFailureDetail(refreshFailures) } : {}) };
 }
 
@@ -768,7 +780,7 @@ async function buildContext({ db, kind, opts, items, clock, idempotencyKey, live
     }
     const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
     if (prior?.context?.refresh) return prior.context;
-    return { now: new Date(clock()).toISOString(), refresh: { snapshotId: bound.snapshotId ?? null, mode: bound.mode, original: bound.original } };
+    return { now: new Date(clock()).toISOString(), refresh: { snapshotId: bound.snapshotId ?? null, dataset: bound.dataset ?? 'posts', mode: bound.mode, original: bound.original } };
   }
   // Submit wall time; an idempotent replay reuses the stored time so the request hash is stable.
   const prior = (await db.query('select context from content.submissions where idempotency_key=$1', [idempotencyKey])).rows[0];
@@ -818,6 +830,7 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
     : { items, assets: [], report: [] };
   const liveCtx = await liveContext(db);
   let context;
+  let voiceWarnings = [];
   try {
     context = await buildContext({ db, kind, opts, items: images.items, clock, idempotencyKey,
       live: liveCtx.live, draftItems: items, root, roundup });
@@ -825,6 +838,8 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
       kind, items: images.items, ctx: context, live: liveCtx.live,
       deps: policyDeps({ kind, context: { root: liveCtx.root }, checkout: root }),
     });
+    voiceWarnings = policy.warnings ?? [];
+    if (voiceWarnings.length) console.warn(JSON.stringify(voiceWarningEvent(voiceWarnings)));
     if (!policy.ok) throw Object.assign(new ValidationError(policy.errors.join('; ')), { refusalDetail: policy.refusalDetail });
   } finally {
     liveCtx.cleanup();
@@ -869,6 +884,7 @@ export async function submitContent(db, opts, { env = process.env, clock = Date.
   return {
     result: {
       submissionId: created.submissionId, existing: created.existing, items: outItems,
+      ...(voiceWarnings.length ? { voiceWarnings: voiceWarningEvent(voiceWarnings) } : {}),
       assets: images.report, discoverySeenAdded: created.discoverySeenAdded ?? 0,
     },
     exitCode: 0,

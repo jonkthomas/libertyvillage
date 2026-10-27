@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { decideRefresh, evaluateRefreshes, evaluationWindows, fetchEvaluationRows } from '../../scripts/content/refresh-evaluate.mjs';
 import { closeRefresh, refreshIdempotencyKey, reserveRefresh } from '../../scripts/content/refresh.mjs';
 import { readLive } from '../../scripts/content/store.mjs';
+import { recordSha, registry } from '../../scripts/content/canonical.mjs';
 import { baseline, cases, siteBefore } from './fixtures/refresh-evaluation-cases.mjs';
 import { FAST_SMOKE, hasTestDb, liveRecord, localSite, publishDirect, seededDb } from './fixtures/content-db.mjs';
 import { evaluateRefreshRun } from '../../ops/exedev-runner/runner.mjs';
@@ -45,12 +46,13 @@ test('GSC uses final rows, fixed post-settling dates and exact page URL for any 
 
 const skip = !hasTestDb && 'CONTENT_TEST_DATABASE_URL not set';
 const NOW = new Date('2026-12-01T05:00:00Z');
-async function publishedSnapshot(db, post, when, index) {
-  const snap = await reserveRefresh(db, { candidate: { slug: post.slug, baseline }, now: new Date(when) });
+async function publishedSnapshot(db, post, when, index, dataset = 'posts') {
+  const snap = await reserveRefresh(db, { candidate: { dataset, slug: post.slug, baseline, ...(dataset !== 'posts' ? { mode: 'snippet' } : {}) }, now: new Date(when) });
   assert.ok(snap.snapshotId);
-  const refreshed = { ...post, title: `${post.title}: refreshed` };
+  const refreshed = dataset === 'posts' ? { ...post, title: `${post.title}: refreshed` }
+    : { ...post, description: 'A refreshed local guide.' };
   const published = await publishDirect(db, { kind: 'refresh', idempotencyKey: refreshIdempotencyKey(db.target, snap.snapshotId),
-    items: [{ dataset: 'posts', key: post.slug, payload: refreshed, expectedLiveRev: snap.liveRev }] });
+    items: [{ dataset, key: post.slug, payload: refreshed, expectedLiveRev: snap.liveRev }] });
   await db.query('update content.submissions set smoke_passed_at=$2 where id=$1', [published.submissionId, when]);
   await closeRefresh(db, { snapshotId: snap.snapshotId, submissionId: published.submissionId,
     now: new Date(when), deps: { recordAction: async () => {} } });
@@ -90,6 +92,45 @@ test('local DB loser uses real rollback, confirms HTTP restore, persists learnin
     stdio: ['ignore', 'pipe', 'pipe'] }));
   assert.deepEqual([cli.evaluated, cli.reverted, cli.won], [0, 0, 0]);
   t.diagnostic(`GET ${pageUrl} -> 200: old title restored; actor=auto-revert admin rollback; snapshot=rolled-back; evaluated=3 reverted=1 won=1; second run=0 hook calls=unchanged`);
+});
+
+test('non-blog snapshots evaluate and auto-rollback their own datasets through snapshot ids', { skip }, async (t) => {
+  const handle = await seededDb(); t.after(() => handle.close());
+  const { db } = handle;
+  const live = (await readLive(db)).datasets;
+  const datasets = ['topics', 'services', 'businesses'];
+  const snapshots = [];
+  for (const [index, dataset] of datasets.entries()) {
+    snapshots.push(await publishedSnapshot(db, live[dataset].records[0],
+      `2026-10-${String(5 + index * 7).padStart(2, '0')}T05:00:00Z`, index, dataset));
+  }
+  const site = await localSite(db); t.after(() => site.close()); await site.build();
+  const measure = async () => ({ page: { clicks: 16, impressions: 1000, position: 8 }, siteBefore, siteAfter: siteBefore });
+  for (const snap of snapshots) {
+    assert.equal((await liveRecord(db, snap.dataset, snap.slug)).description, 'A refreshed local guide.');
+  }
+  const result = await evaluateRefreshes(db, { now: NOW, env: site.env,
+    deps: { measure, rollbackDeps: { gate: { smoke: FAST_SMOKE } } } });
+  assert.deepEqual([result.evaluated, result.reverted, result.won], [3, 3, 0]);
+  assert.deepEqual(result.outcomes.map((row) => row.snapshotId), snapshots.map((snap) => snap.snapshotId));
+  const actions = (await db.query("select dataset,actor,action from content.actions where actor='auto-revert' order by dataset")).rows;
+  assert.deepEqual(actions, [...datasets].sort().map((dataset) => ({ dataset, actor: 'auto-revert', action: 'rollback' })));
+  for (const snap of snapshots) {
+    assert.equal(recordSha(await liveRecord(db, snap.dataset, snap.slug)), recordSha(snap.post));
+    const row = (await db.query('select dataset,state from content.refresh_snapshots where id=$1', [snap.snapshotId])).rows[0];
+    assert.deepEqual(row, { dataset: snap.dataset, state: 'rolled-back' });
+    const route = registry[snap.dataset].route.replace(':key', snap.slug);
+    const response = await fetch(`${site.origin}${route}`);
+    assert.equal(response.status, 200);
+    const exported = await (await fetch(`${site.origin}/content-snapshot/${snap.dataset}.json`)).json();
+    assert.equal(recordSha(exported.find((record) => record.slug === snap.slug)), recordSha(snap.post));
+    assert.ok(result.learnings.includes(snap.url));
+    t.diagnostic(`GET ${site.origin}${route} -> 200; ${snap.dataset} original payload restored in live export; snapshot=${snap.snapshotId} rolled-back; actor=auto-revert`);
+  }
+  const hooks = site.state.hookPosts;
+  const retry = await evaluateRefreshes(db, { now: NOW, deps: { measure: () => { throw new Error('must not remeasure'); } } });
+  assert.equal(retry.evaluated, 0);
+  assert.equal(site.state.hookPosts, hooks);
 });
 
 test('moved live_rev, already rolled-back, young snapshots and absent GSC never trigger rollback', { skip }, async (t) => {

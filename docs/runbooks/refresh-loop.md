@@ -1,4 +1,4 @@
-# Refresh loop runbook: improve the 2 weakest live posts each week
+# Refresh loop runbook: improve the 2 weakest live pages each week
 
 > **Operational runbook (as built).** This describes how the refresh loop behaves and how to run, check and roll it back. It is not a specification: no approved spec drove this work, and this document claims no spec authority. The code and its tests are the source of truth.
 
@@ -8,12 +8,12 @@ It replaces the old broad `seo-improvements` data lane (held off since #182). It
 
 ## Weekly run
 
-1. **Measure.** `scripts/content/refresh-gsc.mjs` pulls 28 days of final GSC rows for `/blog/` pages: by page, and by page and query. It is read-only and uses the runner's GSA.
-2. **Plan.** `content refresh plan` first settles abandoned snapshots. It then ranks live, non-news blog posts by the weakness score below. It drops posts that are inside their cooldown or still have an open snapshot.
+1. **Measure.** `scripts/content/refresh-gsc.mjs` pulls 28 days of final GSC rows for `/blog/<slug>`, `/guide/<topic>`, `/best/<service>`, `/directory/<slug>` and `/`: by page, and by page and query. It is read-only and uses the runner's GSA.
+2. **Plan.** `content refresh plan` first settles abandoned snapshots. It then ranks live, non-news blog posts and dataset-backed non-blog snippet leaks by the weakness score below (the code-only homepage is excluded). It drops posts that are inside their cooldown or still have an open snapshot.
 3. **For each candidate, in score order:**
    1. `content refresh reserve` snapshots the live row in `content.refresh_snapshots`, under the weekly cap. It saves the exact revision payload, its sha and `live_rev`, the GSC baseline and the top query.
-   2. The runner does a fresh export. The SDK agent gets `REFRESH_SLUG`, `REFRESH_QUERY` and `REFRESH_MODE` with a single-post prompt for both builder and revise stages, without the general SEO prompt, extra skills or project settings. In refresh mode `acceptGeneratedOutput` reads only bounded `data/posts.json` from scratch and copies no files: other data JSON, task reports, images and code are discarded. The runner builds `after` from the fresh `before`, replacing only the target record, and writes that grafted result to the trusted checkout. Other-post additions, removals and edits never reach submit, deploy or commit. A missing/renamed target or an unchanged target still refuses. `refresh-generator-output` logs `discardedOffTarget` as at most 20 validated slugs, without bodies; missing/duplicate targets leave the checkout at the export.
-   3. `content refresh submit` accepts only one changed record: the snapshot's slug, with the same `publishedAt`, and no other post added, removed or edited. It submits that record as kind `refresh` against the snapshot revision (`expected_live_rev`), so a row that moved in the meantime becomes a conflict. Then it runs the full gate, which publishes, posts the deploy hook and runs the smoke check.
+   2. The runner does a fresh export. The SDK agent gets `REFRESH_DATASET`, `REFRESH_SLUG`, `REFRESH_QUERY` and `REFRESH_MODE` with a single-post prompt for both builder and revise stages, without the general SEO prompt, extra skills or project settings. In refresh mode `acceptGeneratedOutput` reads only the one bounded `data/<dataset>.json` from scratch and copies no files: other data JSON, task reports, images and code are discarded. The runner builds `after` from the fresh `before`, replacing only the target record, and writes that grafted result to the trusted checkout. Other-post additions, removals and edits never reach submit, deploy or commit. A missing/renamed target or an unchanged target still refuses. `refresh-generator-output` logs `discardedOffTarget` as at most 20 validated slugs, without bodies; missing/duplicate targets leave the checkout at the export.
+   3. `content refresh submit` accepts only one changed record in the snapshot's dataset: its slug, with the same `publishedAt`, and no other record added, removed or edited. It submits that record as kind `refresh` against the snapshot revision (`expected_live_rev`), so a row that moved in the meantime becomes a conflict. Then it runs the full gate, which publishes, posts the deploy hook and runs the smoke check.
    4. The snapshot is closed as `published` or `failed`, with a plain-English reason code. A published refresh writes one ledger row (`recordAction`, `actionKind: 'refresh'`).
 4. The run stops when 2 refreshes have published, when the DB cap refuses a reserve, or when it hits a technical failure such as the writer or the CLI. A refusal or a gate rejection moves on to the next candidate.
 
@@ -58,8 +58,8 @@ score = impressions × max(0, expectedCtr(min(position, 8)) − ctr)      over t
 | Guardrail | Enforcement |
 |---|---|
 | Snippet lane stays a snippet | In `snippet` mode, only title, description, intro and `updatedAt` may change. The body after the intro must be byte-identical (`refresh-snippet-overreach`). |
-| Same URL and slug | `extractRefreshedPost` refuses a slug or publish-date change and any other changed post. Kind `refresh` may only `update` an existing `posts` row (`KIND_RULES.refresh`). Reserve refuses a URL that is not `/blog/<slug>`. |
-| Same quality and fact gate as new posts | Kind `refresh` runs the new-post claim linter (`lint: true`), grounding references (`GROUNDED`), the blog repair policy (`POLICY_KIND.refresh = 'blog'`) and the blog review lenses plus one REFRESH lens. It uses the same model, bar and repair budget. |
+| Same URL and slug | `extractRefreshedPost` refuses a slug or publish-date change and any other changed post. Kind `refresh` may only `update` one existing `posts`, `topics`, `services` or `businesses` row (`KIND_RULES.refresh`). Reserve binds dataset, page kind and canonical URL; unknown kinds fail closed. |
+| Same quality and fact gate as new posts | Kind `refresh` runs the new-post claim linter (`lint: true`), grounding references (`GROUNDED`), a one-file refresh repair policy with the same blog repair budget and the blog review lenses plus one REFRESH lens. It uses the same model, bar and repair budget. |
 | Snapshot first, with rollback | `reserveRefresh` writes the snapshot before any generation. The row is immutable (trigger) and is the rollback target. |
 | At most 2 a week | `reserveRefresh` counts `reserved`, `published` and `rolled-back` rows for the target's ISO week under an advisory lock, so the cap holds across runs. It also caps attempts at 4 a week. |
 | Gate failure changes nothing | A gate failure or refusal leaves the submission rejected or blocked and publishes nothing. The snapshot is kept, and the outcome is logged with a reason code from `ops/weekly-digest/lib/plain-english.mjs` (`refresh-*`). |
@@ -88,9 +88,216 @@ score = impressions × max(0, expectedCtr(min(position, 8)) − ctr)      over t
 node scripts/content/cli.mjs refresh rollback --snapshot <id> --actor <who> --target <staging|production>
 ```
 
-This checks that the snapshot revision is intact. It then runs the existing admin rollback, which adds a new revision copying the snapshot payload. After that come the deploy hook and smoke check, and the snapshot is marked `rolled-back`. To list snapshots, use `content refresh list --target <t>`. The general fallback is still `content rollback --dataset posts --key <slug> --to-rev <live_rev from the snapshot>`.
+This checks that the snapshot revision is intact. It then runs the existing admin rollback, which adds a new revision copying the snapshot payload. After that come the deploy hook and smoke check, and the snapshot is marked `rolled-back`. To list snapshots, use `content refresh list --target <t>`. The general fallback is still `content rollback --dataset <snapshot dataset> --key <slug> --to-rev <live_rev from the snapshot>`. Snapshot rollback resolves its own dataset; never substitute `posts` for a guide, service or business.
 
 If the gate stops part-way, the snapshot stays `reserved` and counts toward the cap. To resume, run `content gate --submission <id>` (the id is in `content refresh list`). Otherwise the next plan settles it after 6 hours.
+
+
+## Dataset-backed page kinds
+
+`lib/data.ts` loads the gated JSON datasets; each route's metadata helper is in
+`lib/meta.ts`. No writer can edit application code or create metadata override fields.
+
+| Page | Dataset / file | Editable snippet fields | Preserved fields |
+|---|---|---|---|
+| `/blog/<slug>` | `posts` / `data/posts.json` | title, description, content intro, updatedAt | Existing blog snippet contract; full lane unchanged |
+| `/guide/<topic>` | `topics` / `data/topics.json` | title, description, content intro, updatedAt | Content after the intro, FAQs, answerSummary, quickTips, related slugs, lastUpdated and all other fields |
+| `/best/<service>` | `services` / `data/services.json` | description intro (supplies meta description and rendered intro) | pluralName/name and computed title; answerBlock, sections, comparisonTable and all other fields |
+| `/directory/<slug>` | `businesses` / `data/businesses.json` | description intro (rendered About paragraph) | name and computed title/meta description; address, hours, rating, reviewCount, facts, answerBlock and all other fields |
+| `/` | Code in `app/page.tsx` and `lib/meta.ts` | None; excluded from planning/reserve | No gated homepage snippet dataset exists |
+
+Intro means the bytes before the first `## ` heading, or the first paragraph
+when no such heading exists. The remaining bytes must match the snapshot exactly,
+including for description-backed intros. Service descriptions are currently one
+paragraph. Their names/pluralName are taxonomy, not copy to rewrite. Directory
+meta descriptions are computed from name/rating/hours/address, not the editable
+business description. Those code-derived snippets stay unchanged: changing facts
+or inventing a code-editing lane is outside this refresh.
+
+Non-blog kinds require a leak query under the **same** rule and always use
+`snippet` mode, even after a prior snippet. They never graduate to a full rewrite.
+The weakness score, minimum impressions, shared 2/week cap, shared 4-attempt cap,
+56-day cooldown and confirmed-live ledger path stay the same. Snapshot identity,
+open-snapshot uniqueness and cooldown are `(dataset, slug)`; ledger identity also
+includes page type so a guide and blog sharing a slug retain both measurements.
+The original's real title (`title`, `pluralName` or `name`) goes through the
+unchanged half-keyword title binding. Every round and repair rechecks dataset,
+mode, original binding, field containment, projected claim lint and storage.
+Non-blog review adds its dataset lenses to all existing blog/refresh lenses;
+review score, model and repair budget stay unchanged.
+
+The launcher validates a four-dataset allowlist and snippet-only mode for non-blog
+requests. Scratch contains exactly one target record in one writable data file;
+references and inventories are read-only under `scripts/`. The trusted runner
+reads only that bounded, regular, no-follow file and grafts the one target onto
+the fresh export. Other scratch data/code never reaches submit. Submission itself
+still rejects second-record edits rather than silently accepting them.
+
+### Exact staging proof handoff (ops worker only)
+
+This builder does not run the VM or mutate staging. After approval to exercise
+staging, use the staging checkout at the reviewed head, matched staging credentials
+and the normal migration command (`node scripts/content/cli.mjs migrate --target staging`).
+Keep the timer disabled. The cap is shared: publish at most two pages in an ISO
+week; rollback still counts. Use guide + best in the first available week and
+directory in the next, or choose two representative kinds if prior runs used slots.
+Never reset snapshots or bypass the cap to complete a proof.
+
+For each planned page, use `/guide/parking-guide` (`topics`, `parking-guide`),
+`/best/gyms` (`services`, `gyms`), then `/directory/king-west-village-cleaners`
+(`businesses`, `king-west-village-cleaners`). If a page is not a live leak candidate,
+stop and report that fact rather than widening the selection rule.
+
+```sh
+RUN=$(mktemp -d)
+node scripts/content/refresh-gsc.mjs --out "$RUN/gsc.json"
+node scripts/content/cli.mjs refresh plan --gsc "$RUN/gsc.json" --target staging > "$RUN/plan.json"
+# Set DATASET and SLUG to one of the pairs above.
+DATASET=topics
+SLUG=parking-guide
+node --input-type=module - "$RUN" "$DATASET" "$SLUG" <<'JS'
+import fs from 'node:fs';
+const [dir, dataset, slug] = process.argv.slice(2);
+const plan = JSON.parse(fs.readFileSync(`${dir}/plan.json`));
+const candidate = plan.candidates.find((row) => row.dataset === dataset && row.slug === slug);
+if (!candidate || !plan.remaining || !plan.attemptsLeft) throw new Error('No eligible slot/candidate');
+fs.writeFileSync(`${dir}/candidate.json`, JSON.stringify(candidate));
+JS
+node scripts/content/cli.mjs refresh reserve --candidate "$RUN/candidate.json" --target staging > "$RUN/reserve.json"
+SNAPSHOT=$(node -e 'const r=require(process.argv[1]); if(!r.snapshotId) process.exit(1); console.log(r.snapshotId)' "$RUN/reserve.json")
+node scripts/content/cli.mjs export --root "$RUN/export" --target staging
+cp "$RUN/export/data/$DATASET.json" "$RUN/before.json"
+# Generate/edit after.json through the bounded writer or an operator-reviewed
+# snippet edit; it must preserve every other record and all protected bytes.
+cp "$RUN/before.json" "$RUN/after.json"
+# Make and review the permitted edit in after.json before the following submit.
+node scripts/content/cli.mjs refresh submit --snapshot "$SNAPSHOT" --before "$RUN/before.json" --after "$RUN/after.json" --actor ops:refresh-pages-proof --target staging
+node scripts/content/cli.mjs refresh list --target staging
+# Inspect the staging page's title, meta description and visible intro, plus
+# /content-snapshot/<dataset>.json; compare immutable fields/body to before.json.
+node scripts/content/cli.mjs refresh rollback --snapshot "$SNAPSHOT" --actor ops:refresh-pages-proof --target staging
+# Revisit that exact page and snapshot export; original payload must be restored.
+```
+
+For an end-to-end writer proof, use the installed runner's existing on-demand
+commands **instead of** the manual reservation above (within the same cap):
+
+```sh
+sudo lv-runner run seo-improvements --target staging --topic guide/parking-guide
+sudo lv-runner run seo-improvements --target staging --topic best/gyms
+# In the next ISO week if both prior commands published:
+sudo lv-runner run seo-improvements --target staging --topic directory/king-west-village-cleaners
+node scripts/content/cli.mjs refresh list --target staging
+node scripts/content/cli.mjs refresh rollback --snapshot <snapshot-id-from-list> --actor ops:refresh-pages-proof --target staging
+```
+
+ A canonical URL is also accepted
+and avoids slug ambiguity. Capture the runner's reserve/submit snapshot IDs, its
+`refresh-generator-output` line (no off-target accepted), confirmed-live outcome,
+ledger page type/action type (`guide|best|directory` / `snippet`) and the rollback
+CLI output. A gate refusal or pending propagation is not a publish proof.
+
+### Later
+
+Homepage snippet editing needs a separately designed gated dataset; it remains
+excluded. Independent best-page titles and directory titles/meta descriptions also
+need a gated copy source distinct from protected taxonomy/business facts. This
+slice introduces neither metadata overrides nor code edits.
+
+## Writer prechecks and house voice
+
+`scripts/lib/refresh-precheck.mjs` is the shared deterministic check for the
+isolated writer and trusted submit. It reports all findings without rewriting
+the draft. Storage limits, claim lint, title/topic/business/link binding,
+snippet containment, image availability and unchanged-output checks remain in
+place. The normal gate still runs afterwards with the same policy and budgets.
+
+The October 27 evidence review counted distinct snapshot IDs, rather than
+counting copies of the same run in polling output:
+
+| Recurring code | Snapshots | Evidence files under `/tmp/lv-ops/golive/refresh/` | Existing precheck |
+| --- | --- | --- | --- |
+| `refresh-no-change` | 3 (3, 4, 5) | `three-final.out`, `four-final.out`, `five-final.out` | `extractRefreshedPost` |
+| `refresh-fact-check` | 3 (2, 8, 9) | `two-final.out`, `seven-first-final.out`, `seven-final.out` | `lintPost` on the editable projection |
+| `refresh-unbound` | 2 (10, 11) | `eight-first-final.out`, `eight-final.out` | `refreshBindingErrors` |
+| `refresh-gate-failed` | 2 (12, 13) | `nine-final.out`, `ten-poll.out` | Independent gate review; semantic contradictions require judgment |
+
+The retained subcodes were `unsupported-address` (8, 9) and
+`draft-changed-topic` (10, 11), both already checked by the shared module.
+There was no uncovered recurring mechanical cause to add in this slice.
+Do not replace semantic review with a heuristic or weaken a check to increase
+publication volume.
+
+The weekly digest's **Appendix → Writer diagnostics** counts rejection codes,
+deduplicating each code by target and snapshot/submission. A code seen at least
+twice is labelled **candidate precheck**. Check existing coverage before adding
+a rule; the label is a review queue, with no automatic issue filing. Counts use
+the digest's existing seven-day run window and only the codes retained by the
+runner; old logs with no detailed code cannot be reconstructed.
+
+All blog, news, roundup and refresh writers read `scripts/prompts/lv-voice.md`.
+Its house style is general; field limits and format rules stay in their own
+prompts. `scripts/blog-lint.mjs` uses `scripts/lib/lv-voice-lint.mjs` for banned
+words/phrases, stock framings and em-dash density. It scans reader-facing fields,
+including FAQs and takeaways, without changing their values. Snippet refreshes
+scan only their editable title, description and intro, including the dataset-backed
+guide, best and directory fields listed above. Voice warnings remain warn-only
+for every supported dataset kind. Existing fact lint is
+still blocking as before.
+
+Voice rollout is **warn-only from 2026-10-27**, for at least two weeks (through
+2026-11-10). Warnings appear in lint/writer output and successful submit receipts;
+the runner retains their rule identifiers as `lv-voice-warning` events for the
+digest. No generated prose is included in those events. News draft warnings also
+appear in its existing validation output. A warning never consumes a refresh
+revision or causes a rejection. Review warning volume and refusal rates after
+the two weeks. Nothing enables blocking automatically.
+
+To explicitly enable voice blocking later, change `VOICE_POLICY.blocking` to
+`true` in `scripts/lib/lv-voice-lint.mjs` (one line), or set
+`LV_VOICE_BLOCKING=1` on the trusted submit/gate process. The runner forwards that
+flag to trusted CLI and source commands. The isolated refresh generator uses
+the committed policy; the trusted gate enforces the explicit environment flag
+even when the generator has no such flag. Do not change `LINT_MODE` for this
+rollout: it controls existing claim lint, not the new editorial warnings.
+
+Local focused verification:
+
+```
+LC_ALL=C CONTENT_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres \
+  ~/.pi/agent/bin/memguard -- node --test --test-concurrency=1 \
+  tests/content/lv-voice.test.mjs tests/content/refresh-precheck.test.mjs \
+  tests/runner/refresh-narrow.test.mjs tests/digest/precheck-candidates.test.mjs
+```
+
+### Staging proof handoff (ops worker only)
+
+The builder runs no VM or staging actions. After the PR is merged and the ops
+worker is authorized to update the staging runner, use its normal supported
+refresh workflow, keeping the timer disabled:
+
+1. In the staging checkout, prepare `/tmp/lv-voice-proof.json` containing
+   `{"title":"A vibrant local guide."}`. Run
+   `node scripts/blog-lint.mjs --post /tmp/lv-voice-proof.json`. Expect
+   `lv-voice-warning`, `warnOnlySince: 2026-10-27`, a `WARN` line and exit 0.
+2. Run `LV_VOICE_BLOCKING=1 node scripts/blog-lint.mjs --post /tmp/lv-voice-proof.json`.
+   Expect `voice-banned-phrase` and exit 1. This is a local lint command; do not
+   enable the flag on a staging publishing job during the observation period.
+3. Run the existing staged refresh reservation/submit proof: export the local
+   staging checkout using `node scripts/content/cli.mjs export --root . --target staging`,
+   select a normal ranked candidate using `refresh plan --gsc <staging-gsc.json> --target staging`,
+   then `refresh reserve --candidate <candidate.json> --target staging`. Use the
+   returned snapshot ID with `refresh submit --snapshot <id> --before <before.json>
+   --after <after.json> --actor ops:voice-proof --target staging`. Before/after
+   must be full exports with exactly one allowed target edit. With a harmless
+   banned phrase in an otherwise valid editable field, expect warning identifiers
+   in the receipt while the unchanged normal gate decides the draft. Do not
+   infer gate success from a lint warning or force publication.
+4. Run `node --test tests/digest/precheck-candidates.test.mjs` in the staging
+   checkout. This drives two independent rejected fixture attempts through the
+   normal digest parser/model/HTML renderer (no live data). Confirm the same code counts 2
+   and shows `candidate precheck` in the appendix. A repeated copy of one snapshot
+   must count 1. Confirm an `lv-voice-warning` run event produces the warning line.
 
 ## Schedule
 
@@ -118,7 +325,9 @@ Apply content migration `0009_refresh_evaluations.sql` before installing this ru
 It adds one durable decision per snapshot; the table also supplies the writer's
 latest 20 learning lines. No extra service or timer is needed.
 
-Only confirmed `published` snapshots at least 28 days old qualify. The evaluator
+Snapshots from `posts`, `topics`, `services` and `businesses` share this evaluator.
+Rollback uses the snapshot id and resolves its own dataset. Only confirmed
+`published` snapshots at least 28 days old qualify. The evaluator
 checks that the current entry's `live_rev` still equals the refresh submission's
 published revision; a later edit, unpublish or rollback is skipped. It measures
 **days +7 through +27** after `closed_at` (the confirmed publication time), leaving
