@@ -1807,7 +1807,8 @@ export function evaluateRefreshRun({ cli, target, log, dryRun = false }) {
 async function runRefresh(target, slot, request, log, notifications) {
   const run = path.join(stateRoot, 'refresh', target, slot);
   fs.mkdirSync(run, { recursive: true, mode: 0o700 });
-  const evaluation = evaluateRefreshRun({ cli: (args) => cli(args, repo), target, dryRun: request.dryRun,
+  const evaluation = evaluateRefreshRun({ cli: (args) => command(node, ['scripts/content/cli.mjs', ...args], { cwd: repo,
+    env: { ...trustedEnv(process.env), ...childEnv(process.env, ['GOOGLE_APPLICATION_CREDENTIALS']) } }), target, dryRun: request.dryRun,
     log: (event, details) => logLine(log, event, details) });
   if (!fs.existsSync(path.join(run, 'gsc.json'))) source('scripts/content/refresh-gsc.mjs', ['--out', path.join(run, 'gsc.json')], 'seo-improvements', log);
   const { runRefreshLoop } = await import(pathToFileURL(path.join(repo, 'scripts/content/refresh.mjs')).href);

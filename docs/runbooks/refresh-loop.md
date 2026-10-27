@@ -114,7 +114,7 @@ node scripts/content/cli.mjs refresh evaluate --target staging --expect-db lv_st
 ```
 
 The existing runner lock covers evaluation and planning. Dry runs skip evaluation.
-Apply content migration `0008_refresh_evaluations.sql` before installing this runner.
+Apply content migration `0009_refresh_evaluations.sql` before installing this runner.
 It adds one durable decision per snapshot; the table also supplies the writer's
 latest 20 learning lines. No extra service or timer is needed.
 
