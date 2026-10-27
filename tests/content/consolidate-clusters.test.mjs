@@ -6,7 +6,9 @@ import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from 'node:fs';
 import { testDb } from './helpers/db.mjs';
-import { createSubmission, claimSubmission, recordRound, publishSubmission, readLive } from '../../scripts/content/store.mjs';
+import { createSubmission, claimSubmission, recordRound, publishSubmission, readLive, listPending } from '../../scripts/content/store.mjs';
+import { deployContent } from '../../scripts/content/deploy.mjs';
+import { FAST_SMOKE, localSite } from './fixtures/content-db.mjs';
 import { candidateDigest } from '../../scripts/content/canonical.mjs';
 import { consolidate, redirectsFor, routeRow, mergeCluster, validatePlan } from '../../scripts/content/consolidate-clusters.mjs';
 import { validateRecord } from '../../scripts/content/validate.mjs';
@@ -31,15 +33,41 @@ const configuredRedirects = (variant) => {
   } finally { if (dir) rmSync(dir, { recursive: true, force: true }); }
 };
 
-test('unconfirmed clusters produce no redirects in either the tool or Next config', () => {
+const runningRoutes = '/blog/liberty-village-running-routes-martin-goodman-trail';
+const gscConfirmed = ['fitness', 'transit', 'farmers-market', 'things-to-do'];
+// Every confirmed source and the legacy running-routes redirect must land in one hop on an existing page.
+function assertSingleHop(variant, all = configuredRedirects(variant)) {
+  const next = new Map(all.map(r => [r.source, r.destination]));
+  for (const r of all) assert.ok(!next.has(r.destination), `chain: ${r.source} -> ${r.destination} -> ${next.get(r.destination)}`);
+  const legacy = all.filter(r => r.source === runningRoutes);
+  assert.equal(legacy.length, 1, 'running-routes legacy redirect missing');
+  for (const expected of [...redirectsFor(variant), ...legacy]) {
+    const rules = all.filter(r => r.source === expected.source);
+    assert.equal(rules.length, 1, `duplicate rule: ${expected.source}`);
+    if (expected.statusCode) assert.deepEqual(rules[0], expected);
+    const { dataset, key } = routeRow(rules[0].destination);
+    assert.ok(datasets[dataset].some(r => r.slug === key), `missing destination: ${rules[0].destination}`);
+  }
+}
+
+test('only GSC-verified clusters are confirmed; the rest produce no redirects', () => {
   assert.equal(plan.clusters.length, 13);
-  assert.ok(plan.clusters.every(c => c.confirmed === false));
-  assert.deepEqual(redirectsFor(plan), []);
+  assert.deepEqual(plan.clusters.filter(c => c.confirmed === true).map(c => c.id), gscConfirmed);
+  for (const c of plan.clusters) assert.ok(c.confirmed === (c.decision === 'confirm') && c.reason, c.id);
   const all = configuredRedirects();
-  const members = new Set(plan.clusters.flatMap(c => c.members.map(m => m.url)));
-  assert.ok(!all.some(r => members.has(r.source)));
-  assert.ok(!all.some(r => r.statusCode === 301));
-  assert.equal(all.find(r => r.source === '/blog/liberty-village-running-routes-martin-goodman-trail')?.destination, '/guide/fitness-guide');
+  const unconfirmed = new Set(plan.clusters.filter(c => c.confirmed !== true).flatMap(c => c.members.map(m => m.url)));
+  assert.ok(!all.some(r => unconfirmed.has(r.source)));
+  assert.deepEqual(all.filter(r => r.statusCode === 301), redirectsFor(plan));
+  assert.equal(redirectsFor(plan).length, 6);
+  assert.equal(all.find(r => r.source === runningRoutes)?.destination, '/guide/fitness-guide');
+});
+
+test('confirmed sources and running-routes redirect directly to existing pages; a chained config fails', () => {
+  assertSingleHop(plan);
+  // Seeded bad case: retiring the fitness guide without re-pointing running-routes makes a 2-hop chain.
+  const chained = structuredClone(plan);
+  chained.clusters.find(c => c.id === 'fitness').members.push({ url: '/guide/fitness-guide', keepSections: ['Outdoor Fitness'] });
+  assert.throws(() => assertSingleHop(chained), /chain: \/blog\/liberty-village-running-routes-martin-goodman-trail -> \/guide\/fitness-guide -> \/best\/gyms/);
 });
 
 test('confirming one cluster yields exactly its single-hop 301s', () => {
@@ -274,6 +302,33 @@ test('dry-run writes nothing, real gate apply is reversible, repeated apply is a
   } finally { await f.cleanup(); }
 });
 
+// Real store, gate, admin unpublish and deploy propagation against a local HTTP stand-in
+// that serves the plan's 301s like next.config.ts. LOCAL TEST ONLY: the apply's 15-minute
+// admin claims are expired in this throwaway lv_test_* database instead of waiting them out,
+// and smoke gets the fixture plan's redirects (production reads consolidation-clusters.json).
+test('local apply then deploy: unpublished sources smoke as single 301s to 200 primaries; nothing stays pending', async () => {
+  const f = await setup();
+  const redirects = redirectsFor(fixturePlan);
+  const site = await localSite(f.db, { redirects });
+  try {
+    assert.equal((await consolidate(f.db, { ...f.opts, apply: true })).state, 'applied');
+    // The fixture publication is not a propagation subject (as in seededDb).
+    await f.db.query("update content.submissions set deploy_requested_at=now(),smoke_passed_at=now(),notified_at=now() where idempotency_key='fixture'");
+    await f.db.query("update content.submissions set claimed_until=now()-interval '1 second' where kind='admin' and idempotency_key like 'consolidation:%'");
+    const consolidation = new Map(redirects.map(r => [r.source, r.destination]));
+    const deployed = await deployContent(f.db, { actor: 'uat:consolidation' }, { env: site.env, deps: { smoke: { ...FAST_SMOKE, consolidation } } });
+    assert.equal(deployed.exitCode, 0, JSON.stringify(deployed.result));
+    assert.deepEqual(deployed.result.submissions.map(s => s.smoke), Array(6).fill('passed'));
+    assert.deepEqual(await listPending(f.db, { target: 'test' }), []);
+    for (const r of redirects) {
+      const hop = await fetch(site.origin + r.source, { redirect: 'manual' });
+      assert.deepEqual([hop.status, hop.headers.get('location')], [301, r.destination]);
+      assert.equal((await fetch(site.origin + r.destination, { redirect: 'manual' })).status, 200);
+    }
+    console.log(`LOCAL DEPLOY: 3 primaries + 3 unpublished sources smoke passed; ${redirects.length} single-hop 301 -> 200; 0 pending`);
+  } finally { await site.close(); await f.cleanup(); }
+});
+
 test('gate rejection leaves all secondary rows published and snapshot available', async () => {
   const f = await setup();
   try {
@@ -310,4 +365,9 @@ test('live HTTP: unconfirmed sources do not redirect; confirmed 301s lead direct
     const target = await fetch(new URL(c.primary, base), { method: 'HEAD', redirect: 'manual' });
     assert.equal(target.status, 200, c.primary);
   }
+  const legacy = await fetch(new URL(runningRoutes, base), { method: 'HEAD', redirect: 'manual' });
+  assert.ok([301, 308].includes(legacy.status), `${runningRoutes}: ${legacy.status}`);
+  const destination = new URL(legacy.headers.get('location'), base).pathname;
+  const final = await fetch(new URL(destination, base), { method: 'HEAD', redirect: 'manual' });
+  assert.equal(final.status, 200, `${runningRoutes} -> ${destination}`);
 });
