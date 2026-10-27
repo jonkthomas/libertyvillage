@@ -415,9 +415,9 @@ function blankOut(text, start, length) {
 export function lintPost(post, { businesses = [], now, roundup = false } = {}) {
   const index = indexBusinesses(businesses);
   const findings = [];
-  const add = (rule, claim, detail, field) => {
+  const add = (rule, claim, detail, field, businessSlug = null) => {
     if (roundup && ROUNDUP_SOURCE_GROUNDED_RULES.has(rule)) return;
-    findings.push({ rule, severity: 'high', claim, detail: `${field}: ${detail}` });
+    findings.push({ rule, severity: 'high', claim, detail: `${field}: ${detail}`, field, businessSlug });
   };
   const year = postYear(post, now);
 
@@ -440,13 +440,14 @@ export function lintPost(post, { businesses = [], now, roundup = false } = {}) {
       premise.label,
       `${who} is attributed as satisfying the ${premise.label} operational attribute but its own record does not support that policy`,
       record?.slug || 'content',
+      record?.slug,
     );
   }
 
   // Declared attribution: every slug the post claims to be about must be a record.
   for (const [position, slug] of (Array.isArray(post?.relatedBusinesses) ? post.relatedBusinesses : []).entries()) {
     if (!index.bySlug.has(normalize(slug))) {
-      add('unrecorded-business', String(slug), 'no data/businesses.json record has this slug', `relatedBusinesses[${position}]`);
+      add('unrecorded-business', String(slug), 'no data/businesses.json record has this slug', `relatedBusinesses[${position}]`, slug);
     }
   }
 
@@ -474,7 +475,7 @@ export function lintPost(post, { businesses = [], now, roundup = false } = {}) {
           const claim = hit.text.trim();
           if (!claim) continue;
           if (record.comparable.includes(comparable(claim))) continue;
-          add(rule, claim, `${label} is not verbatim in the record for ${record.record.name}`, field);
+          add(rule, claim, `${label} is not verbatim in the record for ${record.record.name}`, field, record.record.slug);
         }
       }
     }
