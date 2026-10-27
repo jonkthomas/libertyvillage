@@ -204,6 +204,101 @@ excluded. Independent best-page titles and directory titles/meta descriptions al
 need a gated copy source distinct from protected taxonomy/business facts. This
 slice introduces neither metadata overrides nor code edits.
 
+## Writer prechecks and house voice
+
+`scripts/lib/refresh-precheck.mjs` is the shared deterministic check for the
+isolated writer and trusted submit. It reports all findings without rewriting
+the draft. Storage limits, claim lint, title/topic/business/link binding,
+snippet containment, image availability and unchanged-output checks remain in
+place. The normal gate still runs afterwards with the same policy and budgets.
+
+The October 27 evidence review counted distinct snapshot IDs, rather than
+counting copies of the same run in polling output:
+
+| Recurring code | Snapshots | Evidence files under `/tmp/lv-ops/golive/refresh/` | Existing precheck |
+| --- | --- | --- | --- |
+| `refresh-no-change` | 3 (3, 4, 5) | `three-final.out`, `four-final.out`, `five-final.out` | `extractRefreshedPost` |
+| `refresh-fact-check` | 3 (2, 8, 9) | `two-final.out`, `seven-first-final.out`, `seven-final.out` | `lintPost` on the editable projection |
+| `refresh-unbound` | 2 (10, 11) | `eight-first-final.out`, `eight-final.out` | `refreshBindingErrors` |
+| `refresh-gate-failed` | 2 (12, 13) | `nine-final.out`, `ten-poll.out` | Independent gate review; semantic contradictions require judgment |
+
+The retained subcodes were `unsupported-address` (8, 9) and
+`draft-changed-topic` (10, 11), both already checked by the shared module.
+There was no uncovered recurring mechanical cause to add in this slice.
+Do not replace semantic review with a heuristic or weaken a check to increase
+publication volume.
+
+The weekly digest's **Appendix → Writer diagnostics** counts rejection codes,
+deduplicating each code by target and snapshot/submission. A code seen at least
+twice is labelled **candidate precheck**. Check existing coverage before adding
+a rule; the label is a review queue, with no automatic issue filing. Counts use
+the digest's existing seven-day run window and only the codes retained by the
+runner; old logs with no detailed code cannot be reconstructed.
+
+All blog, news, roundup and refresh writers read `scripts/prompts/lv-voice.md`.
+Its house style is general; field limits and format rules stay in their own
+prompts. `scripts/blog-lint.mjs` uses `scripts/lib/lv-voice-lint.mjs` for banned
+words/phrases, stock framings and em-dash density. It scans reader-facing fields,
+including FAQs and takeaways, without changing their values. Snippet refreshes
+scan only their editable title, description and intro, including the dataset-backed
+guide, best and directory fields listed above. Voice warnings remain warn-only
+for every supported dataset kind. Existing fact lint is
+still blocking as before.
+
+Voice rollout is **warn-only from 2026-10-27**, for at least two weeks (through
+2026-11-10). Warnings appear in lint/writer output and successful submit receipts;
+the runner retains their rule identifiers as `lv-voice-warning` events for the
+digest. No generated prose is included in those events. News draft warnings also
+appear in its existing validation output. A warning never consumes a refresh
+revision or causes a rejection. Review warning volume and refusal rates after
+the two weeks. Nothing enables blocking automatically.
+
+To explicitly enable voice blocking later, change `VOICE_POLICY.blocking` to
+`true` in `scripts/lib/lv-voice-lint.mjs` (one line), or set
+`LV_VOICE_BLOCKING=1` on the trusted submit/gate process. The runner forwards that
+flag to trusted CLI and source commands. The isolated refresh generator uses
+the committed policy; the trusted gate enforces the explicit environment flag
+even when the generator has no such flag. Do not change `LINT_MODE` for this
+rollout: it controls existing claim lint, not the new editorial warnings.
+
+Local focused verification:
+
+```
+LC_ALL=C CONTENT_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres \
+  ~/.pi/agent/bin/memguard -- node --test --test-concurrency=1 \
+  tests/content/lv-voice.test.mjs tests/content/refresh-precheck.test.mjs \
+  tests/runner/refresh-narrow.test.mjs tests/digest/precheck-candidates.test.mjs
+```
+
+### Staging proof handoff (ops worker only)
+
+The builder runs no VM or staging actions. After the PR is merged and the ops
+worker is authorized to update the staging runner, use its normal supported
+refresh workflow, keeping the timer disabled:
+
+1. In the staging checkout, prepare `/tmp/lv-voice-proof.json` containing
+   `{"title":"A vibrant local guide."}`. Run
+   `node scripts/blog-lint.mjs --post /tmp/lv-voice-proof.json`. Expect
+   `lv-voice-warning`, `warnOnlySince: 2026-10-27`, a `WARN` line and exit 0.
+2. Run `LV_VOICE_BLOCKING=1 node scripts/blog-lint.mjs --post /tmp/lv-voice-proof.json`.
+   Expect `voice-banned-phrase` and exit 1. This is a local lint command; do not
+   enable the flag on a staging publishing job during the observation period.
+3. Run the existing staged refresh reservation/submit proof: export the local
+   staging checkout using `node scripts/content/cli.mjs export --root . --target staging`,
+   select a normal ranked candidate using `refresh plan --gsc <staging-gsc.json> --target staging`,
+   then `refresh reserve --candidate <candidate.json> --target staging`. Use the
+   returned snapshot ID with `refresh submit --snapshot <id> --before <before.json>
+   --after <after.json> --actor ops:voice-proof --target staging`. Before/after
+   must be full exports with exactly one allowed target edit. With a harmless
+   banned phrase in an otherwise valid editable field, expect warning identifiers
+   in the receipt while the unchanged normal gate decides the draft. Do not
+   infer gate success from a lint warning or force publication.
+4. Run `node --test tests/digest/precheck-candidates.test.mjs` in the staging
+   checkout. This drives two independent rejected fixture attempts through the
+   normal digest parser/model/HTML renderer (no live data). Confirm the same code counts 2
+   and shows `candidate precheck` in the appendix. A repeated copy of one snapshot
+   must count 1. Confirm an `lv-voice-warning` run event produces the warning line.
+
 ## Schedule
 
 The timer stays **disabled** until the staging proof is accepted. The calendar is **Tue 04:23 UTC**. That fits the existing UTC timers:

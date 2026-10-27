@@ -29,7 +29,7 @@ const pass = async ({ contentSha }) => ({ overall: 9, findings: [], model: GATE_
 const policy = (dataset, original, payload, live = sources) => checkKindPolicy({ kind: 'refresh',
   items: [{ dataset, key: original.slug, op: 'update', payload }],
   ctx: { refresh: { dataset, mode: 'snippet', original } }, live, deps: { validateRecord, lintMode: 'fail' } });
-const changed = (record) => ({ ...record, description: 'A clearer local guide for planning your visit.' });
+const changed = (record) => ({ ...record, description: 'A vibrant local guide for planning your visit.' });
 
 // This uses only existing public entry points, so base fails behavior assertions,
 // rather than failing to import a newly introduced helper.
@@ -73,7 +73,10 @@ for (const dataset of ['topics', 'services', 'businesses']) {
     const bodyEdit = dataset === 'topics' ? { ...record, content: original.content + '\nBody changed' } : { ...record, answerBlock: 'Changed body field' };
     assert.throws(() => extractRefreshedPost({ before: [original], after: [bodyEdit], slug: original.slug, mode: 'snippet', dataset }), (error) => error.reason === 'refresh-snippet-overreach');
     assert.throws(() => extractRefreshedPost({ before: [original], after: [record], slug: original.slug, mode: 'full', dataset }), (error) => error.reason === 'refresh-snippet-overreach');
-    assert.equal(policy(dataset, original, record).ok, true);
+    const warned = policy(dataset, original, record);
+    assert.equal(warned.ok, true, 'voice warning does not block any non-blog kind');
+    assert.ok(warned.warnings.some((finding) => finding.rule === 'voice-banned-phrase'));
+    assert.deepEqual(warned.lint, [], 'voice remains warn-only');
     assert.equal(policy(dataset, original, bodyEdit).ok, false);
     const field = dataset === 'topics' ? 'title' : dataset === 'services' ? 'pluralName' : 'name';
     assert.equal(policy(dataset, original, { ...record, [field]: 'Unrelated subject completely' }).ok, false);
@@ -107,6 +110,7 @@ for (const dataset of ['topics', 'services', 'businesses']) {
     const result = await submitRefresh(db, { snapshotId: snapshot.snapshotId, before, after, actor: 'test:refresh-pages', env: site.env, checkout: REPO, now: NOW, deps: { gate: { review: pass, smoke: FAST_SMOKE } } });
     assert.equal(result.exitCode, 0, JSON.stringify(result));
     assert.equal(result.result.ledger, 'recorded');
+    assert.ok(result.result.voiceWarnings.ruleCodes.includes('voice-banned-phrase'), 'non-blog warning survives full-gate submit receipt');
     assert.equal((await liveRecord(db, dataset, snapshot.slug)).description, changed(original).description);
     const route = new URL(candidate.url).pathname;
     assert.equal((await fetch(`${site.origin}${route}`)).status, 200);
@@ -134,17 +138,19 @@ for (const dataset of ['topics', 'services', 'businesses']) {
       assert.equal(refused.result.reasonCode, type === 'body' ? 'refresh-snippet-overreach' : 'refresh-off-target');
       assert.equal(recordSha(await liveRecord(db, dataset, target.slug)), recordSha(target));
     }
-    t.diagnostic(`GET ${site.origin}${route} -> 200; full-gate publish, ledger ${kinds[dataset]}/snippet, exported description observed; rollback restored exact payload sha`);
+    t.diagnostic(`GET ${site.origin}${route} -> 200; full-gate publish, ledger ${kinds[dataset]}/snippet, warn-only voice receipt retained; exported description observed; rollback restored exact payload sha`);
   });
 
   test(`${kinds[dataset]}: real launcher/writer reads and writes only its one bounded dataset`, (t) => {
     const record = dataset === 'services' ? sources.services.find((row) => row.slug === 'gyms') : sources[dataset][0];
-    const result = invoke(t, { dataset, slug: record.slug, query: 'local guide', mode: 'snippet' }, true);
+    const result = invoke(t, { dataset, slug: record.slug, query: 'local guide', mode: 'snippet' }, true, 'voice-warn');
+    assert.equal(result.probes.length, 1, 'voice warning consumes no revision');
+    assert.match(result.stdout, /"event":"lv-voice-warning"/);
     assert.deepEqual(result.files.filter((file) => /^data\/.*\.json$/.test(file)), [`data/${dataset}.json`]);
     assert.equal(result.env.REFRESH_DATASET, dataset);
-    assert.equal(result.observed.result.after[0].description, 'Clearer local guide.');
+    assert.equal(result.observed.result.after[0].description, 'A vibrant local guide.');
     assert.deepEqual(result.observed.result.after[1], result.observed.result.before[1]);
-    assert.equal(extractRefreshedPost({ ...result.observed.result, slug: record.slug, dataset, mode: 'snippet' }).description, 'Clearer local guide.');
+    assert.equal(extractRefreshedPost({ ...result.observed.result, slug: record.slug, dataset, mode: 'snippet' }).description, 'A vibrant local guide.');
     assert.equal(result.observed.scratchExists, false);
   });
 }

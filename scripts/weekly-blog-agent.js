@@ -67,7 +67,8 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
 
   // Read system prompt
   if (!fs.existsSync(systemPromptPath)) throw new Error(`System prompt not found: ${systemPromptPath}`);
-  const systemPrompt = fs.readFileSync(systemPromptPath, "utf8");
+  const systemPrompt = fs.readFileSync(systemPromptPath, "utf8")
+    + "\n\n" + fs.readFileSync(path.join(__dirname, "prompts/lv-voice.md"), "utf8");
   const postsPath = path.join(root, "data", "posts.json");
   const originalPostsText = fs.readFileSync(postsPath, "utf8");
   const exportedPosts = JSON.parse(originalPostsText);

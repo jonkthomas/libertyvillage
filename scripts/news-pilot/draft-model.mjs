@@ -435,6 +435,7 @@ export function buildDraftPrompt({
   };
 
   const system = [
+    fs.readFileSync(new URL('../prompts/lv-voice.md', import.meta.url), 'utf8'),
     'You are a careful Liberty Village neighbourhood news editor.',
     'You draft ORIGINAL local news articles grounded STRICTLY in the provided evidence pack.',
     'You may NOT introduce facts, numbers, dates, names, quotes, statistics, or events that are not explicitly present in the evidence pack (passages or bodyExcerpt).',

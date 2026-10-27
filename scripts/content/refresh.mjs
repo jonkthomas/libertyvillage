@@ -302,6 +302,7 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-refresh-'));
   let submissionId;
+  let voiceWarnings;
   try {
     const recordFile = path.join(dir, 'post.json');
     const baseline = path.join(dir, 'baseline.json');
@@ -313,7 +314,7 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
       // context.refresh binds the snapshot (mode + original post) to the submission:
       // the kind policy re-checks snippet scope and original-post binding at submit,
       // on every fixer plan and on every gate round, so a repair cannot widen it.
-      ({ result: { submissionId } } = await submitContent(db, {
+      ({ result: { submissionId, voiceWarnings } } = await submitContent(db, {
         kind: 'refresh', idempotencyKey: refreshIdempotencyKey(snap.target, snap.id), actor, root: checkout, recordFile, dataset: snap.dataset, baseline,
         refresh: { snapshotId: n(snap.id), dataset: snap.dataset, mode: snap.mode, original: snap.payload },
       }, { env, checkout }));
@@ -323,7 +324,9 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   if (submissionId == null) return { result: await close({ reasonCode: 'refresh-no-change' }), exitCode: 2 };
-  return gateAndClose(db, { snapshotId, submissionId, actor, env, deps, checkout, now });
+  const gated = await gateAndClose(db, { snapshotId, submissionId, actor, env, deps, checkout, now });
+  if (voiceWarnings) gated.result.voiceWarnings = voiceWarnings;
+  return gated;
 }
 
 // gateContent resumes any state: open/gating rounds, or a published submission's

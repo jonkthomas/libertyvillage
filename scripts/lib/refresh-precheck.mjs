@@ -140,11 +140,10 @@ export function checkRefreshPreSubmission({ item, ctx = {}, live = {}, deps = {}
     businesses: Array.isArray(live.businesses) ? live.businesses : [], now: now ?? undefined,
     roundup: item.dataset === 'posts' && hasOwn(record, 'roundupCoverage'),
   });
-  if (!checked.ok && mode === 'fail') lint.push(...checked.findings.map((f) => `[${f.rule}] ${f.claim} — ${f.detail}`));
-  if (mode === 'fail') {
-    findings.push(...checked.findings);
-    failures.push(...checked.findings.map((f) => ({ code: f.rule, field: f.field, businessSlug: f.businessSlug })));
-  }
+  const blockingFindings = checked.findings.filter((f) => mode === 'fail' || f.rule.startsWith('voice-'));
+  lint.push(...blockingFindings.map((f) => `[${f.rule}] ${f.claim} — ${f.detail}`));
+  findings.push(...blockingFindings);
+  failures.push(...blockingFindings.map((f) => ({ code: f.rule, field: f.field, businessSlug: f.businessSlug })));
   const binding = refreshBindingErrors({ item, record, ctx, live });
   errors.push(...binding);
   const detail = refreshBindingDetail(checkRefreshAgainstOriginal(refreshBindingRecord(record, item.dataset), refreshBindingRecord(ctx.refresh?.original, item.dataset), { ...live, mode: ctx.refresh?.mode }));
@@ -166,5 +165,6 @@ export function checkRefreshPreSubmission({ item, ctx = {}, live = {}, deps = {}
     findings.push(...images.map((detail) => ({ rule: 'image-invalid', detail })));
   }
   return withExtraction({ ok: errors.length === 0 && lint.length === 0, errors, lint,
-    refusalDetail: refreshFailureDetail(failures), findings });
+    refusalDetail: refreshFailureDetail(failures), findings,
+    ...(checked.warnings?.length ? { warnings: checked.warnings } : {}) });
 }
