@@ -1686,7 +1686,9 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
       // Discard every other membership/value change, including timestamps.
       const targets = posts.filter((post) => post?.slug === snapshot.slug);
       const after = before.flatMap((post) => post.slug === snapshot.slug ? targets : [post]);
-      const discardedOffTarget = [...new Set([...prior.keys(), ...next.keys()])]
+      // Scratch starts with only the target. Absent export records were never
+      // available to the writer, so they are not generator removals/edits.
+      const discardedOffTarget = [...next.keys()]
         .filter((slug) => slug !== snapshot.slug && !isDeepStrictEqual(prior.get(slug), next.get(slug)))
         .filter((slug) => typeof slug === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/.test(slug)).slice(0, 20);
       log('refresh-generator-output', { snapshotId: snapshot.snapshotId, discardedOffTarget });
