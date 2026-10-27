@@ -30,6 +30,22 @@ class GeneratorDiagnosticTest(unittest.TestCase):
                 log.close()
                 self.assertEqual(json.loads(log.refresh_relay()), expected)
 
+    def test_refresh_output_validation_relay_is_bounded_and_clears_after_repair(self):
+        for repaired in (False, True):
+            with self.subTest(repaired=repaired), tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+                path = pathlib.Path(directory) / 'slot.jsonl'
+                log = diag.GeneratorDiagnostic(str(path), refresh=True)
+                log.feed_lines(b'[refresh-output] {"attempt":1,"status":"invalid-json","message":"PRIVATE"}\n')
+                log.feed_lines(b'[refresh-output] {"attempt":3,"status":"valid"}\n')
+                log.feed_lines(b'[refresh-output] {"attempt":true,"status":"valid"}\n')
+                log.feed_lines(b'[refresh-output] {"attempt":2,"status":"PRIVATE"}\n')
+                if repaired:
+                    log.feed_lines(b'[refresh-output] {"attempt":2,"status":"valid"}\n')
+                log.close()
+                expected = {} if repaired else {'reasonCode': 'refresh-generator-failed', 'failureDetail': {'stage': 'output-validate', 'code': 'invalid-json'}}
+                self.assertEqual(json.loads(log.refresh_relay()), expected)
+                self.assertNotIn('PRIVATE', path.read_text())
+
     def test_refresh_diagnostics_preserve_paths_hashes_and_status_only(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
             path = pathlib.Path(directory) / 'slot.jsonl'

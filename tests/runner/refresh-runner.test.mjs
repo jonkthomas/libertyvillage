@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { acceptGeneratedOutput, copyScratchTree, refreshDeps } from '../../ops/exedev-runner/runner.mjs';
-import { extractRefreshedPost, runRefreshLoop } from '../../scripts/content/refresh.mjs';
+import { extractRefreshedPost, refreshLogLine, runRefreshLoop } from '../../scripts/content/refresh.mjs';
 import { canonicalJson } from '../../scripts/automation/blog-source-pack.mjs';
 import seoAgent from '../../scripts/seo-improve-agent.js';
 import { hasTestDb, seededDb } from '../content/fixtures/content-db.mjs';
@@ -81,6 +81,10 @@ test('refresh runner: a generator failure closes the snapshot with a reason and 
   assert.equal(result.attempted, 1);
   assert.deepEqual(h.events.find((e) => e.event === 'refresh-outcome').details.reasonCode, 'refresh-generator-failed');
   assert.ok(h.calls.some((c) => c.args[1] === 'close' && c.args.includes('refresh-generator-failed')));
+  assert.deepEqual(h.events.find((e) => e.event === 'refresh-outcome').details.failureDetail, { stage: 'generate', code: 'unknown' });
+  assert.deepEqual(refreshLogLine({ reasonCode: 'refresh-generator-failed', failureDetail: {
+    stage: 'PRIVATE'.repeat(1000), code: 'PRIVATE', exit: 1000, message: 'PRIVATE',
+  } }).failureDetail, { stage: 'generate', code: 'unknown' });
 });
 
 // Real export -> runner before -> scratch writer -> accepted output -> runner

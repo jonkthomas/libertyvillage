@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { constants as osConstants } from 'node:os';
 
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
@@ -192,6 +193,7 @@ export function command(binary, args, { cwd, env, allowExit = [] } = {}) {
   if (result.error || (result.status !== 0 && !allowExit.includes(result.status))) {
     const failure = new Error(`${path.basename(binary)} ${args[0] ?? ''} exit ${result.status ?? 'signal'}`);
     failure.cliFailure = classifyCliFailure(binary, args, result);
+    failure.code = result.error?.code;
     throw failure;
   }
   return { code: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
@@ -422,6 +424,7 @@ export function readScratchHead(scratch) {
 function generator(job, slot, topic, dryRun, log, notifications = {}) {
   const scratch = path.join(stateRoot, 'scratch', slot);
   let failed = false;
+  let stage = 'scratch-prepare';
   try {
     fs.rmSync(scratch, { recursive: true, force: true });
     fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
@@ -433,16 +436,23 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     // The root-owned helper validates this path, changes ownership, and starts a
     // transient service as lv-generator with strict filesystem protection.
     const helper = '/usr/local/libexec/lv-runner-generator';
+    stage = 'helper-exit';
     const helperResult = command('sudo', ['-n', helper, job, slot], { cwd: repo, env: generatorEnv(process.env), allowExit: job === 'weekly-blog' || topic?.refresh ? [1] : [] });
     if (topic?.refresh) {
+      stage = 'relay-parse';
+      if (Buffer.byteLength(helperResult.stdout) > 1024) throw Object.assign(new Error('invalid refresh relay'), { code: 'invalid-relay' });
       const failure = parseJson(helperResult.stdout);
+      if (!failure || typeof failure !== 'object' || Array.isArray(failure)) throw Object.assign(new Error('invalid refresh relay'), { code: 'invalid-relay' });
+      if (failure.reasonCode === 'refresh-generator-failed') throw Object.assign(new Error('refresh helper failed'), { failureDetail: failure.failureDetail });
       if (failure?.reasonCode === 'refresh-write-failed' && ['unknown', 'EROFS', 'EACCES', 'EBUSY', 'ENOENT', 'ENOSPC'].includes(failure.errorCode)) {
         logLine(log, 'refresh-write-failed', { reasonCode: failure.reasonCode, errorCode: failure.errorCode });
         throw Object.assign(new Error('refresh writes failed'), { reason: failure.reasonCode, errorCode: failure.errorCode });
       }
-      if (helperResult.code !== 0) throw new Error('refresh generator failed');
+      stage = 'helper-exit';
+      if (helperResult.code !== 0) throw Object.assign(new Error('refresh generator failed'), { code: 'helper-exit', exit: helperResult.code });
       // The isolated tree intentionally has no Git checkout. Only its one
       // bounded output is read; refreshDeps retains the strict graft backstop.
+      stage = 'output-read';
       const output = acceptGeneratedOutput(scratch, repo, job, ['data/posts.json'], exportedPosts, true);
       logLine(log, 'generator-output-accepted', { paths: 0 });
       return output;
@@ -467,6 +477,17 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     return changed;
   } catch (error) {
     failed = true;
+    if (topic?.refresh) {
+      const detail = error.failureDetail ?? { stage, code: error instanceof SyntaxError ? 'invalid-json' : error.code, exit: error.exit ?? error.cliFailure?.exit };
+      error.failureDetail = {
+        stage: ['scratch-prepare', 'ownership-transfer', 'unit-run', 'unit-read-back', 'relay-build', 'ownership-restore', 'helper-exit', 'relay-parse', 'output-read', 'output-validate'].includes(detail.stage) ? detail.stage : stage,
+        code: Object.hasOwn(osConstants.errno, detail.code) || ['invalid-json', 'invalid-relay', 'invalid-artifact', 'artifact-changed', 'helper-exit'].includes(detail.code) ? detail.code : 'unknown',
+        ...(Number.isInteger(detail.exit) && detail.exit >= 0 && detail.exit <= 255 ? { exit: detail.exit } : {}),
+      };
+      // Installed runner and pinned checkout can be on different releases. Keep
+      // the cause even when the older refresh loop drops exception properties.
+      logLine(log, 'refresh-generator-failed', { failureDetail: error.failureDetail });
+    }
     throw error;
   } finally {
     try { fs.rmSync(scratch, { recursive: true, force: true }); }
@@ -562,9 +583,9 @@ export function readBoundedJson(file, maxBytes) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.size > maxBytes) throw new Error('artifact is not a bounded regular file');
+    if (!stat.isFile() || stat.size > maxBytes) throw Object.assign(new Error('artifact is not a bounded regular file'), { code: 'invalid-artifact' });
     const bytes = Buffer.alloc(stat.size);
-    if (fs.readSync(fd, bytes, 0, stat.size, 0) !== stat.size) throw new Error('artifact changed while reading');
+    if (fs.readSync(fd, bytes, 0, stat.size, 0) !== stat.size) throw Object.assign(new Error('artifact changed while reading'), { code: 'artifact-changed' });
     return JSON.parse(bytes.toString('utf8'));
   } finally { fs.closeSync(fd); }
 }

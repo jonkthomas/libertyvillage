@@ -11,5 +11,7 @@ byte-for-byte. Improve the search result and intro using existing facts only.
 For full mode, improve the target's clarity and usefulness within its allowed fields.
 
 Only `data/posts.json` is writable. Use Read, Edit or Write to update that file.
+Keep it a valid JSON array: escape double quotes, backslashes and newlines inside
+string values. An Edit tool success confirms the save, not JSON validity.
 The trusted runner handles validation and review after you finish. A no-op is
 valid if no justified improvement exists.
