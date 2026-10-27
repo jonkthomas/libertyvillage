@@ -11,6 +11,8 @@ const launcher = fs.readFileSync(new URL('ops/exedev-runner/launcher.sh', ROOT),
 // Exercise the real launcher Python, real Node entry point and real query
 // options. Only systemd/root accounts and the paid SDK transport are replaced.
 export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { target: targetOverride } = {}) {
+  const dataset = refresh?.dataset ?? 'posts';
+  const dataFile = `data/${dataset}.json`;
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-narrow-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = path.join(root, 'source');
@@ -30,12 +32,12 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
     let calls = 0;
     export async function* query(input) {
       calls++;
-      const original = fs.readFileSync('data/posts.json');
+      const original = fs.readFileSync('${dataFile}');
       const posts = savedPosts ??= JSON.parse(original);
       console.log('PROBE=' + JSON.stringify({ input, posts }));
       if (process.env.REFRESH_SLUG) {
         yield { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'edit-1', name: 'Edit', input: {
-          file_path: path.join(input.options.cwd, 'data/posts.json'), old_string: 'PRIVATE OLD CONTENT', new_string: 'PRIVATE NEW CONTENT'
+          file_path: path.join(input.options.cwd, '${dataFile}'), old_string: 'PRIVATE OLD CONTENT', new_string: 'PRIVATE NEW CONTENT'
         } }] } };
         posts[0].description = ${JSON.stringify(scenario === 'voice-warn' ? 'A vibrant local guide.' : 'Clearer local guide.')};
         if (${['lint-repair', 'lint-stays', 'json-then-lint', 'lint-spent', 'lint-unknown-budget'].includes(scenario) ? 'true' : 'false'}) {
@@ -53,18 +55,18 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
         try {
           if (['failed', 'all-failed'].includes(${JSON.stringify(scenario)})) throw Object.assign(new Error('PRIVATE'), { code: 'EROFS' });
           // Claude Code saves atomically beside the target, then renames it.
-          fs.writeFileSync('data/posts.json.tmp', JSON.stringify(posts), { mode: ${scenario === 'private-edit' ? '0o600' : '0o644'} });
-          fs.renameSync('data/posts.json.tmp', 'data/posts.json');
-          if (${['invalid-json', 'invalid-spent', 'invalid-unknown-budget'].includes(scenario) ? 'true' : 'false'} || (${['repair-once', 'json-then-lint', 'json-then-title'].includes(scenario) ? 'true' : 'false'} && calls === 1)) fs.writeFileSync('data/posts.json', 'PRIVATE malformed JSON');
+          fs.writeFileSync('${dataFile}.tmp', JSON.stringify(posts), { mode: ${scenario === 'private-edit' ? '0o600' : '0o644'} });
+          fs.renameSync('${dataFile}.tmp', '${dataFile}');
+          if (${['invalid-json', 'invalid-spent', 'invalid-unknown-budget'].includes(scenario) ? 'true' : 'false'} || (${['repair-once', 'json-then-lint', 'json-then-title'].includes(scenario) ? 'true' : 'false'} && calls === 1)) fs.writeFileSync('${dataFile}', 'PRIVATE malformed JSON');
         } catch (error) { writeError = error.code; }
         yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'edit-1',
           is_error: Boolean(writeError), content: (writeError || '') + ' PRIVATE TOOL OUTPUT'
         }] } };
-        const writePath = ${JSON.stringify(scenario)} === 'wrong-path' ? '../other/posts.json' : './data/posts.json';
+        const writePath = ${JSON.stringify(scenario)} === 'wrong-path' ? '../other/posts.json' : './${dataFile}';
         yield { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'write-2', name: 'Write', input: {
           file_path: writePath, content: 'PRIVATE WRITE CONTENT'
         } }] } };
-        if (${JSON.stringify(scenario)} === 'restore') fs.writeFileSync('data/posts.json', original);
+        if (${JSON.stringify(scenario)} === 'restore') fs.writeFileSync('${dataFile}', original);
         yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'write-2', is_error: ['all-failed', 'old-layout'].includes(${JSON.stringify(scenario)}), content: 'ENOSPC PRIVATE TOOL OUTPUT' }] } };
       }
       yield { type: 'result', subtype: 'success', num_turns: ${['invalid-spent', 'lint-spent'].includes(scenario) ? '20' : '1'},
@@ -80,14 +82,14 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
   if (!refresh) fs.mkdirSync(path.join(source, '.git'));
   fs.writeFileSync(path.join(source, '.claude/settings.json'), '{"broad":"settings"}');
   fs.writeFileSync(path.join(source, 'tsconfig.json'), '{}');
-  for (const dataset of ['businesses', 'services', 'topics']) fs.copyFileSync(new URL(`data/${dataset}.json`, ROOT), path.join(source, `data/${dataset}.json`));
+  for (const dataset of ['posts', 'businesses', 'services', 'topics']) fs.copyFileSync(new URL(`data/${dataset}.json`, ROOT), path.join(source, `data/${dataset}.json`));
   const target = targetOverride ?? (throughRunner
-    ? JSON.parse(fs.readFileSync(new URL('data/posts.json', ROOT))).find((p) => p.slug === refresh.slug)
-    : { ...JSON.parse(fs.readFileSync(new URL('data/posts.json', ROOT)))[0], slug: 'target', title: 'Target',
+    ? JSON.parse(fs.readFileSync(new URL(dataFile, ROOT))).find((p) => p.slug === refresh.slug)
+    : { ...JSON.parse(fs.readFileSync(new URL(dataFile, ROOT)))[0], slug: 'target', title: 'Target',
       content: 'Local guide.\n\n## Details\nLocal details.', answerBlock: 'Local guide.', faqs: [], keyTakeaways: [], relatedPosts: [], relatedServices: [], relatedTopics: [] });
   assert.ok(target, 'refresh fixture target exists');
   const posts = [target, { slug: 'off-target', title: 'Other' }];
-  fs.writeFileSync(path.join(source, 'data/posts.json'), JSON.stringify(posts));
+  fs.writeFileSync(path.join(source, dataFile), JSON.stringify(posts));
   // The base implementation copied the entire tree at this same runner seam.
   (runner.prepareGeneratorScratch ?? runner.copyScratchTree)(source, scratch, refresh);
   const files = fs.readdirSync(scratch, { recursive: true });
@@ -105,7 +107,7 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
 import os, sys, types, json, pathlib, subprocess, pwd, importlib.util, errno
 os.geteuid = lambda: 0
 def chown(file, uid, gid, **kwargs):
-    if pathlib.Path(file).name == 'posts.json':
+    if pathlib.Path(file).name == '${dataset}.json':
         info = pathlib.Path(file).lstat()
         with pathlib.Path(${JSON.stringify(path.join(root, 'ownership.jsonl'))}).open('a') as output:
             output.write(json.dumps(dict(uid=uid, inode=info.st_ino, mode=info.st_mode & 0o777)) + '\\n')
@@ -134,7 +136,7 @@ def capture(cmd, diag, timeout):
     env = dict(line.split('=',1) for line in envtext.splitlines())
     env = {k: json.loads(v) for k,v in env.items()}
     env['PATH'] = os.environ['PATH']
-    posts_file = pathlib.Path(values['WorkingDirectory']) / 'data/posts.json'
+    posts_file = pathlib.Path(values['WorkingDirectory']) / '${dataFile}'
     before = posts_file.read_bytes()
     # Simulate ProtectSystem=strict's read-only parent on macOS, keeping the
     # target file writable in both layouts. Use the real constructed unit path.
@@ -170,14 +172,14 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
       import { pathToFileURL } from 'node:url';
       const { generator, refreshDeps } = await import(pathToFileURL(${JSON.stringify(moduleFile)}));
       const events = [];
-      const file = ${JSON.stringify(path.join(source, 'data/posts.json'))};
+      const file = ${JSON.stringify(path.join(source, dataFile))};
       const deps = refreshDeps({ target: 'staging', slot: 'test-slot', request: {}, run: ${JSON.stringify(run)},
         export: () => {}, readPosts: () => JSON.parse(fs.readFileSync(file)),
         writePosts: (posts) => fs.writeFileSync(file, JSON.stringify(posts)),
         generate: (topic) => generator('seo-improvements', 'test-slot', topic, false, ${JSON.stringify(path.join(root, 'generator.jsonl'))}),
         log: (event, details) => events.push({ event, ...details }),
       });
-      const snapshot = { snapshotId: 1, slug: ${JSON.stringify(refresh?.slug)}, mode: 'snippet' };
+      const snapshot = { snapshotId: 1, dataset: ${JSON.stringify(dataset)}, slug: ${JSON.stringify(refresh?.slug)}, mode: 'snippet' };
       let result;
       let submissions = 0;
       if (${['all-failed', 'invalid-json', 'host-invalid-json', 'invalid-spent', 'invalid-unknown-budget', 'read-denied', 'helper-exit', 'relay-malformed', 'ownership-error', 'lint-stays', 'json-then-lint', 'lint-spent', 'lint-unknown-budget', 'title-stays', 'json-then-title'].includes(scenario) ? 'true' : 'false'}) {
@@ -203,6 +205,6 @@ exec(compile(${JSON.stringify(block)}, 'launcher', 'exec'))
   const generatorLog = path.join(root, 'generator.jsonl');
   const generatorEvents = throughRunner && fs.existsSync(generatorLog) ? fs.readFileSync(generatorLog, 'utf8').trim().split('\n').map(JSON.parse) : [];
   const ownership = fs.readFileSync(path.join(root, 'ownership.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-  return { ...result, ownership, generatorEvents, probes, files, scratch, observed, diagnostics, unitChecks, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, 'data/posts.json'))) };
+  return { ...result, ownership, generatorEvents, probes, files, scratch, observed, diagnostics, unitChecks, posts: throughRunner ? null : JSON.parse(fs.readFileSync(path.join(scratch, dataFile))) };
 }
 

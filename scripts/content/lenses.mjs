@@ -38,7 +38,7 @@ export const REFRESH_LENSES = Object.freeze([
 
 // kind==='manual' ? MANUAL_LENSES[dataset] : kind==='refresh' ? REFRESH_LENSES : LENSES[kind]; fail closed on anything else.
 export function lensesFor(kind, dataset) {
-  const lenses = kind === 'manual' ? MANUAL_LENSES[dataset] : kind === 'refresh' ? REFRESH_LENSES : LENSES[kind];
+  const lenses = kind === 'manual' ? MANUAL_LENSES[dataset] : kind === 'refresh' ? (['posts', 'topics', 'services', 'businesses'].includes(dataset) ? [...REFRESH_LENSES, ...(dataset === 'posts' ? [] : MANUAL_LENSES[dataset])] : null) : LENSES[kind];
   if (!Array.isArray(lenses) || lenses.length === 0) {
     throw new Error(`no review lenses for kind ${kind}${kind === 'manual' ? ` dataset ${dataset}` : ''}`);
   }

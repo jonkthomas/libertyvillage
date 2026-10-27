@@ -10,7 +10,7 @@ export async function recordAction(client, { actionKind, actionType, slug, url, 
   const result = await client.query(`insert into content.content_action_ledger
     (action_kind,slug,url,page_type,target_query,query_type,acted_at,baseline,details,action_type)
     values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-    on conflict (action_kind,slug,((acted_at at time zone 'UTC')::date))
+    on conflict (action_kind,page_type,slug,((acted_at at time zone 'UTC')::date))
     do update set slug=excluded.slug returning id`,
   [actionKind, slug, url, pageType, targetQuery, queryType, actedAt, metrics(baseline), details, actionType ?? (actionKind === 'new_post' ? 'new' : 'refresh')]);
   return { id: result.rows[0].id };
