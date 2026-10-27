@@ -1664,6 +1664,24 @@ async function cadenceDeps(job, target, slot, log) {
 // sandboxed generator -> trusted `content refresh submit` (same-slug check,
 // refresh gate, publish, deploy hook, smoke, ledger). A dry run only plans;
 // an on-demand --topic names the one ranked slug to refresh.
+function refreshTargetDiff(before, emitted) {
+  const fields = (post) => {
+    const content = String(post.content ?? '');
+    // Match refresh.mjs splitIntro: before the first ## heading, otherwise
+    // the first paragraph. Never retain field text in the diagnostic.
+    const heading = /^## /m.exec(content);
+    const cut = heading ? heading.index : (content.indexOf('\n\n') >= 0 ? content.indexOf('\n\n') : content.length);
+    return { title: String(post.title ?? ''), description: String(post.description ?? ''), intro: content.slice(0, cut) };
+  };
+  const prior = fields(before), next = fields(emitted);
+  return {
+    generatorNoOp: JSON.stringify(before) === JSON.stringify(emitted),
+    fields: Object.fromEntries(Object.keys(prior).map((field) => [field, {
+      changed: prior[field] !== next[field], beforeLength: prior[field].length, afterLength: next[field].length,
+    }])),
+  };
+}
+
 export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, writePosts, log }) {
   const write = (name, value) => { const file = path.join(run, name); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; };
   return {
@@ -1695,11 +1713,16 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
       // Refused missing/duplicate targets leave the checkout at the export.
       // No raw generator file can reach a deploy or commit.
       writePosts(targets.length === 1 ? after : before);
-      return { before, after };
+      return { before, after, targetDiff: targets.length === 1 && prior.has(snapshot.slug)
+        ? refreshTargetDiff(prior.get(snapshot.slug), targets[0]) : null };
     },
-    submit: (snapshot, generated) => parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
-      '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
-      '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout),
+    submit: (snapshot, generated) => {
+      const result = parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
+        '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
+        '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout);
+      if (result.reasonCode === 'refresh-no-change') log('refresh-no-change', { snapshotId: snapshot.snapshotId, ...generated.targetDiff });
+      return result;
+    },
     close: ({ snapshotId, reasonCode }) => parseJson(cli(['refresh', 'close', '--snapshot', String(snapshotId), '--reason', reasonCode, '--target', target]).stdout),
     log,
   };
