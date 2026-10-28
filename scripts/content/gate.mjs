@@ -27,10 +27,10 @@ import { cutFindingPaths } from './review-document.mjs';
 import { fileOf } from './repair-rules.mjs';
 
 // Automated kinds map to themselves; operator `manual` edits use the seo policy;
-// a refresh rewrites a blog post, so it repairs under the blog policy.
+// Refresh has the same review/repair limits as blog, with one dataset file.
 export const POLICY_KIND = Object.freeze({
   business: 'business', blog: 'blog', 'blog-live': 'blog-live', news: 'news', roundup: 'roundup',
-  'topic-discovery': 'topic-discovery', seo: 'seo', manual: 'seo', refresh: 'blog',
+  'topic-discovery': 'topic-discovery', seo: 'seo', manual: 'seo', refresh: 'refresh',
 });
 
 export const TERMINAL_DECISIONS = Object.freeze(['validation', 'lint', 'unrepairable', 'exhausted', 'not-converging', 'block']);

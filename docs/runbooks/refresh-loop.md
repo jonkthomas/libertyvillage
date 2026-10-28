@@ -1,4 +1,4 @@
-# Refresh loop runbook: improve the 2 weakest live posts each week
+# Refresh loop runbook: improve the 2 weakest live pages each week
 
 > **Operational runbook (as built).** This describes how the refresh loop behaves and how to run, check and roll it back. It is not a specification: no approved spec drove this work, and this document claims no spec authority. The code and its tests are the source of truth.
 
@@ -8,12 +8,12 @@ It replaces the old broad `seo-improvements` data lane (held off since #182). It
 
 ## Weekly run
 
-1. **Measure.** `scripts/content/refresh-gsc.mjs` pulls 28 days of final GSC rows for `/blog/` pages: by page, and by page and query. It is read-only and uses the runner's GSA.
-2. **Plan.** `content refresh plan` first settles abandoned snapshots. It then ranks live, non-news blog posts by the weakness score below. It drops posts that are inside their cooldown or still have an open snapshot.
+1. **Measure.** `scripts/content/refresh-gsc.mjs` pulls 28 days of final GSC rows for `/blog/<slug>`, `/guide/<topic>`, `/best/<service>`, `/directory/<slug>` and `/`: by page, and by page and query. It is read-only and uses the runner's GSA.
+2. **Plan.** `content refresh plan` first settles abandoned snapshots. It then ranks live, non-news blog posts and dataset-backed non-blog snippet leaks by the weakness score below (the code-only homepage is excluded). It drops posts that are inside their cooldown or still have an open snapshot.
 3. **For each candidate, in score order:**
    1. `content refresh reserve` snapshots the live row in `content.refresh_snapshots`, under the weekly cap. It saves the exact revision payload, its sha and `live_rev`, the GSC baseline and the top query.
-   2. The runner does a fresh export. The SDK agent gets `REFRESH_SLUG`, `REFRESH_QUERY` and `REFRESH_MODE` with a single-post prompt for both builder and revise stages, without the general SEO prompt, extra skills or project settings. In refresh mode `acceptGeneratedOutput` reads only bounded `data/posts.json` from scratch and copies no files: other data JSON, task reports, images and code are discarded. The runner builds `after` from the fresh `before`, replacing only the target record, and writes that grafted result to the trusted checkout. Other-post additions, removals and edits never reach submit, deploy or commit. A missing/renamed target or an unchanged target still refuses. `refresh-generator-output` logs `discardedOffTarget` as at most 20 validated slugs, without bodies; missing/duplicate targets leave the checkout at the export.
-   3. `content refresh submit` accepts only one changed record: the snapshot's slug, with the same `publishedAt`, and no other post added, removed or edited. It submits that record as kind `refresh` against the snapshot revision (`expected_live_rev`), so a row that moved in the meantime becomes a conflict. Then it runs the full gate, which publishes, posts the deploy hook and runs the smoke check.
+   2. The runner does a fresh export. The SDK agent gets `REFRESH_DATASET`, `REFRESH_SLUG`, `REFRESH_QUERY` and `REFRESH_MODE` with a single-post prompt for both builder and revise stages, without the general SEO prompt, extra skills or project settings. In refresh mode `acceptGeneratedOutput` reads only the one bounded `data/<dataset>.json` from scratch and copies no files: other data JSON, task reports, images and code are discarded. The runner builds `after` from the fresh `before`, replacing only the target record. Candidate lists remain private run artifacts; the trusted content file stays at its export until selection/submission. Other-post additions, removals and edits never reach submit, deploy or commit. A missing/renamed target or an unchanged target still refuses. `refresh-generator-output` logs `discardedOffTarget` as at most 20 validated slugs, without bodies; missing/duplicate targets leave the checkout at the export.
+   3. `content refresh submit` accepts only one changed record in the snapshot's dataset: its slug, with the same `publishedAt`, and no other record added, removed or edited. It submits that record as kind `refresh` against the snapshot revision (`expected_live_rev`), so a row that moved in the meantime becomes a conflict. Then it runs the full gate, which publishes, posts the deploy hook and runs the smoke check.
    4. The snapshot is closed as `published` or `failed`, with a plain-English reason code. A published refresh writes one ledger row (`recordAction`, `actionKind: 'refresh'`).
 4. The run stops when 2 refreshes have published, when the DB cap refuses a reserve, or when it hits a technical failure such as the writer or the CLI. A refusal or a gate rejection moves on to the next candidate.
 
@@ -34,6 +34,101 @@ Search Console impressions are up 72% since July, but CTR has halved, from 1.19%
   - same URL and slug
   - the ledger path, with `recordAction({ actionKind: 'refresh', actionType: 'snippet' | 'refresh', details: { actionType, ... } })`
 - The lane is stored in `refresh_snapshots.mode` (`snippet` | `full`). The digest tags each row as "snippet: title, description, intro" or "full rewrite".
+
+## Snippet candidates and independent selection
+
+The same Claude SDK writer call drafts **3–5 patches** in a transient
+`refreshCandidates` array on the unchanged target record in its one writable
+`data/<dataset>.json`. Posts/topics patches contain `title`, `description` and
+optional `intro` (including spacing before the immutable body). Services/businesses
+patches contain only `description`, replacing its intro while preserving later
+paragraphs. Their identity and computed title/meta remain immutable. Full-mode
+refreshes keep the single-record path.
+Trusted candidate parsing sets `updatedAt` to the run date on posts/topics so
+the blog Updated date and sitemap lastmod advance with the refresh. The writer
+cannot supply this value. Services/businesses never acquire an `updatedAt` field.
+
+The writer self-check and trusted submit run `scripts/lib/refresh-candidates.mjs`:
+every option goes through the shared refresh precheck (storage, scope, claim lint,
+title-binding ratio and original business/link/premise binding). Editable titles
+and descriptions also pass `refresh-plain-text-markdown`; a failed option is
+dropped before the judge can see it. Editable titles
+must be at most 60 characters, unique against live site titles, and include the
+query's main term in the first 40 characters. The main term is the longest
+non-noise token using the existing title tokenizer (ties keep query order); when
+it drops every word, retain broad subjects such as restaurants/guide and discard
+only location/stop words. Singular/plural forms match the same term.
+Descriptions or description intros must be 140–160 characters. Title constraints
+apply to posts/topics; best/directory titles are computed from immutable identity
+fields and cannot be rewritten by this lane. Voice findings remain warnings during
+their existing rollout; they are recorded without silently making them blocking.
+Each dropped option keeps its numeric ID and deterministic reason codes.
+
+Only survivors' IDs and snippet text reach a **DeepSeek** judge, using the existing
+`deepseek-chat` provider/transport from roundup review. No provider fallback or vault
+lookup can switch the judge to the writer's vendor. Its response must contain only
+an existing integer ID and a short, single-line reason. It cannot add or edit text.
+A missing key, unavailable judge or invalid pick chooses the **first survivor in
+writer order**, with an explicit fallback status. Zero survivors closes the
+snapshot as `refresh-no-candidates` before any model pick or content submission.
+Malformed/missing candidate lists refuse as `refresh-candidate-format`.
+
+The runner adds `--candidates` to `content refresh submit` for snippet mode, making
+the list mandatory there. Manual single-record refresh submissions retain their
+existing supported path and full gate. The transient array is removed before
+submitting exactly one selected record. The existing gate model, threshold,
+repair/containment checks, 2/week cap and 8-week cooldown are unchanged.
+`refresh_snapshots.summary.candidateSelection` saves the survivor IDs, dropped
+codes, selected ID, provider, status, warnings and reason; published ledger rows
+copy it to `details.candidateSelection`. `refresh list` exposes this summary.
+
+`DEEPSEEK_API_KEY` is passed only to the refresh-submit command; it is absent from
+the generator, GSC/source and other content CLI commands. The selection function
+receives only that key, and refresh submit removes it from the environment passed
+to the full gate. No credential values enter the audit.
+
+The judge uses only the product's existing `DEEPSEEK_API_KEY` and existing
+`news-pilot/draft-model.mjs` DeepSeek transport. Its spend is **not** counted by
+the writer's SDK dollar/turn cap. Instead, trusted submit atomically marks the
+existing snapshot summary before its single judge invocation: at most **1 call
+per refresh attempt × 4 existing weekly attempts = 4 calls per weekly run**
+(also at most four for the target/ISO week). An interrupted retry uses
+`fallback-attempt-limit` without calling again. Zero survivors or a missing key
+makes no provider request. There is no provider retry or new budget system.
+
+Each call has `max_tokens: 200`, a 20-second timeout, and at most 12,000 UTF-8 bytes
+of system/user prompt. Judge context clips each title/description/intro to
+60/160/500 characters and the query to 200; selected content is never clipped.
+For a conservative rough estimate, budget about 13k input tokens including
+framing plus 200 output tokens. Using the higher published peak Pro rates
+($1.32/M input, $3.96/M output) gives about **$0.018/call or $0.072 for four calls**
+(under $0.08/week). These are pricing assumptions, not a currency cap; the
+existing `deepseek-chat` alias's rate is not separately listed on the current
+[DeepSeek pricing page](https://api-docs.deepseek.com/quick_start/pricing/).
+The hard controls are calls and request/output bounds; no model upgrade is made.
+
+For a real judge proof, authorized ops must confirm the same existing key is
+available through `/etc/lv-runner.env` or the target env file. An absent key
+records `fallback-unavailable`. This builder has not inspected or changed VM
+environment files or provisioned any new credential.
+
+Local proof (no paid model calls):
+
+```sh
+CONTENT_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres LC_ALL=C ~/.pi/agent/bin/memguard -- node --test --test-concurrency=1 tests/content/refresh-candidates.test.mjs
+```
+
+After merge, an authorized ops worker can exercise the installed staging runner
+with `sudo lv-runner run seo-improvements --target staging --topic guide/parking-guide`
+(choose a currently ranked snippet outside its cooldown). Then run
+`node scripts/content/cli.mjs refresh list --target staging` and inspect the newest
+snapshot: 3–5 options accounted for, only survivor IDs eligible, a DeepSeek pick or
+explicit deterministic fallback, one submission, and `candidateSelection` on its
+summary/ledger. Fetch that snapshot's URL to inspect the selected metadata/intro.
+For directory pages inspect the intro; their fact-derived metadata stays unchanged.
+Repeat on a later available slot for `best/gyms`, a ranked directory slug and a
+ranked blog slug without exceeding the shared cap. Rollback remains
+`node scripts/content/cli.mjs refresh rollback --snapshot <id> --actor ops:candidate-proof --target staging`.
 
 ## Weakness score (documented, tested)
 
@@ -58,8 +153,8 @@ score = impressions × max(0, expectedCtr(min(position, 8)) − ctr)      over t
 | Guardrail | Enforcement |
 |---|---|
 | Snippet lane stays a snippet | In `snippet` mode, only title, description, intro and `updatedAt` may change. The body after the intro must be byte-identical (`refresh-snippet-overreach`). |
-| Same URL and slug | `extractRefreshedPost` refuses a slug or publish-date change and any other changed post. Kind `refresh` may only `update` an existing `posts` row (`KIND_RULES.refresh`). Reserve refuses a URL that is not `/blog/<slug>`. |
-| Same quality and fact gate as new posts | Kind `refresh` runs the new-post claim linter (`lint: true`), grounding references (`GROUNDED`), the blog repair policy (`POLICY_KIND.refresh = 'blog'`) and the blog review lenses plus one REFRESH lens. It uses the same model, bar and repair budget. |
+| Same URL and slug | `extractRefreshedPost` refuses a slug or publish-date change and any other changed post. Kind `refresh` may only `update` one existing `posts`, `topics`, `services` or `businesses` row (`KIND_RULES.refresh`). Reserve binds dataset, page kind and canonical URL; unknown kinds fail closed. |
+| Same quality and fact gate as new posts | Kind `refresh` runs the new-post claim linter (`lint: true`), grounding references (`GROUNDED`), a one-file refresh repair policy with the same blog repair budget and the blog review lenses plus one REFRESH lens. It uses the same model, bar and repair budget. |
 | Snapshot first, with rollback | `reserveRefresh` writes the snapshot before any generation. The row is immutable (trigger) and is the rollback target. |
 | At most 2 a week | `reserveRefresh` counts `reserved`, `published` and `rolled-back` rows for the target's ISO week under an advisory lock, so the cap holds across runs. It also caps attempts at 4 a week. |
 | Gate failure changes nothing | A gate failure or refusal leaves the submission rejected or blocked and publishes nothing. The snapshot is kept, and the outcome is logged with a reason code from `ops/weekly-digest/lib/plain-english.mjs` (`refresh-*`). |
@@ -88,9 +183,227 @@ score = impressions × max(0, expectedCtr(min(position, 8)) − ctr)      over t
 node scripts/content/cli.mjs refresh rollback --snapshot <id> --actor <who> --target <staging|production>
 ```
 
-This checks that the snapshot revision is intact. It then runs the existing admin rollback, which adds a new revision copying the snapshot payload. After that come the deploy hook and smoke check, and the snapshot is marked `rolled-back`. To list snapshots, use `content refresh list --target <t>`. The general fallback is still `content rollback --dataset posts --key <slug> --to-rev <live_rev from the snapshot>`.
+This checks that the snapshot revision is intact. It then runs the existing admin rollback, which adds a new revision copying the snapshot payload. After that come the deploy hook and smoke check, and the snapshot is marked `rolled-back`. To list snapshots, use `content refresh list --target <t>`. The general fallback is still `content rollback --dataset <snapshot dataset> --key <slug> --to-rev <live_rev from the snapshot>`. Snapshot rollback resolves its own dataset; never substitute `posts` for a guide, service or business.
 
 If the gate stops part-way, the snapshot stays `reserved` and counts toward the cap. To resume, run `content gate --submission <id>` (the id is in `content refresh list`). Otherwise the next plan settles it after 6 hours.
+
+
+## Dataset-backed page kinds
+
+`lib/data.ts` loads the gated JSON datasets; each route's metadata helper is in
+`lib/meta.ts`. No writer can edit application code or create metadata override fields.
+
+| Page | Dataset / file | Editable snippet fields | Preserved fields |
+|---|---|---|---|
+| `/blog/<slug>` | `posts` / `data/posts.json` | title, description, content intro, updatedAt | Existing blog snippet contract; full lane unchanged |
+| `/guide/<topic>` | `topics` / `data/topics.json` | title, description, content intro, updatedAt | Content after the intro, FAQs, answerSummary, quickTips, related slugs, lastUpdated and all other fields |
+| `/best/<service>` | `services` / `data/services.json` | description intro (supplies meta description and rendered intro) | pluralName/name and computed title; answerBlock, sections, comparisonTable and all other fields |
+| `/directory/<slug>` | `businesses` / `data/businesses.json` | description intro (rendered About paragraph) | name and computed title/meta description; address, hours, rating, reviewCount, facts, answerBlock and all other fields |
+| `/` | Code in `app/page.tsx` and `lib/meta.ts` | None; excluded from planning/reserve | No gated homepage snippet dataset exists |
+
+Intro means the bytes before the first `## ` heading, or the first paragraph
+when no such heading exists. The remaining bytes must match the snapshot exactly,
+including for description-backed intros. Service descriptions are currently one
+paragraph. Their names/pluralName are taxonomy, not copy to rewrite. Directory
+meta descriptions are computed from name/rating/hours/address, not the editable
+business description. Those code-derived snippets stay unchanged: changing facts
+or inventing a code-editing lane is outside this refresh.
+
+Non-blog kinds require a leak query or aggregate page totals under the **same**
+rule (position 4–20, >50 impressions, CTR <5%) and always use
+`snippet` mode, even after a prior snippet. They never graduate to a full rewrite.
+Page totals cover demand fragmented or omitted in GSC's page+query rows. When
+only the page qualifies, its highest-impression available query is the target
+(or no target query if GSC supplies none). Titles and descriptions are plain
+text; the shared writer precheck rejects Markdown there before submission.
+Markdown remains supported in posts/topics content.
+The weakness score, minimum impressions, shared 2/week cap, shared 4-attempt cap,
+56-day cooldown and confirmed-live ledger path stay the same. Snapshot identity,
+open-snapshot uniqueness and cooldown are `(dataset, slug)`; ledger identity also
+includes page type so a guide and blog sharing a slug retain both measurements.
+The original's real title (`title`, `pluralName` or `name`) goes through the
+unchanged half-keyword title binding. Every round and repair rechecks dataset,
+mode, original binding, field containment, projected claim lint and storage.
+Non-blog review adds its dataset lenses to all existing blog/refresh lenses;
+review score, model and repair budget stay unchanged.
+
+The launcher validates a four-dataset allowlist and snippet-only mode for non-blog
+requests. Scratch contains exactly one target record in one writable data file;
+references and inventories are read-only under `scripts/`. The trusted runner
+reads only that bounded, regular, no-follow file and grafts the one target onto
+the fresh export. Other scratch data/code never reaches submit. Submission itself
+still rejects second-record edits rather than silently accepting them.
+
+### Exact staging proof handoff (ops worker only)
+
+This builder does not run the VM or mutate staging. After approval to exercise
+staging, use the staging checkout at the reviewed head, matched staging credentials
+and the normal migration command (`node scripts/content/cli.mjs migrate --target staging`).
+Keep the timer disabled. The cap is shared: publish at most two pages in an ISO
+week; rollback still counts. Use guide + best in the first available week and
+directory in the next, or choose two representative kinds if prior runs used slots.
+Never reset snapshots or bypass the cap to complete a proof.
+
+For an on-demand proof, pass `--topic guide/parking-guide` (or `best/gyms`) to
+`content refresh plan`. The runner forwards its `--topic` to that command so
+selection happens before the four-candidate cutoff. Eligibility, score, cooldown
+and caps still apply. Untargeted plans keep the same four highest scores.
+
+For each planned page, use `/guide/parking-guide` (`topics`, `parking-guide`),
+`/best/gyms` (`services`, `gyms`), then `/directory/king-west-village-cleaners`
+(`businesses`, `king-west-village-cleaners`). If a page is not a live leak candidate,
+stop and report that fact rather than widening the selection rule.
+
+```sh
+RUN=$(mktemp -d)
+node scripts/content/refresh-gsc.mjs --out "$RUN/gsc.json"
+node scripts/content/cli.mjs refresh plan --gsc "$RUN/gsc.json" --target staging > "$RUN/plan.json"
+# Set DATASET and SLUG to one of the pairs above.
+DATASET=topics
+SLUG=parking-guide
+node --input-type=module - "$RUN" "$DATASET" "$SLUG" <<'JS'
+import fs from 'node:fs';
+const [dir, dataset, slug] = process.argv.slice(2);
+const plan = JSON.parse(fs.readFileSync(`${dir}/plan.json`));
+const candidate = plan.candidates.find((row) => row.dataset === dataset && row.slug === slug);
+if (!candidate || !plan.remaining || !plan.attemptsLeft) throw new Error('No eligible slot/candidate');
+fs.writeFileSync(`${dir}/candidate.json`, JSON.stringify(candidate));
+JS
+node scripts/content/cli.mjs refresh reserve --candidate "$RUN/candidate.json" --target staging > "$RUN/reserve.json"
+SNAPSHOT=$(node -e 'const r=require(process.argv[1]); if(!r.snapshotId) process.exit(1); console.log(r.snapshotId)' "$RUN/reserve.json")
+node scripts/content/cli.mjs export --root "$RUN/export" --target staging
+cp "$RUN/export/data/$DATASET.json" "$RUN/before.json"
+# Generate/edit after.json through the bounded writer or an operator-reviewed
+# snippet edit; it must preserve every other record and all protected bytes.
+cp "$RUN/before.json" "$RUN/after.json"
+# Make and review the permitted edit in after.json before the following submit.
+node scripts/content/cli.mjs refresh submit --snapshot "$SNAPSHOT" --before "$RUN/before.json" --after "$RUN/after.json" --actor ops:refresh-pages-proof --target staging
+node scripts/content/cli.mjs refresh list --target staging
+# Inspect the staging page's title, meta description and visible intro, plus
+# /content-snapshot/<dataset>.json; compare immutable fields/body to before.json.
+node scripts/content/cli.mjs refresh rollback --snapshot "$SNAPSHOT" --actor ops:refresh-pages-proof --target staging
+# Revisit that exact page and snapshot export; original payload must be restored.
+```
+
+For an end-to-end writer proof, use the installed runner's existing on-demand
+commands **instead of** the manual reservation above (within the same cap):
+
+```sh
+sudo lv-runner run seo-improvements --target staging --topic guide/parking-guide
+sudo lv-runner run seo-improvements --target staging --topic best/gyms
+# In the next ISO week if both prior commands published:
+sudo lv-runner run seo-improvements --target staging --topic directory/king-west-village-cleaners
+node scripts/content/cli.mjs refresh list --target staging
+node scripts/content/cli.mjs refresh rollback --snapshot <snapshot-id-from-list> --actor ops:refresh-pages-proof --target staging
+```
+
+ A canonical URL is also accepted
+and avoids slug ambiguity. Capture the runner's reserve/submit snapshot IDs, its
+`refresh-generator-output` line (no off-target accepted), confirmed-live outcome,
+ledger page type/action type (`guide|best|directory` / `snippet`) and the rollback
+CLI output. A gate refusal or pending propagation is not a publish proof.
+
+### Later
+
+Homepage snippet editing needs a separately designed gated dataset; it remains
+excluded. Independent best-page titles and directory titles/meta descriptions also
+need a gated copy source distinct from protected taxonomy/business facts. This
+slice introduces neither metadata overrides nor code edits.
+
+## Writer prechecks and house voice
+
+`scripts/lib/refresh-precheck.mjs` is the shared deterministic check for the
+isolated writer and trusted submit. It reports all findings without rewriting
+the draft. Storage limits, claim lint, title/topic/business/link binding,
+snippet containment, image availability and unchanged-output checks remain in
+place. The normal gate still runs afterwards with the same policy and budgets.
+
+The October 27 evidence review counted distinct snapshot IDs, rather than
+counting copies of the same run in polling output:
+
+| Recurring code | Snapshots | Evidence files under `/tmp/lv-ops/golive/refresh/` | Existing precheck |
+| --- | --- | --- | --- |
+| `refresh-no-change` | 3 (3, 4, 5) | `three-final.out`, `four-final.out`, `five-final.out` | `extractRefreshedPost` |
+| `refresh-fact-check` | 3 (2, 8, 9) | `two-final.out`, `seven-first-final.out`, `seven-final.out` | `lintPost` on the editable projection |
+| `refresh-unbound` | 2 (10, 11) | `eight-first-final.out`, `eight-final.out` | `refreshBindingErrors` |
+| `refresh-gate-failed` | 2 (12, 13) | `nine-final.out`, `ten-poll.out` | Independent gate review; semantic contradictions require judgment |
+
+The retained subcodes were `unsupported-address` (8, 9) and
+`draft-changed-topic` (10, 11), both already checked by the shared module.
+There was no uncovered recurring mechanical cause to add in this slice.
+Do not replace semantic review with a heuristic or weaken a check to increase
+publication volume.
+
+The weekly digest's **Appendix → Writer diagnostics** counts rejection codes,
+deduplicating each code by target and snapshot/submission. A code seen at least
+twice is labelled **candidate precheck**. Check existing coverage before adding
+a rule; the label is a review queue, with no automatic issue filing. Counts use
+the digest's existing seven-day run window and only the codes retained by the
+runner; old logs with no detailed code cannot be reconstructed.
+
+All blog, news, roundup and refresh writers read `scripts/prompts/lv-voice.md`.
+Its house style is general; field limits and format rules stay in their own
+prompts. `scripts/blog-lint.mjs` uses `scripts/lib/lv-voice-lint.mjs` for banned
+words/phrases, stock framings and em-dash density. It scans reader-facing fields,
+including FAQs and takeaways, without changing their values. Snippet refreshes
+scan only their editable title, description and intro, including the dataset-backed
+guide, best and directory fields listed above. Voice warnings remain warn-only
+for every supported dataset kind. Existing fact lint is
+still blocking as before.
+
+Voice rollout is **warn-only from 2026-10-27**, for at least two weeks (through
+2026-11-10). Warnings appear in lint/writer output and successful submit receipts;
+the runner retains their rule identifiers as `lv-voice-warning` events for the
+digest. No generated prose is included in those events. News draft warnings also
+appear in its existing validation output. A warning never consumes a refresh
+revision or causes a rejection. Review warning volume and refusal rates after
+the two weeks. Nothing enables blocking automatically.
+
+To explicitly enable voice blocking later, change `VOICE_POLICY.blocking` to
+`true` in `scripts/lib/lv-voice-lint.mjs` (one line), or set
+`LV_VOICE_BLOCKING=1` on the trusted submit/gate process. The runner forwards that
+flag to trusted CLI and source commands. The isolated refresh generator uses
+the committed policy; the trusted gate enforces the explicit environment flag
+even when the generator has no such flag. Do not change `LINT_MODE` for this
+rollout: it controls existing claim lint, not the new editorial warnings.
+
+Local focused verification:
+
+```
+LC_ALL=C CONTENT_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres \
+  ~/.pi/agent/bin/memguard -- node --test --test-concurrency=1 \
+  tests/content/lv-voice.test.mjs tests/content/refresh-precheck.test.mjs \
+  tests/runner/refresh-narrow.test.mjs tests/digest/precheck-candidates.test.mjs
+```
+
+### Staging proof handoff (ops worker only)
+
+The builder runs no VM or staging actions. After the PR is merged and the ops
+worker is authorized to update the staging runner, use its normal supported
+refresh workflow, keeping the timer disabled:
+
+1. In the staging checkout, prepare `/tmp/lv-voice-proof.json` containing
+   `{"title":"A vibrant local guide."}`. Run
+   `node scripts/blog-lint.mjs --post /tmp/lv-voice-proof.json`. Expect
+   `lv-voice-warning`, `warnOnlySince: 2026-10-27`, a `WARN` line and exit 0.
+2. Run `LV_VOICE_BLOCKING=1 node scripts/blog-lint.mjs --post /tmp/lv-voice-proof.json`.
+   Expect `voice-banned-phrase` and exit 1. This is a local lint command; do not
+   enable the flag on a staging publishing job during the observation period.
+3. Run the existing staged refresh reservation/submit proof: export the local
+   staging checkout using `node scripts/content/cli.mjs export --root . --target staging`,
+   select a normal ranked candidate using `refresh plan --gsc <staging-gsc.json> --target staging`,
+   then `refresh reserve --candidate <candidate.json> --target staging`. Use the
+   returned snapshot ID with `refresh submit --snapshot <id> --before <before.json>
+   --after <after.json> --actor ops:voice-proof --target staging`. Before/after
+   must be full exports with exactly one allowed target edit. With a harmless
+   banned phrase in an otherwise valid editable field, expect warning identifiers
+   in the receipt while the unchanged normal gate decides the draft. Do not
+   infer gate success from a lint warning or force publication.
+4. Run `node --test tests/digest/precheck-candidates.test.mjs` in the staging
+   checkout. This drives two independent rejected fixture attempts through the
+   normal digest parser/model/HTML renderer (no live data). Confirm the same code counts 2
+   and shows `candidate precheck` in the appendix. A repeated copy of one snapshot
+   must count 1. Confirm an `lv-voice-warning` run event produces the warning line.
 
 ## Schedule
 
@@ -104,3 +417,126 @@ The timer stays **disabled** until the staging proof is accepted. The calendar i
 - backfill: daily 15:37
 
 A run makes at most 4 generator attempts, each capped at about 40 minutes, so it finishes well before the 12:17 news run. The single-instance runner lock (`flock -n`) would otherwise make the news run skip. A Tuesday run lands in the next Monday's digest.
+
+## Four-week follow-up and automatic restore
+
+Before sourcing/planning new refreshes, the weekly runner runs:
+
+```sh
+node scripts/content/cli.mjs refresh evaluate --target staging --expect-db lv_staging
+```
+
+The existing runner lock covers evaluation and planning. Dry runs skip evaluation.
+Apply content migration `0009_refresh_evaluations.sql` before installing this runner.
+It adds one durable decision per snapshot; the table also supplies the writer's
+latest 20 learning lines. No extra service or timer is needed.
+
+Snapshots from `posts`, `topics`, `services` and `businesses` share this evaluator.
+Rollback uses the snapshot id and resolves its own dataset. Only confirmed
+`published` snapshots at least 28 days old qualify. The evaluator
+checks that the current entry's `live_rev` still equals the refresh submission's
+published revision; a later edit, unpublish or rollback is skipped. It measures
+**days +7 through +27** after `closed_at` (the confirmed publication time), leaving
+the first seven days out. It waits until that whole fixed window is at least three
+days old for GSC final data; in practice the first evaluation can be about day 30.
+It does not use a rolling window if a weekly run is late.
+
+The page baseline is the snapshot's original clicks/impressions and position.
+New snapshots retain their GSC start/end dates. Older snapshots use the original
+28-day source window ending three days before reservation. The evaluator fetches
+final GSC aggregates for the exact snapshot URL, plus the entire site's CTR in
+both the baseline and measurement windows (all page kinds, with no blog filter).
+CTR is calculated from clicks divided by impressions, not rounded stored CTR.
+
+```
+adjusted CTR change = (page CTR after / page CTR baseline)
+                      / (site CTR after / site CTR before) - 1
+```
+
+A **lost** result requires at least 200 measurement-window impressions, position
+within ±2 of baseline, and adjusted CTR falling strictly more than 10%. A positive
+adjusted change with the same impression/position guards is **won**. Lower volume,
+a position move over two places, no baseline clicks, or a steady/slightly lower
+adjusted CTR is **inconclusive** and causes no restore. Missing or invalid page,
+site or baseline data defers the decision; a GSC error changes no content.
+
+A loser calls the existing `refresh rollback --snapshot` implementation with actor
+`auto-revert`: same snapshot integrity check, admin revision, deploy hook and smoke.
+The decision is claimed durably before calling rollback, so another evaluation
+never repeats the decision or rollback. A propagation failure is reported as
+pending; the existing deploy retry handles propagation. A failed or interrupted
+restore claim needs operator inspection (do not delete the decision to retry it).
+The evaluator never creates a new refresh submission or loosens a content gate.
+
+Each learning line contains page, old title → new title, raw and adjusted CTR
+change, position change and won/lost/inconclusive. The trusted runner copies at
+most 24 KB into `scripts/refresh-learnings.md` in scratch. Both writer stages read
+the latest 20 lines into their prompt as evidence. `scripts/` remains read-only;
+only the existing `data/` write boundary is available to the writer. The digest
+reports evaluated / reverted / won with plain-English reasons, and distinguishes
+pending/failed restores. Staging measurements are labelled test-site only.
+
+### Staging proof handoff (ops worker only, after authorization)
+
+Do not run these against production. Use the staging runner environment already
+bound to `lv_staging` and its staging site/deploy hook. First apply migrations via
+`node scripts/content/cli.mjs migrate --target staging --expect-db lv_staging`.
+Create a refresh through the usual reserve → sandboxed writer → submit/gate flow
+(the staging on-demand `seo-improvements --topic <ranked-slug>` run is suitable).
+Then find that **published**, still-current snapshot:
+
+```sh
+node scripts/content/cli.mjs refresh list --target staging --expect-db lv_staging
+```
+
+Set `REFRESH_PROOF_SNAPSHOT` to its id. The following synthetic measurement proof
+backdates only the snapshot's mutable confirmation timestamp/baseline and calls
+the evaluator; it uses the real rollback, deploy and smoke, without waiting a month
+or depending on a real CTR loss. Run once in the pinned staging checkout, under
+the runner lock, with no other staging writer running:
+
+```sh
+node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+import { openDb } from './scripts/content/db.mjs';
+import { evaluateRefreshes } from './scripts/content/refresh-evaluate.mjs';
+const db = await openDb({ expectDb: 'lv_staging' });
+try {
+  assert.equal(db.target, 'staging');
+  const id = Number(process.env.REFRESH_PROOF_SNAPSHOT);
+  assert.ok(Number.isSafeInteger(id) && id > 0);
+  const snap = (await db.query(`select s.* from content.refresh_snapshots s
+    join content.submission_items i on i.submission_id=s.submission_id and i.dataset=s.dataset and i.key=s.key
+    join content.entries e on e.dataset=s.dataset and e.key=s.key
+    where s.id=$1 and s.target='staging' and s.state='published' and e.live_rev=i.published_rev`, [id])).rows[0];
+  assert.ok(snap, 'use a still-current published staging refresh');
+  assert.equal((await db.query('select 1 from content.refresh_evaluations where snapshot_id=$1', [id])).rowCount, 0);
+  await db.query(`update content.refresh_snapshots set closed_at=now()-interval '35 days',
+    baseline=$2::json where id=$1`, [id, JSON.stringify({ clicks: 20, impressions: 1000, position: 8 })]);
+  const measure = async (s) => Number(s.id) === id ? {
+    page: { clicks: 16, impressions: 1000, position: 8 },
+    siteBefore: { clicks: 200, impressions: 10000, position: 8 },
+    siteAfter: { clicks: 200, impressions: 10000, position: 8 },
+  } : {};
+  const result = await evaluateRefreshes(db, { target: 'staging', deps: { measure } });
+  console.log(JSON.stringify(result));
+  assert.equal(result.reverted, 1);
+  assert.equal((await db.query('select state from content.refresh_snapshots where id=$1', [id])).rows[0].state, 'rolled-back');
+  const restored = (await db.query(`select r.payload_sha256 from content.entries e
+    join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev
+    where e.dataset=$1 and e.key=$2`, [snap.dataset, snap.key])).rows[0];
+  assert.equal(restored.payload_sha256, snap.payload_sha256);
+  assert.equal((await evaluateRefreshes(db, { target: 'staging', deps: { measure } })).evaluated, 0);
+} finally { await db.close(); }
+JS
+```
+
+Expected: `evaluated:1,reverted:1,won:0`, verdict `lost`, rollbackState `reverted`,
+then `evaluated:0` on retry. Confirm the staging URL for this snapshot returns 200
+and the old title; inspect the `auto-revert` admin action and successful smoke.
+Run the regular `refresh evaluate` CLI once afterward to prove the wrapper is a
+no-op for this id, and include its stdout, the URL/title, and admin revision in
+the ops report. The synthetic call above does not itself emit runner JSONL: to
+prove the digest end to end, capture its outcome as a `refresh-evaluation` event
+in a staging proof log or run a seeded weekly runner fixture; the local verify
+suite already exercises runner-event parsing and digest rendering.

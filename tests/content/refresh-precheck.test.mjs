@@ -32,3 +32,22 @@ test('one revision sees scope, storage, title and image failures together', asyn
   const codes = new Set(result.findings.map((finding) => finding.rule));
   for (const code of ['refresh-snippet-overreach', 'storage', 'draft-changed-topic', 'image-missing']) assert.ok(codes.has(code), code);
 });
+
+test('plain-text business/service descriptions reject Markdown before submit and accept plain prose', () => {
+  for (const dataset of ['businesses', 'services']) {
+    const original = JSON.parse(fs.readFileSync(new URL(`../../data/${dataset}.json`, import.meta.url)))[0];
+    const check = (description) => checkRefreshPreSubmission({
+      item: { dataset, key: original.slug, op: 'update', payload: { ...original, description } },
+      ctx: { refresh: { dataset, original, mode: 'snippet' } }, live: {}, deps: { lintMode: 'fail' },
+    });
+    for (const text of ['**Local guide**.', '*Local guide*.', '__Local guide__.', '_Local guide_.',
+      '[Local guide](/directory/local)', '![Local photo](/photo.jpg)', '`Local guide`',
+      '## Local guide', '- Local guide', '1. Local guide', '> Local guide', '~~Local guide~~']) {
+      const result = check(text);
+      assert.equal(result.ok, false, `${dataset}: ${text}`);
+      assert.ok(result.findings.some((finding) => finding.rule === 'refresh-plain-text-markdown' && finding.field === 'description'), text);
+    }
+    const plain = check('Plan your local visit. Check hours, 5★ reviews & 24/7 options.');
+    assert.equal(plain.ok, true, JSON.stringify(plain));
+  }
+});

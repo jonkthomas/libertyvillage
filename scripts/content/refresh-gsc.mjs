@@ -28,7 +28,7 @@ export async function fetchRefreshRows({ client, now = new Date() }) {
       siteUrl: GSC_SITE,
       requestBody: {
         ...window, dimensions: dims, rowLimit, dataState: 'final',
-        dimensionFilterGroups: [{ filters: [{ dimension: 'page', operator: 'contains', expression: '/blog/' }] }],
+        dimensionFilterGroups: [{ filters: [{ dimension: 'page', operator: 'includingRegex', expression: '^https://(www\\.)?libertyvillage\\.co/((blog|guide|best|directory)/[^/]+/?)?$' }] }],
       },
     });
     return (Array.isArray(response?.data?.rows) ? response.data.rows : []).map((row) => toRow(row, dims));

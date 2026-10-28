@@ -183,9 +183,24 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
         const json = (file, name) => JSON.parse(fs.readFileSync(required(file, name), 'utf8'));
         const snapshotId = () => Number(required(opts.snapshot, '--snapshot'));
         switch (argv[1]) {
-          case 'plan': result = await refresh.planRefresh(db, { target, gsc: json(opts.gsc, '--gsc') }); break;
+          case 'evaluate': result = await (await import('./refresh-evaluate.mjs')).evaluateRefreshes(db, { target }); break;
+          case 'plan': result = await refresh.planRefresh(db, { target, gsc: json(opts.gsc, '--gsc'), topic: opts.topic && opts.topic !== true ? opts.topic : undefined }); break;
           case 'reserve': result = await refresh.reserveRefresh(db, { target, candidate: json(opts.candidate, '--candidate') }); break;
-          case 'submit': ({ result, exitCode } = await refresh.submitRefresh(db, { snapshotId: snapshotId(), before: json(opts.before, '--before'), after: json(opts.after, '--after'), actor: required(actorFor(opts), '--actor') })); break;
+          case 'submit': {
+            const { refreshJudgeEnv } = await import('./refresh-candidate-judge.mjs');
+            const judgeEnv = refreshJudgeEnv(env);
+            // The gate's SDK inherits ambient process.env. Keep this key only
+            // in the scoped judge argument while the submit/gate runs.
+            const ambientJudgeKey = process.env.DEEPSEEK_API_KEY;
+            delete process.env.DEEPSEEK_API_KEY;
+            try {
+              ({ result, exitCode } = await refresh.submitRefresh(db, { snapshotId: snapshotId(), before: json(opts.before, '--before'), after: json(opts.after, '--after'),
+                requireCandidates: opts.candidates === true, judgeEnv, actor: required(actorFor(opts), '--actor') }));
+            } finally {
+              if (ambientJudgeKey !== undefined) process.env.DEEPSEEK_API_KEY = ambientJudgeKey;
+            }
+            break;
+          }
           case 'close': result = await refresh.closeRefresh(db, { snapshotId: snapshotId(), reasonCode: required(opts.reason, '--reason') }); break;
           case 'rollback': ({ result, exitCode } = await refresh.rollbackRefresh(db, { snapshotId: snapshotId(), actor: required(actorFor(opts), '--actor'), reason: opts.reason && opts.reason !== true ? opts.reason : 'refresh rollback' })); break;
           case 'list': result = await refresh.listRefreshes(db, { target, since: opts.since && opts.since !== true ? opts.since : null }); break;

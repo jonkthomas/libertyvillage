@@ -11,10 +11,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { REFRESH_PAGES, refreshPage, refreshKey, refreshBindingRecord } from '../lib/refresh-pages.mjs';
 import { registry } from './canonical.mjs';
 import { getSubmission, readLive, ValidationError } from './store.mjs';
 import { canonicalJson } from '../automation/blog-source-pack.mjs';
 import { refreshFailureDetail } from './refresh-diagnostics.mjs';
+import { CANDIDATE_FIELD, filterRefreshCandidates } from '../lib/refresh-candidates.mjs';
+import { pickRefreshCandidate, refreshJudgeEnv } from './refresh-candidate-judge.mjs';
 import { isoWeekOf } from '../news-pilot/roundup.mjs';
 export { splitIntro } from '../lib/refresh-lint.mjs';
 
@@ -38,7 +41,6 @@ export const isLeakQuery = (row) => {
 export const MODES = Object.freeze(['snippet', 'full']);
 export const actionTypeOf = (mode) => (mode === 'snippet' ? 'snippet' : 'refresh');
 export const SITE = 'https://libertyvillage.co';
-const ROUTE = registry.posts.route;
 const WEEKLY_ROUNDUP = /^liberty-village-news-week-\d{4}-w\d{2}$/;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,127}$/;
 
@@ -59,14 +61,17 @@ export function refreshScore({ impressions, ctr, position }) {
   return Math.max(0, Number(impressions) * (benchmark - Number(ctr)));
 }
 
-export function slugFromPage(page) {
+export function pageFromUrl(page) {
   let url;
   try { url = new URL(page, SITE); } catch { return null; }
   if (url.hostname.replace(/^www\./, '') !== new URL(SITE).hostname) return null;
-  const match = /^\/blog\/([^/]+)\/?$/.exec(url.pathname);
-  return match && SLUG.test(match[1]) ? match[1] : null;
+  const match = /^\/(blog|guide|best|directory)\/([^/]+)\/?$/.exec(url.pathname);
+  if (!match || !SLUG.test(match[2])) return null;
+  const dataset = Object.keys(REFRESH_PAGES).find((key) => REFRESH_PAGES[key].kind === match[1]);
+  return { dataset, slug: match[2], pageKind: match[1] };
 }
 
+export const slugFromPage = (page) => { const parsed = pageFromUrl(page); return parsed?.dataset === 'posts' ? parsed.slug : null; };
 const refreshable = (post) => post && post.category !== 'news' && !WEEKLY_ROUNDUP.test(post.slug ?? '') && !Object.hasOwn(post, 'roundupCoverage');
 const round = (value, dp) => Number(Number(value).toFixed(dp));
 
@@ -74,36 +79,46 @@ const round = (value, dp) => Number(Number(value).toFixed(dp));
 // Rows for the same post (www, trailing slash) are merged impression-weighted.
 // mode: 'snippet' when the page has a leak query and has not had a snippet
 // refresh yet (snippetDone); otherwise 'full'.
-export function rankRefreshCandidates({ gsc, posts, exclude = new Set(), snippetDone = new Set(), limit = REFRESH.candidates }) {
-  const live = new Map((posts ?? []).filter(refreshable).map((post) => [post.slug, post]));
+export function rankRefreshCandidates({ gsc, posts = [], topics = [], services = [], businesses = [], exclude = new Set(), snippetDone = new Set(), topic, limit = REFRESH.candidates }) {
+  const live = new Map(Object.entries({ posts, topics, services, businesses }).flatMap(([dataset, rows]) =>
+    rows.filter((row) => dataset !== 'posts' || refreshable(row)).map((record) => [refreshKey(dataset, record.slug), { dataset, record }])));
+  const excluded = (set, dataset, slug) => set.has(refreshKey(dataset, slug)) || (dataset === 'posts' && set.has(slug));
   const bySlug = new Map();
   for (const row of Array.isArray(gsc?.pages) ? gsc.pages : []) {
-    const slug = slugFromPage(row?.page ?? row?.keys?.[0]);
-    if (!slug || !live.has(slug) || exclude.has(slug)) continue;
+    const page = pageFromUrl(row?.page ?? row?.keys?.[0]);
+    if (!page || !live.has(refreshKey(page.dataset, page.slug)) || excluded(exclude, page.dataset, page.slug)) continue;
+    const key = refreshKey(page.dataset, page.slug);
     const impressions = Number(row.impressions) || 0;
-    const acc = bySlug.get(slug) ?? { clicks: 0, impressions: 0, weighted: 0 };
+    const acc = bySlug.get(key) ?? { clicks: 0, impressions: 0, weighted: 0 };
     acc.clicks += Number(row.clicks) || 0;
     acc.impressions += impressions;
     acc.weighted += (Number(row.position) || 0) * impressions;
-    bySlug.set(slug, acc);
+    bySlug.set(key, acc);
   }
-  const topQuery = new Map();
-  const topLeak = new Map();
-  const better = (map, slug, entry) => { if (!map.has(slug) || entry.impressions > map.get(slug).impressions) map.set(slug, entry); };
+  const topQuery = new Map(), topLeak = new Map();
+  const better = (map, key, entry) => { if (!map.has(key) || entry.impressions > map.get(key).impressions) map.set(key, entry); };
   for (const row of Array.isArray(gsc?.queries) ? gsc.queries : []) {
-    const slug = slugFromPage(row?.page ?? row?.keys?.[0]);
+    const page = pageFromUrl(row?.page ?? row?.keys?.[0]);
     const query = row?.query ?? row?.keys?.[1];
-    if (!slug || typeof query !== 'string' || !query.trim()) continue;
+    if (!page || typeof query !== 'string' || !query.trim()) continue;
+    const key = refreshKey(page.dataset, page.slug);
     const entry = { query: query.trim().slice(0, 200), impressions: Number(row.impressions) || 0 };
-    better(topQuery, slug, entry);
-    if (isLeakQuery(row)) better(topLeak, slug, entry);
+    better(topQuery, key, entry);
+    if (isLeakQuery(row)) better(topLeak, key, entry);
   }
-  return [...bySlug].filter(([, acc]) => acc.impressions >= REFRESH.minImpressions).map(([slug, acc]) => {
-    const baseline = { clicks: acc.clicks, impressions: acc.impressions, ctr: round(acc.clicks / acc.impressions, 4), position: round(acc.weighted / acc.impressions, 1) };
-    const mode = topLeak.has(slug) && !snippetDone.has(slug) ? 'snippet' : 'full';
-    return { slug, url: `${SITE}${ROUTE.replace(':key', slug)}`, score: round(refreshScore(baseline), 2), baseline, mode,
-      targetQuery: (mode === 'snippet' ? topLeak : topQuery).get(slug)?.query ?? null, title: live.get(slug).title };
-  }).filter((candidate) => candidate.score > 0).sort((a, b) => b.score - a.score || b.baseline.impressions - a.baseline.impressions || a.slug.localeCompare(b.slug)).slice(0, limit);
+  return [...bySlug].filter(([, acc]) => acc.impressions >= REFRESH.minImpressions).map(([key, acc]) => {
+    const { dataset, record } = live.get(key), slug = record.slug;
+    // GSC can fragment or omit page+query demand. Apply the same leak rule to
+    // unrounded page totals too; non-blog pages remain snippet-only.
+    const pageLeak = isLeakQuery({ impressions: acc.impressions, ctr: acc.clicks / acc.impressions, position: acc.weighted / acc.impressions });
+    if (dataset !== 'posts' && !topLeak.has(key) && !pageLeak) return null;
+    const baseline = { clicks: acc.clicks, impressions: acc.impressions, ctr: round(acc.clicks / acc.impressions, 4), position: round(acc.weighted / acc.impressions, 1),
+      ...(gsc.startDate && gsc.endDate ? { startDate: gsc.startDate, endDate: gsc.endDate } : {}) };
+    const mode = dataset !== 'posts' || (topLeak.has(key) && !excluded(snippetDone, dataset, slug)) ? 'snippet' : 'full';
+    return { dataset, pageKind: refreshPage(dataset).kind, slug, url: `${SITE}${registry[dataset].route.replace(':key', slug)}`, score: round(refreshScore(baseline), 2), baseline, mode,
+      targetQuery: (mode === 'snippet' ? topLeak : topQuery).get(key)?.query ?? topQuery.get(key)?.query ?? null, title: refreshBindingRecord(record, dataset).title };
+  }).filter((candidate) => candidate && candidate.score > 0 && (!topic || candidate.slug === topic || candidate.url === topic || `${candidate.pageKind}/${candidate.slug}` === topic))
+    .sort((a, b) => b.score - a.score || b.baseline.impressions - a.baseline.impressions || a.url.localeCompare(b.url)).slice(0, limit);
 }
 
 export { RefreshRefused, snippetOverreach, extractRefreshedPost } from '../lib/refresh-precheck.mjs';
@@ -127,7 +142,7 @@ export function summarizeChange(before, after) {
 }
 // Short ledger label so the planner can weigh refreshes by kind of search.
 export const queryType = (query) => (!query ? null : /liberty village|king west|exhibition|near me|toronto/i.test(query) ? 'local-intent' : 'informational');
-const face = (post) => (post ? { title: post.title ?? null, description: post.description ?? null } : null);
+const face = (post, dataset = 'posts') => (post ? { title: refreshBindingRecord(post, dataset).title ?? null, description: post.description ?? null } : null);
 
 const n = (value) => (value == null ? null : Number(value));
 const one = async (db, sql, params) => (await db.query(sql, params)).rows[0];
@@ -142,15 +157,15 @@ async function weekUsage(c, target, isoWeek) {
 
 // Rank this week's candidates. Settles abandoned snapshots first so a crashed run
 // neither holds a post forever nor loses a refresh that did publish.
-export async function planRefresh(db, { target = db.target, now = new Date(), gsc, env = process.env, deps = {}, checkout = process.cwd() }) {
+export async function planRefresh(db, { target = db.target, now = new Date(), gsc, topic, env = process.env, deps = {}, checkout = process.cwd() }) {
   const settled = await settleStaleRefreshes(db, { target, now, env, deps, checkout });
   const isoWeek = weekOf(now);
   const usage = await weekUsage(db, target, isoWeek);
-  const snippetDone = new Set((await db.query("select distinct key from content.refresh_snapshots where target=$1 and mode='snippet' and state in ('published','rolled-back')", [target])).rows.map((row) => row.key));
-  const recent = (await db.query(`select key from content.refresh_snapshots where target=$1 and (state='reserved'
-    or (state in ('published','rolled-back') and created_at > $2::timestamptz - make_interval(days => $3)))`, [target, now, REFRESH.cooldownDays])).rows.map((row) => row.key);
-  const posts = (await readLive(db, { datasets: ['posts'] })).datasets.posts.records;
-  const candidates = rankRefreshCandidates({ gsc, posts, exclude: new Set(recent), snippetDone });
+  const snippetDone = new Set((await db.query("select distinct dataset,key from content.refresh_snapshots where target=$1 and mode='snippet' and state in ('published','rolled-back')", [target])).rows.map((row) => refreshKey(row.dataset, row.key)));
+  const recent = (await db.query(`select dataset,key from content.refresh_snapshots where target=$1 and (state='reserved'
+    or (state in ('published','rolled-back') and created_at > $2::timestamptz - make_interval(days => $3)))`, [target, now, REFRESH.cooldownDays])).rows.map((row) => refreshKey(row.dataset, row.key));
+  const live = (await readLive(db, { datasets: Object.keys(REFRESH_PAGES) })).datasets;
+  const candidates = rankRefreshCandidates({ gsc, topic, ...Object.fromEntries(Object.entries(live).map(([dataset, value]) => [dataset, value.records])), exclude: new Set(recent), snippetDone });
   return {
     isoWeek, remaining: Math.max(0, REFRESH.weeklyCap - usage.refreshes), attemptsLeft: Math.max(0, REFRESH.weeklyAttempts - usage.attempts),
     candidates, settled,
@@ -161,9 +176,13 @@ export async function planRefresh(db, { target = db.target, now = new Date(), gs
 export async function reserveRefresh(db, { target = db.target, now = new Date(), candidate }) {
   const slug = candidate?.slug;
   if (typeof slug !== 'string' || !SLUG.test(slug)) throw new ValidationError('refresh candidate slug required');
-  const url = `${SITE}${ROUTE.replace(':key', slug)}`;
+  const dataset = candidate.dataset ?? 'posts';
+  if (!Object.hasOwn(REFRESH_PAGES, dataset) || (candidate.pageKind !== undefined && candidate.pageKind !== refreshPage(dataset).kind)) throw new RefreshRefused('refresh-url-mismatch');
+  const page = refreshPage(dataset);
+  const url = `${SITE}${registry[dataset].route.replace(':key', slug)}`;
   if (candidate.url && candidate.url !== url) throw new RefreshRefused('refresh-url-mismatch');
-  const mode = candidate.mode ?? 'full';
+  const mode = candidate.mode ?? (dataset === 'posts' ? 'full' : 'snippet');
+  if (dataset !== 'posts' && mode !== 'snippet') throw new RefreshRefused('refresh-snippet-overreach');
   if (!MODES.includes(mode)) throw new ValidationError('refresh mode must be snippet or full');
   const isoWeek = weekOf(now);
   return db.tx(async (c) => {
@@ -171,16 +190,17 @@ export async function reserveRefresh(db, { target = db.target, now = new Date(),
     const usage = await weekUsage(c, target, isoWeek);
     if (usage.refreshes >= REFRESH.weeklyCap || usage.attempts >= REFRESH.weeklyAttempts) return { capReached: true, isoWeek, ...usage };
     const live = await one(c, `select e.live_rev, r.payload, r.payload_sha256 from content.entries e
-      join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev where e.dataset='posts' and e.key=$1 for update of e`, [slug]);
+      join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev where e.dataset=$2 and e.key=$1 for update of e`, [slug, dataset]);
     if (!live) return { refused: 'refresh-not-live', slug };
-    if (!refreshable(live.payload)) return { refused: 'refresh-not-eligible', slug };
-    if (await one(c, "select 1 from content.refresh_snapshots where target=$1 and key=$2 and state='reserved'", [target, slug])) return { refused: 'refresh-already-open', slug };
-    const baseline = candidate.baseline ? Object.fromEntries(['clicks', 'impressions', 'ctr', 'position'].map((k) => [k, candidate.baseline[k] ?? null])) : null;
-    const row = await one(c, `insert into content.refresh_snapshots(target,iso_week,key,url,live_rev,payload,payload_sha256,target_query,baseline,score,mode)
-      values($1,$2,$3,$4,$5,$6::json,$7,$8,$9::json,$10,$11) returning id`, [target, isoWeek, slug, url, live.live_rev, JSON.stringify(live.payload),
-      live.payload_sha256, candidate.targetQuery ?? null, baseline && JSON.stringify(baseline), candidate.score ?? null, mode]);
-    return { snapshotId: n(row.id), slug, url, isoWeek, mode, liveRev: n(live.live_rev), payloadSha256: live.payload_sha256,
-      idempotencyKey: refreshIdempotencyKey(target, n(row.id)), targetQuery: candidate.targetQuery ?? null, before: face(live.payload) };
+    if (dataset === 'posts' && !refreshable(live.payload)) return { refused: 'refresh-not-eligible', slug };
+    if (await one(c, "select 1 from content.refresh_snapshots where target=$1 and key=$2 and dataset=$3 and state='reserved'", [target, slug, dataset])) return { refused: 'refresh-already-open', slug };
+    if (await one(c, "select 1 from content.refresh_snapshots where target=$1 and dataset=$2 and key=$3 and state in ('published','rolled-back') and created_at > $4::timestamptz - make_interval(days => $5)", [target, dataset, slug, now, REFRESH.cooldownDays])) return { refused: 'refresh-cooldown', slug };
+    const baseline = candidate.baseline ? Object.fromEntries(['clicks', 'impressions', 'ctr', 'position', ...(['startDate', 'endDate'].filter((k) => candidate.baseline[k]))].map((k) => [k, candidate.baseline[k] ?? null])) : null;
+    const row = await one(c, `insert into content.refresh_snapshots(target,iso_week,key,url,live_rev,payload,payload_sha256,target_query,baseline,score,mode,dataset)
+      values($1,$2,$3,$4,$5,$6::json,$7,$8,$9::json,$10,$11,$12) returning id`, [target, isoWeek, slug, url, live.live_rev, JSON.stringify(live.payload),
+      live.payload_sha256, candidate.targetQuery ?? null, baseline && JSON.stringify(baseline), candidate.score ?? null, mode, dataset]);
+    return { snapshotId: n(row.id), dataset, pageKind: page.kind, slug, url, isoWeek, mode, liveRev: n(live.live_rev), payloadSha256: live.payload_sha256,
+      idempotencyKey: refreshIdempotencyKey(target, n(row.id)), targetQuery: candidate.targetQuery ?? null, before: face(live.payload, dataset) };
   });
 }
 
@@ -217,10 +237,11 @@ async function defaultRecordAction(db, action) {
 export async function closeRefresh(db, { snapshotId, submissionId = null, reasonCode = null, refusalDetail = null, now = new Date(), deps = {} }) {
   const snap = await getSnapshot(db, snapshotId);
   const result = (row, extra = {}) => ({
-    snapshotId: n(row.id), slug: row.key, url: row.url, target: row.target, isoWeek: row.iso_week, mode: row.mode, actionType: actionTypeOf(row.mode),
+    snapshotId: n(row.id), dataset: row.dataset, pageKind: refreshPage(row.dataset).kind, slug: row.key, url: row.url, target: row.target, isoWeek: row.iso_week, mode: row.mode, actionType: actionTypeOf(row.mode),
     state: row.state, reasonCode: row.reason_code,
     submissionId: n(row.submission_id), baseline: row.baseline, targetQuery: row.target_query,
-    before: row.summary?.before ?? face(row.payload), after: row.summary?.after ?? null, change: row.summary?.change ?? null,
+    before: row.summary?.before ?? face(row.payload, row.dataset), after: row.summary?.after ?? null, change: row.summary?.change ?? null,
+    ...(row.summary?.candidateSelection ? { candidateSelection: row.summary.candidateSelection } : {}),
     ...(row.summary?.refusalDetail ? { refusalDetail: row.summary.refusalDetail } : {}), ...extra,
   });
   if (snap.state !== 'reserved') return result(snap, { existing: true });
@@ -238,8 +259,8 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
       // Only a confirmed live page closes as published (cooldown, ledger, digest);
       // until then the snapshot stays open and the next submit/plan resumes propagation.
       if (!submission.smoke_passed_at) return result(snap, { pending: true, submissionId, reasonCode: propagationReason(submission) });
-      const item = items.find((entry) => entry.dataset === 'posts' && entry.key === snap.key);
-      after = (await one(db, 'select payload from content.revisions where dataset=$1 and key=$2 and rev=$3', ['posts', snap.key, item.published_rev])).payload;
+      const item = items.find((entry) => entry.dataset === snap.dataset && entry.key === snap.key);
+      after = (await one(db, 'select payload from content.revisions where dataset=$1 and key=$2 and rev=$3', [snap.dataset, snap.key, item.published_rev])).payload;
       state = 'published';
       reason = null;
     } else {
@@ -247,7 +268,8 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
       refusalDetail = rounds.at(-1)?.lint?.refusalDetail;
     }
   }
-  const summary = { before: face(snap.payload), after: face(after), change: summarizeChange(snap.payload, after) };
+  const summary = { before: face(snap.payload, snap.dataset), after: face(after, snap.dataset), change: summarizeChange(snap.payload, after) };
+  if (snap.summary?.candidateSelection) summary.candidateSelection = snap.summary.candidateSelection;
   const safeDetail = refreshFailureDetail(refusalDetail?.failures);
   if (safeDetail) summary.refusalDetail = safeDetail;
   const closed = (await db.query(`update content.refresh_snapshots set state=$2, reason_code=$3, submission_id=$4, summary=$5::json, closed_at=$6
@@ -257,9 +279,10 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
   if (state === 'published') {
     try {
       await (deps.recordAction ?? defaultRecordAction)(db, {
-        actionKind: 'refresh', actionType: actionTypeOf(snap.mode), slug: snap.key, url: snap.url, pageType: 'blog', targetQuery: snap.target_query,
+        actionKind: 'refresh', actionType: actionTypeOf(snap.mode), slug: snap.key, url: snap.url, pageType: refreshPage(snap.dataset).kind, targetQuery: snap.target_query,
         queryType: queryType(snap.target_query), actedAt: now, baseline: snap.baseline,
-        details: { actionType: actionTypeOf(snap.mode), snapshotId: n(snap.id), submissionId, before: summary.before, after: summary.after, change: summary.change },
+        details: { actionType: actionTypeOf(snap.mode), snapshotId: n(snap.id), submissionId, before: summary.before, after: summary.after, change: summary.change,
+          ...(summary.candidateSelection ? { candidateSelection: summary.candidateSelection } : {}) },
       });
       ledger = 'recorded';
     } catch { ledger = 'unavailable'; }   // the refresh already published; measurement is best effort
@@ -271,7 +294,11 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
 // publish, deploy hook, smoke) -> closed snapshot. deps.gate reaches gateContent
 // (review/fix/smoke seams), deps.recordAction the ledger. Exit 0 published, 2 refused
 // or rejected (nothing published), 3 published with propagation pending.
-export async function submitRefresh(db, { snapshotId, before, after, actor, env = process.env, deps = {}, checkout = process.cwd(), now = new Date() }) {
+export async function submitRefresh(db, { snapshotId, before, after, actor, requireCandidates = false, env = process.env, judgeEnv = refreshJudgeEnv(env), deps = {}, checkout = process.cwd(), now = new Date() }) {
+  // The gate keeps its own unchanged credentials/model and never receives this key.
+  const gateEnv = { ...env };
+  delete gateEnv.DEEPSEEK_API_KEY;
+  env = gateEnv;
   const snap = await getSnapshot(db, snapshotId);
   if (snap.state !== 'reserved') return { result: await closeRefresh(db, { snapshotId, deps }), exitCode: snap.state === 'published' ? 0 : 2 };
   const close = async (fields) => closeRefresh(db, { snapshotId, now, deps, ...fields });
@@ -281,27 +308,47 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
   if (existing) return gateAndClose(db, { snapshotId, submissionId: n(existing.id), actor, env, deps, checkout, now });
   let record;
   try {
-    record = extractRefreshedPost({ before, after, slug: snap.key, mode: snap.mode });
+    if (snap.mode === 'snippet' && (requireCandidates || (Array.isArray(after) && after.some((row) => Object.hasOwn(row ?? {}, CANDIDATE_FIELD))))) {
+      const snapshot = await readLive(db);
+      const live = Object.fromEntries(Object.entries(snapshot.datasets).map(([dataset, value]) => [dataset, value.records]));
+      const filtered = await filterRefreshCandidates({ before, after, slug: snap.key, dataset: snap.dataset,
+        query: snap.target_query ?? '', live, now: now.toISOString(), deps: { lintMode: 'fail' } });
+      let picked = null;
+      if (filtered.survivors.length) {
+        // Claim the one allowed judge invocation before calling the provider.
+        // A retry after interruption falls back rather than spending twice.
+        const claimed = await one(db, "update content.refresh_snapshots set summary=jsonb_set(coalesce(summary::jsonb,'{}'::jsonb),'{candidateJudgeAttempted}','true'::jsonb)::json where id=$1 and state='reserved' and (summary::jsonb->>'candidateJudgeAttempted') is distinct from 'true' returning id", [snap.id]);
+        picked = await pickRefreshCandidate({ survivors: filtered.survivors, dataset: snap.dataset,
+          query: snap.target_query ?? '', env: judgeEnv, judge: claimed ? deps.candidateJudge : async () => null });
+        if (!claimed) Object.assign(picked.audit, { status: 'fallback-attempt-limit', reason: 'Used the first survivor because this attempt already used its judge invocation.' });
+      }
+      const candidateSelection = { ...(picked?.audit ?? { status: 'refused', survivorIds: [] }), dropped: filtered.dropped };
+      await db.query("update content.refresh_snapshots set summary=jsonb_set(coalesce(summary::jsonb,'{}'::jsonb),'{candidateSelection}',$2::jsonb)::json where id=$1 and state='reserved'", [snap.id, JSON.stringify(candidateSelection)]);
+      if (!picked) return { result: await close({ reasonCode: 'refresh-no-candidates' }), exitCode: 2 };
+      after = after.map((row) => row?.slug === snap.key ? picked.record : row);
+    }
+    record = extractRefreshedPost({ before, after, slug: snap.key, mode: snap.mode, dataset: snap.dataset });
   } catch (error) {
     if (error.code !== 'RefreshRefused') throw error;
     return { result: { ...await close({ reasonCode: error.reason }), refusalDetail: error.detail }, exitCode: 2 };
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-refresh-'));
   let submissionId;
+  let voiceWarnings;
   try {
     const recordFile = path.join(dir, 'post.json');
     const baseline = path.join(dir, 'baseline.json');
     fs.writeFileSync(recordFile, JSON.stringify(record));
     // Baseline = the snapshot itself: a live row that moved since then is a conflict, never overwritten.
-    fs.writeFileSync(baseline, JSON.stringify({ snapshot_id: null, datasets: { posts: { entries: { [snap.key]: { rev: snap.live_rev, sha: snap.payload_sha256 } } } } }));
+    fs.writeFileSync(baseline, JSON.stringify({ snapshot_id: null, datasets: { [snap.dataset]: { entries: { [snap.key]: { rev: snap.live_rev, sha: snap.payload_sha256 } } } } }));
     const { submitContent } = await import('./submit.mjs');
     try {
       // context.refresh binds the snapshot (mode + original post) to the submission:
       // the kind policy re-checks snippet scope and original-post binding at submit,
       // on every fixer plan and on every gate round, so a repair cannot widen it.
-      ({ result: { submissionId } } = await submitContent(db, {
-        kind: 'refresh', idempotencyKey: refreshIdempotencyKey(snap.target, snap.id), actor, root: checkout, recordFile, dataset: 'posts', baseline,
-        refresh: { snapshotId: n(snap.id), mode: snap.mode, original: snap.payload },
+      ({ result: { submissionId, voiceWarnings } } = await submitContent(db, {
+        kind: 'refresh', idempotencyKey: refreshIdempotencyKey(snap.target, snap.id), actor, root: checkout, recordFile, dataset: snap.dataset, baseline,
+        refresh: { snapshotId: n(snap.id), dataset: snap.dataset, mode: snap.mode, original: snap.payload },
       }, { env, checkout }));
     } catch (error) {
       if (!['ValidationError', 'ConflictError'].includes(error.code)) throw error;
@@ -309,7 +356,9 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   if (submissionId == null) return { result: await close({ reasonCode: 'refresh-no-change' }), exitCode: 2 };
-  return gateAndClose(db, { snapshotId, submissionId, actor, env, deps, checkout, now });
+  const gated = await gateAndClose(db, { snapshotId, submissionId, actor, env, deps, checkout, now });
+  if (voiceWarnings) gated.result.voiceWarnings = voiceWarnings;
+  return gated;
 }
 
 // gateContent resumes any state: open/gating rounds, or a published submission's
@@ -347,10 +396,10 @@ export async function settleStaleRefreshes(db, { target = db.target, now = new D
 // (new revision copying the snapshot revision, deploy hook, smoke).
 export async function rollbackRefresh(db, { snapshotId, actor, reason = 'refresh rollback', env = process.env, deps = {} }) {
   const snap = await getSnapshot(db, snapshotId);
-  const rev = await one(db, 'select payload_sha256, published_at from content.revisions where dataset=$1 and key=$2 and rev=$3', ['posts', snap.key, snap.live_rev]);
+  const rev = await one(db, 'select payload_sha256, published_at from content.revisions where dataset=$1 and key=$2 and rev=$3', [snap.dataset, snap.key, snap.live_rev]);
   if (!rev || rev.payload_sha256 !== snap.payload_sha256) throw new ValidationError('snapshot revision mismatch');
   const { adminContent } = await import('./deploy.mjs');
-  const admin = await adminContent(db, { op: 'rollback', dataset: 'posts', key: snap.key, toRev: snap.live_rev, actor, reason,
+  const admin = await adminContent(db, { op: 'rollback', dataset: snap.dataset, key: snap.key, toRev: snap.live_rev, actor, reason,
     idempotencyKey: `refresh-rollback:${snap.target}:${snap.id}` }, { env, deps: deps.gate ?? {} });
   await db.query("update content.refresh_snapshots set state='rolled-back', rolled_back_at=coalesce(rolled_back_at, now()), closed_at=coalesce(closed_at, now()) where id=$1", [snap.id]);
   return { result: { snapshotId: n(snap.id), slug: snap.key, restoredRev: snap.live_rev, ...admin.result }, exitCode: admin.exitCode };
@@ -358,7 +407,7 @@ export async function rollbackRefresh(db, { snapshotId, actor, reason = 'refresh
 
 export async function listRefreshes(db, { target = db.target, since = null } = {}) {
   return (await db.query(`select * from content.refresh_snapshots where target=$1 and ($2::timestamptz is null or created_at >= $2) order by id`, [target, since])).rows
-    .map((row) => ({ snapshotId: n(row.id), slug: row.key, url: row.url, isoWeek: row.iso_week, mode: row.mode, state: row.state, reasonCode: row.reason_code,
+    .map((row) => ({ snapshotId: n(row.id), dataset: row.dataset, pageKind: refreshPage(row.dataset).kind, slug: row.key, url: row.url, isoWeek: row.iso_week, mode: row.mode, state: row.state, reasonCode: row.reason_code,
       submissionId: n(row.submission_id), liveRev: row.live_rev, baseline: row.baseline, targetQuery: row.target_query, summary: row.summary,
       createdAt: row.created_at, closedAt: row.closed_at, rolledBackAt: row.rolled_back_at }));
 }
@@ -422,7 +471,7 @@ export function refreshFailureCause(value) {
 }
 export function refreshLogLine(o) {
   return {
-    snapshotId: o.snapshotId ?? null, slug: o.slug ?? null, url: o.url ?? null, mode: MODES.includes(o.mode) ? o.mode : null,
+    snapshotId: o.snapshotId ?? null, dataset: o.dataset ?? 'posts', pageKind: o.pageKind ?? 'blog', slug: o.slug ?? null, url: o.url ?? null, mode: MODES.includes(o.mode) ? o.mode : null,
     actionType: MODES.includes(o.mode) ? actionTypeOf(o.mode) : null, state: o.pending ? 'pending' : o.state ?? null, reasonCode: o.reasonCode ?? null,
     submissionId: o.submissionId ?? null, targetQuery: clip(o.targetQuery, 200), baseline: o.baseline ?? null,
     before: clipFace(o.before), after: clipFace(o.after), change: clip(o.change, 300),

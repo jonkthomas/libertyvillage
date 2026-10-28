@@ -6,6 +6,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { constants as osConstants } from 'node:os';
 
+// The installed runner is a standalone file; keep its path allowlist local.
+function refreshFileFor(dataset = 'posts') {
+  if (!['posts', 'topics', 'services', 'businesses'].includes(dataset)) throw new Error('unknown refresh dataset');
+  return `data/${dataset}.json`;
+}
+
 export const JOBS = Object.freeze({
   'topic-discovery': { calendar: 'Mon *-*-* 10:00:00 UTC', kind: 'topic-discovery' },
   // Refresh loop (docs/runbooks/refresh-loop.md); the timer stays disabled until a staging proof.
@@ -21,7 +27,7 @@ export const JOBS = Object.freeze({
   'deploy-retry': { calendar: null, kind: null },
 });
 export const PUBLIC_REMOTE = 'https://github.com/jonkthomas/libertyvillage.git';
-const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV'];
+const BASE_ENV = ['PATH', 'HOME', 'LANG', 'TZ', 'NODE_ENV', 'LV_VOICE_BLOCKING'];
 const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DB_NAME', 'CONTENT_TARGET', 'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'CONTENT_DEPLOY_HOOK_URL', 'SLACK_WEBHOOK_URL', 'INDEXNOW_ENABLED'];
 const SOURCE_ENV = {
   'topic-discovery': ['CONTENT_DATABASE_URL', 'CONTENT_DB_NAME', 'GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE', 'SERPAPI_API_KEY'],
@@ -137,8 +143,10 @@ export function acceptGeneratedOutput(scratch, trusted, job, paths, exportedPost
   // refreshDeps grafts the target into the export before writing the checkout.
   // Other data, reports, images and code remain disposable in scratch.
   if (job === 'seo-improvements' && refresh) {
-    return { posts: paths.includes('data/posts.json')
-      ? readBoundedJson(path.join(scratch, 'data/posts.json'), 20 * 1024 * 1024) : exportedPosts };
+    const dataset = typeof refresh === 'object' ? refresh.dataset ?? 'posts' : 'posts';
+    refreshFileFor(dataset);
+    const file = `data/${dataset}.json`;
+    return { posts: paths.includes(file) ? readBoundedJson(path.join(scratch, file), 20 * 1024 * 1024) : exportedPosts };
   }
   // Validate type, symlinks and aggregate bytes before any untrusted JSON read.
   const changed = copyGenerated(scratch, trusted, job, paths);
@@ -224,6 +232,8 @@ export function summarizeNewsDecision(result) {
   return { published: result.published === 1 ? 1 : 0, considered: Number(result.considered) || 0, refusals };
 }
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
+export const refreshCommandEnv = (env, args) => ({ ...trustedEnv(env),
+  ...(args[0] === 'refresh' && args[1] === 'submit' ? childEnv(env, ['DEEPSEEK_API_KEY']) : {}) });
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
 // The root-owned generator helper's environment (it adds nothing secret itself).
 export const generatorEnv = (env) => childEnv(env, ['PATH', 'HOME', 'LANG', 'TZ']);
@@ -305,7 +315,7 @@ const gitEnv = childEnv(process.env, ['PATH', 'HOME', 'LANG', 'TZ']);
 const logLine = (file, event, details = {}) => fs.appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), event, ...details })}\n`, { mode: 0o600 });
 
 function cli(args, root = repo, allowed = []) {
-  return command(node, ['scripts/content/cli.mjs', ...args], { cwd: root, env: trustedEnv(process.env), allowExit: allowed });
+  return command(node, ['scripts/content/cli.mjs', ...args], { cwd: root, env: refreshCommandEnv(process.env, args), allowExit: allowed });
 }
 
 function checkout(target, log) {
@@ -391,10 +401,14 @@ export function copyScratchTree(from, to) {
 export const REFRESH_RUNTIME_FILES = [
   'scripts/seo-improve-agent.js',
   'scripts/prompts/seo-refresh-system.md',
+  'scripts/prompts/lv-voice.md',
+  'scripts/lib/lv-voice-lint.mjs',
   'scripts/blog-lint.mjs',
   'scripts/lib/referenced-businesses.mjs',
   'scripts/lib/refresh-lint.mjs',
+  'scripts/lib/refresh-pages.mjs',
   'scripts/lib/refresh-precheck.mjs',
+  'scripts/lib/refresh-candidates.mjs',
   'scripts/lib/topic-key.mjs',
   'scripts/content/validate.mjs',
   'scripts/content/canonical.mjs',
@@ -408,7 +422,10 @@ export const REFRESH_RUNTIME_FILES = [
 export function prepareGeneratorScratch(from, to, refresh = null) {
   if (!refresh) return copyScratchTree(from, to);
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(refresh.slug ?? '')) throw new Error('invalid refresh slug');
-  const targets = readJson(path.join(from, 'data/posts.json')).filter((post) => post.slug === refresh.slug);
+  const dataset = refresh.dataset ?? 'posts';
+  refreshFileFor(dataset);
+  if (dataset !== 'posts' && refresh.mode !== 'snippet') throw new Error('non-blog refresh must use snippet mode');
+  const targets = readJson(path.join(from, `data/${dataset}.json`)).filter((post) => post.slug === refresh.slug);
   if (targets.length !== 1) throw new Error('refresh target missing or duplicated');
   for (const rel of REFRESH_RUNTIME_FILES) {
     fs.mkdirSync(path.dirname(path.join(to, rel)), { recursive: true });
@@ -418,10 +435,15 @@ export function prepareGeneratorScratch(from, to, refresh = null) {
   // Keep it outside writable data/: only posts.json can be changed by the writer.
   const businesses = readJson(path.join(from, 'data/businesses.json'));
   if (!Array.isArray(businesses)) throw new Error('refresh business records missing');
+  // Read-only evidence under the existing scripts/ sandbox boundary, bounded to 20 lines.
+  const learningLines = String(refresh.learnings ?? '').split('\n').slice(-20);
+  while (Buffer.byteLength(learningLines.join('\n')) > 24000) learningLines.shift();
+  fs.writeFileSync(path.join(to, 'scripts/refresh-learnings.md'), learningLines.join('\n'));
   fs.writeFileSync(path.join(to, 'scripts/refresh-businesses.json'), JSON.stringify(businesses) + '\n');
   // Link and image inventories are trusted, read-only evidence outside data/.
-  const live = Object.fromEntries(['posts', 'services', 'topics'].map((dataset) => [dataset,
+  const live = Object.fromEntries(['posts', 'services', 'topics', 'buildings', 'neighborhoods'].map((dataset) => [dataset,
     readJson(path.join(from, `data/${dataset}.json`)).map((record) => ({ slug: record.slug,
+      title: record.title, pluralName: record.pluralName, name: record.name, metaTitle: record.metaTitle,
       ...(Object.hasOwn(record, 'roundupCoverage') ? { roundupCoverage: record.roundupCoverage } : {}) }))]));
   const sourceRef = refresh.target === 'production' ? 'origin/main' : refresh.target === 'staging' ? 'origin/staging' : 'HEAD';
   const tracked = spawnSync('git', ['ls-tree', '-r', '-z', sourceRef, '--', 'public/images'], { cwd: from, encoding: 'utf8' });
@@ -437,7 +459,7 @@ export function prepareGeneratorScratch(from, to, refresh = null) {
   // metadata, settings or skills enter this scratch tree.
   copyScratchTree(fs.realpathSync(path.join(from, 'node_modules')), path.join(to, 'node_modules'));
   fs.mkdirSync(path.join(to, 'data'), { recursive: true });
-  fs.writeFileSync(path.join(to, 'data/posts.json'), JSON.stringify(targets) + '\n');
+  fs.writeFileSync(path.join(to, `data/${dataset}.json`), JSON.stringify(targets) + '\n');
 }
 
 // Scratch Git metadata is untrusted after the SDK runs. Inspect only a small,
@@ -465,7 +487,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
     fs.rmSync(scratch, { recursive: true, force: true });
     fs.mkdirSync(scratch, { recursive: true, mode: 0o700 });
     prepareGeneratorScratch(repo, scratch, topic?.refresh);
-    const exportedPosts = job === 'weekly-blog' || topic?.refresh ? readJson(path.join(repo, 'data', 'posts.json')) : null;
+    const exportedPosts = job === 'weekly-blog' || topic?.refresh ? readJson(path.join(repo, 'data', `${topic?.refresh?.dataset ?? 'posts'}.json`)) : null;
     const requestDir = path.join(stateRoot, 'generator-requests');
     fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(path.join(requestDir, `${slot}.json`), `${JSON.stringify({ topic: topic?.title ?? '', dryRun, ...(topic?.refresh ? { refresh: topic.refresh } : {}) })}\n`, { mode: 0o600 });
@@ -489,7 +511,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
       // The isolated tree intentionally has no Git checkout. Only its one
       // bounded output is read; refreshDeps retains the strict graft backstop.
       stage = 'output-read';
-      const output = acceptGeneratedOutput(scratch, repo, job, ['data/posts.json'], exportedPosts, true);
+      const output = acceptGeneratedOutput(scratch, repo, job, [`data/${topic.refresh.dataset ?? 'posts'}.json`], exportedPosts, topic.refresh);
       logLine(log, 'generator-output-accepted', { paths: 0 });
       return output;
     }
@@ -560,6 +582,7 @@ function submitAndGate(job, target, slot, log, extra = [], onSubmission = null) 
   const identity = slotKey(job, target, slot);
   const actor = `runner:${job}#${slot}`;
   const submitted = parseJson(cli(['submit', '--dir', '.', '--kind', kind, '--idempotency-key', identity, '--actor', actor, ...extra]).stdout);
+  if (submitted.voiceWarnings) logLine(log, 'lv-voice-warning', submitted.voiceWarnings);
   const id = submitted.submissionId;
   logLine(log, 'submission', { id });
   if (id == null) return { id: null, success: true };
@@ -990,6 +1013,7 @@ function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing
     }
     throw error;
   }
+  if (submitted.voiceWarnings) deps.log('lv-voice-warning', submitted.voiceWarnings);
   if (submitted.submissionId == null) return fail('no-submission');
   deps.log('submission', { id: submitted.submissionId });
   call('attach', ['--idempotency-key', key, '--token', token, '--submission-id', submitted.submissionId]);
@@ -1727,14 +1751,14 @@ async function cadenceDeps(job, target, slot, log) {
 // sandboxed generator -> trusted `content refresh submit` (same-slug check,
 // refresh gate, publish, deploy hook, smoke, ledger). A dry run only plans;
 // an on-demand --topic names the one ranked slug to refresh.
-function refreshTargetDiff(before, emitted) {
+function refreshTargetDiff(before, emitted, dataset = 'posts') {
   const fields = (post) => {
-    const content = String(post.content ?? '');
+    const content = String((dataset === 'services' || dataset === 'businesses' ? post.description : post.content) ?? '');
     // Match refresh.mjs splitIntro: before the first ## heading, otherwise
     // the first paragraph. Never retain field text in the diagnostic.
     const heading = /^## /m.exec(content);
     const cut = heading ? heading.index : (content.indexOf('\n\n') >= 0 ? content.indexOf('\n\n') : content.length);
-    return { title: String(post.title ?? ''), description: String(post.description ?? ''), intro: content.slice(0, cut) };
+    return { title: String(post[dataset === 'services' ? 'pluralName' : dataset === 'businesses' ? 'name' : 'title'] ?? ''), description: String(post.description ?? ''), intro: content.slice(0, cut) };
   };
   const prior = fields(before), next = fields(emitted);
   return {
@@ -1745,21 +1769,21 @@ function refreshTargetDiff(before, emitted) {
   };
 }
 
-export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, writePosts, log }) {
+export function refreshDeps({ target, slot, request, run, cli, export: exportData, generate, readPosts, writePosts, log, learnings = '' }) {
   const write = (name, value) => { const file = path.join(run, name); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; };
   return {
     plan: () => {
-      const plan = parseJson(cli(['refresh', 'plan', '--gsc', path.join(run, 'gsc.json'), '--target', target]).stdout);
+      const plan = parseJson(cli(['refresh', 'plan', '--gsc', path.join(run, 'gsc.json'), '--target', target, ...(request.topic ? ['--topic', request.topic] : [])]).stdout);
       // On-demand `--topic <slug>` (staging proof): refresh only that ranked post.
-      return request.topic ? { ...plan, candidates: plan.candidates.filter((c) => c.slug === request.topic).slice(0, 1) } : plan;
+      return request.topic ? { ...plan, candidates: plan.candidates.filter((c) => (c.slug === request.topic || c.url === request.topic || `${c.pageKind}/${c.slug}` === request.topic)).slice(0, 1) } : plan;
     },
     reserve: (candidate) => (request.dryRun ? { capReached: true, isoWeek: 'dry-run' }
-      : parseJson(cli(['refresh', 'reserve', '--candidate', write(`candidate-${candidate.slug}.json`, candidate), '--target', target]).stdout)),
+      : parseJson(cli(['refresh', 'reserve', '--candidate', write(`candidate-${candidate.dataset ?? 'posts'}-${candidate.slug}.json`, candidate), '--target', target]).stdout)),
     generate: (snapshot, candidate) => {
       exportData();
-      const before = readPosts();
-      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full' } });
-      const posts = output?.posts ?? readPosts();
+      const before = readPosts(snapshot.dataset ?? 'posts');
+      const output = generate({ title: candidate.title ?? snapshot.slug, refresh: { target, dataset: snapshot.dataset ?? 'posts', slug: snapshot.slug, query: snapshot.targetQuery ?? '', mode: snapshot.mode ?? 'full', ...(learnings ? { learnings } : {}) } });
+      const posts = output?.posts ?? readPosts(snapshot.dataset ?? 'posts');
       if (!Array.isArray(posts)) throw Object.assign(new Error('refresh posts are not an array'), { reason: 'refresh-off-target' });
       const prior = new Map(before.map((post) => [post.slug, post]));
       const next = new Map(posts.map((post) => [post?.slug, post]));
@@ -1775,14 +1799,17 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
       log('refresh-generator-output', { snapshotId: snapshot.snapshotId, discardedOffTarget });
       // Refused missing/duplicate targets leave the checkout at the export.
       // No raw generator file can reach a deploy or commit.
-      writePosts(targets.length === 1 ? after : before);
+      const hasCandidates = targets.some((record) => Object.hasOwn(record, 'refreshCandidates'));
+      writePosts(targets.length === 1 && !hasCandidates ? after : before, snapshot.dataset ?? 'posts');
       return { before, after, targetDiff: targets.length === 1 && prior.has(snapshot.slug)
-        ? refreshTargetDiff(prior.get(snapshot.slug), targets[0]) : null };
+        ? refreshTargetDiff(prior.get(snapshot.slug), targets[0], snapshot.dataset ?? 'posts') : null };
     },
     submit: (snapshot, generated) => {
       const result = parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
         '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
-        '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout);
+        '--actor', `runner:seo-improvements#${slot}`, '--target', target,
+        ...(snapshot.mode === 'snippet' ? ['--candidates'] : [])], [2, 3]).stdout);
+      if (result.voiceWarnings) log('lv-voice-warning', result.voiceWarnings);
       if (result.reasonCode === 'refresh-no-change') log('refresh-no-change', { snapshotId: snapshot.snapshotId, ...generated.targetDiff });
       return result;
     },
@@ -1791,17 +1818,29 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
   };
 }
 
+export function evaluateRefreshRun({ cli, target, log, dryRun = false }) {
+  if (dryRun) return { learnings: '' };
+  const result = parseJson(cli(['refresh', 'evaluate', '--target', target]).stdout);
+  for (const outcome of result.outcomes ?? []) log('refresh-evaluation', outcome);
+  log('refresh-evaluated', { evaluated: result.evaluated, reverted: result.reverted, won: result.won,
+    deferred: result.deferred, skipped: result.skipped });
+  return result;
+}
+
 async function runRefresh(target, slot, request, log, notifications) {
   const run = path.join(stateRoot, 'refresh', target, slot);
   fs.mkdirSync(run, { recursive: true, mode: 0o700 });
+  const evaluation = evaluateRefreshRun({ cli: (args) => command(node, ['scripts/content/cli.mjs', ...args], { cwd: repo,
+    env: { ...trustedEnv(process.env), ...childEnv(process.env, ['GOOGLE_APPLICATION_CREDENTIALS']) } }), target, dryRun: request.dryRun,
+    log: (event, details) => logLine(log, event, details) });
   if (!fs.existsSync(path.join(run, 'gsc.json'))) source('scripts/content/refresh-gsc.mjs', ['--out', path.join(run, 'gsc.json')], 'seo-improvements', log);
   const { runRefreshLoop } = await import(pathToFileURL(path.join(repo, 'scripts/content/refresh.mjs')).href);
   const result = await runRefreshLoop({ deps: refreshDeps({
-    target, slot, request, run, cli: (args, allowExit = []) => cli(args, repo, allowExit),
+    target, slot, request, run, learnings: evaluation.learnings, cli: (args, allowExit = []) => cli(args, repo, allowExit),
     export: () => { cli(['export', '--root', '.', '--target', target]); logLine(log, 'export'); },
     generate: (topic) => generator('seo-improvements', slot, topic, false, log, notifications),
-    readPosts: () => readJson(path.join(repo, 'data', 'posts.json')),
-    writePosts: (posts) => fs.writeFileSync(path.join(repo, 'data', 'posts.json'), `${JSON.stringify(posts, null, 2)}\n`),
+    readPosts: (dataset = 'posts') => readJson(path.join(repo, 'data', `${dataset}.json`)),
+    writePosts: (posts, dataset = 'posts') => fs.writeFileSync(path.join(repo, 'data', `${dataset}.json`), `${JSON.stringify(posts, null, 2)}\n`),
     log: (event, details) => logLine(log, event, details),
   }) });
   if (request.dryRun) return { dryRun: true };

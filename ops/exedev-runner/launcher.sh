@@ -31,14 +31,19 @@ if refresh is not None:
     slug, query, refresh_mode = refresh.get('slug'), refresh.get('query') or '', refresh.get('mode') or 'full'
     if not isinstance(slug, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,127}', slug) or not isinstance(query, str) or len(query) > 200 or not query.isprintable() or refresh_mode not in ('snippet', 'full'):
         sys.exit(2)
+    dataset = refresh.get('dataset', 'posts')
+    if dataset not in ('posts', 'topics', 'services', 'businesses') or (dataset != 'posts' and refresh_mode != 'snippet'):
+        sys.exit(2)
+    env['REFRESH_DATASET'] = dataset
+    refresh_file = f'data/{dataset}.json'
     env['REFRESH_SLUG'] = slug
     env['REFRESH_QUERY'] = query
     env['REFRESH_MODE'] = refresh_mode
     # Atomic Edit/Write saves need a writable parent. This directory contains
     # only the one-record target; never expose a broader data tree writable.
     data = scratch / 'data'
-    post = data / 'posts.json'
-    if data.is_symlink() or not data.is_dir() or {p.name for p in data.iterdir()} != {'posts.json'} or post.is_symlink() or not post.is_file():
+    post = scratch / refresh_file
+    if data.is_symlink() or not data.is_dir() or {p.name for p in data.iterdir()} != {f'{dataset}.json'} or post.is_symlink() or not post.is_file():
         sys.exit(2)
 for key, value in env.items():
     if '\x00' in value or '\n' in value or '\r' in value: sys.exit(2)
@@ -94,7 +99,7 @@ try:
         cmd[cmd.index(f'ReadWritePaths={scratch} /var/cache/lv-generator')] = f'ReadWritePaths={scratch}/data /var/cache/lv-generator'
     diag = GeneratorDiagnostic(f'/var/log/lv-generator/generator-{slot}-{os.urandom(4).hex()}.jsonl', refresh=refresh is not None)
     try:
-        if refresh is not None: diag.refresh_file(scratch / 'data/posts.json', 'handoff')
+        if refresh is not None: diag.refresh_file(scratch / refresh_file, 'handoff')
         stage = 'unit-run'
         result = capture_generator(cmd, diag, CLIENT_TIMEOUT)
         if refresh is not None:
@@ -106,7 +111,7 @@ try:
                     sys.exit(1)
                 sys.exit(result or 1)
         stage = 'unit-read-back'
-        if refresh is not None: diag.refresh_file(scratch / 'data/posts.json', 'read-back')
+        if refresh is not None: diag.refresh_file(scratch / refresh_file, 'read-back')
         diag.event('unit-exit', code=result)
     except subprocess.TimeoutExpired:
         stop_ok = _stop_unit(unit)

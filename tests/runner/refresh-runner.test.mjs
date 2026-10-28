@@ -55,7 +55,7 @@ test('refresh runner: plan -> reserve -> export -> generator(refresh slug) -> su
   const h = harness({});
   const result = await runRefreshLoop({ deps: h.deps });
   assert.equal(result.refreshed, 2);
-  assert.deepEqual(h.generated, [{ title: 'A', refresh: { target: 'staging', slug: 'a', query: 'q a', mode: 'full' } }, { title: 'B', refresh: { target: 'staging', slug: 'b', query: 'q b', mode: 'snippet' } }], 'the lane reaches the generator request');
+  assert.deepEqual(h.generated, [{ title: 'A', refresh: { target: 'staging', dataset: 'posts', slug: 'a', query: 'q a', mode: 'full' } }, { title: 'B', refresh: { target: 'staging', dataset: 'posts', slug: 'b', query: 'q b', mode: 'snippet' } }], 'the lane reaches the generator request');
   const submit = h.calls.find((c) => c.args[1] === 'submit');
   assert.deepEqual(submit.allowExit, [2, 3], 'refused/rejected (2) and propagation pending (3) are outcomes, not crashes');
   assert.ok(submit.args.includes('runner:seo-improvements#202611030423-abcd1234'));
@@ -67,6 +67,7 @@ test('refresh runner: --topic refreshes only that slug; --dry-run plans and chan
   const one = harness({ topic: 'b' });
   assert.equal((await runRefreshLoop({ deps: one.deps })).attempted, 1);
   assert.deepEqual(one.generated.map((g) => g.refresh.slug), ['b']);
+  assert.deepEqual(one.calls.find((call) => call.args[1] === 'plan').args.slice(-2), ['--topic', 'b']);
   const dry = harness({ dryRun: true });
   const result = await runRefreshLoop({ deps: dry.deps });
   assert.equal(result.attempted, 0);
