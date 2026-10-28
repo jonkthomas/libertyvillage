@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { rankRefreshCandidates, planRefresh, reserveRefresh, submitRefresh, rollbackRefresh, extractRefreshedPost } from '../../scripts/content/refresh.mjs';
 import { fetchRefreshRows } from '../../scripts/content/refresh-gsc.mjs';
@@ -14,6 +17,7 @@ import { makeRowRepairValidator } from '../../scripts/content/repair-adapter.mjs
 import { buildRecordRepairPlan } from '../../scripts/automation/record-repair.mjs';
 import { seededDb, liveRecord, localSite, FAST_SMOKE, hasTestDb, publishDirect } from './fixtures/content-db.mjs';
 import { invoke } from '../runner/fixtures/refresh-writer.mjs';
+import { refreshDeps } from '../../ops/exedev-runner/runner.mjs';
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
 const NOW = new Date();
@@ -47,6 +51,91 @@ test('GSC fetch includes guide, best, directory and home, with final data only',
   }
 });
 
+// GSC page totals include demand hidden/anonymized in page+query rows. Like
+// the staging pull, no individual parking query clears the 50-impression floor.
+const fragmentedGsc = {
+  startDate: '2026-09-27', endDate: '2026-10-24',
+  pages: [
+    { page: url('topics', 'parking-guide'), clicks: 27, impressions: 1487, ctr: 27 / 1487, position: 7.2373907195696034 },
+    { page: url('services', 'gyms'), clicks: 8, impressions: 828, ctr: 8 / 828, position: 7.461352657004831 },
+  ],
+  queries: [
+    { page: url('topics', 'parking-guide'), query: '34 hanna ave parking', clicks: 0, impressions: 49, ctr: 0, position: 11.1 },
+    { page: url('topics', 'parking-guide'), query: 'green p liberty village', clicks: 0, impressions: 26, ctr: 0, position: 4.7 },
+    { page: url('services', 'gyms'), query: 'liberty village gym', clicks: 0, impressions: 49, ctr: 0, position: 4.3 },
+  ],
+};
+
+test('guide and best page totals qualify under the same leak thresholds with fragmented queries', () => {
+  const ranked = rankRefreshCandidates({ ...sources, gsc: fragmentedGsc });
+  assert.deepEqual(ranked.map((row) => [row.dataset, row.slug, row.mode, row.score]), [
+    ['topics', 'parking-guide', 'snippet', 17.55], ['services', 'gyms', 'snippet', 12.67],
+  ]);
+  assert.equal(ranked[0].targetQuery, '34 hanna ave parking');
+  assert.equal(ranked[1].targetQuery, 'liberty village gym');
+  assert.equal(rankRefreshCandidates({ ...sources, gsc: fragmentedGsc, exclude: new Set(['topics:parking-guide']) }).some((row) => row.dataset === 'topics'), false);
+  for (const metrics of [{ impressions: 50 }, { clicks: 100, impressions: 1000 }, { position: 3.9 }, { position: 20.1 }]) {
+    const gsc = { pages: fragmentedGsc.pages.map((row) => ({ ...row, ...metrics })), queries: [] };
+    assert.deepEqual(rankRefreshCandidates({ ...sources, gsc }), [], JSON.stringify(metrics));
+  }
+});
+
+test('on-demand guide/best selection precedes top-four truncation and preserves eligibility', () => {
+  const gsc = { ...fragmentedGsc, pages: [...fragmentedGsc.pages], queries: [...fragmentedGsc.queries] };
+  for (const record of sources.businesses.slice(0, 4)) {
+    const row = { page: url('businesses', record.slug), clicks: 0, impressions: 4000, ctr: 0, position: 6 };
+    gsc.pages.push(row); gsc.queries.push({ ...row, query: record.name });
+  }
+  assert.equal(rankRefreshCandidates({ ...sources, gsc }).length, 4);
+  assert.ok(rankRefreshCandidates({ ...sources, gsc }).every((row) => row.dataset === 'businesses'));
+  for (const topic of ['guide/parking-guide', url('services', 'gyms'), 'gyms']) {
+    const ranked = rankRefreshCandidates({ ...sources, gsc, topic });
+    assert.equal(ranked.length, 1);
+    assert.equal(ranked[0].slug, topic.includes('parking') ? 'parking-guide' : 'gyms');
+    assert.deepEqual(rankRefreshCandidates({ ...sources, gsc, topic, exclude: new Set([`${ranked[0].dataset}:${ranked[0].slug}`]) }), []);
+  }
+  assert.deepEqual(rankRefreshCandidates({ ...sources, gsc, topic: 'guide/not-live' }), []);
+});
+
+test('local CLI and runner plan targeted guide/best leaks below top four; reservation still excludes the target', { skip }, async (t) => {
+  const { db, close, url: dbUrl, name } = await seededDb(); t.after(close);
+  const run = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-page-plan-'));
+  t.after(() => fs.rmSync(run, { recursive: true, force: true }));
+  await publishDirect(db, { kind: 'seed', idempotencyKey: 'leak-pages', items: [
+    { dataset: 'services', key: 'gyms', payload: sources.services.find((row) => row.slug === 'gyms') },
+  ] });
+  const gsc = { ...fragmentedGsc, pages: [...fragmentedGsc.pages], queries: [...fragmentedGsc.queries] };
+  for (const record of sources.businesses.slice(0, 4)) {
+    const row = { page: url('businesses', record.slug), clicks: 0, impressions: 4000, ctr: 0, position: 6 };
+    gsc.pages.push(row); gsc.queries.push({ ...row, query: record.name });
+  }
+  fs.writeFileSync(path.join(run, 'gsc.json'), JSON.stringify(gsc));
+  const cli = (args) => {
+    const result = spawnSync(process.execPath, ['scripts/content/cli.mjs', ...args, '--expect-db', name], {
+      cwd: REPO, encoding: 'utf8', env: { PATH: process.env.PATH, CONTENT_DATABASE_URL: dbUrl },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return result;
+  };
+  const unfiltered = JSON.parse(cli(['refresh', 'plan', '--gsc', path.join(run, 'gsc.json'), '--target', 'test']).stdout);
+  assert.equal(unfiltered.candidates.length, 4);
+  assert.ok(unfiltered.candidates.every((row) => row.dataset === 'businesses'));
+  for (const topic of ['guide/parking-guide', 'best/gyms']) {
+    const deps = refreshDeps({ target: 'test', request: { topic }, run, cli });
+    const plan = deps.plan();
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(`${plan.candidates[0].pageKind}/${plan.candidates[0].slug}`, topic);
+    assert.equal(plan.remaining, 2); assert.equal(plan.attemptsLeft, 4);
+    t.diagnostic(`node scripts/content/cli.mjs refresh plan --gsc <fixture> --target test --expect-db ${name} --topic ${topic} -> ${JSON.stringify(plan.candidates[0])}`);
+    if (topic === 'best/gyms') {
+      await reserveRefresh(db, { candidate: plan.candidates[0] });
+      const reserved = deps.plan();
+      assert.deepEqual(reserved.candidates, []);
+      assert.equal(reserved.remaining, 1); assert.equal(reserved.attemptsLeft, 3);
+    }
+  }
+});
+
 test('plan ranks non-blog leaks with unchanged score, excludes home/unknown, keeps dataset-qualified cooldowns', () => {
   const gsc = gscFor(sources);
   gsc.pages.push({ page: 'https://libertyvillage.co/', clicks: 0, impressions: 1045, position: 12 });
@@ -58,8 +147,8 @@ test('plan ranks non-blog leaks with unchanged score, excludes home/unknown, kee
     const selected = candidates.find((row) => row.dataset === dataset);
     const next = rankRefreshCandidates({ gsc, ...sources, exclude: new Set([`${dataset}:${selected.slug}`]), limit: 10 });
     assert.equal(next.some((row) => row.dataset === dataset && row.slug === selected.slug), false);
-    // No leak query means no non-blog rewrite, including after a prior snippet.
-    assert.equal(rankRefreshCandidates({ gsc: { ...gsc, queries: [] }, ...sources }).some((row) => row.dataset === dataset), false);
+    // Neither page nor query meets the leak rule: never a non-blog rewrite.
+    assert.equal(rankRefreshCandidates({ gsc: { ...gsc, pages: gsc.pages.map((row) => ({ ...row, position: 30 })), queries: [] }, ...sources }).some((row) => row.dataset === dataset), false);
   }
   assert.deepEqual(rankRefreshCandidates({ gsc: { pages: [{ page: 'https://libertyvillage.co/unknown/x', impressions: 999 }] }, ...sources }), []);
 });
