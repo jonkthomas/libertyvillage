@@ -25,6 +25,7 @@ const configuredRedirects = (variant) => {
       dir = mkdtempSync(path.join(os.tmpdir(), 'lv-confirmed-redirects-'));
       mkdirSync(path.join(dir, 'scripts/content'), { recursive: true });
       copyFileSync(process.env.CONSOLIDATION_CONFIG || 'next.config.ts', path.join(dir, 'next.config.ts'));
+      copyFileSync('scripts/content/redirects.mjs', path.join(dir, 'scripts/content/redirects.mjs'));
       writeFileSync(path.join(dir, 'scripts/content/consolidation-clusters.json'), JSON.stringify(variant));
       env.CONSOLIDATION_CONFIG = path.join(dir, 'next.config.ts');
     }
