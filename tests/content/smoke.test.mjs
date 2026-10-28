@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 
 import './fixtures/agent-sdk-mock.mjs';
 import { buildDeployment, fakeAlias, fakeLive, virtualClock } from './fixtures/fake-site.mjs';
@@ -145,6 +146,57 @@ test('a non-consolidation unpublish still requires 404, even behind a redirect',
   const result = await run(OLD_GUIDE, new Map());
   assert.equal(result.status, 'bad-render');
   assert.match(result.failures[0].reason, /\/blog\/old-guide returned 200, expected 404/);
+});
+
+// These are deliberately independent expectations for the declarations in next.config.ts.
+const MOVATI_REDIRECTS = [
+  ['posts', 'goodlife-vs-movati-liberty-village-gym-comparison-2026', '/blog/goodlife-fitness-liberty-village-review-guide'],
+  ['businesses', 'movati-athletic-liberty-village', '/best/gyms'],
+];
+
+async function movatiSmoke(dataset, key, destination, status = 301) {
+  const live = fakeLive();
+  const route = registry[dataset].route.replace(':key', key);
+  const deployment = buildDeployment({ live, liveSeq: 40, url: 'https://dep-movati', registry,
+    redirects: { [route]: [status, status === 200 ? null : destination] } });
+  deployment.pages.set(destination, { status: 200, contentType: 'text/html', body: Buffer.from('Destination') });
+  // Exercise real fetch redirect handling against a local server, with a fresh manifest.
+  const server = http.createServer((req, res) => {
+    const page = deployment.pages.get(req.url);
+    if (!page) { res.writeHead(404).end(); return; }
+    res.writeHead(page.status, { 'content-type': page.contentType,
+      ...(page.location ? { location: page.location } : {}) }).end(page.body);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const clock = virtualClock();
+  try {
+    return await runSmoke({ registry, liveSeq: 40, readCurrent: live.readCurrent,
+      http: createHttp({ siteUrl: `http://127.0.0.1:${server.address().port}` }),
+      now: clock.now, wait: clock.wait, items: [{ dataset, key, publishedRev: null }] });
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+}
+
+test('declared Movati unpublish: a single 301 to its declared 200 destination passes', async () => {
+  for (const [dataset, key, destination] of MOVATI_REDIRECTS) {
+    const result = await movatiSmoke(dataset, key, destination);
+    assert.deepEqual([result.status, result.results[0]?.smoke], ['passed', 'passed'], JSON.stringify(result.failures));
+  }
+});
+
+test('declared Movati unpublish: a wrong destination returning 200 fails the declared-target check', async () => {
+  for (const [dataset, key, destination] of MOVATI_REDIRECTS) {
+    const result = await movatiSmoke(dataset, key, '/wrong-destination');
+    assert.equal(result.status, 'bad-render');
+    assert.ok(result.failures[0].reason.includes(`returned 301 to /wrong-destination, expected a single 301/308 to ${destination}`), result.failures[0].reason);
+  }
+});
+
+test('declared Movati unpublish: a directly served 200 still fails', async () => {
+  for (const [dataset, key, destination] of MOVATI_REDIRECTS) {
+    const result = await movatiSmoke(dataset, key, destination, 200);
+    assert.equal(result.status, 'bad-render');
+    assert.match(result.failures[0].reason, /returned 200, expected a single 301/);
+  }
 });
 
 test('deployment identity change mid-check discards the pass and repeats', async () => {

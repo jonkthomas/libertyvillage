@@ -10,7 +10,7 @@
 // M1 and M2 is discarded. A failing page check on an own item whose manifest entry is
 // its published rev, on a stable identity, is a proven bad render.
 import { createHash } from 'node:crypto';
-import fs from 'node:fs';
+import { siteRedirects } from './redirects.mjs';
 
 export const SMOKE_INTERVAL_MS = 20_000;
 export const SMOKE_DEADLINE_MS = 15 * 60_000;
@@ -43,14 +43,8 @@ export function routeFor(dataset, key, registry) {
   return route ? route.replace(':key', key) : null;
 }
 
-// Confirmed consolidation sources -> their cluster primary. next.config.ts derives its
-// 301s from the same file, so an unpublished source is a redirect, never a 404.
-export function consolidationRedirects(plan) {
-  return new Map((plan?.clusters ?? []).filter((cluster) => cluster.confirmed === true).flatMap((cluster) =>
-    cluster.members.filter((member) => member.url !== cluster.primary).map((member) => [member.url, cluster.primary])));
-}
-export const CONSOLIDATION_REDIRECTS = consolidationRedirects(
-  JSON.parse(fs.readFileSync(new URL('./consolidation-clusters.json', import.meta.url), 'utf8')));
+// The same ordered declarations Next serves, including non-consolidation redirects.
+export const SITE_REDIRECTS = new Map((await siteRedirects()).map(({ source, destination }) => [source, destination]));
 
 // GET against the site origin (paths) or absolute URLs, with the protection bypass
 // header when set. Returns {status, contentType, body: Buffer, location}; network errors
@@ -81,9 +75,9 @@ export function createHttp({ siteUrl, bypass = null, fetchImpl = globalThis.fetc
 // items: [{dataset, key, publishedRev}] still unresolved for this submission.
 // readCurrent(items) -> Map(itemId -> {rev|null, sha|null, payload|null}): the DB's
 // current live rev per item. registry: lib/content/datasets.json shape.
-// consolidation: Map(source route -> primary route) of confirmed cluster redirects.
+// consolidation: optional redirect-map override for fixtures; defaults to all Next declarations.
 export async function runSmoke({
-  liveSeq, items, registry, readCurrent, http, consolidation = CONSOLIDATION_REDIRECTS,
+  liveSeq, items, registry, readCurrent, http, consolidation = SITE_REDIRECTS,
   now = () => Date.now(), wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   intervalMs = SMOKE_INTERVAL_MS, deadlineMs = SMOKE_DEADLINE_MS, getTries = GET_TRIES, getRetryMs = GET_RETRY_MS,
 }) {
@@ -172,7 +166,7 @@ export async function runSmoke({
 // Exact <loc> match, so /directory/x never matches /directory/x-y.
 export const sitemapLists = (text, url) => text.includes(`<loc>${url}</loc>`);
 
-// Unpublished confirmed consolidation source: exactly one 301/308 hop to its primary,
+// Unpublished declared redirect: exactly one 301/308 hop to its destination,
 // which itself answers 200 (no further redirect). Anything else is a bad render.
 async function checkRedirected({ route, primary, getUntil }) {
   const hop = await getUntil(route, (response) => [301, 308].includes(response.status) && response.location === primary, { redirect: 'manual' });
