@@ -1773,7 +1773,7 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
   const write = (name, value) => { const file = path.join(run, name); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); return file; };
   return {
     plan: () => {
-      const plan = parseJson(cli(['refresh', 'plan', '--gsc', path.join(run, 'gsc.json'), '--target', target]).stdout);
+      const plan = parseJson(cli(['refresh', 'plan', '--gsc', path.join(run, 'gsc.json'), '--target', target, ...(request.topic ? ['--topic', request.topic] : [])]).stdout);
       // On-demand `--topic <slug>` (staging proof): refresh only that ranked post.
       return request.topic ? { ...plan, candidates: plan.candidates.filter((c) => (c.slug === request.topic || c.url === request.topic || `${c.pageKind}/${c.slug}` === request.topic)).slice(0, 1) } : plan;
     },

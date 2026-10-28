@@ -79,7 +79,7 @@ const round = (value, dp) => Number(Number(value).toFixed(dp));
 // Rows for the same post (www, trailing slash) are merged impression-weighted.
 // mode: 'snippet' when the page has a leak query and has not had a snippet
 // refresh yet (snippetDone); otherwise 'full'.
-export function rankRefreshCandidates({ gsc, posts = [], topics = [], services = [], businesses = [], exclude = new Set(), snippetDone = new Set(), limit = REFRESH.candidates }) {
+export function rankRefreshCandidates({ gsc, posts = [], topics = [], services = [], businesses = [], exclude = new Set(), snippetDone = new Set(), topic, limit = REFRESH.candidates }) {
   const live = new Map(Object.entries({ posts, topics, services, businesses }).flatMap(([dataset, rows]) =>
     rows.filter((row) => dataset !== 'posts' || refreshable(row)).map((record) => [refreshKey(dataset, record.slug), { dataset, record }])));
   const excluded = (set, dataset, slug) => set.has(refreshKey(dataset, slug)) || (dataset === 'posts' && set.has(slug));
@@ -108,14 +108,17 @@ export function rankRefreshCandidates({ gsc, posts = [], topics = [], services =
   }
   return [...bySlug].filter(([, acc]) => acc.impressions >= REFRESH.minImpressions).map(([key, acc]) => {
     const { dataset, record } = live.get(key), slug = record.slug;
-    // Non-blog pages never enter the full rewrite lane, even after a snippet.
-    if (dataset !== 'posts' && !topLeak.has(key)) return null;
+    // GSC can fragment or omit page+query demand. Apply the same leak rule to
+    // unrounded page totals too; non-blog pages remain snippet-only.
+    const pageLeak = isLeakQuery({ impressions: acc.impressions, ctr: acc.clicks / acc.impressions, position: acc.weighted / acc.impressions });
+    if (dataset !== 'posts' && !topLeak.has(key) && !pageLeak) return null;
     const baseline = { clicks: acc.clicks, impressions: acc.impressions, ctr: round(acc.clicks / acc.impressions, 4), position: round(acc.weighted / acc.impressions, 1),
       ...(gsc.startDate && gsc.endDate ? { startDate: gsc.startDate, endDate: gsc.endDate } : {}) };
     const mode = dataset !== 'posts' || (topLeak.has(key) && !excluded(snippetDone, dataset, slug)) ? 'snippet' : 'full';
     return { dataset, pageKind: refreshPage(dataset).kind, slug, url: `${SITE}${registry[dataset].route.replace(':key', slug)}`, score: round(refreshScore(baseline), 2), baseline, mode,
-      targetQuery: (mode === 'snippet' ? topLeak : topQuery).get(key)?.query ?? null, title: refreshBindingRecord(record, dataset).title };
-  }).filter((candidate) => candidate && candidate.score > 0).sort((a, b) => b.score - a.score || b.baseline.impressions - a.baseline.impressions || a.url.localeCompare(b.url)).slice(0, limit);
+      targetQuery: (mode === 'snippet' ? topLeak : topQuery).get(key)?.query ?? topQuery.get(key)?.query ?? null, title: refreshBindingRecord(record, dataset).title };
+  }).filter((candidate) => candidate && candidate.score > 0 && (!topic || candidate.slug === topic || candidate.url === topic || `${candidate.pageKind}/${candidate.slug}` === topic))
+    .sort((a, b) => b.score - a.score || b.baseline.impressions - a.baseline.impressions || a.url.localeCompare(b.url)).slice(0, limit);
 }
 
 export { RefreshRefused, snippetOverreach, extractRefreshedPost } from '../lib/refresh-precheck.mjs';
@@ -154,7 +157,7 @@ async function weekUsage(c, target, isoWeek) {
 
 // Rank this week's candidates. Settles abandoned snapshots first so a crashed run
 // neither holds a post forever nor loses a refresh that did publish.
-export async function planRefresh(db, { target = db.target, now = new Date(), gsc, env = process.env, deps = {}, checkout = process.cwd() }) {
+export async function planRefresh(db, { target = db.target, now = new Date(), gsc, topic, env = process.env, deps = {}, checkout = process.cwd() }) {
   const settled = await settleStaleRefreshes(db, { target, now, env, deps, checkout });
   const isoWeek = weekOf(now);
   const usage = await weekUsage(db, target, isoWeek);
@@ -162,7 +165,7 @@ export async function planRefresh(db, { target = db.target, now = new Date(), gs
   const recent = (await db.query(`select dataset,key from content.refresh_snapshots where target=$1 and (state='reserved'
     or (state in ('published','rolled-back') and created_at > $2::timestamptz - make_interval(days => $3)))`, [target, now, REFRESH.cooldownDays])).rows.map((row) => refreshKey(row.dataset, row.key));
   const live = (await readLive(db, { datasets: Object.keys(REFRESH_PAGES) })).datasets;
-  const candidates = rankRefreshCandidates({ gsc, ...Object.fromEntries(Object.entries(live).map(([dataset, value]) => [dataset, value.records])), exclude: new Set(recent), snippetDone });
+  const candidates = rankRefreshCandidates({ gsc, topic, ...Object.fromEntries(Object.entries(live).map(([dataset, value]) => [dataset, value.records])), exclude: new Set(recent), snippetDone });
   return {
     isoWeek, remaining: Math.max(0, REFRESH.weeklyCap - usage.refreshes), attemptsLeft: Math.max(0, REFRESH.weeklyAttempts - usage.attempts),
     candidates, settled,

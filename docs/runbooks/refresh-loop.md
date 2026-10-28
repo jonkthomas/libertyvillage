@@ -179,8 +179,14 @@ meta descriptions are computed from name/rating/hours/address, not the editable
 business description. Those code-derived snippets stay unchanged: changing facts
 or inventing a code-editing lane is outside this refresh.
 
-Non-blog kinds require a leak query under the **same** rule and always use
+Non-blog kinds require a leak query or aggregate page totals under the **same**
+rule (position 4–20, >50 impressions, CTR <5%) and always use
 `snippet` mode, even after a prior snippet. They never graduate to a full rewrite.
+Page totals cover demand fragmented or omitted in GSC's page+query rows. When
+only the page qualifies, its highest-impression available query is the target
+(or no target query if GSC supplies none). Titles and descriptions are plain
+text; the shared writer precheck rejects Markdown there before submission.
+Markdown remains supported in posts/topics content.
 The weakness score, minimum impressions, shared 2/week cap, shared 4-attempt cap,
 56-day cooldown and confirmed-live ledger path stay the same. Snapshot identity,
 open-snapshot uniqueness and cooldown are `(dataset, slug)`; ledger identity also
@@ -207,6 +213,11 @@ Keep the timer disabled. The cap is shared: publish at most two pages in an ISO
 week; rollback still counts. Use guide + best in the first available week and
 directory in the next, or choose two representative kinds if prior runs used slots.
 Never reset snapshots or bypass the cap to complete a proof.
+
+For an on-demand proof, pass `--topic guide/parking-guide` (or `best/gyms`) to
+`content refresh plan`. The runner forwards its `--topic` to that command so
+selection happens before the four-candidate cutoff. Eligibility, score, cooldown
+and caps still apply. Untargeted plans keep the same four highest scores.
 
 For each planned page, use `/guide/parking-guide` (`topics`, `parking-guide`),
 `/best/gyms` (`services`, `gyms`), then `/directory/king-west-village-cleaners`

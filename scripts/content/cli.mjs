@@ -184,7 +184,7 @@ export async function runCli(argv = process.argv.slice(2), { delegates = {}, env
         const snapshotId = () => Number(required(opts.snapshot, '--snapshot'));
         switch (argv[1]) {
           case 'evaluate': result = await (await import('./refresh-evaluate.mjs')).evaluateRefreshes(db, { target }); break;
-          case 'plan': result = await refresh.planRefresh(db, { target, gsc: json(opts.gsc, '--gsc') }); break;
+          case 'plan': result = await refresh.planRefresh(db, { target, gsc: json(opts.gsc, '--gsc'), topic: opts.topic && opts.topic !== true ? opts.topic : undefined }); break;
           case 'reserve': result = await refresh.reserveRefresh(db, { target, candidate: json(opts.candidate, '--candidate') }); break;
           case 'submit': {
             const { refreshJudgeEnv } = await import('./refresh-candidate-judge.mjs');

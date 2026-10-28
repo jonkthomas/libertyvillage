@@ -67,6 +67,7 @@ test('refresh runner: --topic refreshes only that slug; --dry-run plans and chan
   const one = harness({ topic: 'b' });
   assert.equal((await runRefreshLoop({ deps: one.deps })).attempted, 1);
   assert.deepEqual(one.generated.map((g) => g.refresh.slug), ['b']);
+  assert.deepEqual(one.calls.find((call) => call.args[1] === 'plan').args.slice(-2), ['--topic', 'b']);
   const dry = harness({ dryRun: true });
   const result = await runRefreshLoop({ deps: dry.deps });
   assert.equal(result.attempted, 0);
