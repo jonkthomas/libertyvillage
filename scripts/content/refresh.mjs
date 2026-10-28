@@ -313,8 +313,15 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, requ
       const live = Object.fromEntries(Object.entries(snapshot.datasets).map(([dataset, value]) => [dataset, value.records]));
       const filtered = await filterRefreshCandidates({ before, after, slug: snap.key, dataset: snap.dataset,
         query: snap.target_query ?? '', live, now: now.toISOString(), deps: { lintMode: 'fail' } });
-      const picked = filtered.survivors.length ? await pickRefreshCandidate({ survivors: filtered.survivors,
-        dataset: snap.dataset, query: snap.target_query ?? '', env: judgeEnv, judge: deps.candidateJudge }) : null;
+      let picked = null;
+      if (filtered.survivors.length) {
+        // Claim the one allowed judge invocation before calling the provider.
+        // A retry after interruption falls back rather than spending twice.
+        const claimed = await one(db, "update content.refresh_snapshots set summary=jsonb_set(coalesce(summary::jsonb,'{}'::jsonb),'{candidateJudgeAttempted}','true'::jsonb)::json where id=$1 and state='reserved' and (summary::jsonb->>'candidateJudgeAttempted') is distinct from 'true' returning id", [snap.id]);
+        picked = await pickRefreshCandidate({ survivors: filtered.survivors, dataset: snap.dataset,
+          query: snap.target_query ?? '', env: judgeEnv, judge: claimed ? deps.candidateJudge : async () => null });
+        if (!claimed) Object.assign(picked.audit, { status: 'fallback-attempt-limit', reason: 'Used the first survivor because this attempt already used its judge invocation.' });
+      }
       const candidateSelection = { ...(picked?.audit ?? { status: 'refused', survivorIds: [] }), dropped: filtered.dropped };
       await db.query("update content.refresh_snapshots set summary=jsonb_set(coalesce(summary::jsonb,'{}'::jsonb),'{candidateSelection}',$2::jsonb)::json where id=$1 and state='reserved'", [snap.id, JSON.stringify(candidateSelection)]);
       if (!picked) return { result: await close({ reasonCode: 'refresh-no-candidates' }), exitCode: 2 };

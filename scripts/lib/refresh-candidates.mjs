@@ -5,7 +5,7 @@ import { refreshPage } from './refresh-pages.mjs';
 import { splitIntro } from './refresh-lint.mjs';
 
 export const CANDIDATE_FIELD = 'refreshCandidates';
-export function parseRefreshCandidates({ before, after, slug, dataset = 'posts' }) {
+export function parseRefreshCandidates({ before, after, slug, dataset = 'posts', now = new Date() }) {
   const original = Array.isArray(before) ? before.find((row) => row?.slug === slug) : null;
   const target = Array.isArray(after) ? after.find((row) => row?.slug === slug) : null;
   const candidates = target?.[CANDIDATE_FIELD];
@@ -24,6 +24,7 @@ export function parseRefreshCandidates({ before, after, slug, dataset = 'posts' 
     if (!valid) return { id: index + 1, codes: ['refresh-candidate-fields'] };
     const record = { ...original, ...patch };
     delete record.intro;
+    if (['posts', 'topics'].includes(dataset)) record.updatedAt = new Date(now).toISOString().slice(0, 10);
     if (page.intro === 'description') record.description = patch.description + splitIntro(original.description).rest;
     else if (Object.hasOwn(patch, 'intro')) record.content = patch.intro + splitIntro(original.content).rest;
     return { id: index + 1, record };
@@ -48,7 +49,7 @@ function titleVariants(record, dataset) {
 }
 
 export async function filterRefreshCandidates({ before, after, slug, dataset = 'posts', query = '', live = {}, deps = {}, now }) {
-  const parsed = parseRefreshCandidates({ before, after, slug, dataset });
+  const parsed = parseRefreshCandidates({ before, after, slug, dataset, now });
   const original = before.find((row) => row.slug === slug);
   const page = refreshPage(dataset);
   const survivors = [], dropped = [];

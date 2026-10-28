@@ -44,10 +44,15 @@ optional `intro` (including spacing before the immutable body). Services/busines
 patches contain only `description`, replacing its intro while preserving later
 paragraphs. Their identity and computed title/meta remain immutable. Full-mode
 refreshes keep the single-record path.
+Trusted candidate parsing sets `updatedAt` to the run date on posts/topics so
+the blog Updated date and sitemap lastmod advance with the refresh. The writer
+cannot supply this value. Services/businesses never acquire an `updatedAt` field.
 
 The writer self-check and trusted submit run `scripts/lib/refresh-candidates.mjs`:
 every option goes through the shared refresh precheck (storage, scope, claim lint,
 title-binding ratio and original business/link/premise binding). Editable titles
+and descriptions also pass `refresh-plain-text-markdown`; a failed option is
+dropped before the judge can see it. Editable titles
 must be at most 60 characters, unique against live site titles, and include the
 query's main term in the first 40 characters. The main term is the longest
 non-noise token using the existing title tokenizer (ties keep query order); when
@@ -81,6 +86,31 @@ copy it to `details.candidateSelection`. `refresh list` exposes this summary.
 the generator, GSC/source and other content CLI commands. The selection function
 receives only that key, and refresh submit removes it from the environment passed
 to the full gate. No credential values enter the audit.
+
+The judge uses only the product's existing `DEEPSEEK_API_KEY` and existing
+`news-pilot/draft-model.mjs` DeepSeek transport. Its spend is **not** counted by
+the writer's SDK dollar/turn cap. Instead, trusted submit atomically marks the
+existing snapshot summary before its single judge invocation: at most **1 call
+per refresh attempt × 4 existing weekly attempts = 4 calls per weekly run**
+(also at most four for the target/ISO week). An interrupted retry uses
+`fallback-attempt-limit` without calling again. Zero survivors or a missing key
+makes no provider request. There is no provider retry or new budget system.
+
+Each call has `max_tokens: 200`, a 20-second timeout, and at most 12,000 UTF-8 bytes
+of system/user prompt. Judge context clips each title/description/intro to
+60/160/500 characters and the query to 200; selected content is never clipped.
+For a conservative rough estimate, budget about 13k input tokens including
+framing plus 200 output tokens. Using the higher published peak Pro rates
+($1.32/M input, $3.96/M output) gives about **$0.018/call or $0.072 for four calls**
+(under $0.08/week). These are pricing assumptions, not a currency cap; the
+existing `deepseek-chat` alias's rate is not separately listed on the current
+[DeepSeek pricing page](https://api-docs.deepseek.com/quick_start/pricing/).
+The hard controls are calls and request/output bounds; no model upgrade is made.
+
+For a real judge proof, authorized ops must confirm the same existing key is
+available through `/etc/lv-runner.env` or the target env file. An absent key
+records `fallback-unavailable`. This builder has not inspected or changed VM
+environment files or provisioned any new credential.
 
 Local proof (no paid model calls):
 

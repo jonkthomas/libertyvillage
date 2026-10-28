@@ -27,6 +27,46 @@ const input = (options = {}, candidates = patches()) => {
 };
 const filter = async (...args) => (await import('../../scripts/lib/refresh-candidates.mjs')).filterRefreshCandidates(...args);
 
+test('trusted run date bumps posts/topics updatedAt without adding it to services/businesses', async () => {
+  const now = '2026-10-28T03:04:05.000Z';
+  for (const dataset of ['posts', 'topics', 'services', 'businesses']) {
+    const source = dataset === 'posts' ? original : read(dataset)[0];
+    const dated = ['posts', 'topics'].includes(dataset);
+    const prior = dated ? { ...source, title: original.title, updatedAt: '2026-01-01' } : source;
+    const candidates = dated ? patches() : patches().map(() => ({ description }));
+    const result = await filter(input({ dataset, original: prior, now }, candidates));
+    assert.equal(result.survivors.length, 3, JSON.stringify(result.dropped));
+    for (const survivor of result.survivors) {
+      if (dated) assert.equal(survivor.record.updatedAt, '2026-10-28', dataset);
+      else assert.equal(Object.hasOwn(survivor.record, 'updatedAt'), false, dataset);
+    }
+    assert.equal(prior.updatedAt, dated ? '2026-01-01' : undefined, 'trusted projection leaves source unchanged');
+    const attemptedDate = await filter(input({ dataset, original: prior, now }, [{ ...candidates[0], updatedAt: '2099-01-01' }, ...candidates.slice(1)]));
+    assert.ok(attemptedDate.dropped.find((candidate) => candidate.id === 1).codes.includes('refresh-candidate-fields'), 'writer cannot choose the date');
+  }
+});
+
+test('every kind filters Markdown title/description options before the judge sees survivors', async () => {
+  const { pickRefreshCandidate } = await import('../../scripts/content/refresh-candidate-judge.mjs');
+  for (const dataset of ['posts', 'topics', 'services', 'businesses']) {
+    const source = dataset === 'posts' ? original : read(dataset)[0];
+    const dated = ['posts', 'topics'].includes(dataset);
+    const prior = dated ? { ...source, title: original.title } : source;
+    const candidates = dated ? patches() : patches().map(() => ({ description }));
+    candidates[0].description = description.replace('local guide', '**guide**');
+    if (dated) candidates[1].title = 'Liberty Village **Parking** Guide';
+    else candidates[1].description = description.replace('local guide', '[guide](/best/gyms)').slice(0, 160);
+    const result = await filter(input({ dataset, original: prior }, candidates));
+    assert.deepEqual(result.survivors.map(({ id }) => id), [3], dataset);
+    assert.deepEqual(result.dropped.map(({ id }) => id), [1, 2]);
+    for (const dropped of result.dropped) assert.ok(dropped.codes.includes('refresh-plain-text-markdown'), dataset);
+    await pickRefreshCandidate({ ...result, dataset, judge: async ({ candidates: choices }) => {
+      assert.deepEqual(choices.map(({ id }) => id), [3]);
+      return { id: 3, reason: 'Plain prose passed the checks.' };
+    } });
+  }
+});
+
 test('candidate parsing requires 3–5 patches, unchanged envelope, permitted fields and no identity edits', async () => {
   for (const candidates of [null, [], patches().slice(0, 2), [...patches(), ...patches()]]) {
     await assert.rejects(filter(input({}, candidates)), (error) => error.reason === 'refresh-candidate-format');
@@ -86,7 +126,8 @@ test('all dataset kinds preserve immutable fields, identities and paragraph bodi
     const result = await filter(input({ dataset, original: prior }, list));
     assert.equal(result.survivors.length, 3, `${dataset}: ${JSON.stringify(result.dropped)}`);
     const record = result.survivors[0].record;
-    for (const key of Object.keys(prior)) if (!['title', 'description'].includes(key)) assert.deepEqual(record[key], prior[key], `${dataset}.${key}`);
+    const editable = ['posts', 'topics'].includes(dataset) ? ['title', 'description', 'updatedAt'] : ['description'];
+    for (const key of Object.keys(prior)) if (!editable.includes(key)) assert.deepEqual(record[key], prior[key], `${dataset}.${key}`);
     if (['services', 'businesses'].includes(dataset)) {
       const { snippetOverreach } = await import('../../scripts/lib/refresh-precheck.mjs');
       assert.equal(snippetOverreach(prior, record, dataset), null);
@@ -119,6 +160,29 @@ test('judge receives only survivors and only its key; cannot edit text or select
   assert.ok(!JSON.stringify(unavailable.audit).includes('private'));
   const missingKey = await pickRefreshCandidate({ survivors, env: {} });
   assert.equal(missingKey.audit.status, 'fallback-unavailable');
+});
+
+test('judge bounds input context and max_tokens while preserving selected text', async (t) => {
+  const { pickRefreshCandidate, REFRESH_JUDGE_MAX_TOKENS, REFRESH_JUDGE_MAX_PROMPT_BYTES } = await import('../../scripts/content/refresh-candidate-judge.mjs');
+  const record = { ...original, ...patches()[0], content: 'Local details. '.repeat(2000) + '\n\n## Body\nUnchanged.' };
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  let calls = 0;
+  globalThis.fetch = async (_url, init) => {
+    calls++;
+    const request = JSON.parse(init.body);
+    assert.equal(request.max_tokens, 200);
+    assert.equal(request.max_tokens, REFRESH_JUDGE_MAX_TOKENS);
+    assert.ok(request.messages.reduce((sum, message) => sum + Buffer.byteLength(message.content), 0) <= REFRESH_JUDGE_MAX_PROMPT_BYTES);
+    const data = JSON.parse(request.messages[1].content);
+    assert.equal(data.query.length, 200);
+    assert.equal(data.candidates[0].intro.length, 500);
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"id":1,"reason":"Clear local intent."}' } }] }));
+  };
+  const result = await pickRefreshCandidate({ survivors: [{ id: 1, record, warnings: [] }], query: 'q'.repeat(1000), env: { DEEPSEEK_API_KEY: 'fixture-key' } });
+  assert.equal(calls, 1);
+  assert.equal(result.record, record, 'only judge context is clipped; selected content is intact');
+  assert.equal(result.audit.status, 'picked');
 });
 
 test('runner scopes DeepSeek to refresh submit and requires candidates for snippets', async () => {
@@ -171,6 +235,7 @@ test('local candidate flow: filter -> independent pick -> one full-gate submit -
   assert.equal(judgeCalls, 1); assert.equal(gateCalls, 1);
   const selected = await liveRecord(db, 'posts', source.slug);
   assert.equal(selected.title, patches()[2].title);
+  assert.equal(selected.updatedAt, new Date().toISOString().slice(0, 10));
   assert.equal(Object.hasOwn(selected, 'refreshCandidates'), false);
   const submissions = (await db.query("select * from content.submissions where kind='refresh'")).rows;
   assert.equal(submissions.length, 1);
@@ -242,6 +307,33 @@ test('local CLI scopes the judge key away from the full gate SDK and makes exact
   assert.equal(result.result.candidateSelection.selectedId, 2);
   assert.equal(result.result.candidateSelection.status, 'picked');
   assert.equal(process.env.DEEPSEEK_API_KEY, 'fixture-judge-key', 'CLI restores caller state after gate finishes');
+});
+
+test('local interrupted attempt cannot call the judge again before its one submission', { skip }, async (t) => {
+  const { db, close } = await seededDb(); t.after(close);
+  const source = await liveRecord(db, 'services', read('services')[0].slug);
+  const site = await localSite(db); t.after(() => site.close()); await site.build();
+  const snapshot = await reserveRefresh(db, { candidate: { dataset: 'services', slug: source.slug, mode: 'snippet' } });
+  let calls = 0;
+  const args = { snapshotId: snapshot.snapshotId, before: [source], after: [{ ...source, refreshCandidates: patches().map(() => ({ description })) }],
+    requireCandidates: true, actor: 'test:candidate-limit', checkout: REPO, env: site.env, deps: {
+      candidateJudge: async () => { calls++; return { id: 3, reason: 'Clear local intent.' }; },
+      gate: { smoke: FAST_SMOKE, review: async ({ contentSha }) => ({ overall: 9, findings: [], model: GATE_MODEL, commit_sha: contentSha }) },
+    } };
+  const query = db.query;
+  db.query = (sql, params) => {
+    if (sql.includes("'{candidateSelection}'")) throw new Error('fixture interruption after judge, before submission');
+    return query(sql, params);
+  };
+  try { await assert.rejects(submitRefresh(db, args), /fixture interruption/); }
+  finally { db.query = query; }
+  assert.equal(calls, 1);
+  const result = await submitRefresh(db, args);
+  assert.equal(result.exitCode, 0, JSON.stringify(result));
+  assert.equal(calls, 1, 'durable attempt marker prevents a second provider invocation');
+  assert.equal(result.result.candidateSelection.status, 'fallback-attempt-limit');
+  assert.equal(result.result.candidateSelection.selectedId, 1);
+  assert.equal((await db.query("select count(*)::int as count from content.submissions where kind='refresh'")).rows[0].count, 1);
 });
 
 for (const dataset of ['topics', 'services', 'businesses']) {

@@ -64,6 +64,7 @@ function refreshClause() {
       + ` Leave the original fields unchanged and add a refreshCandidates array with 3–5 alternative patches (${patchFields}).`
       + ' Keep each editable title at most 60 characters with the query main term in the first 40 characters, and each description/description intro 140–160 characters.'
       + ' Keep all original title-binding words needed by the shared check. Preserve every heading and all body text after the intro, every identity/fact field, updatedAt and every other record.'
+      + ' Trusted code sets updatedAt to the run date on posts/topics after parsing; never add a date field to a patch or to services/businesses.'
       + ' Ground specifics in the provided records; never invent facts or edit computed metadata. The trusted runner filters the options, asks a separate vendor to pick one survivor, then submits it through the existing gate.';
   }
   return ` REFRESH MODE: rewrite ONLY the post with slug "${slug}" in data/posts.json so it earns more clicks from Google (it gets impressions but a weak click-through rate or position).${query}`

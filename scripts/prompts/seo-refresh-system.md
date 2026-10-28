@@ -46,7 +46,9 @@ Each description/description intro must be 140–160 characters. Draft grounded,
 useful alternatives; the deterministic filter drops failures before a separate
 vendor chooses one survivor. Zero survivors refuses the refresh. Never pick a
 winner yourself. The trusted runner removes the transient list before submitting
-one selected record through the full existing gate.
+one selected record through the full existing gate. Trusted code sets updatedAt
+to the run date on posts/topics; never supply it in a candidate patch. Services
+and businesses have no updatedAt field and must not acquire one.
 For full mode, improve the target's clarity and usefulness within its allowed fields.
 
 Only the single `data/<dataset>.json` file named in the user instruction is writable. Use Read, Edit or Write to update that file.
