@@ -58,15 +58,14 @@ function refreshClause() {
   if (!slug) return '';
   const query = process.env.REFRESH_QUERY ? ` Its top Google search is "${process.env.REFRESH_QUERY}".` : '';
   const dataset = refreshDataset();
-  if (dataset !== 'posts') {
-    const fields = dataset === 'topics' ? 'title (under 60 characters), description (under 155 characters), the content intro before the first ## heading (or first paragraph when no heading), and updatedAt' : 'description intro only (first paragraph); preserve all following paragraphs byte-for-byte';
-    return ` SNIPPET REFRESH MODE: improve ONLY ${fields} for slug ${slug} in ${refreshFile()}.${query} Preserve all other fields and every other record. Keep names, pluralName, taxonomy, addresses, ratings, hours and other facts unchanged. Computed metadata is not editable. Ground specifics in the provided records. Never invent facts.`;
-  }
   if (process.env.REFRESH_MODE === 'snippet') {
-    return ` SNIPPET REFRESH MODE: the post with slug "${slug}" in data/posts.json ranks on Google but few searchers click it.${query}`
-      + ' Rewrite ONLY its title (under 60 characters), description (under 155 characters) and the intro paragraph(s) before the first "## " heading, so the search result clearly answers that search and earns the click.'
-      + ' Leave every heading and all text from the first "## " heading onward byte-for-byte unchanged, and every other field (FAQs, answerBlock, key takeaways, tags, links, slug, publishedAt, image) unchanged; set updatedAt to today.'
-      + ' Do not add, remove or edit any other post or data file. Ground business facts in the provided records; the old post is not evidence for an unsupported specific. Never invent businesses, prices, hours, dates or quotes.';
+    const patchFields = ['posts', 'topics'].includes(dataset) ? 'title, description and optional intro' : 'description intro only';
+    return ` SNIPPET REFRESH MODE: improve ONLY slug "${slug}" in ${refreshFile()}.${query}`
+      + ` Leave the original fields unchanged and add a refreshCandidates array with 3–5 alternative patches (${patchFields}).`
+      + ' Keep each editable title at most 60 characters with the query main term in the first 40 characters, and each description/description intro 140–160 characters.'
+      + ' Keep all original title-binding words needed by the shared check. Preserve every heading and all body text after the intro, every identity/fact field, updatedAt and every other record.'
+      + ' Trusted code sets updatedAt to the run date on posts/topics after parsing; never add a date field to a patch or to services/businesses.'
+      + ' Ground specifics in the provided records; never invent facts or edit computed metadata. The trusted runner filters the options, asks a separate vendor to pick one survivor, then submits it through the existing gate.';
   }
   return ` REFRESH MODE: rewrite ONLY the post with slug "${slug}" in data/posts.json so it earns more clicks from Google (it gets impressions but a weak click-through rate or position).${query}`
     + ' Improve its title (under 60 characters, matches what the page delivers), description (under 155 characters), answerBlock, section structure, FAQs and key takeaways where that helps searchers.'
@@ -299,7 +298,7 @@ async function main() {
       + '\nUse only these businesses. Never introduce an address, price, hour or rating that is not verbatim in its own provided record. Omit unsupported specifics even when the old post contains them.\n';
     const now = new Date();
     const selfCheck = async (attempt) => {
-      const result = await checkRefreshPreSubmission({
+      const input = {
         item: { dataset: refreshDataset(), key: original.slug, op: 'update' }, before, after: readRefreshPosts(),
         ctx: { now: now.toISOString(), refresh: { original, dataset: refreshDataset(), mode: process.env.REFRESH_MODE ?? 'full' } },
         live: { ...preflight.live, businesses },
@@ -308,7 +307,20 @@ async function main() {
           assetExists: async (file) => preflight.mediaPaths.includes(file),
           resolveAssets: async () => { throw new Error('refresh cannot upload images'); },
         }) },
-      });
+      };
+      let result;
+      if (process.env.REFRESH_MODE === 'snippet' && input.after.some((row) => Object.hasOwn(row ?? {}, 'refreshCandidates'))) {
+        try {
+          const { filterRefreshCandidates } = await import('./lib/refresh-candidates.mjs');
+          const filtered = await filterRefreshCandidates({ before, after: input.after, slug: original.slug,
+            dataset: refreshDataset(), query: process.env.REFRESH_QUERY ?? '', live: input.live, deps: input.deps, now: now.toISOString() });
+          result = { ok: filtered.survivors.length > 0, findings: filtered.dropped.flatMap(({ id, codes }) => codes.map((rule) => ({ id, rule }))) };
+          console.log('[refresh-candidates] ' + JSON.stringify({ survivorIds: filtered.survivors.map(({ id }) => id), dropped: filtered.dropped }));
+        } catch (error) {
+          if (error.code !== 'RefreshRefused') throw error;
+          result = { ok: false, findings: [{ rule: error.reason, detail: error.message }] };
+        }
+      } else result = await checkRefreshPreSubmission(input);
       if (result.warnings?.length) console.log(JSON.stringify((await import('./lib/lv-voice-lint.mjs')).voiceWarningEvent(result.warnings)));
       console.log('[refresh-self-check] ' + JSON.stringify({ attempt, ok: result.ok,
         ruleCodes: [...new Set(result.findings.map((finding) => finding.rule))] }));
@@ -330,7 +342,12 @@ async function main() {
       valid = validRefreshJson(2);
       lint = valid ? await selfCheck(2) : null;
     }
-    process.exit(result.success && valid && lint.ok ? 0 : 1);
+    // Hand a saved candidate envelope to trusted submit even when no option
+    // survives. It re-runs the mandatory filter and durably records the refusal
+    // and all drop codes, instead of mislabelling a content refusal as SDK failure.
+    const candidateOutput = valid && process.env.REFRESH_MODE === 'snippet'
+      && readRefreshPosts().some((row) => Object.hasOwn(row ?? {}, 'refreshCandidates'));
+    process.exit(result.success && valid && (lint.ok || candidateOutput) ? 0 : 1);
     return;
   }
   const t0 = Date.now();

@@ -51,6 +51,15 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
             ? 'GoodLife Liberty Village: 3.8★ Review, Hours & Tips'
             : 'GoodLife Fitness Review: Prices, Hours & Tips';
         }
+        if (${['candidates', 'candidates-none'].includes(scenario) ? 'true' : 'false'}) {
+          Object.assign(posts[0], JSON.parse(original)[0]);
+          posts[0].refreshCandidates = [
+            { title: 'Liberty Village Parking: A Local Guide', description: 'Plan parking in Liberty Village with this local guide, compare nearby options and check the details before you travel to the neighbourhood for your next visit.' },
+            { title: 'Parking Guide for Liberty Village Visitors', description: 'Plan parking in Liberty Village with this local guide, compare nearby options and check the details before you travel to the neighbourhood for your next visit.' },
+            { title: 'Liberty Village Parking Guide and Local Tips', description: 'Plan parking in Liberty Village with this local guide, compare nearby options and check the details before you travel to the neighbourhood for your next visit.' },
+          ];
+          if (${scenario === 'candidates-none' ? 'true' : 'false'}) for (const patch of posts[0].refreshCandidates) patch.description = 'Too short';
+        }
         let writeError;
         try {
           if (['failed', 'all-failed'].includes(${JSON.stringify(scenario)})) throw Object.assign(new Error('PRIVATE'), { code: 'EROFS' });
@@ -82,7 +91,7 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
   if (!refresh) fs.mkdirSync(path.join(source, '.git'));
   fs.writeFileSync(path.join(source, '.claude/settings.json'), '{"broad":"settings"}');
   fs.writeFileSync(path.join(source, 'tsconfig.json'), '{}');
-  for (const dataset of ['posts', 'businesses', 'services', 'topics']) fs.copyFileSync(new URL(`data/${dataset}.json`, ROOT), path.join(source, `data/${dataset}.json`));
+  for (const dataset of ['posts', 'businesses', 'services', 'topics', 'buildings', 'neighborhoods']) fs.copyFileSync(new URL(`data/${dataset}.json`, ROOT), path.join(source, `data/${dataset}.json`));
   const target = targetOverride ?? (throughRunner
     ? JSON.parse(fs.readFileSync(new URL(dataFile, ROOT))).find((p) => p.slug === refresh.slug)
     : { ...JSON.parse(fs.readFileSync(new URL(dataFile, ROOT)))[0], slug: 'target', title: 'Target',

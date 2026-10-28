@@ -12,7 +12,7 @@ It replaces the old broad `seo-improvements` data lane (held off since #182). It
 2. **Plan.** `content refresh plan` first settles abandoned snapshots. It then ranks live, non-news blog posts and dataset-backed non-blog snippet leaks by the weakness score below (the code-only homepage is excluded). It drops posts that are inside their cooldown or still have an open snapshot.
 3. **For each candidate, in score order:**
    1. `content refresh reserve` snapshots the live row in `content.refresh_snapshots`, under the weekly cap. It saves the exact revision payload, its sha and `live_rev`, the GSC baseline and the top query.
-   2. The runner does a fresh export. The SDK agent gets `REFRESH_DATASET`, `REFRESH_SLUG`, `REFRESH_QUERY` and `REFRESH_MODE` with a single-post prompt for both builder and revise stages, without the general SEO prompt, extra skills or project settings. In refresh mode `acceptGeneratedOutput` reads only the one bounded `data/<dataset>.json` from scratch and copies no files: other data JSON, task reports, images and code are discarded. The runner builds `after` from the fresh `before`, replacing only the target record, and writes that grafted result to the trusted checkout. Other-post additions, removals and edits never reach submit, deploy or commit. A missing/renamed target or an unchanged target still refuses. `refresh-generator-output` logs `discardedOffTarget` as at most 20 validated slugs, without bodies; missing/duplicate targets leave the checkout at the export.
+   2. The runner does a fresh export. The SDK agent gets `REFRESH_DATASET`, `REFRESH_SLUG`, `REFRESH_QUERY` and `REFRESH_MODE` with a single-post prompt for both builder and revise stages, without the general SEO prompt, extra skills or project settings. In refresh mode `acceptGeneratedOutput` reads only the one bounded `data/<dataset>.json` from scratch and copies no files: other data JSON, task reports, images and code are discarded. The runner builds `after` from the fresh `before`, replacing only the target record. Candidate lists remain private run artifacts; the trusted content file stays at its export until selection/submission. Other-post additions, removals and edits never reach submit, deploy or commit. A missing/renamed target or an unchanged target still refuses. `refresh-generator-output` logs `discardedOffTarget` as at most 20 validated slugs, without bodies; missing/duplicate targets leave the checkout at the export.
    3. `content refresh submit` accepts only one changed record in the snapshot's dataset: its slug, with the same `publishedAt`, and no other record added, removed or edited. It submits that record as kind `refresh` against the snapshot revision (`expected_live_rev`), so a row that moved in the meantime becomes a conflict. Then it runs the full gate, which publishes, posts the deploy hook and runs the smoke check.
    4. The snapshot is closed as `published` or `failed`, with a plain-English reason code. A published refresh writes one ledger row (`recordAction`, `actionKind: 'refresh'`).
 4. The run stops when 2 refreshes have published, when the DB cap refuses a reserve, or when it hits a technical failure such as the writer or the CLI. A refusal or a gate rejection moves on to the next candidate.
@@ -34,6 +34,101 @@ Search Console impressions are up 72% since July, but CTR has halved, from 1.19%
   - same URL and slug
   - the ledger path, with `recordAction({ actionKind: 'refresh', actionType: 'snippet' | 'refresh', details: { actionType, ... } })`
 - The lane is stored in `refresh_snapshots.mode` (`snippet` | `full`). The digest tags each row as "snippet: title, description, intro" or "full rewrite".
+
+## Snippet candidates and independent selection
+
+The same Claude SDK writer call drafts **3–5 patches** in a transient
+`refreshCandidates` array on the unchanged target record in its one writable
+`data/<dataset>.json`. Posts/topics patches contain `title`, `description` and
+optional `intro` (including spacing before the immutable body). Services/businesses
+patches contain only `description`, replacing its intro while preserving later
+paragraphs. Their identity and computed title/meta remain immutable. Full-mode
+refreshes keep the single-record path.
+Trusted candidate parsing sets `updatedAt` to the run date on posts/topics so
+the blog Updated date and sitemap lastmod advance with the refresh. The writer
+cannot supply this value. Services/businesses never acquire an `updatedAt` field.
+
+The writer self-check and trusted submit run `scripts/lib/refresh-candidates.mjs`:
+every option goes through the shared refresh precheck (storage, scope, claim lint,
+title-binding ratio and original business/link/premise binding). Editable titles
+and descriptions also pass `refresh-plain-text-markdown`; a failed option is
+dropped before the judge can see it. Editable titles
+must be at most 60 characters, unique against live site titles, and include the
+query's main term in the first 40 characters. The main term is the longest
+non-noise token using the existing title tokenizer (ties keep query order); when
+it drops every word, retain broad subjects such as restaurants/guide and discard
+only location/stop words. Singular/plural forms match the same term.
+Descriptions or description intros must be 140–160 characters. Title constraints
+apply to posts/topics; best/directory titles are computed from immutable identity
+fields and cannot be rewritten by this lane. Voice findings remain warnings during
+their existing rollout; they are recorded without silently making them blocking.
+Each dropped option keeps its numeric ID and deterministic reason codes.
+
+Only survivors' IDs and snippet text reach a **DeepSeek** judge, using the existing
+`deepseek-chat` provider/transport from roundup review. No provider fallback or vault
+lookup can switch the judge to the writer's vendor. Its response must contain only
+an existing integer ID and a short, single-line reason. It cannot add or edit text.
+A missing key, unavailable judge or invalid pick chooses the **first survivor in
+writer order**, with an explicit fallback status. Zero survivors closes the
+snapshot as `refresh-no-candidates` before any model pick or content submission.
+Malformed/missing candidate lists refuse as `refresh-candidate-format`.
+
+The runner adds `--candidates` to `content refresh submit` for snippet mode, making
+the list mandatory there. Manual single-record refresh submissions retain their
+existing supported path and full gate. The transient array is removed before
+submitting exactly one selected record. The existing gate model, threshold,
+repair/containment checks, 2/week cap and 8-week cooldown are unchanged.
+`refresh_snapshots.summary.candidateSelection` saves the survivor IDs, dropped
+codes, selected ID, provider, status, warnings and reason; published ledger rows
+copy it to `details.candidateSelection`. `refresh list` exposes this summary.
+
+`DEEPSEEK_API_KEY` is passed only to the refresh-submit command; it is absent from
+the generator, GSC/source and other content CLI commands. The selection function
+receives only that key, and refresh submit removes it from the environment passed
+to the full gate. No credential values enter the audit.
+
+The judge uses only the product's existing `DEEPSEEK_API_KEY` and existing
+`news-pilot/draft-model.mjs` DeepSeek transport. Its spend is **not** counted by
+the writer's SDK dollar/turn cap. Instead, trusted submit atomically marks the
+existing snapshot summary before its single judge invocation: at most **1 call
+per refresh attempt × 4 existing weekly attempts = 4 calls per weekly run**
+(also at most four for the target/ISO week). An interrupted retry uses
+`fallback-attempt-limit` without calling again. Zero survivors or a missing key
+makes no provider request. There is no provider retry or new budget system.
+
+Each call has `max_tokens: 200`, a 20-second timeout, and at most 12,000 UTF-8 bytes
+of system/user prompt. Judge context clips each title/description/intro to
+60/160/500 characters and the query to 200; selected content is never clipped.
+For a conservative rough estimate, budget about 13k input tokens including
+framing plus 200 output tokens. Using the higher published peak Pro rates
+($1.32/M input, $3.96/M output) gives about **$0.018/call or $0.072 for four calls**
+(under $0.08/week). These are pricing assumptions, not a currency cap; the
+existing `deepseek-chat` alias's rate is not separately listed on the current
+[DeepSeek pricing page](https://api-docs.deepseek.com/quick_start/pricing/).
+The hard controls are calls and request/output bounds; no model upgrade is made.
+
+For a real judge proof, authorized ops must confirm the same existing key is
+available through `/etc/lv-runner.env` or the target env file. An absent key
+records `fallback-unavailable`. This builder has not inspected or changed VM
+environment files or provisioned any new credential.
+
+Local proof (no paid model calls):
+
+```sh
+CONTENT_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres LC_ALL=C ~/.pi/agent/bin/memguard -- node --test --test-concurrency=1 tests/content/refresh-candidates.test.mjs
+```
+
+After merge, an authorized ops worker can exercise the installed staging runner
+with `sudo lv-runner run seo-improvements --target staging --topic guide/parking-guide`
+(choose a currently ranked snippet outside its cooldown). Then run
+`node scripts/content/cli.mjs refresh list --target staging` and inspect the newest
+snapshot: 3–5 options accounted for, only survivor IDs eligible, a DeepSeek pick or
+explicit deterministic fallback, one submission, and `candidateSelection` on its
+summary/ledger. Fetch that snapshot's URL to inspect the selected metadata/intro.
+For directory pages inspect the intro; their fact-derived metadata stays unchanged.
+Repeat on a later available slot for `best/gyms`, a ranked directory slug and a
+ranked blog slug without exceeding the shared cap. Rollback remains
+`node scripts/content/cli.mjs refresh rollback --snapshot <id> --actor ops:candidate-proof --target staging`.
 
 ## Weakness score (documented, tested)
 

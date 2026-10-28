@@ -16,6 +16,8 @@ import { registry } from './canonical.mjs';
 import { getSubmission, readLive, ValidationError } from './store.mjs';
 import { canonicalJson } from '../automation/blog-source-pack.mjs';
 import { refreshFailureDetail } from './refresh-diagnostics.mjs';
+import { CANDIDATE_FIELD, filterRefreshCandidates } from '../lib/refresh-candidates.mjs';
+import { pickRefreshCandidate, refreshJudgeEnv } from './refresh-candidate-judge.mjs';
 import { isoWeekOf } from '../news-pilot/roundup.mjs';
 export { splitIntro } from '../lib/refresh-lint.mjs';
 
@@ -239,6 +241,7 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
     state: row.state, reasonCode: row.reason_code,
     submissionId: n(row.submission_id), baseline: row.baseline, targetQuery: row.target_query,
     before: row.summary?.before ?? face(row.payload, row.dataset), after: row.summary?.after ?? null, change: row.summary?.change ?? null,
+    ...(row.summary?.candidateSelection ? { candidateSelection: row.summary.candidateSelection } : {}),
     ...(row.summary?.refusalDetail ? { refusalDetail: row.summary.refusalDetail } : {}), ...extra,
   });
   if (snap.state !== 'reserved') return result(snap, { existing: true });
@@ -266,6 +269,7 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
     }
   }
   const summary = { before: face(snap.payload, snap.dataset), after: face(after, snap.dataset), change: summarizeChange(snap.payload, after) };
+  if (snap.summary?.candidateSelection) summary.candidateSelection = snap.summary.candidateSelection;
   const safeDetail = refreshFailureDetail(refusalDetail?.failures);
   if (safeDetail) summary.refusalDetail = safeDetail;
   const closed = (await db.query(`update content.refresh_snapshots set state=$2, reason_code=$3, submission_id=$4, summary=$5::json, closed_at=$6
@@ -277,7 +281,8 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
       await (deps.recordAction ?? defaultRecordAction)(db, {
         actionKind: 'refresh', actionType: actionTypeOf(snap.mode), slug: snap.key, url: snap.url, pageType: refreshPage(snap.dataset).kind, targetQuery: snap.target_query,
         queryType: queryType(snap.target_query), actedAt: now, baseline: snap.baseline,
-        details: { actionType: actionTypeOf(snap.mode), snapshotId: n(snap.id), submissionId, before: summary.before, after: summary.after, change: summary.change },
+        details: { actionType: actionTypeOf(snap.mode), snapshotId: n(snap.id), submissionId, before: summary.before, after: summary.after, change: summary.change,
+          ...(summary.candidateSelection ? { candidateSelection: summary.candidateSelection } : {}) },
       });
       ledger = 'recorded';
     } catch { ledger = 'unavailable'; }   // the refresh already published; measurement is best effort
@@ -289,7 +294,11 @@ export async function closeRefresh(db, { snapshotId, submissionId = null, reason
 // publish, deploy hook, smoke) -> closed snapshot. deps.gate reaches gateContent
 // (review/fix/smoke seams), deps.recordAction the ledger. Exit 0 published, 2 refused
 // or rejected (nothing published), 3 published with propagation pending.
-export async function submitRefresh(db, { snapshotId, before, after, actor, env = process.env, deps = {}, checkout = process.cwd(), now = new Date() }) {
+export async function submitRefresh(db, { snapshotId, before, after, actor, requireCandidates = false, env = process.env, judgeEnv = refreshJudgeEnv(env), deps = {}, checkout = process.cwd(), now = new Date() }) {
+  // The gate keeps its own unchanged credentials/model and never receives this key.
+  const gateEnv = { ...env };
+  delete gateEnv.DEEPSEEK_API_KEY;
+  env = gateEnv;
   const snap = await getSnapshot(db, snapshotId);
   if (snap.state !== 'reserved') return { result: await closeRefresh(db, { snapshotId, deps }), exitCode: snap.state === 'published' ? 0 : 2 };
   const close = async (fields) => closeRefresh(db, { snapshotId, now, deps, ...fields });
@@ -299,6 +308,25 @@ export async function submitRefresh(db, { snapshotId, before, after, actor, env 
   if (existing) return gateAndClose(db, { snapshotId, submissionId: n(existing.id), actor, env, deps, checkout, now });
   let record;
   try {
+    if (snap.mode === 'snippet' && (requireCandidates || (Array.isArray(after) && after.some((row) => Object.hasOwn(row ?? {}, CANDIDATE_FIELD))))) {
+      const snapshot = await readLive(db);
+      const live = Object.fromEntries(Object.entries(snapshot.datasets).map(([dataset, value]) => [dataset, value.records]));
+      const filtered = await filterRefreshCandidates({ before, after, slug: snap.key, dataset: snap.dataset,
+        query: snap.target_query ?? '', live, now: now.toISOString(), deps: { lintMode: 'fail' } });
+      let picked = null;
+      if (filtered.survivors.length) {
+        // Claim the one allowed judge invocation before calling the provider.
+        // A retry after interruption falls back rather than spending twice.
+        const claimed = await one(db, "update content.refresh_snapshots set summary=jsonb_set(coalesce(summary::jsonb,'{}'::jsonb),'{candidateJudgeAttempted}','true'::jsonb)::json where id=$1 and state='reserved' and (summary::jsonb->>'candidateJudgeAttempted') is distinct from 'true' returning id", [snap.id]);
+        picked = await pickRefreshCandidate({ survivors: filtered.survivors, dataset: snap.dataset,
+          query: snap.target_query ?? '', env: judgeEnv, judge: claimed ? deps.candidateJudge : async () => null });
+        if (!claimed) Object.assign(picked.audit, { status: 'fallback-attempt-limit', reason: 'Used the first survivor because this attempt already used its judge invocation.' });
+      }
+      const candidateSelection = { ...(picked?.audit ?? { status: 'refused', survivorIds: [] }), dropped: filtered.dropped };
+      await db.query("update content.refresh_snapshots set summary=jsonb_set(coalesce(summary::jsonb,'{}'::jsonb),'{candidateSelection}',$2::jsonb)::json where id=$1 and state='reserved'", [snap.id, JSON.stringify(candidateSelection)]);
+      if (!picked) return { result: await close({ reasonCode: 'refresh-no-candidates' }), exitCode: 2 };
+      after = after.map((row) => row?.slug === snap.key ? picked.record : row);
+    }
     record = extractRefreshedPost({ before, after, slug: snap.key, mode: snap.mode, dataset: snap.dataset });
   } catch (error) {
     if (error.code !== 'RefreshRefused') throw error;

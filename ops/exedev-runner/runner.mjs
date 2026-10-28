@@ -232,6 +232,8 @@ export function summarizeNewsDecision(result) {
   return { published: result.published === 1 ? 1 : 0, considered: Number(result.considered) || 0, refusals };
 }
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
+export const refreshCommandEnv = (env, args) => ({ ...trustedEnv(env),
+  ...(args[0] === 'refresh' && args[1] === 'submit' ? childEnv(env, ['DEEPSEEK_API_KEY']) : {}) });
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
 // The root-owned generator helper's environment (it adds nothing secret itself).
 export const generatorEnv = (env) => childEnv(env, ['PATH', 'HOME', 'LANG', 'TZ']);
@@ -313,7 +315,7 @@ const gitEnv = childEnv(process.env, ['PATH', 'HOME', 'LANG', 'TZ']);
 const logLine = (file, event, details = {}) => fs.appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), event, ...details })}\n`, { mode: 0o600 });
 
 function cli(args, root = repo, allowed = []) {
-  return command(node, ['scripts/content/cli.mjs', ...args], { cwd: root, env: trustedEnv(process.env), allowExit: allowed });
+  return command(node, ['scripts/content/cli.mjs', ...args], { cwd: root, env: refreshCommandEnv(process.env, args), allowExit: allowed });
 }
 
 function checkout(target, log) {
@@ -406,6 +408,7 @@ export const REFRESH_RUNTIME_FILES = [
   'scripts/lib/refresh-lint.mjs',
   'scripts/lib/refresh-pages.mjs',
   'scripts/lib/refresh-precheck.mjs',
+  'scripts/lib/refresh-candidates.mjs',
   'scripts/lib/topic-key.mjs',
   'scripts/content/validate.mjs',
   'scripts/content/canonical.mjs',
@@ -438,8 +441,9 @@ export function prepareGeneratorScratch(from, to, refresh = null) {
   fs.writeFileSync(path.join(to, 'scripts/refresh-learnings.md'), learningLines.join('\n'));
   fs.writeFileSync(path.join(to, 'scripts/refresh-businesses.json'), JSON.stringify(businesses) + '\n');
   // Link and image inventories are trusted, read-only evidence outside data/.
-  const live = Object.fromEntries(['posts', 'services', 'topics'].map((dataset) => [dataset,
+  const live = Object.fromEntries(['posts', 'services', 'topics', 'buildings', 'neighborhoods'].map((dataset) => [dataset,
     readJson(path.join(from, `data/${dataset}.json`)).map((record) => ({ slug: record.slug,
+      title: record.title, pluralName: record.pluralName, name: record.name, metaTitle: record.metaTitle,
       ...(Object.hasOwn(record, 'roundupCoverage') ? { roundupCoverage: record.roundupCoverage } : {}) }))]));
   const sourceRef = refresh.target === 'production' ? 'origin/main' : refresh.target === 'staging' ? 'origin/staging' : 'HEAD';
   const tracked = spawnSync('git', ['ls-tree', '-r', '-z', sourceRef, '--', 'public/images'], { cwd: from, encoding: 'utf8' });
@@ -1795,14 +1799,16 @@ export function refreshDeps({ target, slot, request, run, cli, export: exportDat
       log('refresh-generator-output', { snapshotId: snapshot.snapshotId, discardedOffTarget });
       // Refused missing/duplicate targets leave the checkout at the export.
       // No raw generator file can reach a deploy or commit.
-      writePosts(targets.length === 1 ? after : before, snapshot.dataset ?? 'posts');
+      const hasCandidates = targets.some((record) => Object.hasOwn(record, 'refreshCandidates'));
+      writePosts(targets.length === 1 && !hasCandidates ? after : before, snapshot.dataset ?? 'posts');
       return { before, after, targetDiff: targets.length === 1 && prior.has(snapshot.slug)
         ? refreshTargetDiff(prior.get(snapshot.slug), targets[0], snapshot.dataset ?? 'posts') : null };
     },
     submit: (snapshot, generated) => {
       const result = parseJson(cli(['refresh', 'submit', '--snapshot', String(snapshot.snapshotId),
         '--before', write(`before-${snapshot.snapshotId}.json`, generated.before), '--after', write(`after-${snapshot.snapshotId}.json`, generated.after),
-        '--actor', `runner:seo-improvements#${slot}`, '--target', target], [2, 3]).stdout);
+        '--actor', `runner:seo-improvements#${slot}`, '--target', target,
+        ...(snapshot.mode === 'snippet' ? ['--candidates'] : [])], [2, 3]).stdout);
       if (result.voiceWarnings) log('lv-voice-warning', result.voiceWarnings);
       if (result.reasonCode === 'refresh-no-change') log('refresh-no-change', { snapshotId: snapshot.snapshotId, ...generated.targetDiff });
       return result;
