@@ -25,6 +25,9 @@ test('only one bounded helper diagnostic can authorize a refusal', () => {
   assert.throws(() => readGeneratorRelay({ code: 1, stdout: '{"postWritten":false,"stopReason":"sdk-error"}\n' }), /technical failure/);
   for (const value of ['', '{}\n', '{"postWritten":false,"stopReason":"sdk-error"}\nextra',
     '{"postWritten":false,"stopReason":"insufficient-sources","extra":1}\n',
+    '{"postWritten":false,"stopReason":"unsupported-grounding","validationCodes":["PRIVATE ARTICLE TEXT"]}\n',
+    '{"postWritten":false,"stopReason":"unsupported-grounding","validationCodes":"storage"}\n',
+    '{"postWritten":true,"postWritten":false,"stopReason":"unsupported-grounding"}\n',
     '{"postWritten":false,"stopReason":"insufficient-sources"}']) assert.equal(parseGeneratorDiagnostic(value), null);
   assert.deepEqual(parseDiscoveryOutcome('{"outcome":"empty","category":"bars","mapsRequests":1}\n', 'bars').outcome, 'empty');
   assert.throws(() => parseDiscoveryOutcome('{"outcome":"empty","category":"bars","mapsRequests":2}\n', 'bars'));
