@@ -650,6 +650,7 @@ export const CADENCE = Object.freeze({
 });
 const OPEN_OUTCOMES = new Set([null, 'published', 'smoked']);
 const isOpen = (attempt) => OPEN_OUTCOMES.has(attempt?.outcome ?? null);
+const normalAttemptsUsed = (attempts) => attempts.filter((item) => !String(item.topic_key).startsWith('reserve:')).length;
 const byOrdinal = (a, b) => Number(a.ordinal) - Number(b.ordinal);
 const SIDECAR = /^tasks\/auto-blog-runs\/\d{4}-\d{2}-\d{2}-([a-z0-9-]+)-source-pack\.json$/;
 
@@ -1084,9 +1085,9 @@ function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
       attempts = attemptsOf();
     }
     if (resumeOnly) return { state: 'closed' };
-    let normalLeft = CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length;
+    let normalLeft = CADENCE.normalPerSlot - normalAttemptsUsed(attempts);
     while (run.budget > 0) {
-      if (run.policy.phase === 'backfill' && (normalLeft <= 0 || backfillExhausted(attemptsOf()))) break;
+      if (run.policy.phase === 'backfill' && normalLeft <= 0) break;
       const snapshot = deps.exportSnapshot();
       const candidate = nextCandidate(run, snapshot, { normal: normalLeft > 0, reserve: run.policy.reserveAllowed && run.reserveLeft > 0 });
       if (!candidate) break;
@@ -1316,13 +1317,14 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
 const isBackfillSlot = (number) => Number(number) >= 101 && Number(number) <= 107;
 export const OCTOBER_BACKFILL = Object.freeze(['2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-19', '2026-10-22']);
 
-const backfillFailures = (attempts) => attempts.filter((item) => ['failed-before-submit', 'rejected', 'blocked', 'error'].includes(item.outcome)).length;
 function backfillExhausted(attempts) {
+  // Match processContentSlot's normalLeft cap exactly, regardless of outcome.
+  // An open attempt still resumes its original key before the slot is retired.
   return attempts.length > 0 && !isOpen(attempts.at(-1))
-    && backfillFailures(attempts) >= 3;
+    && normalAttemptsUsed(attempts) >= CADENCE.normalPerSlot;
 }
 function noteBackfillExhausted(deps, target, row) {
-  const detail = { label: row.label, week: row.week, slot: row.slotNumber, reason: 'failure-limit', failures: backfillFailures(row.attempts) };
+  const detail = { label: row.label, week: row.week, slot: row.slotNumber, reason: 'normal-attempt-limit', normalAttempts: normalAttemptsUsed(row.attempts) };
   // Ordering is derived from the durable attempt ledger. This private marker
   // only dedupes the diagnostic/alert across scheduled runs and restarts.
   const dir = path.join(deps.stateRoot, 'backfill-exhausted', target);
