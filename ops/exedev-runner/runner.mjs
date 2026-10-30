@@ -814,7 +814,7 @@ function resumeOpenAttempt(deps, ctx, attempt, token) {
 function blogCandidate(run, entry, snapshot, { reserve = false, consumed = run.consumed } = {}) {
   const { checkTopicGroundability, buildSourcePack } = run.deps.modules;
   if (typeof entry?.title !== 'string' || !entry.title.trim() || typeof entry.key !== 'string' || !entry.key) return { skip: 'invalid-entry' };
-  const ground = checkTopicGroundability({ title: entry.title, kind: 'blog', businesses: snapshot.businesses, livePosts: snapshot.posts, consumedFingerprints: [...consumed] });
+  const ground = checkTopicGroundability({ title: entry.title, kind: 'blog', businesses: snapshot.businesses, livePosts: snapshot.posts, services: snapshot.services, guides: snapshot.topics, consumedFingerprints: [...consumed] });
   if (!ground.ok) return { skip: ground.reason };
   if (!ground.fingerprint) return { skip: 'empty-fingerprint' };
   let built;
@@ -1681,14 +1681,16 @@ export function runWeeklyRoundup({ target, slot, request = {}, deps }) {
 // loaded from the pinned, freshly checked-out repo, never from scratch.
 async function trustedModules(root) {
   const load = (rel) => import(pathToFileURL(path.join(root, rel)).href);
-  const [cadence, queue, pack, evidence, roundup, roundupMode, validate] = await Promise.all([
+  const [cadence, queue, pack, evidence, roundup, roundupMode, validate, redirectModule] = await Promise.all([
     load('scripts/content/cadence.mjs'), load('scripts/automation/topic-queue.mjs'), load('scripts/automation/blog-source-pack.mjs'),
     load('scripts/news-pilot/roundup-evidence.mjs'), load('scripts/news-pilot/roundup.mjs'),
     load('scripts/content/roundup-mode.mjs'), load('scripts/content/validate.mjs'),
+    load('scripts/content/redirects.mjs'),
   ]);
+  const redirects = await redirectModule.siteRedirects();
   return {
     rankQueuedTopics: (entries) => [...entries].sort((a, b) => (Number(queue.growthHints(b).score) || 0) - (Number(queue.growthHints(a).score) || 0)),
-    weekStartUtc: cadence.weekStartUtc, checkTopicGroundability: queue.checkTopicGroundability, reserveGuideEligibility: queue.reserveGuideEligibility,
+    weekStartUtc: cadence.weekStartUtc, checkTopicGroundability: (input) => queue.checkTopicGroundability({ ...input, redirects }), reserveGuideEligibility: queue.reserveGuideEligibility,
     buildSourcePack: pack.buildSourcePack, verifySourcePack: pack.verifySourcePack, canonicalJson: pack.canonicalJson, checkDraftAgainstPack: pack.checkDraftAgainstPack,
     roundupPackDigest: evidence.roundupPackDigest, isoWeekOf: roundup.isoWeekOf, roundupSlug: roundup.roundupSlug,
     roundupPublication: roundupMode.ROUNDUP_PUBLICATION, roundupCoverageErrors: validate.roundupCoverageErrors,
