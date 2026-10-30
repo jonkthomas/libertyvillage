@@ -433,7 +433,7 @@ export function checkTopicGroundability({ title, kind, businesses = [], livePost
   if (OUTSIDE_PLACES.test(editorialTitle)) return reject('outside Liberty Village');
   if (/\b(?:login|log in|hours|menu|phone|telephone|contact)\b/i.test(editorialTitle)
     && (businesses ?? []).some((record) => liveBusiness(record) && editorialTitle.toLowerCase().includes(String(record.name ?? '').toLowerCase()))) return reject('branded navigation');
-  if (existingIntentPage(editorialTitle, primaryIntentPages({ publishedPosts: livePosts, services, guides, redirects, businesses }))) return reject('duplicate intent');
+  if (existingIntentPage(editorialTitle, primaryIntentPages({ publishedPosts: livePosts, services, guides, redirects }))) return reject('duplicate intent');
   const postFingerprints = (livePosts ?? []).flatMap((post) => [post?.title, post?.slug?.replace(/-/g, ' ')]
     .filter(Boolean).map(groundingFingerprint));
   if ([...postFingerprints, ...consumedFingerprints].includes(fingerprint)
@@ -725,6 +725,7 @@ function aliasedIntentKey(value) {
   text = text.replace(/\bgreen p(?: parking)?\b/g, ' parking ')
     .replace(/\bgoodlife(?: fitness)?\b/g, ' goodlife ')
     .replace(/\bjukebox printing\b/g, ' jukebox print ');
+  if (/\bjukebox print\b/.test(text)) text = text.replace(/\bprinting\b/g, ' print ');
   if (/\bgoodlife\b/.test(text)) text = text.replace(/\b(?:honest|prices|hours)\b/g, ' ');
   return primaryIntentKey(text);
 }
@@ -740,11 +741,12 @@ function existingIntentPage(title, pages) {
   return existingIntentKeys(title).map((key) => pages.get(key)).find(Boolean);
 }
 
-function primaryIntentPages({ services, guides, publishedPosts, redirects = [], businesses = [] }) {
+function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }) {
   const primary = new Map();
   // Directory category links resolve to /best/:service, not separate category URLs
   // (app/directory/page.tsx). Prefer that stable category page when several exist.
-  for (const [route, records] of [['best', services], ['guide', guides], ['blog', publishedPosts], ['directory', (businesses ?? []).filter(liveBusiness)]]) {
+  // A listing supplies grounding facts; only editorial coverage serves a blog intent.
+  for (const [route, records] of [['best', services], ['guide', guides], ['blog', publishedPosts]]) {
     for (const record of records) {
       if (!record || record.live === false || record.unpublished === true || record.draft === true
         || (record.liveRev ?? record.live_rev) != null && Number(record.liveRev ?? record.live_rev) <= 0

@@ -11,6 +11,12 @@ import {
 import { classifyFindings, preflightDecision } from '../../scripts/automation/preflight.mjs';
 import { GATE_MODEL, KIND_POLICIES } from '../../scripts/automation/constants.mjs';
 
+// Published posts from the live export that are absent from the committed export.
+const brandPosts = [
+  { slug: 'aroma-espresso-bar-liberty-village-review-guide', title: 'Aroma Espresso Bar Liberty Village: Full Review & What to Know' },
+  { slug: 'jukebox-print-liberty-village-printing-guide-2026', title: 'Jukebox Print & Liberty Village Printing Guide (2026)' },
+];
+
 test('SerpApi PAA discovery requires the explicit Liberty Village phrase', () => {
   const entries = buildSerpApiPaaEntries([
     { question: 'Where should I eat in Liberty Village?' },
@@ -359,10 +365,10 @@ test('#254 generic dining aliases duplicate the restaurant hub or either existin
   assert.equal(checkTopicGroundability({ title: 'Where to eat in Liberty Village', kind: 'blog' }).ok, true);
 });
 
-test('#254 committed queue rejects five covered intents and preserves #251 rejections', async () => {
+test('#254 queue with published coverage rejects five covered intents and preserves #251 rejections', async () => {
   const read = (name) => JSON.parse(readFileSync(new URL(`../../data/${name}.json`, import.meta.url), 'utf8'));
   const shared = {
-    kind: 'blog', businesses: read('businesses'), livePosts: read('posts'),
+    kind: 'blog', businesses: read('businesses'), livePosts: [...read('posts'), ...brandPosts],
     services: read('services'), guides: read('topics'), redirects: await siteRedirects(),
   };
   const duplicates = [
@@ -378,6 +384,7 @@ test('#254 committed queue rejects five covered intents and preserves #251 rejec
     const entry = queue.find((entry) => entry.title === title);
     assert.ok(entry, `real queue entry: ${title}`);
     assert.equal(checkTopicGroundability({ ...shared, title: entry.title }).reason, 'duplicate intent', title);
+    assert.equal(checkTopicGroundability({ ...shared, businesses: [], title: entry.title }).reason, 'duplicate intent', `covered without listings: ${title}`);
   }
   for (const title of [
     'Best places to eat near BMO Field in Liberty Village',
@@ -392,22 +399,35 @@ test('#254 committed queue rejects five covered intents and preserves #251 rejec
   }
 });
 
-test('#254 brand dedup uses live listings or the existing review and retains qualified intents', () => {
+test('#254 brand dedup requires a published post and retains qualified intents', () => {
   const goodlife = { slug: 'goodlife-fitness-liberty-village-review-guide', title: 'GoodLife Fitness Liberty Village: Honest Review, Prices & Hours 2026' };
   assert.equal(checkTopicGroundability({ title: 'Goodlife Liberty Village', kind: 'blog', livePosts: [goodlife] }).reason, 'duplicate intent');
-  for (const [title, business] of [
-    ['Goodlife Liberty Village', { slug: 'goodlife-fitness-liberty-village', name: 'GoodLife Fitness Liberty Village' }],
-    ['Jukebox Printing Liberty Village Toronto', { slug: 'jukebox-print', name: 'Jukebox Print' }],
-    ['Aroma Espresso Bar Liberty Village', { slug: 'aroma-espresso-bar', name: 'Aroma Espresso Bar' }],
+  for (const [title, post] of [
+    ['Goodlife Liberty Village', goodlife],
+    ['Jukebox Printing Liberty Village Toronto', brandPosts[1]],
+    ['Aroma Espresso Bar Liberty Village', brandPosts[0]],
   ]) {
-    const check = (record) => checkTopicGroundability({ title, kind: 'blog', businesses: [record] });
-    assert.equal(check(business).reason, 'duplicate intent', title);
+    const check = (record) => checkTopicGroundability({ title, kind: 'blog', livePosts: [record] });
+    assert.equal(check(post).reason, 'duplicate intent', title);
     for (const state of [{ live: false }, { unpublished: true }, { draft: true }, { liveRev: 0 }]) {
-      assert.equal(check({ ...business, ...state }).ok, true, `${title}: ${JSON.stringify(state)}`);
+      assert.equal(check({ ...post, ...state }).ok, true, `${title}: ${JSON.stringify(state)}`);
     }
   }
   assert.equal(checkTopicGroundability({ title: 'Goodlife personal training in Liberty Village', kind: 'blog', livePosts: [goodlife] }).ok, true);
   assert.equal(checkTopicGroundability({ title: 'Aroma Espresso Bar Liberty Village', kind: 'blog', businesses: [{ slug: 'aroma-fine-indian-cuisine', name: 'Aroma Fine Indian Cuisine' }] }).ok, true);
+});
+
+test('#254 listed businesses without a published post remain groundable for a review', () => {
+  for (const business of [
+    { slug: 'school-restaurant', name: 'School Restaurant' },
+    { slug: 'goodlife-fitness-liberty-village', name: 'GoodLife Fitness Liberty Village' },
+    { slug: 'jukebox-print', name: 'Jukebox Print' },
+    { slug: 'aroma-espresso-bar', name: 'Aroma Espresso Bar' },
+  ]) {
+    for (const title of [`${business.name} Review`, `${business.name.replace(/\s+Liberty Village$/i, '')} Liberty Village`]) {
+      assert.equal(checkTopicGroundability({ title, kind: 'blog', businesses: [business] }).reason, 'groundable', title);
+    }
+  }
 });
 
 test('operational claims require two supporting live records and reserve guide needs six facts', () => {
