@@ -25,6 +25,9 @@ test('only one bounded helper diagnostic can authorize a refusal', () => {
   assert.throws(() => readGeneratorRelay({ code: 1, stdout: '{"postWritten":false,"stopReason":"sdk-error"}\n' }), /technical failure/);
   for (const value of ['', '{}\n', '{"postWritten":false,"stopReason":"sdk-error"}\nextra',
     '{"postWritten":false,"stopReason":"insufficient-sources","extra":1}\n',
+    '{"postWritten":false,"stopReason":"unsupported-grounding","validationCodes":["PRIVATE ARTICLE TEXT"]}\n',
+    '{"postWritten":false,"stopReason":"unsupported-grounding","validationCodes":"storage"}\n',
+    '{"postWritten":true,"postWritten":false,"stopReason":"unsupported-grounding"}\n',
     '{"postWritten":false,"stopReason":"insufficient-sources"}']) assert.equal(parseGeneratorDiagnostic(value), null);
   assert.deepEqual(parseDiscoveryOutcome('{"outcome":"empty","category":"bars","mapsRequests":1}\n', 'bars').outcome, 'empty');
   assert.throws(() => parseDiscoveryOutcome('{"outcome":"empty","category":"bars","mapsRequests":2}\n', 'bars'));
@@ -261,6 +264,17 @@ test('discovery failure logs inventory deficit but does not discard already grou
   assert.equal(run(world).cadenceMet, true);
   assert.deepEqual(world.generated.map((entry) => entry.title), ['Liberty Village Happy Hour', 'Coffee Shops']);
   assert.equal(events(world, 'cadence-inventory-replenish-failed').length, 1);
+});
+
+test('weekly-blog skips a things-to-do paraphrase served by a published guide before generation', (t) => {
+  const title = 'What Is There To Do In Liberty Village, Toronto?';
+  const world = withWorld(t, { queue: [topic('things-to-do', title), TOPICS.happy, TOPICS.coffee], topics: [
+    { slug: 'things-to-do', title: 'Things to Do in Liberty Village Toronto (2026)' },
+  ] });
+  assert.equal(run(world).cadenceMet, true);
+  assert.deepEqual(world.generated.map((entry) => entry.title), ['Liberty Village Happy Hour', 'Coffee Shops']);
+  assert.ok(events(world, 'intent-skipped').some((entry) => entry.reason === 'duplicate intent'));
+  console.log('LIVE weekly-blog: things-to-do candidate skipped; duplicate intent logged; only distinct topics generated');
 });
 
 test('Wednesday fills slots 1 and 2 with distinct grounded intents; ungroundable pet premise never reaches the model', (t) => {

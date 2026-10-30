@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { siteRedirects } from '../../scripts/content/redirects.mjs';
 
 import { isGeneratorKind } from '../../scripts/automation/candidate-state.mjs';
 import {
@@ -8,6 +10,12 @@ import {
 } from '../../scripts/automation/topic-queue.mjs';
 import { classifyFindings, preflightDecision } from '../../scripts/automation/preflight.mjs';
 import { GATE_MODEL, KIND_POLICIES } from '../../scripts/automation/constants.mjs';
+
+// Published posts from the live export that are absent from the committed export.
+const brandPosts = [
+  { slug: 'aroma-espresso-bar-liberty-village-review-guide', title: 'Aroma Espresso Bar Liberty Village: Full Review & What to Know' },
+  { slug: 'jukebox-print-liberty-village-printing-guide-2026', title: 'Jukebox Print & Liberty Village Printing Guide (2026)' },
+];
 
 test('SerpApi PAA discovery requires the explicit Liberty Village phrase', () => {
   const entries = buildSerpApiPaaEntries([
@@ -309,6 +317,117 @@ test('one expected GSC suffix yields a canonical editorial intent without weaken
   assert.equal(check('pet friendly patios Liberty Village Toronto').ok, false);
   assert.match(check('pet friendly patios Liberty Village Toronto').reason, /unsupported operational premise/);
   assert.match(check('best coffee Liberty Village Toronto Liberty Village Toronto').reason, /malformed/);
+});
+
+test('published guides, best hubs and redirect paths block existing intents', async () => {
+  const title = 'What Is There To Do In Liberty Village, Toronto?';
+  const guide = { slug: 'things-to-do', title: 'Things to Do in Liberty Village Toronto (2026)' };
+  const check = (more) => checkTopicGroundability({ title, kind: 'blog', redirects: [], ...more });
+  assert.equal(check({ guides: [guide] }).reason, 'duplicate intent');
+  for (const state of [{ live: false }, { unpublished: true }, { draft: true }, { liveRev: 0 }]) {
+    assert.equal(check({ guides: [{ ...guide, ...state }] }).ok, true);
+  }
+  assert.equal(check({ guides: [guide], title: 'Things to Do With Kids in Liberty Village' }).ok, true);
+  assert.equal(check({ services: [{ slug: 'dentists', pluralName: 'Dentists' }], title: 'Best Dentists in Liberty Village' }).reason, 'duplicate intent');
+  const redirects = [{ source: '/blog/old-cycling-routes', destination: '/guide/bike-trails', statusCode: 301 }];
+  for (const redirectedTitle of ['Old cycling routes in Liberty Village', 'Bike trails in Liberty Village']) {
+    assert.equal(check({ title: redirectedTitle, redirects }).reason, 'duplicate intent');
+  }
+  assert.equal(check({ title: 'Parks Green Spaces in Liberty Village', redirects: await siteRedirects() }).reason, 'duplicate intent', 'use the shared declared redirect inventory');
+  const logs = [];
+  const discovery = await appendDiscoveredTopics({ version: 1, topics: [] }, [
+    { kind: 'blog', title, source: 'serpapi', rationale: 'PAA' },
+  ], { guides: [guide], redirects: [], log: (reason) => logs.push(reason) });
+  assert.equal(discovery.added.length, 0);
+  assert.match(logs[0], /intent already served.*\/guide\/things-to-do/);
+});
+
+test('#254 generic dining aliases duplicate the restaurant hub or either existing restaurant post', () => {
+  const inventories = [
+    { services: [{ slug: 'restaurants', name: 'Restaurant', pluralName: 'Restaurants' }] },
+    { livePosts: [{ slug: 'best-restaurants-liberty-village-locals-guide', title: 'Where Locals Actually Eat in Liberty Village (2026 Insider Guide)' }] },
+    { livePosts: [{ slug: 'best-restaurants-liberty-village-2026-definitive-guide', title: "The Best Restaurants in Liberty Village (2026): A Local's Definitive Guide to Where to Eat" }] },
+  ];
+  for (const inventory of inventories) {
+    for (const title of [
+      'What Is The Best Place To Eat In Liberty Village, Toronto?',
+      'Best places to eat in Liberty Village', 'Where to eat in Liberty Village',
+      'Best food in Liberty Village', 'Dining in Liberty Village',
+    ]) assert.equal(checkTopicGroundability({ title, kind: 'blog', ...inventory }).reason, 'duplicate intent', title);
+    const businesses = ['one', 'two'].map((id) => ({ id, name: id, live: true, description: 'Brunch and late-night dining.' }));
+    for (const title of [
+      'Best Thai restaurants in Liberty Village', 'Best Italian restaurants in Liberty Village',
+      'Best Indian restaurants in Liberty Village', 'Best places to eat near BMO Field in Liberty Village',
+      'World Cup dining in Liberty Village', 'Brunch restaurants in Liberty Village',
+      'Late-night places to eat in Liberty Village',
+    ]) assert.equal(checkTopicGroundability({ title, kind: 'blog', businesses, ...inventory }).ok, true, title);
+  }
+  assert.equal(checkTopicGroundability({ title: 'Where to eat in Liberty Village', kind: 'blog' }).ok, true);
+});
+
+test('#254 queue with published coverage rejects five covered intents and preserves #251 rejections', async () => {
+  const read = (name) => JSON.parse(readFileSync(new URL(`../../data/${name}.json`, import.meta.url), 'utf8'));
+  const shared = {
+    kind: 'blog', businesses: read('businesses'), livePosts: [...read('posts'), ...brandPosts],
+    services: read('services'), guides: read('topics'), redirects: await siteRedirects(),
+  };
+  const duplicates = [
+    'What Is The Best Place To Eat In Liberty Village, Toronto?', 'Goodlife Liberty Village',
+    'Green P Parking Liberty Village', 'Jukebox Printing Liberty Village Toronto', 'Aroma Espresso Bar Liberty Village',
+    'Liberty Village Happy Hour', 'Liberty Village Farmers Market',
+    'What Are Some Fun Things To Do In Liberty Village, Toronto?',
+    'What Is There To Do In Liberty Village, Toronto?', 'What To Do In Liberty Village, Toronto?',
+    'Liberty Village Gyms', 'Liberty Village Spa',
+  ];
+  const queue = read('topic-queue').topics;
+  for (const title of duplicates) {
+    const entry = queue.find((entry) => entry.title === title);
+    assert.ok(entry, `real queue entry: ${title}`);
+    assert.equal(checkTopicGroundability({ ...shared, title: entry.title }).reason, 'duplicate intent', title);
+    assert.equal(checkTopicGroundability({ ...shared, businesses: [], title: entry.title }).reason, 'duplicate intent', `covered without listings: ${title}`);
+  }
+  for (const title of [
+    'Best places to eat near BMO Field in Liberty Village',
+    'World Cup dining in Liberty Village', '34 Hanna Ave Parking Liberty Village Toronto',
+  ]) assert.equal(checkTopicGroundability({ ...shared, title }).ok, true, title);
+  // Supply premise evidence so these controls exercise dedup rather than fail an
+  // unrelated operational-claim gate. That gate must still reject without facts.
+  const businesses = ['one', 'two'].map((id) => ({ id, name: id, live: true, description: 'Brunch and late-night dining.' }));
+  for (const title of ['Brunch restaurants in Liberty Village', 'Late-night places to eat in Liberty Village']) {
+    assert.equal(checkTopicGroundability({ ...shared, businesses, title }).ok, true, title);
+    assert.equal(checkTopicGroundability({ ...shared, businesses: [], title }).reason, 'unsupported operational premise');
+  }
+});
+
+test('#254 brand dedup requires a published post and retains qualified intents', () => {
+  const goodlife = { slug: 'goodlife-fitness-liberty-village-review-guide', title: 'GoodLife Fitness Liberty Village: Honest Review, Prices & Hours 2026' };
+  assert.equal(checkTopicGroundability({ title: 'Goodlife Liberty Village', kind: 'blog', livePosts: [goodlife] }).reason, 'duplicate intent');
+  for (const [title, post] of [
+    ['Goodlife Liberty Village', goodlife],
+    ['Jukebox Printing Liberty Village Toronto', brandPosts[1]],
+    ['Aroma Espresso Bar Liberty Village', brandPosts[0]],
+  ]) {
+    const check = (record) => checkTopicGroundability({ title, kind: 'blog', livePosts: [record] });
+    assert.equal(check(post).reason, 'duplicate intent', title);
+    for (const state of [{ live: false }, { unpublished: true }, { draft: true }, { liveRev: 0 }]) {
+      assert.equal(check({ ...post, ...state }).ok, true, `${title}: ${JSON.stringify(state)}`);
+    }
+  }
+  assert.equal(checkTopicGroundability({ title: 'Goodlife personal training in Liberty Village', kind: 'blog', livePosts: [goodlife] }).ok, true);
+  assert.equal(checkTopicGroundability({ title: 'Aroma Espresso Bar Liberty Village', kind: 'blog', businesses: [{ slug: 'aroma-fine-indian-cuisine', name: 'Aroma Fine Indian Cuisine' }] }).ok, true);
+});
+
+test('#254 listed businesses without a published post remain groundable for a review', () => {
+  for (const business of [
+    { slug: 'school-restaurant', name: 'School Restaurant' },
+    { slug: 'goodlife-fitness-liberty-village', name: 'GoodLife Fitness Liberty Village' },
+    { slug: 'jukebox-print', name: 'Jukebox Print' },
+    { slug: 'aroma-espresso-bar', name: 'Aroma Espresso Bar' },
+  ]) {
+    for (const title of [`${business.name} Review`, `${business.name.replace(/\s+Liberty Village$/i, '')} Liberty Village`]) {
+      assert.equal(checkTopicGroundability({ title, kind: 'blog', businesses: [business] }).reason, 'groundable', title);
+    }
+  }
 });
 
 test('operational claims require two supporting live records and reserve guide needs six facts', () => {

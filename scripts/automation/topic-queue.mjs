@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { topicKey } from '../lib/topic-key.mjs';
+import { siteRedirects } from '../content/redirects.mjs';
 export { topicKey } from '../lib/topic-key.mjs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -418,7 +419,7 @@ function groundingFingerprint(title) {
   return intentFingerprint(withoutLocality);
 }
 
-export function checkTopicGroundability({ title, kind, businesses = [], livePosts = [], consumedFingerprints = [] } = {}) {
+export function checkTopicGroundability({ title, kind, businesses = [], livePosts = [], services = [], guides = [], redirects = [], consumedFingerprints = [] } = {}) {
   const cleaned = String(title ?? '').replace(/\s+/g, ' ').trim();
   const suffix = cleaned.match(TRAILING_GEO);
   const editorialTitle = suffix ? `${suffix[1].trim()}${suffix[2]}` : cleaned;
@@ -432,6 +433,7 @@ export function checkTopicGroundability({ title, kind, businesses = [], livePost
   if (OUTSIDE_PLACES.test(editorialTitle)) return reject('outside Liberty Village');
   if (/\b(?:login|log in|hours|menu|phone|telephone|contact)\b/i.test(editorialTitle)
     && (businesses ?? []).some((record) => liveBusiness(record) && editorialTitle.toLowerCase().includes(String(record.name ?? '').toLowerCase()))) return reject('branded navigation');
+  if (existingIntentPage(editorialTitle, primaryIntentPages({ publishedPosts: livePosts, services, guides, redirects }))) return reject('duplicate intent');
   const postFingerprints = (livePosts ?? []).flatMap((post) => [post?.title, post?.slug?.replace(/-/g, ' ')]
     .filter(Boolean).map(groundingFingerprint));
   if ([...postFingerprints, ...consumedFingerprints].includes(fingerprint)
@@ -712,28 +714,68 @@ function primaryIntentKey(value) {
   return words.length ? `${area}|${words.join(' ')}` : '';
 }
 
-function primaryIntentPages({ services, guides, publishedPosts }) {
+// Add bounded aliases alongside the original keys, preserving all existing
+// rejections. Keep cuisine, occasion, location and address qualifiers in the key.
+function aliasedIntentKey(value) {
+  let text = String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  if (/\b(?:restaurants?|eat|food|dining)\b/.test(text)) {
+    text = text.replace(/\bplaces? to eat\b|\b(?:restaurants?|eat|food|dining)\b/g, ' restaurant ')
+      .replace(/\b(?:locals?|actually|definitive|insider|s)\b/g, ' ');
+  }
+  text = text.replace(/\bgreen p(?: parking)?\b/g, ' parking ')
+    .replace(/\bgoodlife(?: fitness)?\b/g, ' goodlife ')
+    .replace(/\bjukebox printing\b/g, ' jukebox print ');
+  if (/\bjukebox print\b/.test(text)) text = text.replace(/\bprinting\b/g, ' print ');
+  if (/\bgoodlife\b/.test(text)) text = text.replace(/\b(?:honest|prices|hours)\b/g, ' ');
+  return primaryIntentKey(text);
+}
+
+function existingIntentKeys(value) {
+  const primary = primaryIntentKey(value);
+  const near = nearDuplicateKey(value);
+  const aliased = aliasedIntentKey(value);
+  return [primary, near && `near:${near}`, aliased && `alias:${aliased}`].filter(Boolean);
+}
+
+function existingIntentPage(title, pages) {
+  return existingIntentKeys(title).map((key) => pages.get(key)).find(Boolean);
+}
+
+function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }) {
   const primary = new Map();
   // Directory category links resolve to /best/:service, not separate category URLs
   // (app/directory/page.tsx). Prefer that stable category page when several exist.
+  // A listing supplies grounding facts; only editorial coverage serves a blog intent.
   for (const [route, records] of [['best', services], ['guide', guides], ['blog', publishedPosts]]) {
     for (const record of records) {
       if (!record || record.live === false || record.unpublished === true || record.draft === true
         || (record.liveRev ?? record.live_rev) != null && Number(record.liveRev ?? record.live_rev) <= 0
         || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(record.slug ?? '')) continue;
       for (const value of [record.slug, record.title, record.name, record.pluralName]) {
-        const key = primaryIntentKey(value);
-        if (key && !primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
+        for (const key of existingIntentKeys(value)) {
+          if (!primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
+        }
+      }
+    }
+  }
+  // Redirected URLs may no longer be present in the published export. Keep both
+  // ends as existing intents so an old URL's topic cannot be regenerated.
+  for (const redirect of redirects) {
+    for (const url of [redirect.source, redirect.destination]) {
+      const slug = /^\/(?:blog|guide|best|directory|vs)\/([a-z0-9-]+)$/.exec(url ?? '')?.[1];
+      if (!slug) continue;
+      for (const key of existingIntentKeys(slug)) {
+        if (!primary.has(key)) primary.set(key, redirect.destination);
       }
     }
   }
   return primary;
 }
 
-export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [], services = [], guides = [], log = console.warn } = {}) {
+export async function appendDiscoveredTopics(queue, discoveries, { publishedPosts = [], services = [], guides = [], redirects = [], log = console.warn } = {}) {
   let next = queue ?? loadTopicQueue();
   const added = [];
-  const primaryPages = primaryIntentPages({ services, guides, publishedPosts });
+  const primaryPages = primaryIntentPages({ services, guides, publishedPosts, redirects });
   const seenIntents = new Set((next.topics ?? []).map((entry) => (
     `${entry?.kind ?? ''}|${intentFingerprint(entry?.title)}`
   )));
@@ -743,7 +785,7 @@ export async function appendDiscoveredTopics(queue, discoveries, { publishedPost
   ]);
   for (const discovery of discoveries) {
     if (added.length >= 25) break;
-    const primary = discovery?.kind === 'blog' && primaryPages.get(primaryIntentKey(discovery.title));
+    const primary = discovery?.kind === 'blog' && existingIntentPage(discovery.title, primaryPages);
     if (primary) {
       // The ledger records completed actions, not suggestions. There is no
       // suggestion writer in this branch: keep the existing URL and log the skip.
@@ -814,6 +856,7 @@ async function main() {
       publishedPosts: loadPublishedPosts(),
       services: loadPublishedPosts(path.join(dataDir, 'services.json')),
       guides: loadPublishedPosts(path.join(dataDir, 'topics.json')),
+      redirects: await siteRedirects(),
     });
     saveTopicQueue(result.queue);
     writeOutput({

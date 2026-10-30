@@ -29,6 +29,8 @@ const PASS = { reviews: [{ overall: 8.5, findings: [] }] };
 const SCORE7 = { reviews: [{ overall: 7, findings: [{ severity: 'high', path: 'data/businesses.json#unrelated-record', note: 'post relies on a claim no cited record supports' }] }] };
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const jpeg = (label) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(`hero:${label}`)]);
+// The seed includes /best/brunch-spots, so use the distinct Dinner Spots intent
+// when exercising publication; the runner correctly deduplicates Brunch Spots.
 const queueEntry = (title) => ({ key: topicKey('blog', title, 'blog/auto-'), kind: 'blog', title, source: 'gsc', rationale: 'runner e2e', addedAt: '2026-09-01T00:00:00.000Z', attempts: 0, branchPrefix: 'blog/auto-' });
 
 async function addQueue(db, titles, tag) {
@@ -142,7 +144,7 @@ const blogSubmissions = async (db) => (await db.query("select id,idempotency_key
 
 test('E2E refusal continuation: two grounded refusals close before candidate 3 publishes through the real CLI', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  const titles = ['Brunch Spots', 'Bars', 'Lunch Spots'];
+  const titles = ['Dinner Spots', 'Bars', 'Lunch Spots'];
   await addQueue(ctx.db, titles, 'refusal-continue');
   const generate = ctx.deps.generate;
   const tried = [];
@@ -167,7 +169,7 @@ test('E2E refusal continuation: two grounded refusals close before candidate 3 p
 
 test('E2E slot 2 refusal: closed evidence continues through the real CLI to the next candidate', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  await addQueue(ctx.db, ['Brunch Spots', 'Bars', 'Lunch Spots'], 'slot2-refusal');
+  await addQueue(ctx.db, ['Dinner Spots', 'Bars', 'Lunch Spots'], 'slot2-refusal');
   const generate = ctx.deps.generate;
   let generations = 0;
   ctx.deps.generate = (title) => {
@@ -185,7 +187,7 @@ test('E2E slot 2 refusal: closed evidence continues through the real CLI to the 
 
 test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count increments via the hosted alias', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  await addQueue(ctx.db, ['Brunch Spots', 'Bars'], 'a');
+  await addQueue(ctx.db, ['Dinner Spots', 'Bars'], 'a');
   assert.equal(ctx.count().contentCount, 0);
   const result = blog(ctx, '202609301100-e2ea0001');
   assert.equal(result.cadenceMet, true);
@@ -196,7 +198,7 @@ test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count incr
   assert.deepEqual(submissions.map((s) => [s.idempotency_key, s.state]), attempts.map((a) => [a.idempotency_key, 'published']));
   assert.deepEqual(submissions.map((s) => s.context.sourcePack.fingerprint), attempts.map((a) => a.source_pack_digest), 'verified trusted pack stored per attempt');
   assert.deepEqual(attempts.map((a) => Number(a.submission_id)), submissions.map((s) => Number(s.id)));
-  assert.deepEqual(ctx.generated, ['Brunch Spots', 'Bars'], 'seed pet-friendly queue topic skipped before spend');
+  assert.deepEqual(ctx.generated, ['Dinner Spots', 'Bars'], 'seed pet-friendly queue topic skipped before spend');
   assert.deepEqual(ctx.cliJson(['cadence', 'consumed', '--target', 'test']), attempts.map((a) => a.intent_fingerprint).sort(), 'F6 real `cadence consumed` returns all-time consumed intents');
   assert.deepEqual(blog(ctx, '202610021100-e2ea0002'), { cadenceMet: true, noChanges: true, contentCount: 2 });
   assert.equal(ctx.generated.length, 2, 'goal met: no further generator spend');
@@ -204,7 +206,7 @@ test('E2E (a): publish + smoke → attempt smoked→consumed; cadence count incr
 
 test('E2E (b): crash after submit, rerun → same idempotency key, no second submission', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  await addQueue(ctx.db, ['Brunch Spots', 'Bars'], 'b');
+  await addQueue(ctx.db, ['Dinner Spots', 'Bars'], 'b');
   ctx.crash = (args) => args[0] === 'cadence' && args[1] === 'attach';
   assert.throws(() => blog(ctx, '202609301100-e2eb0001'), /simulated runner crash/);
   const [open] = await ctx.attempts('content');
@@ -222,12 +224,12 @@ test('E2E (b): crash after submit, rerun → same idempotency key, no second sub
   assert.equal(all.filter((s) => s.idempotency_key === open.idempotency_key).length, 1, 'no second submission for the original key');
   assert.equal(all.length, 2);
   assert.equal(ctx.calls.filter((args) => args[0] === 'submit' && args.includes(open.idempotency_key)).length, 1, 'resume used lookup, not a second submit');
-  assert.equal(ctx.generated.filter((title) => title === 'Brunch Spots').length, 1);
+  assert.equal(ctx.generated.filter((title) => title === 'Dinner Spots').length, 1);
 });
 
 test('E2E (c): gate score 7 → terminal outcome; the next run uses a new ordinal with a distinct intent', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  await addQueue(ctx.db, ['Brunch Spots'], 'c1');
+  await addQueue(ctx.db, ['Dinner Spots'], 'c1');
   ctx.gateScripts = [SCORE7, SCORE7, SCORE7, SCORE7];
   assert.throws(() => blog(ctx, '202609301100-e2ec0001'), /cadence content deficit|weekly content missed/);
   const [rejected] = await ctx.attempts('content');
@@ -242,7 +244,7 @@ test('E2E (c): gate score 7 → terminal outcome; the next run uses a new ordina
   assert.deepEqual(attempts.map((a) => [a.ordinal, a.outcome]), [[1, rejected.outcome], [2, 'consumed']]);
   assert.notEqual(attempts[1].idempotency_key, attempts[0].idempotency_key);
   assert.notEqual(attempts[1].intent_fingerprint, attempts[0].intent_fingerprint);
-  assert.deepEqual(ctx.generated, ['Brunch Spots', 'Bars']);
+  assert.deepEqual(ctx.generated, ['Dinner Spots', 'Bars']);
   assert.equal(ctx.count().contentCount, 1);
 });
 
@@ -287,7 +289,7 @@ test('E2E (d): roundup zero → hold with no attempt row; items → one roundup 
 
 test('E2E (e): the next week\'s first run records WEEKLY_CONTENT_MISSED + WEEKLY_NEWS_MISSED once for a 1+0 week and delivers them', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  await addQueue(ctx.db, ['Brunch Spots'], 'e');
+  await addQueue(ctx.db, ['Dinner Spots'], 'e');
   const week = weekStartUtc(new Date());
   assert.throws(() => blog(ctx, '202609301100-e2ee0001'), /cadence content deficit|weekly content missed/);
   assert.equal(ctx.count().contentCount, 1);
@@ -357,7 +359,7 @@ test('E2E (g): a published prior-week roundup whose smoke lands next Monday is r
 
 test('E2E October backfill: real CLI publishes and smokes one current-dated post; ledger restart waits', { skip, timeout: 300_000 }, async (t) => {
   const ctx = await stack(t);
-  await addQueue(ctx.db, ['Brunch Spots', 'Bars'], 'october-backfill');
+  await addQueue(ctx.db, ['Dinner Spots', 'Bars'], 'october-backfill');
   const result = runOctoberBackfill({ target: 'test', slot: 'local-october-backfill', deps: ctx.deps });
   assert.equal(result.reason, 'october-backfill-published');
   const [attempt] = await ctx.attempts('content');
@@ -369,7 +371,7 @@ test('E2E October backfill: real CLI publishes and smokes one current-dated post
   assert.equal(ctx.cliJson(['cadence', 'count', '--target', 'test', '--week-start', weekStartUtc(new Date())]).contentCount, 0, 'backfill cannot satisfy the live weekly goal');
   assert.equal(ctx.cliJson(['cadence', 'count', '--target', 'test', '--week-start', weekStartUtc(attempt.week_start_utc)]).contentCount, 0, 'a historical label receipt cannot repair missed weekly cadence');
   assert.equal(ctx.cliJson(['cadence', 'current-live', '--target', 'test', '--submission-id', String(result.id)]).live, true, 'historical label still has gate/revision/smoke/alias proof');
-  const payload = (await ctx.db.query("select r.payload from content.entries e join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev where e.dataset='posts' and e.key=$1", [ctx.generated.length ? 'liberty-village-brunch-spots-notes' : 'missing'])).rows[0].payload;
+  const payload = (await ctx.db.query("select r.payload from content.entries e join content.revisions r on r.dataset=e.dataset and r.key=e.key and r.rev=e.live_rev where e.dataset='posts' and e.key=$1", [ctx.generated.length ? 'liberty-village-dinner-spots-notes' : 'missing'])).rows[0].payload;
   assert.equal(payload.publishedAt, new Date().toISOString().slice(0, 10));
   assert.equal(runOctoberBackfill({ target: 'test', slot: 'local-october-restart', deps: ctx.deps }).reason, 'october-backfill-wait');
   assert.equal((await blogSubmissions(ctx.db)).length, 1);
