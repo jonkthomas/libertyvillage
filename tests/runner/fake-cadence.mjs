@@ -63,12 +63,12 @@ export const WED = new Date('2026-09-30T11:00:00.000Z');
 export const FRI = new Date('2026-10-02T11:00:00.000Z');
 export const SUN = new Date('2026-10-04T16:00:00.000Z');
 
-export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, TOPICS.fitness], posts = [{ slug: 'existing-post', title: 'Existing Post', category: 'lifestyle' }], businesses = BUSINESSES } = {}) {
+export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, TOPICS.fitness], posts = [{ slug: 'existing-post', title: 'Existing Post', category: 'lifestyle' }], businesses = BUSINESSES, services = [], topics = [] } = {}) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cadence-repo-'));
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lv-cadence-state-'));
   fs.mkdirSync(path.join(repo, 'data'), { recursive: true });
   const world = {
-    repo, stateRoot, now, queue, posts, businesses, snapshotId: 'a'.repeat(40),
+    repo, stateRoot, now, queue, posts, businesses, services, topics, snapshotId: 'a'.repeat(40),
     cadenceStartWeek: '2026-09-21',
     slots: new Map(), attempts: [], evidence: new Map(), submissions: new Map(), nextId: 100, live: new Set(),
     calls: [], logs: [], generated: [], sources: [],
@@ -296,7 +296,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
     log: (event, details = {}) => world.logs.push({ event, ...details }),
     exportSnapshot: () => {
       fs.writeFileSync(path.join(repo, 'data', 'posts.json'), JSON.stringify(world.posts));
-      return { businesses: world.businesses.map((b) => ({ ...b })), posts: world.posts.map((p) => ({ ...p })), services: [], topics: [], queue: { version: 1, topics: world.queue }, snapshotId: world.snapshotId };
+      return { businesses: world.businesses.map((b) => ({ ...b })), posts: world.posts.map((p) => ({ ...p })), services: world.services, topics: world.topics, queue: { version: 1, topics: world.queue }, snapshotId: world.snapshotId };
     },
     // Fake untrusted generator: behaves like scripts/weekly-blog-agent.js given
     // TOPIC_OVERRIDE, unless the plan asks it to misbehave.
@@ -308,7 +308,7 @@ export function createWorld({ now = WED, queue = [TOPICS.happy, TOPICS.coffee, T
         if (plan === 'refusal') error.groundedRefusal = 'insufficient-sources';
         throw error;
       }
-      const built = buildSourcePack({ topic: title, businesses: world.businesses, posts: world.posts, services: [], topics: [], now: world.now });
+      const built = buildSourcePack({ topic: title, businesses: world.businesses, posts: world.posts, services: world.services, topics: world.topics, now: world.now });
       const dir = path.join(repo, 'tasks', 'auto-blog-runs');
       fs.mkdirSync(dir, { recursive: true });
       const rel = `tasks/auto-blog-runs/${world.now.toISOString().slice(0, 10)}-${built.pack.intentKey}-source-pack.json`;

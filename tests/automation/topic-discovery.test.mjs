@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { siteRedirects } from '../../scripts/content/redirects.mjs';
 
 import { isGeneratorKind } from '../../scripts/automation/candidate-state.mjs';
 import {
@@ -309,6 +310,29 @@ test('one expected GSC suffix yields a canonical editorial intent without weaken
   assert.equal(check('pet friendly patios Liberty Village Toronto').ok, false);
   assert.match(check('pet friendly patios Liberty Village Toronto').reason, /unsupported operational premise/);
   assert.match(check('best coffee Liberty Village Toronto Liberty Village Toronto').reason, /malformed/);
+});
+
+test('published guides, best hubs and redirect paths block existing intents', async () => {
+  const title = 'What Is There To Do In Liberty Village, Toronto?';
+  const guide = { slug: 'things-to-do', title: 'Things to Do in Liberty Village Toronto (2026)' };
+  const check = (more) => checkTopicGroundability({ title, kind: 'blog', redirects: [], ...more });
+  assert.equal(check({ guides: [guide] }).reason, 'duplicate intent');
+  for (const state of [{ live: false }, { unpublished: true }, { draft: true }, { liveRev: 0 }]) {
+    assert.equal(check({ guides: [{ ...guide, ...state }] }).ok, true);
+  }
+  assert.equal(check({ guides: [guide], title: 'Things to Do With Kids in Liberty Village' }).ok, true);
+  assert.equal(check({ services: [{ slug: 'dentists', pluralName: 'Dentists' }], title: 'Best Dentists in Liberty Village' }).reason, 'duplicate intent');
+  const redirects = [{ source: '/blog/old-cycling-routes', destination: '/guide/bike-trails', statusCode: 301 }];
+  for (const redirectedTitle of ['Old cycling routes in Liberty Village', 'Bike trails in Liberty Village']) {
+    assert.equal(check({ title: redirectedTitle, redirects }).reason, 'duplicate intent');
+  }
+  assert.equal(check({ title: 'Parks Green Spaces in Liberty Village', redirects: await siteRedirects() }).reason, 'duplicate intent', 'use the shared declared redirect inventory');
+  const logs = [];
+  const discovery = await appendDiscoveredTopics({ version: 1, topics: [] }, [
+    { kind: 'blog', title, source: 'serpapi', rationale: 'PAA' },
+  ], { guides: [guide], redirects: [], log: (reason) => logs.push(reason) });
+  assert.equal(discovery.added.length, 0);
+  assert.match(logs[0], /intent already served.*\/guide\/things-to-do/);
 });
 
 test('operational claims require two supporting live records and reserve guide needs six facts', () => {
