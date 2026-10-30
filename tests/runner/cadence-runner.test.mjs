@@ -263,6 +263,17 @@ test('discovery failure logs inventory deficit but does not discard already grou
   assert.equal(events(world, 'cadence-inventory-replenish-failed').length, 1);
 });
 
+test('weekly-blog skips a things-to-do paraphrase served by a published guide before generation', (t) => {
+  const title = 'What Is There To Do In Liberty Village, Toronto?';
+  const world = withWorld(t, { queue: [topic('things-to-do', title), TOPICS.happy, TOPICS.coffee], topics: [
+    { slug: 'things-to-do', title: 'Things to Do in Liberty Village Toronto (2026)' },
+  ] });
+  assert.equal(run(world).cadenceMet, true);
+  assert.deepEqual(world.generated.map((entry) => entry.title), ['Liberty Village Happy Hour', 'Coffee Shops']);
+  assert.ok(events(world, 'intent-skipped').some((entry) => entry.reason === 'duplicate intent'));
+  console.log('LIVE weekly-blog: things-to-do candidate skipped; duplicate intent logged; only distinct topics generated');
+});
+
 test('Wednesday fills slots 1 and 2 with distinct grounded intents; ungroundable pet premise never reaches the model', (t) => {
   const world = withWorld(t, { queue: [TOPICS.pet, TOPICS.happy, TOPICS.coffee] });
   const result = run(world);
