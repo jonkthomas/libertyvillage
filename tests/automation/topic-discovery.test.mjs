@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { siteRedirects } from '../../scripts/content/redirects.mjs';
 
 import { isGeneratorKind } from '../../scripts/automation/candidate-state.mjs';
@@ -333,6 +334,80 @@ test('published guides, best hubs and redirect paths block existing intents', as
   ], { guides: [guide], redirects: [], log: (reason) => logs.push(reason) });
   assert.equal(discovery.added.length, 0);
   assert.match(logs[0], /intent already served.*\/guide\/things-to-do/);
+});
+
+test('#254 generic dining aliases duplicate the restaurant hub or either existing restaurant post', () => {
+  const inventories = [
+    { services: [{ slug: 'restaurants', name: 'Restaurant', pluralName: 'Restaurants' }] },
+    { livePosts: [{ slug: 'best-restaurants-liberty-village-locals-guide', title: 'Where Locals Actually Eat in Liberty Village (2026 Insider Guide)' }] },
+    { livePosts: [{ slug: 'best-restaurants-liberty-village-2026-definitive-guide', title: "The Best Restaurants in Liberty Village (2026): A Local's Definitive Guide to Where to Eat" }] },
+  ];
+  for (const inventory of inventories) {
+    for (const title of [
+      'What Is The Best Place To Eat In Liberty Village, Toronto?',
+      'Best places to eat in Liberty Village', 'Where to eat in Liberty Village',
+      'Best food in Liberty Village', 'Dining in Liberty Village',
+    ]) assert.equal(checkTopicGroundability({ title, kind: 'blog', ...inventory }).reason, 'duplicate intent', title);
+    const businesses = ['one', 'two'].map((id) => ({ id, name: id, live: true, description: 'Brunch and late-night dining.' }));
+    for (const title of [
+      'Best Thai restaurants in Liberty Village', 'Best Italian restaurants in Liberty Village',
+      'Best Indian restaurants in Liberty Village', 'Best places to eat near BMO Field in Liberty Village',
+      'World Cup dining in Liberty Village', 'Brunch restaurants in Liberty Village',
+      'Late-night places to eat in Liberty Village',
+    ]) assert.equal(checkTopicGroundability({ title, kind: 'blog', businesses, ...inventory }).ok, true, title);
+  }
+  assert.equal(checkTopicGroundability({ title: 'Where to eat in Liberty Village', kind: 'blog' }).ok, true);
+});
+
+test('#254 committed queue rejects five covered intents and preserves #251 rejections', async () => {
+  const read = (name) => JSON.parse(readFileSync(new URL(`../../data/${name}.json`, import.meta.url), 'utf8'));
+  const shared = {
+    kind: 'blog', businesses: read('businesses'), livePosts: read('posts'),
+    services: read('services'), guides: read('topics'), redirects: await siteRedirects(),
+  };
+  const duplicates = [
+    'What Is The Best Place To Eat In Liberty Village, Toronto?', 'Goodlife Liberty Village',
+    'Green P Parking Liberty Village', 'Jukebox Printing Liberty Village Toronto', 'Aroma Espresso Bar Liberty Village',
+    'Liberty Village Happy Hour', 'Liberty Village Farmers Market',
+    'What Are Some Fun Things To Do In Liberty Village, Toronto?',
+    'What Is There To Do In Liberty Village, Toronto?', 'What To Do In Liberty Village, Toronto?',
+    'Liberty Village Gyms', 'Liberty Village Spa',
+  ];
+  const queue = read('topic-queue').topics;
+  for (const title of duplicates) {
+    const entry = queue.find((entry) => entry.title === title);
+    assert.ok(entry, `real queue entry: ${title}`);
+    assert.equal(checkTopicGroundability({ ...shared, title: entry.title }).reason, 'duplicate intent', title);
+  }
+  for (const title of [
+    'Best places to eat near BMO Field in Liberty Village',
+    'World Cup dining in Liberty Village', '34 Hanna Ave Parking Liberty Village Toronto',
+  ]) assert.equal(checkTopicGroundability({ ...shared, title }).ok, true, title);
+  // Supply premise evidence so these controls exercise dedup rather than fail an
+  // unrelated operational-claim gate. That gate must still reject without facts.
+  const businesses = ['one', 'two'].map((id) => ({ id, name: id, live: true, description: 'Brunch and late-night dining.' }));
+  for (const title of ['Brunch restaurants in Liberty Village', 'Late-night places to eat in Liberty Village']) {
+    assert.equal(checkTopicGroundability({ ...shared, businesses, title }).ok, true, title);
+    assert.equal(checkTopicGroundability({ ...shared, businesses: [], title }).reason, 'unsupported operational premise');
+  }
+});
+
+test('#254 brand dedup uses live listings or the existing review and retains qualified intents', () => {
+  const goodlife = { slug: 'goodlife-fitness-liberty-village-review-guide', title: 'GoodLife Fitness Liberty Village: Honest Review, Prices & Hours 2026' };
+  assert.equal(checkTopicGroundability({ title: 'Goodlife Liberty Village', kind: 'blog', livePosts: [goodlife] }).reason, 'duplicate intent');
+  for (const [title, business] of [
+    ['Goodlife Liberty Village', { slug: 'goodlife-fitness-liberty-village', name: 'GoodLife Fitness Liberty Village' }],
+    ['Jukebox Printing Liberty Village Toronto', { slug: 'jukebox-print', name: 'Jukebox Print' }],
+    ['Aroma Espresso Bar Liberty Village', { slug: 'aroma-espresso-bar', name: 'Aroma Espresso Bar' }],
+  ]) {
+    const check = (record) => checkTopicGroundability({ title, kind: 'blog', businesses: [record] });
+    assert.equal(check(business).reason, 'duplicate intent', title);
+    for (const state of [{ live: false }, { unpublished: true }, { draft: true }, { liveRev: 0 }]) {
+      assert.equal(check({ ...business, ...state }).ok, true, `${title}: ${JSON.stringify(state)}`);
+    }
+  }
+  assert.equal(checkTopicGroundability({ title: 'Goodlife personal training in Liberty Village', kind: 'blog', livePosts: [goodlife] }).ok, true);
+  assert.equal(checkTopicGroundability({ title: 'Aroma Espresso Bar Liberty Village', kind: 'blog', businesses: [{ slug: 'aroma-fine-indian-cuisine', name: 'Aroma Fine Indian Cuisine' }] }).ok, true);
 });
 
 test('operational claims require two supporting live records and reserve guide needs six facts', () => {
