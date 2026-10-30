@@ -118,7 +118,7 @@ test('new agent refusal relays through the old installed helper and new helper k
   assert.deepEqual(replayHelper(old, output.stdout).relay, expected, 'old helper must not return absent');
   assert.deepEqual(output.outcomes, [expected], 'authoritative outcome stays exactly two keys');
   const current = replayHelper(fs.readFileSync(path.join(repo, 'ops/exedev-runner/generator_diag.py'), 'utf8'), output.stdout);
-  assert.deepEqual(current.relay, expected);
+  assert.deepEqual(current.relay, { ...expected, validationCodes: [] });
   const detail = current.events.find((event) => event.event === 'outcome-detail');
   assert.equal(detail.detailReason, 'unsupported-operational-premise');
   assert.deepEqual(detail.validationCodes, []);
