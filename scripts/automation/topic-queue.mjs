@@ -714,10 +714,27 @@ function primaryIntentKey(value) {
   return words.length ? `${area}|${words.join(' ')}` : '';
 }
 
+// Add bounded aliases alongside the original keys, preserving all existing
+// rejections. Keep cuisine, occasion, location and address qualifiers in the key.
+function aliasedIntentKey(value) {
+  let text = String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  if (/\b(?:restaurants?|eat|food|dining)\b/.test(text)) {
+    text = text.replace(/\bplaces? to eat\b|\b(?:restaurants?|eat|food|dining)\b/g, ' restaurant ')
+      .replace(/\b(?:locals?|actually|definitive|insider|s)\b/g, ' ');
+  }
+  text = text.replace(/\bgreen p(?: parking)?\b/g, ' parking ')
+    .replace(/\bgoodlife(?: fitness)?\b/g, ' goodlife ')
+    .replace(/\bjukebox printing\b/g, ' jukebox print ');
+  if (/\bjukebox print\b/.test(text)) text = text.replace(/\bprinting\b/g, ' print ');
+  if (/\bgoodlife\b/.test(text)) text = text.replace(/\b(?:honest|prices|hours)\b/g, ' ');
+  return primaryIntentKey(text);
+}
+
 function existingIntentKeys(value) {
   const primary = primaryIntentKey(value);
   const near = nearDuplicateKey(value);
-  return [primary, near && `near:${near}`].filter(Boolean);
+  const aliased = aliasedIntentKey(value);
+  return [primary, near && `near:${near}`, aliased && `alias:${aliased}`].filter(Boolean);
 }
 
 function existingIntentPage(title, pages) {
@@ -728,6 +745,7 @@ function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }
   const primary = new Map();
   // Directory category links resolve to /best/:service, not separate category URLs
   // (app/directory/page.tsx). Prefer that stable category page when several exist.
+  // A listing supplies grounding facts; only editorial coverage serves a blog intent.
   for (const [route, records] of [['best', services], ['guide', guides], ['blog', publishedPosts]]) {
     for (const record of records) {
       if (!record || record.live === false || record.unpublished === true || record.draft === true
