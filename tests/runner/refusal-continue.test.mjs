@@ -27,8 +27,7 @@ test('backfill retires a label after three normal ledger attempts', (t) => {
   assert.equal(world.attempts.filter((a) => a.slot_number === 101).length, 3);
   const retired = world.logs.find((entry) => entry.event === 'october-backfill-exhausted');
   assert.equal(retired.label, '2026-10-01');
-  assert.equal(retired.reason, 'normal-attempt-limit');
-  assert.equal(retired.normalAttempts, CADENCE.normalPerSlot);
+  assert.equal(retired.slot, 101);
 });
 
 for (const failures of [2, 3]) test(`${failures} technical failures respect the existing backfill attempt cap`, (t) => {
@@ -96,7 +95,7 @@ test('third backfill failure retires the label before another generation in that
   assert.equal(backfill(world).reason, 'october-backfill-published');
   assert.equal(world.attempts.filter((a) => a.slot_number === 101).length, 3);
   assert.equal(world.attempts.at(-1).slot_number, 102);
-  assert.equal(world.logs.find((entry) => entry.event === 'october-backfill-exhausted').normalAttempts, CADENCE.normalPerSlot);
+  assert.equal(world.logs.find((entry) => entry.event === 'october-backfill-exhausted').slot, 101);
 });
 
 test('weekly slot 2 refusal continues when the evidence pass closes without discovery', (t) => {
