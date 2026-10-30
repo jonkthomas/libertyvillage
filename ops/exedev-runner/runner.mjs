@@ -516,6 +516,7 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
       return output;
     }
     const diagnostic = job === 'weekly-blog' ? readGeneratorRelay(helperResult) : null;
+    if (diagnostic) logLine(log, 'generator-outcome', diagnostic);
     const head = command('git', ['rev-parse', 'HEAD'], { cwd: repo, env: gitEnv }).stdout.trim();
     if (readScratchHead(scratch) !== head) throw new Error('generator changed pinned commit');
     const allPaths = changedPaths(scratch, repo);
@@ -557,11 +558,31 @@ function generator(job, slot, topic, dryRun, log, notifications = {}) {
 }
 
 const GENERATOR_REASONS = new Set(['post-written','unsupported-grounding','insufficient-sources','sdk-error','generator-error','no-post-unspecified','duplicate','absent']);
+// Same fixed vocabulary as generator_diag.py: never persist claim text or URLs.
+const GENERATOR_VALIDATION_CODES = new Set([
+  'invalid-pack-header', 'invalid-fingerprint', 'invalid-check-time', 'future-generated-at',
+  'invalid-max-age', 'stale-generated-at', 'missing-businesses', 'invalid-source-count',
+  'invalid-source-inventory', 'invalid-source', 'invalid-claims', 'invalid-premise-claims',
+  'stale-internal-inventory', 'invalid-image-inventory', 'unsupported-premise',
+  'reserve-fact-floor', 'source-pack-size-limit', 'source-pack-sidecar-changed', 'missing-draft', 'storage',
+  'draft-must-use-real-publish-date', 'no-attributed-business', 'business-outside-pack',
+  'draft-changed-topic', 'draft-dropped-premise', 'invalid-relatedPosts',
+  'invalid-relatedServices', 'invalid-relatedTopics', 'invalid-relatedBusinesses',
+  'invalid-internal-link', 'missing-or-invalid-hero-image',
+  'blog-lint:unrecorded-business', 'blog-lint:unsupported-address', 'blog-lint:unsupported-operational-premise',
+  'blog-lint:unsupported-date', 'blog-lint:unsupported-hours', 'blog-lint:unsupported-price',
+]);
 export function parseGeneratorDiagnostic(stdout) {
-  if (typeof stdout !== 'string' || Buffer.byteLength(stdout) > 128) return null;
-  const match = /^\{"postWritten":(true|false),"stopReason":"([a-z-]+)"\}\n$/.exec(stdout);
-  if (!match || !GENERATOR_REASONS.has(match[2])) return null;
-  return { postWritten: match[1] === 'true', stopReason: match[2] };
+  if (typeof stdout !== 'string' || Buffer.byteLength(stdout) > 1024 || !stdout.endsWith('\n')) return null;
+  let value;
+  try { value = JSON.parse(stdout); } catch { return null; }
+  // Require the helper's canonical single line (also rejects duplicate keys).
+  if (!value || JSON.stringify(value) + '\n' !== stdout || typeof value.postWritten !== 'boolean'
+    || !GENERATOR_REASONS.has(value.stopReason)
+    || Object.keys(value).some((key) => !['postWritten', 'stopReason', 'validationCodes'].includes(key))) return null;
+  if (Object.hasOwn(value, 'validationCodes') && (!Array.isArray(value.validationCodes)
+    || value.validationCodes.length > 10 || value.validationCodes.some((code) => !GENERATOR_VALIDATION_CODES.has(code)))) return null;
+  return value;
 }
 export function readGeneratorRelay({ code, stdout }) {
   const diagnostic = parseGeneratorDiagnostic(stdout);
@@ -573,6 +594,7 @@ export function readGeneratorRelay({ code, stdout }) {
 function noPostError(diagnostic) {
   if (diagnostic?.postWritten === true) return new Error('generator diagnostic contradicted post');
   const error = new Error('blog generated no post');
+  if (diagnostic?.validationCodes) error.validationCodes = diagnostic.validationCodes;
   if (diagnostic?.postWritten === false && ['unsupported-grounding','insufficient-sources'].includes(diagnostic.stopReason)) error.groundedRefusal = diagnostic.stopReason;
   return error;
 }
@@ -983,9 +1005,9 @@ function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing
   }
   run.weekFingerprints.add(candidate.fingerprint);
   deps.log('cadence-attempt', { slot: slotNumber, reserve: candidate.reserve, retry: Boolean(existing) });
-  const fail = (reason) => {
+  const fail = (reason, validationCodes) => {
     call('outcome', ['--idempotency-key', key, '--token', token, '--outcome', 'failed-before-submit']);
-    deps.log('cadence-attempt-failed', { slot: slotNumber, reason });
+    deps.log('cadence-attempt-failed', { slot: slotNumber, reason, ...(validationCodes ? { validationCodes } : {}) });
     return { state: 'closed' };
   };
   const packPath = writeTrustedPack(run, key, candidate.pack);
@@ -993,7 +1015,7 @@ function attemptBlogIntent(run, slotNumber, token, candidate, snapshot, existing
   try { changed = deps.generate(candidate.title); }
   catch (error) {
     if (error?.message === 'blog generated no post') {
-      const result = fail('no-post');
+      const result = fail('no-post', error.validationCodes);
       if (error.groundedRefusal && !candidate.reserve && !existing && !evidence) return { ...result, refusal: { candidate, snapshot, key, reason: error.groundedRefusal } };
       return result;
     }
@@ -1064,7 +1086,7 @@ function processContentSlot(run, slotNumber, { resumeOnly = false } = {}) {
     if (resumeOnly) return { state: 'closed' };
     let normalLeft = CADENCE.normalPerSlot - attempts.filter((a) => !String(a.topic_key).startsWith('reserve:')).length;
     while (run.budget > 0) {
-      if (run.policy.phase === 'backfill' && normalLeft <= 0) break;
+      if (run.policy.phase === 'backfill' && (normalLeft <= 0 || backfillExhausted(attemptsOf()))) break;
       const snapshot = deps.exportSnapshot();
       const candidate = nextCandidate(run, snapshot, { normal: normalLeft > 0, reserve: run.policy.reserveAllowed && run.reserveLeft > 0 });
       if (!candidate) break;
@@ -1294,11 +1316,13 @@ export function runWeeklyBlog({ target, slot, request = {}, deps }) {
 const isBackfillSlot = (number) => Number(number) >= 101 && Number(number) <= 107;
 export const OCTOBER_BACKFILL = Object.freeze(['2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-19', '2026-10-22']);
 
+const backfillFailures = (attempts) => attempts.filter((item) => ['failed-before-submit', 'rejected', 'blocked', 'error'].includes(item.outcome)).length;
 function backfillExhausted(attempts) {
   return attempts.length > 0 && !isOpen(attempts.at(-1))
-    && attempts.filter((item) => !String(item.topic_key).startsWith('reserve:')).length >= CADENCE.normalPerSlot;
+    && backfillFailures(attempts) >= 3;
 }
 function noteBackfillExhausted(deps, target, row) {
+  const detail = { label: row.label, week: row.week, slot: row.slotNumber, reason: 'failure-limit', failures: backfillFailures(row.attempts) };
   // Ordering is derived from the durable attempt ledger. This private marker
   // only dedupes the diagnostic/alert across scheduled runs and restarts.
   const dir = path.join(deps.stateRoot, 'backfill-exhausted', target);
@@ -1306,9 +1330,9 @@ function noteBackfillExhausted(deps, target, row) {
   let fd;
   try { fd = fs.openSync(path.join(dir, `${row.label}.json`), 'wx', 0o600); }
   catch (error) { if (error.code === 'EEXIST') return; throw error; }
-  try { fs.writeSync(fd, JSON.stringify({ label: row.label, slot: row.slotNumber }) + '\n'); fs.fsyncSync(fd); }
+  try { fs.writeSync(fd, JSON.stringify(detail) + '\n'); fs.fsyncSync(fd); }
   finally { fs.closeSync(fd); }
-  deps.log('october-backfill-exhausted', { label: row.label, week: row.week, slot: row.slotNumber });
+  deps.log('october-backfill-exhausted', detail);
   deps.onBackfillExhausted?.(row.label);
 }
 
@@ -1361,7 +1385,7 @@ export function runOctoberBackfill({ target, slot, request = {}, deps }) {
     if (result.state === 'exhausted') {
       const attempts = row.call('status').attempts.filter((item) => item.lane === 'content' && Number(item.slot_number) === row.slotNumber).sort(byOrdinal);
       if (backfillExhausted(attempts)) {
-        noteBackfillExhausted(deps, target, row);
+        noteBackfillExhausted(deps, target, { ...row, attempts });
         continue;
       }
     }

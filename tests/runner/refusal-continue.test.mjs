@@ -13,6 +13,24 @@ const worldFor = (t, options = {}) => {
 const weekly = (world) => runWeeklyBlog({ target: 'staging', slot: 'local-refusal-continue', deps: world.deps });
 const backfill = (world) => runOctoberBackfill({ target: 'staging', slot: 'local-refusal-backfill', deps: world.deps });
 
+test('backfill retires a label after three ledger failures including reserves', (t) => {
+  const world = worldFor(t, { now: new Date('2026-10-23T15:37:00Z') });
+  world.generatorPlan = ['refusal', 'ok'];
+  assert.throws(() => backfill(world), /backfill publication incomplete/);
+  const first = world.attempts[0];
+  for (const ordinal of [2, 3]) world.attempts.push({ ...first, ordinal,
+    idempotency_key: `failed-reserve-${ordinal}`, topic_key: `reserve:dir:category-${ordinal}`,
+    intent_fingerprint: `reserve-fingerprint-${ordinal}` });
+  world.now = new Date('2026-10-24T15:37:00Z');
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  assert.equal(world.attempts.at(-1).slot_number, 102, 'select the next missing label');
+  assert.equal(world.attempts.filter((a) => a.slot_number === 101).length, 3);
+  const retired = world.logs.find((entry) => entry.event === 'october-backfill-exhausted');
+  assert.equal(retired.label, '2026-10-01');
+  assert.equal(retired.reason, 'failure-limit');
+  assert.equal(retired.failures, 3);
+});
+
 test('weekly slot 2 refusal continues after a declined evidence claim on an on-demand run', (t) => {
   const world = worldFor(t, { now: new Date('2026-10-24T02:03:00Z') });
   world.generatorPlan = ['ok', 'refusal', 'ok'];
@@ -25,6 +43,21 @@ test('weekly slot 2 refusal continues after a declined evidence claim on an on-d
     [1, 1, 'consumed'], [2, 1, 'failed-before-submit'], [2, 2, 'consumed'],
   ]);
   assert.equal(world.live.size, 2);
+});
+
+test('third backfill failure retires the label before another generation in that run', (t) => {
+  const world = worldFor(t, { now: new Date('2026-10-23T15:37:00Z') });
+  world.generatorPlan = ['refusal', 'ok', 'ok'];
+  assert.throws(() => backfill(world), /backfill publication incomplete/);
+  const first = world.attempts[0];
+  world.attempts.push({ ...first, ordinal: 2, idempotency_key: 'failed-reserve',
+    topic_key: 'reserve:dir:category', intent_fingerprint: 'reserve-fingerprint' });
+  world.now = new Date('2026-10-24T15:37:00Z');
+  world.gatePlan = ['reject', 'ok'];
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  assert.equal(world.attempts.filter((a) => a.slot_number === 101).length, 3);
+  assert.equal(world.attempts.at(-1).slot_number, 102);
+  assert.equal(world.logs.find((entry) => entry.event === 'october-backfill-exhausted').failures, 3);
 });
 
 test('weekly slot 2 refusal continues when the evidence pass closes without discovery', (t) => {
