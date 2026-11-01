@@ -342,6 +342,58 @@ test('published guides, best hubs and redirect paths block existing intents', as
   assert.match(logs[0], /intent already served.*\/guide\/things-to-do/);
 });
 
+test('#256 visitor stay aliases use the published guide and discovery keeps its URL', async () => {
+  const guide = { slug: 'where-to-stay', title: 'Where to Stay in Liberty Village' };
+  const titles = [
+    'Is Liberty Village A Good Place To Stay In Toronto?',
+    'Liberty Village place to stay', 'Good places to stay in Liberty Village',
+    'Where to stay in Liberty Village', 'Stay in Liberty Village',
+    'Liberty Village where-to-stay guide',
+  ];
+  for (const title of titles) {
+    // Either the slug or the title alone supplies the existing guide intent.
+    for (const record of [{ slug: guide.slug }, { slug: 'visitor-guide', title: guide.title }]) {
+      assert.equal(checkTopicGroundability({ title, kind: 'blog', guides: [record] }).reason, 'duplicate intent', title);
+    }
+    assert.equal(checkTopicGroundability({ title, kind: 'blog' }).reason, 'groundable', title);
+  }
+  for (const state of [{ live: false }, { unpublished: true }, { draft: true }, { liveRev: 0 }]) {
+    assert.equal(checkTopicGroundability({ title: titles[0], kind: 'blog', guides: [{ ...guide, ...state }] }).ok, true);
+  }
+  const logs = [];
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] },
+    titles.map(title => ({ title, kind: 'blog', source: 'serpapi', rationale: 'PAA' })),
+    { guides: [guide], log: reason => logs.push(reason) });
+  assert.equal(result.added.length, 0);
+  assert.equal(logs.length, titles.length);
+  for (const log of logs) assert.match(log, /intent already served; keeping \/guide\/where-to-stay$/);
+});
+
+test('#256 stay alias retains qualified visitor intents and separates resident livability', async () => {
+  const titles = [
+    'Where to stay in Liberty Village with kids',
+    'Good places to stay near BMO Field in Liberty Village',
+    'Stay in Liberty Village for a work trip',
+    'Is Liberty Village a good place to live?',
+    'Stay active in Liberty Village',
+    'Liberty Village Running Routes for Beginners', 'Liberty Village Running Routes at Sunrise',
+    '34 Hanna Ave Parking', 'Liberty Village hotels',
+    'Goodlife Liberty Village Review', 'Green P Parking Liberty Village Review',
+    'Jukebox Printing Liberty Village Review',
+  ];
+  const guides = [{ slug: 'where-to-stay' }];
+  for (const title of titles) {
+    assert.equal(checkTopicGroundability({ title, kind: 'blog', guides }).reason, 'groundable', title);
+  }
+  assert.equal(checkTopicGroundability({
+    title: 'Is Liberty Village A Good Place To Stay In Toronto?', kind: 'blog',
+    livePosts: [{ slug: 'is-liberty-village-toronto-a-good-area', title: 'Is Liberty Village a good place to live?' }],
+  }).reason, 'groundable');
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] },
+    titles.map(title => ({ title, kind: 'blog', source: 'serpapi', rationale: 'PAA' })), { guides });
+  assert.equal(result.added.length, titles.length);
+});
+
 test('#254 generic dining aliases duplicate the restaurant hub or either existing restaurant post', () => {
   const inventories = [
     { services: [{ slug: 'restaurants', name: 'Restaurant', pluralName: 'Restaurants' }] },
