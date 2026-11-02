@@ -13,6 +13,42 @@ const tempDir = (t) => {
   return dir;
 };
 
+test('runner persists grounding codes in its outcome log before scratch cleanup', (t) => {
+  const temp = tempDir(t);
+  const repo = path.join(temp, 'repo');
+  const state = path.join(temp, 'state');
+  const bin = path.join(temp, 'bin');
+  const log = path.join(temp, 'outcome.jsonl');
+  fs.mkdirSync(path.join(repo, 'data'), { recursive: true });
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(repo, 'data/posts.json'), '[]');
+  for (const args of [['init'], ['add', '.'], ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'fixture'], ['checkout', '--detach', 'HEAD']]) {
+    const result = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const outcome = { postWritten: false, stopReason: 'unsupported-grounding', validationCodes: ['blog-lint:unsupported-address'] };
+  fs.writeFileSync(path.join(bin, 'sudo'), `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify(outcome)}'\nexit 1\n`, { mode: 0o755 });
+  const modulePath = path.join(temp, 'runner.mjs');
+  fs.writeFileSync(modulePath, `${runner}\nexport { generator };\n`);
+  const probe = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import fs from 'node:fs';
+    import assert from 'node:assert/strict';
+    import { pathToFileURL } from 'node:url';
+    const { generator } = await import(pathToFileURL(process.env.PROBE_MODULE));
+    assert.throws(() => generator('weekly-blog', 'grounding-slot', null, false, process.env.PROBE_LOG), (error) => {
+      assert.equal(error.message, 'blog generated no post');
+      assert.deepEqual(error.validationCodes, ['blog-lint:unsupported-address']);
+      return true;
+    });
+    assert.equal(fs.existsSync(process.env.LV_RUNNER_STATE_ROOT + '/scratch/grounding-slot'), false);
+  `], { encoding: 'utf8', timeout: 15_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`,
+    LV_RUNNER_REPO: repo, LV_RUNNER_STATE_ROOT: state, PROBE_MODULE: modulePath, PROBE_LOG: log } });
+  assert.equal(probe.status, 0, probe.stdout + probe.stderr);
+  const record = fs.readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse).find((row) => row.event === 'generator-outcome');
+  assert.deepEqual(record.validationCodes, outcome.validationCodes);
+  assert.equal(record.stopReason, outcome.stopReason);
+});
+
 test('generator failure removes scratch and preserves the original failure if cleanup fails', (t) => {
   const temp = tempDir(t);
   const repo = path.join(temp, 'repo');

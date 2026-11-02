@@ -332,10 +332,10 @@ class RelayTest(unittest.TestCase):
         self.assertEqual(self.relay(final, 1), b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n',
                          'an unterminated final outcome is finalized at EOF')
 
-    def test_diagnostic_fields_do_not_expand_the_authoritative_relay(self):
+    def test_diagnostic_codes_survive_without_changing_outcome_authority(self):
         detail = '[outcome-detail] {"detailReason":"pre-submit-refused","validationCodes":["business-outside-pack"]}\n'
         text = TRAILER.replace('Cost: ', detail + 'Cost: ')
-        expected = b'{"postWritten":false,"stopReason":"unsupported-grounding"}\n'
+        expected = b'{"postWritten":false,"stopReason":"unsupported-grounding","validationCodes":["business-outside-pack"]}\n'
         self.assertEqual(self.relay(text), expected)
         self.assertEqual(self.relay(detail + text + detail), expected)
         hostile = '[outcome-detail] {"postWritten":true,"stopReason":"post-written","prompt":"PRIVATE"}\n'

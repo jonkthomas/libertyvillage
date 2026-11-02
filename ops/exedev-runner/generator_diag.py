@@ -70,6 +70,7 @@ class GeneratorDiagnostic:
         self.summary_fields = set()
         self.seen_outcome = False
         self.seen_detail = False
+        self.validation_codes = None
         self.pending = b''
         self.dropping_line = False
         self.tool_counts = {}
@@ -217,7 +218,10 @@ class GeneratorDiagnostic:
         elif outcome[0] != (exit_code == 0):
             outcome = None
         posted, reason = outcome or (False, 'absent')
-        return (json.dumps({'postWritten': posted, 'stopReason': reason}, separators=(',', ':')) + '\n').encode()
+        record = {'postWritten': posted, 'stopReason': reason}
+        if outcome is not None and self.validation_codes is not None:
+            record['validationCodes'] = self.validation_codes
+        return (json.dumps(record, separators=(',', ':')) + '\n').encode()
 
     def line(self, raw):
         text = raw.decode('utf-8', 'replace').strip()
@@ -290,6 +294,7 @@ class GeneratorDiagnostic:
                             code for code in value['validationCodes']
                             if isinstance(code, str) and len(code) <= 64 and code in VALIDATION_CODES
                         ))[:10]
+                        self.validation_codes = detail['validationCodes']
                     self.event('outcome-detail', **detail)
             except (ValueError, AttributeError, TypeError, RecursionError):
                 pass
@@ -333,7 +338,7 @@ def _reject_duplicate_keys(pairs):
 
 
 def _strict_outcome(text):
-    """Two-key authority only; optional diagnostics never change the relay."""
+    """Two-key authority only; optional diagnostics cannot authorize an outcome."""
     if not text.startswith('[outcome] '):
         return None
     try:

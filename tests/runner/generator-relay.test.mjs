@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readGeneratorRelay } from '../../ops/exedev-runner/runner.mjs';
 
 const owned = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../ops/exedev-runner');
 const launcher = fs.readFileSync(path.join(owned, 'launcher.sh'), 'utf8');
@@ -64,7 +65,9 @@ test('validated refusal after normal completion: one relay line, unit exit code 
     validationCodes: ['blog-lint:unsupported-address', 'PRIVATE ARTICLE TEXT'] });
   const refused = helper(PROSE + TRAILER(REFUSAL).replace('Cost: ', `[outcome-detail] ${detail}\nCost: `), { FAKE_CODE: '1' });
   assert.equal(refused.status, 1, refused.stderr);
-  assert.equal(refused.stdout, `${REFUSAL}\n`);
+  const record = readGeneratorRelay({ code: refused.status, stdout: refused.stdout });
+  assert.equal(record.stopReason, 'unsupported-grounding');
+  assert.deepEqual(record.validationCodes, ['blog-lint:unsupported-address']);
   const outcome = refused.logs.split('\n').filter(Boolean).map((row) => JSON.parse(row)).find((row) => row.event === 'outcome-detail');
   assert.equal(outcome.detailReason, 'pre-submit-refused');
   assert.deepEqual(outcome.validationCodes, ['blog-lint:unsupported-address']);
