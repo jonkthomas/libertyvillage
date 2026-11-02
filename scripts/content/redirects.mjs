@@ -16,6 +16,21 @@ export const siteRedirects = async () => {
       destination: "/best/gyms",
       statusCode: 301,
     },
+    {
+      source: "/blog/what-is-there-to-do-liberty-village",
+      destination: "/guide/things-to-do",
+      statusCode: 301,
+    },
+    {
+      source: "/blog/best-place-to-eat-liberty-village-2026",
+      destination: "/best/restaurants",
+      statusCode: 301,
+    },
+    {
+      source: "/blog/gym-directory-liberty-village-complete-guide-2026",
+      destination: "/best/gyms",
+      statusCode: 301,
+    },
     // Only GSC-confirmed primaries may receive consolidation redirects.
     // Explicit 301: Next's permanent:true uses 308 instead.
     ...consolidation.clusters.filter((cluster) => cluster.confirmed === true).flatMap((cluster) =>
