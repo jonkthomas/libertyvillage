@@ -342,6 +342,61 @@ test('published guides, best hubs and redirect paths block existing intents', as
   assert.match(logs[0], /intent already served.*\/guide\/things-to-do/);
 });
 
+test('#261 history and naming aliases use the published guide and discovery keeps its URL', async () => {
+  const guide = { slug: 'history-of-liberty-village', title: 'History of Liberty Village' };
+  const titles = [
+    'Why Is It Called Liberty Village Toronto?',
+    'Why is it called Liberty Village?',
+    'History of Liberty Village',
+    'Origin of the name Liberty Village',
+    'What is the origin of the name Liberty Village?',
+    'What is Liberty Village named after?',
+  ];
+  for (const title of titles) {
+    // Either the slug or the title alone supplies the published history intent.
+    for (const record of [{ slug: guide.slug }, { slug: 'local-history', title: guide.title }]) {
+      assert.equal(checkTopicGroundability({ title, kind: 'blog', guides: [record] }).reason, 'duplicate intent', title);
+    }
+    assert.equal(checkTopicGroundability({ title, kind: 'blog' }).reason, 'groundable', title);
+  }
+  for (const state of [{ live: false }, { unpublished: true }, { draft: true }, { liveRev: 0 }]) {
+    assert.equal(checkTopicGroundability({ title: titles[0], kind: 'blog', guides: [{ ...guide, ...state }] }).ok, true);
+  }
+  const logs = [];
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] },
+    titles.map(title => ({ title, kind: 'blog', source: 'serpapi', rationale: 'PAA' })),
+    { guides: [guide], log: reason => { logs[logs.length] = reason; } });
+  assert.equal(result.added.length, 0);
+  assert.equal(logs.length, titles.length);
+  for (const log of logs) assert.match(log, /intent already served; keeping \/guide\/history-of-liberty-village$/);
+});
+
+test('#261 history alias retains current events, other subjects and distinct local intents', async () => {
+  const titles = [
+    // Current tour events need dates and availability beyond evergreen history.
+    'Liberty Village history walking tour events this weekend',
+    'History of Liberty Village walking tour events this weekend',
+    'Toronto Carpet Factory lofts for rent',
+    'Liberty Village BIA news',
+    'History of the Toronto Carpet Factory in Liberty Village',
+    'Origin of the name Toronto Carpet Factory in Liberty Village',
+    'What is the Toronto Carpet Factory in Liberty Village named after?',
+  ];
+  const guides = [{ slug: 'history-of-liberty-village' }];
+  for (const title of titles) {
+    assert.equal(checkTopicGroundability({ title, kind: 'blog', guides }).reason, 'groundable', title);
+  }
+  assert.equal(checkTopicGroundability({
+    title: 'Why Is It Called Liberty Village Toronto?', kind: 'blog',
+    businesses: [{ slug: 'history-of-liberty-village', name: 'History of Liberty Village', live: true }],
+  }).reason, 'groundable', 'a listing does not supply editorial history coverage');
+  // The two walking-tour phrasings share a queue intent; submit the three distinct controls.
+  const discoveries = [titles[0], titles[2], titles[3]];
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] },
+    discoveries.map(title => ({ title, kind: 'blog', source: 'serpapi', rationale: 'PAA' })), { guides });
+  assert.equal(result.added.length, discoveries.length);
+});
+
 test('#256 visitor stay aliases use the published guide and discovery keeps its URL', async () => {
   const guide = { slug: 'where-to-stay', title: 'Where to Stay in Liberty Village' };
   const titles = [

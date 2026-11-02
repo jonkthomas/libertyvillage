@@ -718,6 +718,8 @@ function primaryIntentKey(value) {
 // rejections. Keep cuisine, occasion, location and address qualifiers in the key.
 function aliasedIntentKey(value) {
   let text = String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  // Naming questions share the history guide; retain subject and event qualifiers.
+  text = text.replace(/\b(?:why is it called|history of|origin of the name|named after)\b/g, ' history ');
   // Visitor stays share the where-to-stay guide; retain any trip qualifiers.
   text = text.replace(/\b(?:(?:good )?places? to stay|where to stay|stay in)\b/g, ' stay ');
   if (/\b(?:restaurants?|eat|food|dining)\b/.test(text)) {
