@@ -45,6 +45,43 @@ export const OPERATIONAL_PREMISES = Object.freeze([
   },
 ]);
 
+// Parking admission needs topic identity as well as an amenity keyword. Keep
+// this pre-generation premise separate from the draft attribution taxonomy.
+const PARKING_PREMISE = Object.freeze({
+  id: 'parking',
+  label: 'parking',
+  core: /\bparking\b|\bcar[ -]parks?\b/i,
+  support: /\bparking\b|\bcar[ -]parks?\b|\bgarage\b|\bvehicle (?:access|entrance)\b|\bgreen p lots?\b/i,
+});
+const parkingText = (value) => String(value ?? '').toLowerCase()
+  .replace(/\bavenue\b/g, 'ave').replace(/\bstreet\b/g, 'st')
+  .replace(/\broad\b/g, 'rd').replace(/\bboulevard\b/g, 'blvd')
+  .replace(/\bdrive\b/g, 'dr').replace(/\blane\b/g, 'ln')
+  .replace(/[^a-z0-9]+/g, ' ').trim();
+
+export function parkingPremiseIn(topic) {
+  if (!PARKING_PREMISE.core.test(topic)) return null;
+  const normalized = parkingText(topic);
+  const address = normalized.match(/\b\d+[a-z]?\s+(?:[a-z]+\s+){1,5}(?:ave|st|rd|blvd|dr|ln)\b/)?.[0];
+  const facility = normalized.replace(/\bliberty village\b|\btoronto\b/g, ' ')
+    .replace(/\b(?:parking|car parks?|guide|where|to|park|in|near|around|at|the|a|and|for|with|best|free|paid|street|monthly|overnight|lots?|rates?|options?|tips|\d{4})\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  const target = address || facility;
+  return {
+    ...PARKING_PREMISE,
+    supports(span, recordName) {
+      // A review of an exact directory name can use that record's own amenity
+      // facts; "Parking" in a lodging name does not name a public facility.
+      const namedReview = !address && recordName && normalized === parkingText(`${recordName} Review`);
+      // Do not combine a business's address field with an unrelated amenity
+      // field, or two separate sentences, to invent an address/facility link.
+      return String(span).replace(/\b(ave|st|rd|blvd|dr|ln)\./gi, '$1')
+        .split(/[.!?\n|]+/).some((sentence) => PARKING_PREMISE.support.test(sentence)
+          && (namedReview || !target || ` ${parkingText(sentence)} `.includes(` ${target} `)));
+    },
+  };
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

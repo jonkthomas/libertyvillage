@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { siteRedirects } from '../../scripts/content/redirects.mjs';
+import { buildSourcePack } from '../../scripts/automation/blog-source-pack.mjs';
 
 import { isGeneratorKind } from '../../scripts/automation/candidate-state.mjs';
 import {
@@ -16,6 +17,23 @@ const brandPosts = [
   { slug: 'aroma-espresso-bar-liberty-village-review-guide', title: 'Aroma Espresso Bar Liberty Village: Full Review & What to Know' },
   { slug: 'jukebox-print-liberty-village-printing-guide-2026', title: 'Jukebox Print & Liberty Village Printing Guide (2026)' },
 ];
+
+test('#260 queue admission keeps published parking coverage and refuses unsupported address packs', () => {
+  const read = (name) => JSON.parse(readFileSync(new URL(`../../data/${name}.json`, import.meta.url), 'utf8'));
+  const inventory = { businesses: read('businesses'), livePosts: read('posts'), services: read('services'), guides: read('topics') };
+  const guide = inventory.guides.find((row) => row.slug === 'parking-guide');
+  assert.ok(guide);
+  for (const title of [guide.title, 'Parking Guide', 'Green P Parking Liberty Village']) {
+    assert.equal(checkTopicGroundability({ title, kind: 'blog', ...inventory }).reason, 'duplicate intent', title);
+  }
+  const queued = read('topic-queue').topics.find((row) => row.title.startsWith('34 Hanna Ave Parking'));
+  assert.ok(queued);
+  const ground = checkTopicGroundability({ title: queued.title, kind: queued.kind, ...inventory });
+  assert.equal(ground.ok, true);
+  assert.equal(buildSourcePack({ topic: ground.editorialTitle, businesses: inventory.businesses }).reason, 'unsupported-operational-premise');
+  const supported = [{ slug: 'hanna-parking', name: 'Hanna Parking', description: 'Parking at 34 Hanna Ave uses the rear entrance.' }, ...inventory.businesses];
+  assert.equal(buildSourcePack({ topic: ground.editorialTitle, businesses: supported }).ok, true);
+});
 
 test('SerpApi PAA discovery requires the explicit Liberty Village phrase', () => {
   const entries = buildSerpApiPaaEntries([

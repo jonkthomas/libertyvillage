@@ -11,6 +11,21 @@ import { createRequestBudget } from '../../scripts/news-pilot/fetch.mjs';
 
 const backfill = (world) => runOctoberBackfill({ target: 'staging', slot: 'local-backfill-acceptance', deps: world.deps });
 
+test('#260 October backfill skips unsupported parking before recording an attempt or generating', (t) => {
+  const businesses = JSON.parse(fs.readFileSync(new URL('../../data/businesses.json', import.meta.url), 'utf8'));
+  const world = createWorld({ now: new Date('2026-11-02T15:37:00Z'), businesses, queue: [
+    topic('hanna', '34 Hanna Ave Parking Liberty Village Toronto'),
+    topic('green-p', 'Green P Parking Liberty Village'),
+    topic('gyms', 'Liberty Village Gyms'),
+  ] });
+  t.after(() => world.cleanup());
+  assert.equal(backfill(world).reason, 'october-backfill-published');
+  assert.deepEqual(world.generated.map((entry) => entry.title), ['Liberty Village Gyms']);
+  assert.equal(world.attempts.length, 1);
+  assert.ok(world.logs.filter((entry) => entry.event === 'intent-skipped' && entry.reason === 'unsupported-operational-premise').length >= 2);
+  console.log('LIVE #260 October backfill: both parking packs skipped; one gym generation and one attempt');
+});
+
 test('seven historical labels publish once per UTC date with real dates and original DB keys', (t) => {
   const categories = ['bakeries', 'hair-salons', 'florists', 'dentists', 'pet-stores', 'coffee-shops', 'gyms'];
   const businesses = categories.flatMap((category, index) => [1, 2, 3].map((n) => ({
