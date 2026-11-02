@@ -48,6 +48,23 @@ const movatiRedirects = [
   },
 ];
 const gscConfirmed = ['fitness', 'transit', 'farmers-market', 'things-to-do'];
+const duplicatePostRedirects = [
+  {
+    source: '/blog/what-is-there-to-do-liberty-village',
+    destination: '/guide/things-to-do',
+    statusCode: 301,
+  },
+  {
+    source: '/blog/best-place-to-eat-liberty-village-2026',
+    destination: '/best/restaurants',
+    statusCode: 301,
+  },
+  {
+    source: '/blog/gym-directory-liberty-village-complete-guide-2026',
+    destination: '/best/gyms',
+    statusCode: 301,
+  },
+];
 // Every confirmed source and the legacy running-routes redirect must land in one hop on an existing page.
 function assertSingleHop(variant, all = configuredRedirects(variant)) {
   const next = new Map(all.map(r => [r.source, r.destination]));
@@ -70,14 +87,14 @@ test('only GSC-verified clusters are confirmed; the rest produce no redirects', 
   const all = configuredRedirects();
   const unconfirmed = new Set(plan.clusters.filter(c => c.confirmed !== true).flatMap(c => c.members.map(m => m.url)));
   assert.ok(!all.some(r => unconfirmed.has(r.source)));
-  assert.deepEqual(all.filter(r => r.statusCode === 301), [...movatiRedirects, ...redirectsFor(plan)]);
+  assert.deepEqual(all.filter(r => r.statusCode === 301), [...movatiRedirects, ...duplicatePostRedirects, ...redirectsFor(plan)]);
   assert.equal(redirectsFor(plan).length, 6);
   assert.equal(all.find(r => r.source === runningRoutes)?.destination, '/guide/fitness-guide');
 });
 
-test('Movati comparison and directory listing have exact single-hop 301 redirects', () => {
+test('Movati records and duplicate posts have exact single-hop 301 redirects', () => {
   const all = configuredRedirects();
-  for (const expected of movatiRedirects) {
+  for (const expected of [...movatiRedirects, ...duplicatePostRedirects]) {
     assert.deepEqual(all.filter(r => r.source === expected.source), [expected]);
     assert.ok(!all.some(r => r.source === new URL(expected.destination, 'http://localhost').pathname));
   }
@@ -100,7 +117,7 @@ test('confirming one cluster yields exactly its single-hop 301s', () => {
     .map(m => ({ source: m.url, destination: selected.primary, statusCode: 301 }));
   assert.deepEqual(redirectsFor(variant), expected);
   const all = configuredRedirects(variant);
-  assert.deepEqual(all.filter(r => r.statusCode === 301), [...movatiRedirects, ...expected]);
+  assert.deepEqual(all.filter(r => r.statusCode === 301), [...movatiRedirects, ...duplicatePostRedirects, ...expected]);
   assert.ok(expected.every(r => !all.some(other => other.source === r.destination)));
 });
 
@@ -369,10 +386,10 @@ test('changing a primary uses the same operation and plan-derived redirects', ()
   assert.match(mergeCluster(c, records, r, '2026-10-26').content, /Useful 0/);
 });
 
-test('live HTTP: Movati redirects return 301 and lead directly to 200 destinations', { skip: !process.env.CONSOLIDATION_BASE_URL }, async () => {
+test('live HTTP: Movati and duplicate post redirects return 301 and lead directly to 200 destinations', { skip: !process.env.CONSOLIDATION_BASE_URL }, async () => {
   const base = process.env.CONSOLIDATION_BASE_URL;
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname));
-  for (const expected of movatiRedirects) {
+  for (const expected of [...movatiRedirects, ...duplicatePostRedirects]) {
     const response = await fetch(new URL(expected.source, base), { method: 'HEAD', redirect: 'manual' });
     assert.equal(response.status, 301, expected.source);
     const destination = new URL(response.headers.get('location'), base);
