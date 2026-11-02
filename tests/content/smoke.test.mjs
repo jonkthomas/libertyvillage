@@ -149,9 +149,12 @@ test('a non-consolidation unpublish still requires 404, even behind a redirect',
 });
 
 // These are deliberately independent expectations for the declarations in next.config.ts.
-const MOVATI_REDIRECTS = [
+const DECLARED_REDIRECTS = [
   ['posts', 'goodlife-vs-movati-liberty-village-gym-comparison-2026', '/blog/goodlife-fitness-liberty-village-review-guide'],
   ['businesses', 'movati-athletic-liberty-village', '/best/gyms'],
+  ['posts', 'what-is-there-to-do-liberty-village', '/guide/things-to-do'],
+  ['posts', 'best-place-to-eat-liberty-village-2026', '/best/restaurants'],
+  ['posts', 'gym-directory-liberty-village-complete-guide-2026', '/best/gyms'],
 ];
 
 async function movatiSmoke(dataset, key, destination, status = 301) {
@@ -176,23 +179,23 @@ async function movatiSmoke(dataset, key, destination, status = 301) {
   } finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
-test('declared Movati unpublish: a single 301 to its declared 200 destination passes', async () => {
-  for (const [dataset, key, destination] of MOVATI_REDIRECTS) {
+test('declared Movati and duplicate post unpublish: a single 301 to its declared 200 destination passes', async () => {
+  for (const [dataset, key, destination] of DECLARED_REDIRECTS) {
     const result = await movatiSmoke(dataset, key, destination);
     assert.deepEqual([result.status, result.results[0]?.smoke], ['passed', 'passed'], JSON.stringify(result.failures));
   }
 });
 
-test('declared Movati unpublish: a wrong destination returning 200 fails the declared-target check', async () => {
-  for (const [dataset, key, destination] of MOVATI_REDIRECTS) {
+test('declared Movati and duplicate post unpublish: a wrong destination returning 200 fails the declared-target check', async () => {
+  for (const [dataset, key, destination] of DECLARED_REDIRECTS) {
     const result = await movatiSmoke(dataset, key, '/wrong-destination');
     assert.equal(result.status, 'bad-render');
     assert.ok(result.failures[0].reason.includes(`returned 301 to /wrong-destination, expected a single 301/308 to ${destination}`), result.failures[0].reason);
   }
 });
 
-test('declared Movati unpublish: a directly served 200 still fails', async () => {
-  for (const [dataset, key, destination] of MOVATI_REDIRECTS) {
+test('declared Movati and duplicate post unpublish: a directly served 200 still fails', async () => {
+  for (const [dataset, key, destination] of DECLARED_REDIRECTS) {
     const result = await movatiSmoke(dataset, key, destination, 200);
     assert.equal(result.status, 'bad-render');
     assert.match(result.failures[0].reason, /returned 200, expected a single 301/);
