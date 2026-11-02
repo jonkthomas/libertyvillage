@@ -163,6 +163,69 @@ test('fingerprint binds canonical evidence while intentKey stays the topic ident
   assert.equal(buildSourcePack({ ...args, topic: posts[0].title, now }).reason, 'duplicate-topic');
 });
 
+test('#260 real parking failure topics refuse unrelated directory and amenity evidence', () => {
+  // Source IDs from the retained Nov 2 pack: Hanna/Ave lexical overlap supplied
+  // twelve records, but none supplied a parking claim about 34 Hanna.
+  const retainedIds = ['caterers-liberty-village', 'global-pet-foods', 'pearle-vision', 'pi-co', 'purpel', 'b-suite-salon', 'bae-beauty-bar-laser', 'balzacs-liberty-village', 'bbwl-medi-spa', 'beauty-room-liberty-village-2', 'brodflour', 'deltatrain'];
+  const retained = businesses.filter((record) => retainedIds.includes(record.slug));
+  assert.equal(retained.length, 12);
+  assert.equal(buildSourcePack({ topic: '34 Hanna Ave Parking', businesses: retained, now }).reason, 'unsupported-operational-premise');
+  for (const topic of ['34 Hanna Ave Parking', '34 Hanna Ave Parking Liberty Village Toronto', 'Green P Parking', 'Green P Parking Liberty Village']) {
+    const result = buildSourcePack({ topic, businesses, posts, services, topics, now });
+    assert.equal(result.ok, false, topic);
+    assert.equal(result.reason, 'unsupported-operational-premise', topic);
+  }
+  const misleading = [
+    { slug: 'hanna-cafe', name: 'Hanna Cafe', address: '34 Hanna Ave', description: 'Cafe on Hanna Ave. Parking is included at our other location.' },
+    { slug: 'green-cafe', name: 'Green Cafe', description: 'Green P has a payment app. Parking is included for hotel guests.' },
+    { slug: 'other-garage', name: 'Other Garage', description: 'Parking at 134 Hanna Ave and 34 Hanna St.' },
+  ];
+  for (const topic of ['34 Hanna Ave Parking', 'Green P Parking']) {
+    assert.equal(buildSourcePack({ topic, businesses: misleading, now }).reason, 'unsupported-operational-premise');
+  }
+});
+
+test('#260 parking admission retains real address/facility spans and the general guide', () => {
+  const fixtures = [
+    { slug: 'hanna-parking', name: 'Hanna Garage', description: 'Parking at 34 Hanna Avenue uses the east entrance.' },
+    { slug: 'green-p-lot', name: 'Green P Lot', description: 'Green P parking is entered from Atlantic Avenue.' },
+    ...businesses,
+  ];
+  for (const topic of ['34 Hanna Ave Parking', 'Green P Parking', 'Parking Guide']) {
+    const result = buildSourcePack({ topic, businesses: fixtures, now });
+    assert.equal(result.ok, true, topic);
+    assert.equal(verifySourcePack(result.pack, { businesses: fixtures, now }).ok, true);
+    assert.ok(result.pack.sources.some((source) => source.id === (topic.startsWith('34') ? 'hanna-parking' : 'green-p-lot')));
+  }
+  const access = [{ slug: 'hanna-access', name: 'Hanna Garage', answerBlock: 'Vehicle access at 34 Hanna Ave. uses the east entrance.' }, ...businesses];
+  assert.equal(buildSourcePack({ topic: '34 Hanna Avenue Parking', businesses: access, now }).ok, true);
+  const facility = [{ slug: 'green-p', name: 'Green P', description: 'Green P Lot 229 is at 171 East Liberty St.' }, ...businesses];
+  assert.equal(buildSourcePack({ topic: 'Green P Parking', businesses: facility, now }).ok, true);
+  assert.equal(buildSourcePack({ topic: 'Parking Guide', businesses, now }).ok, true, 'existing generic parking amenity evidence remains usable');
+  for (const record of businesses.filter((record) => /parking/i.test(record.name))) {
+    assert.equal(buildSourcePack({ topic: `${record.name} Review`, businesses, now }).ok, true, record.name);
+  }
+  const truncated = [{ slug: 'hanna', name: 'Hanna Garage', description: `${'x'.repeat(1500)} Parking at 34 Hanna Ave.` }, ...businesses];
+  assert.equal(buildSourcePack({ topic: '34 Hanna Ave Parking', businesses: truncated, now }).reason, 'unsupported-operational-premise', 'evidence must be copied into the pack');
+  assert.equal(buildSourcePack({ topic: 'Liberty Village Gyms', businesses, posts, services, topics, now }).ok, true);
+});
+
+test('#260 unsupported parking spends zero SDK queries', async (t) => {
+  const root = tempRoot(t);
+  const original = fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8');
+  for (const topic of ['34 Hanna Ave Parking', 'Green P Parking']) {
+    let calls = 0;
+    const { result } = await captureOutcome(() => runPipeline({
+      query: () => { calls++; throw new Error('parking must refuse before generation'); }, root, now,
+      env: { TOPIC_OVERRIDE: topic, GOOGLE_APPLICATION_CREDENTIALS: path.join(root, 'gcp.json') },
+    }));
+    assert.equal(calls, 0);
+    assert.equal(result.detailReason, 'unsupported-operational-premise');
+    assert.equal(result.postWritten, false);
+  }
+  assert.equal(fs.readFileSync(path.join(root, 'data', 'posts.json'), 'utf8'), original);
+});
+
 test('verification rejects forged IDs, altered digests, future and stale packs', () => {
   const pack = buildSourcePack({ topic: 'Liberty Village Happy Hour', businesses, posts, services, topics, now }).pack;
   const inputs = { businesses, posts, services, topics, now };

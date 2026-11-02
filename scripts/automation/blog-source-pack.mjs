@@ -1,6 +1,6 @@
 // Bounded first-party evidence for one directory-backed blog intent. No I/O.
 import { createHash } from 'node:crypto';
-import { extractReferencedBusinesses, operationalPremisesIn, recordSupportsPremise } from '../lib/referenced-businesses.mjs';
+import { extractReferencedBusinesses, operationalPremisesIn, parkingPremiseIn, recordSupportsPremise } from '../lib/referenced-businesses.mjs';
 import { lintPost } from '../blog-lint.mjs';
 import { validateRecord } from '../content/validate.mjs';
 
@@ -55,13 +55,15 @@ export function buildSourcePack({ topic, businesses, posts = [], services = [], 
   if (typeof topic !== 'string' || !intentKey(topic) || !Array.isArray(businesses)) return { ok: false, reason: 'missing-topic-or-businesses' };
   if (array(posts).some((post) => intentKey(post?.title ?? '') === intentKey(topic) || intentKey(post?.slug ?? '') === intentKey(topic))) return { ok: false, reason: 'duplicate-topic' };
   const premises = operationalPremisesIn(topic);
+  const parking = parkingPremiseIn(topic);
   const words = tokens(topic);
   const selectedSlugs = new Set();
   const candidates = businesses.filter((record) => record && typeof record.slug === 'string' && typeof record.name === 'string')
     .filter((record) => premises.every((premise) => recordSupportsPremise(record, premise)) && premiseRows(record, premises).length === premises.length)
     .map((record) => {
       const haystack = tokens([record.name, record.category, record.subcategory, ...array(record.tags), record.description].join(' '));
-      const score = premises.length ? premises.length + words.filter((word) => haystack.includes(word)).length : words.filter((word) => haystack.includes(word)).length;
+      const parkingEvidence = parking && claimRows(record).some(({ verbatim }) => parking.supports(verbatim, record.name));
+      const score = (parkingEvidence ? words.length + 1 : 0) + premises.length + words.filter((word) => haystack.includes(word)).length;
       return { record, score };
     }).filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score || a.record.slug.localeCompare(b.record.slug))
@@ -78,6 +80,9 @@ export function buildSourcePack({ topic, businesses, posts = [], services = [], 
     claims: claimRows(record), premiseClaims: premiseRows(record, premises),
   }));
   const factCount = sources.reduce((total, source) => total + source.claims.length, 0);
+  if (parking && !sources.some((source) => source.claims.some(({ verbatim }) => parking.supports(verbatim, source.name)))) {
+    return { ok: false, reason: 'unsupported-operational-premise', premise: [parking.label], supportingRecords: 0, factCount };
+  }
   if (sources.length < (reserve ? 3 : 2) || (reserve && factCount < 6)) {
     return { ok: false, reason: premises.length ? 'unsupported-operational-premise' : 'insufficient-directory-evidence', premise: premises.map((item) => item.label), supportingRecords: sources.length, factCount };
   }
