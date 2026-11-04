@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { candidatesFromGsc, rankTopicCandidates, localEvidenceHints, growthHints, appendDiscoveredTopics, discoverTopics } from '../../scripts/automation/topic-queue.mjs';
+import { candidatesFromGsc, rankTopicCandidates, localEvidenceHints, growthHints, appendDiscoveredTopics, discoverTopics, gscEditorialTitle } from '../../scripts/automation/topic-queue.mjs';
 const current = [
   { keys: ['https://libertyvillage.co/directory', 'liberty village coffee'], clicks: 10, impressions: 1000, position: 22 },
   { keys: ['https://libertyvillage.co/blog/gyms', 'liberty village gyms'], clicks: 70, impressions: 900, position: 2 },
@@ -14,6 +14,35 @@ const dentistCandidate = {
   kind: 'blog', title: 'Dentists in Liberty Village: Your Neighbourhood Dental Care Guide',
   source: 'serpapi', rationale: 'local intent',
 };
+
+test('GSC local questions map through canonical locality and keep served queries out', async () => {
+  assert.equal(gscEditorialTitle('is liberty village, toronto worth visiting'), 'Is Liberty Village Worth Visiting?');
+  for (const query of ['where is liberty township', 'liberty village', 'near liberty village', 'what about liberty village']) assert.equal(gscEditorialTitle(query), null, query);
+  const rows = ['is liberty village worth visiting', 'what is liberty village famous for'].map(query => ({ query, impressions: 10 }));
+  const candidates = candidatesFromGsc(rows);
+  assert.equal(candidates.length, 2);
+  const result = await appendDiscoveredTopics({ version: 1, topics: [] }, candidates, {
+    publishedPosts: [{ slug: 'what-is-liberty-village-known-for', title: 'What Is Liberty Village Known For?' }], log: () => {},
+  });
+  assert.deepEqual(result.added.map(e => e.title), ['Is Liberty Village Worth Visiting?']);
+});
+
+test('GSC 28-day candidates retain weekly deltas rather than comparing 28 days with 7', () => {
+  const query = 'is liberty village worth visiting';
+  const dormant = 'where is liberty village located';
+  const result = candidatesFromGsc([{ query, impressions: 30 }], [{ query, impressions: 10 }, { query: dormant, impressions: 5 }], {
+    candidateRows: [{ query, impressions: 120 }, { query: dormant, impressions: 20 }],
+  });
+  assert.deepEqual(result.map(e => [e.growth.impressions, e.growth.impressionGrowth]), [[120, 2], [20, -1]]);
+});
+
+test('all eight existing GSC theme mappings remain unchanged', () => {
+  for (const [query, label] of [['happy hour', 'Happy hour'], ['patios', 'Patio'], ['brunch', 'Brunch'], ['coffee', 'Coffee shop'],
+    ['gyms', 'Gym'], ['restaurants', 'Restaurant'], ['bakery', 'Bakery'], ['hair salons', 'Hair salon']]) {
+    assert.equal(gscEditorialTitle(`${query} liberty village`), `${label} directory guide in Liberty Village, Toronto`);
+  }
+  assert.equal(gscEditorialTitle('Jukebox Printing Liberty Village'), null);
+});
 
 test('one primary dentist intent blocks new posts across best/category, blog and guide pages', async () => {
   const cases = [

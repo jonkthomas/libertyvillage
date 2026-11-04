@@ -51,7 +51,7 @@ test('the PAA filter is case-insensitive but does not accept similar place names
     { question: 'LIBERTY VILLAGE transit options' },
     { question: 'Is Liberty Village In Toronto?' },
   ], 'query').map((entry) => entry.title), [
-    'LIBERTY VILLAGE, Toronto Transit Options',
+    'LIBERTY VILLAGE Transit Options',
     'Is Liberty Village In Toronto?',
   ]);
   for (const question of [
@@ -76,7 +76,7 @@ test('PAA contamination is filtered before the three-question cap', () => {
   ], 'query');
   assert.deepEqual(entries.map((entry) => entry.title), [
     'Where Is Brunch In Liberty Village, Toronto?',
-    'How Do I Reach Liberty Village, Toronto By TTC?',
+    'How Do I Reach Liberty Village By TTC?',
     'What Patios Are Open In Liberty Village, Toronto?',
   ]);
 });
@@ -107,8 +107,8 @@ test('PR #115 discovery titles are geo-qualified and deduplicated by stable inte
 
   assert.deepEqual(result.added.map((entry) => entry.title), [
     'Happy hour directory guide in Liberty Village, Toronto',
-    'Is Liberty Village, Toronto A Good Area?',
-    'What Is Liberty Village, Toronto Known For?',
+    'Is Liberty Village A Good Area?',
+    'What Is Liberty Village Known For?',
   ]);
   assert.deepEqual(result.added.map((entry) => entry.rationale), [
     'higher priority', 'specific', 'valid PAA',
@@ -136,7 +136,7 @@ test('near-paraphrase PAA questions collapse to one topic before submission', as
     { question: 'Is Liberty Village a good place to live?' },
   ], 'Liberty Village Toronto');
   const result = await appendDiscoveredTopics({ version: 1, topics: [] }, discoveries);
-  assert.deepEqual(result.added.map((entry) => entry.title), ['Is Liberty Village, Toronto A Nice Area?']);
+  assert.deepEqual(result.added.map((entry) => entry.title), ['Is Liberty Village A Nice Area?']);
 
   const exact = await appendDiscoveredTopics({ version: 1, topics: [] }, [
     { kind: 'blog', title: 'Is Liberty Village, Toronto A Nice Area?', source: 'serpapi', rationale: 'PAA' },
@@ -147,8 +147,8 @@ test('near-paraphrase PAA questions collapse to one topic before submission', as
     { kind: 'blog', title: 'What Are Some Fun Things To Do In Liberty Village, Toronto?', source: 'serpapi', rationale: 'PAA' },
   ]);
   assert.deepEqual(exact.added.map((entry) => entry.title), [
-    'Is Liberty Village, Toronto A Nice Area?',
-    'What Is Liberty Village, Toronto Known For?',
+    'Is Liberty Village A Nice Area?',
+    'What Is Liberty Village Known For?',
     'What Is There To Do In Liberty Village, Toronto?',
   ]);
 
@@ -173,12 +173,12 @@ test('a paraphrase of a published post is not queued; distinct intents all survi
     { kind: 'blog', title: 'What To Do In Liberty Village, Toronto In Winter?', source: 'serpapi', rationale: 'PAA' },
   ], { publishedPosts });
   assert.deepEqual(result.added.map((entry) => entry.title), [
-    'Is Liberty Village, Toronto Safe?',
+    'Is Liberty Village Safe?',
     'How Expensive Is Liberty Village, Toronto?',
-    'Is Liberty Village, Toronto Walkable?',
-    'Is Liberty Village, Toronto Good For Families?',
+    'Is Liberty Village Walkable?',
+    'Is Liberty Village Good For Families?',
     'What Is The Best Place To Eat In Liberty Village, Toronto?',
-    'What To Do In Liberty Village, Toronto In Winter?',
+    'What To Do In Liberty Village In Winter?',
   ]);
 });
 
@@ -189,7 +189,7 @@ test('every place-to-live wording collapses to one livability topic; other inten
     { question: 'Is Liberty Village an ideal neighbourhood?' },
   ], 'Liberty Village Toronto');
   const result = await appendDiscoveredTopics({ version: 1, topics: [] }, discoveries);
-  assert.deepEqual(result.added.map((entry) => entry.title), ['Is Liberty Village, Toronto The Best Place To Live?']);
+  assert.deepEqual(result.added.map((entry) => entry.title), ['Is Liberty Village The Best Place To Live?']);
 
   const queued = await appendDiscoveredTopics({ version: 1, topics: [] }, [
     { kind: 'blog', title: 'Is Liberty Village, Toronto A Good Area?', source: 'serpapi', rationale: 'prior week' },
@@ -203,11 +203,11 @@ test('every place-to-live wording collapses to one livability topic; other inten
     { kind: 'blog', title: 'Is Liberty Village, Toronto Worth Visiting?', source: 'serpapi', rationale: 'PAA' },
   ]);
   assert.deepEqual(controls.added.map((entry) => entry.title), [
-    'Is Liberty Village, Toronto Safe To Live?',
-    'Is Liberty Village, Toronto A Good Place For Kids?',
+    'Is Liberty Village Safe To Live?',
+    'Is Liberty Village A Good Place For Kids?',
     'How Much Is Rent In Liberty Village, Toronto?',
     'Where Should I Live In Liberty Village, Toronto?',
-    'Is Liberty Village, Toronto Worth Visiting?',
+    'Is Liberty Village Worth Visiting?',
   ]);
 });
 
@@ -316,6 +316,33 @@ test('groundability rejects malformed geography, outside places, navigation and 
   assert.match(check('Good Cafe hours').reason, /navigation/);
   assert.match(check('Liberty Village cafes', { livePosts: [{ title: 'Cafes in Liberty Village' }] }).reason, /duplicate/);
   assert.match(check('Liberty Village cafes', { consumedFingerprints: [intentFingerprint('Liberty Village cafes')] }).reason, /duplicate/);
+});
+
+test('one embedded qualified locality has the same editorial admission at intake and for durable rows', async () => {
+  const title = 'Is Liberty Village, Toronto Downtown?';
+  const durable = { key: 'existing-key', kind: 'blog', title, source: 'serpapi', rationale: 'retained' };
+  const queue = { version: 1, topics: [durable] };
+  const original = structuredClone(queue);
+  const ground = checkTopicGroundability({ title, kind: 'blog' });
+  assert.equal(ground.ok, true);
+  assert.equal(ground.editorialTitle, 'Is Liberty Village Downtown?');
+  assert.equal(ground.fingerprint, checkTopicGroundability({ title: ground.editorialTitle, kind: 'blog' }).fingerprint);
+  const intake = await appendDiscoveredTopics({ version: 1, topics: [] }, [durable]);
+  assert.equal(intake.added[0].title, ground.editorialTitle);
+  assert.deepEqual(checkTopicGroundability({ title: intake.added[0].title, kind: 'blog' }), ground);
+  assert.equal((await appendDiscoveredTopics(queue, [durable])).added.length, 0);
+  assert.deepEqual(queue, original, 'stored title and key stay untouched');
+  assert.equal(checkTopicGroundability({ title, kind: 'blog', consumedFingerprints: [intentFingerprint(title)] }).reason, 'duplicate intent');
+  for (const bad of ['Liberty Village', 'Liberty Village, Toronto', 'Liberty Village Toronto',
+    'Is Liberty Village, Toronto Liberty Village Downtown?', 'Is Liberty Village, Toronto Toronto Downtown?',
+    'Is Liberty Village Toronto Downtown?']) {
+    assert.equal(checkTopicGroundability({ title: bad, kind: 'blog' }).reason, 'malformed geo suffix', bad);
+  }
+  assert.equal(checkTopicGroundability({ title: 'Is Liberty Village, Toronto Near Parkdale?', kind: 'blog' }).reason, 'outside Liberty Village');
+  const pair = await appendDiscoveredTopics({ version: 1, topics: [] }, [title, 'Is Liberty Village, Toronto Considered Downtown?']
+    .map(value => ({ kind: 'blog', title: value, source: 'serpapi' })));
+  assert.equal(pair.added.length, 1, 'existing near-duplicate screen collapses downtown variants');
+  assert.equal(checkTopicGroundability({ title: 'Is Liberty Village, Toronto Pet Friendly?', kind: 'blog' }).reason, 'unsupported operational premise');
 });
 
 test('one expected GSC suffix yields a canonical editorial intent without weakening premise checks', () => {
