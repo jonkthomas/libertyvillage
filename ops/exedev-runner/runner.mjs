@@ -833,7 +833,7 @@ function resumeOpenAttempt(deps, ctx, attempt, token) {
   return { state: settleAttempt(deps, ctx, key, token, found.submissionId, gate), id: found.submissionId };
 }
 
-function blogCandidate(run, entry, snapshot, { reserve = false, consumed = run.consumed } = {}) {
+function blogCandidate(run, entry, snapshot, { reserve = false, consumed = new Set([...run.consumed, ...run.weekFingerprints]) } = {}) {
   const { checkTopicGroundability, buildSourcePack } = run.deps.modules;
   if (typeof entry?.title !== 'string' || !entry.title.trim() || typeof entry.key !== 'string' || !entry.key) return { skip: 'invalid-entry' };
   const ground = checkTopicGroundability({ title: entry.title, kind: 'blog', businesses: snapshot.businesses, livePosts: snapshot.posts, services: snapshot.services, guides: snapshot.topics, consumedFingerprints: [...consumed] });

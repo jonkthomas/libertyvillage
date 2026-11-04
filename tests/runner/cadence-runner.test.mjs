@@ -13,6 +13,19 @@ const run = (world, request = {}) => runWeeklyBlog({ target: 'staging', slot: '2
 const withWorld = (t, options) => { const world = createWorld(options); t.after(() => world.cleanup()); return world; };
 const events = (world, name) => world.logs.filter((entry) => entry.event === name);
 
+test('embedded downtown variants supply one runner intent without changing durable queue keys', (t) => {
+  const businesses = BUSINESSES.map(row => ({ ...row, description: `${row.description} Downtown shops are worth visiting.` }));
+  const queue = [topic('downtown-one', 'Is Liberty Village, Toronto Downtown?'),
+    topic('downtown-two', 'Is Liberty Village, Toronto Considered Downtown?'),
+    topic('worth-visiting', 'Is Liberty Village, Toronto Worth Visiting?')];
+  const world = withWorld(t, { queue, businesses });
+  run(world);
+  assert.deepEqual(world.generated.map(row => row.title), ['Is Liberty Village Downtown?', 'Is Liberty Village Worth Visiting?']);
+  assert.deepEqual(attemptsOf(world).map(row => row.topic_key), ['downtown-one', 'worth-visiting']);
+  assert.ok(events(world, 'intent-skipped').some(row => row.reason === 'duplicate intent'));
+  console.log('LIVE weekly-blog: embedded locality supplies downtown and worth-visiting; considered-downtown skipped as duplicate');
+});
+
 test('only one bounded helper diagnostic can authorize a refusal', () => {
   assert.deepEqual(parseGeneratorDiagnostic('{"postWritten":false,"stopReason":"insufficient-sources"}\n'), { postWritten: false, stopReason: 'insufficient-sources' });
   assert.deepEqual(readGeneratorRelay({ code: 1, stdout: '{"postWritten":false,"stopReason":"insufficient-sources"}\n' }).stopReason, 'insufficient-sources');
