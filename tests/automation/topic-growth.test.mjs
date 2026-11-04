@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { candidatesFromGsc, rankTopicCandidates, localEvidenceHints, growthHints, appendDiscoveredTopics, discoverTopics, gscEditorialTitle } from '../../scripts/automation/topic-queue.mjs';
+import { candidatesFromGsc, rankTopicCandidates, localEvidenceHints, growthHints, appendDiscoveredTopics, discoverTopics, gscEditorialTitle, gscServedPage, checkTopicGroundability } from '../../scripts/automation/topic-queue.mjs';
 const current = [
   { keys: ['https://libertyvillage.co/directory', 'liberty village coffee'], clicks: 10, impressions: 1000, position: 22 },
   { keys: ['https://libertyvillage.co/blog/gyms', 'liberty village gyms'], clicks: 70, impressions: 900, position: 2 },
@@ -42,6 +42,59 @@ test('all eight existing GSC theme mappings remain unchanged', () => {
     assert.equal(gscEditorialTitle(`${query} liberty village`), `${label} directory guide in Liberty Village, Toronto`);
   }
   assert.equal(gscEditorialTitle('Jukebox Printing Liberty Village'), null);
+});
+
+test('GSC dentist, parking and breakfast fragments produce natural questions at intake and admission', () => {
+  for (const [query, title] of [
+    ['dentist near liberty village', 'Where Near Liberty Village Can I Find A Dentist?'],
+    ['parking near liberty village', 'Where Near Liberty Village Can I Find Parking?'],
+    ['best breakfast liberty village', 'Where In Liberty Village Can I Get The Best Breakfast?'],
+  ]) {
+    assert.equal(gscEditorialTitle(query), title);
+    assert.equal(checkTopicGroundability({ title, kind: 'blog' }).editorialTitle, title);
+  }
+  assert.equal(gscEditorialTitle('liberty village cost mysterious fragment'), null);
+  assert.equal(gscEditorialTitle('altea liberty village membership cost'), 'What Does An Altea Liberty Village Membership Cost?');
+});
+
+test('GSC lookup aliases reuse live category, guide and post coverage before queue append', async () => {
+  const cases = [
+    ['dentist near liberty village', { services: [{ slug: 'dentists', name: 'Dentist' }] }, '/best/dentists'],
+    ['hotels near liberty village', { guides: [{ slug: 'where-to-stay', title: 'Liberty Village Hotels & Where to Stay in Toronto' }] }, '/guide/where-to-stay'],
+    ['bars near liberty village', { services: [{ slug: 'bars', pluralName: 'Bars' }] }, '/best/bars'],
+    ['food near liberty village', { services: [{ slug: 'restaurants', name: 'Restaurant' }] }, '/best/restaurants'],
+    ['best breakfast liberty village', { services: [{ slug: 'brunch-spots', name: 'Brunch Spot' }] }, '/best/brunch-spots'],
+    ['best breakfast liberty village', { guides: [{ slug: 'brunch-guide', title: 'Brunch Guide' }] }, '/guide/brunch-guide'],
+    ['is liberty village safe', { guides: [{ slug: 'safety-guide', title: 'Safety Guide' }] }, '/guide/safety-guide'],
+    ['dentist near liberty village', { publishedPosts: [{ slug: 'dentists-liberty-village-2026', title: 'Dentists in Liberty Village (2026)' }] }, '/blog/dentists-liberty-village-2026'],
+    ['food near liberty village', { publishedPosts: [{ slug: 'best-restaurants-liberty-village-locals-guide', title: 'Best Restaurants in Liberty Village: Locals Guide' }] }, '/blog/best-restaurants-liberty-village-locals-guide'],
+  ];
+  for (const [query, inventory, url] of cases) {
+    assert.equal(gscServedPage(query, inventory), url, query);
+    assert.equal(gscServedPage(gscEditorialTitle(query), inventory), url, 'the grammatical question keeps its coverage');
+    let messages = [];
+    const result = await appendDiscoveredTopics({ version: 1, topics: [] }, [{ kind: 'blog', title: query, source: 'gsc' }], { ...inventory, log: value => { messages = [...messages, value]; } });
+    assert.equal(result.added.length, 0, query);
+    assert.ok(messages.some(value => value.includes(url)), url);
+    const hidden = Object.fromEntries(Object.entries(inventory).map(([key, records]) => [key, records.map(row => ({ ...row, live: false }))]));
+    assert.equal(gscServedPage(query, hidden), null, 'unpublished coverage cannot suppress a candidate');
+  }
+  const category = { services: [{ slug: 'dentists', name: 'Dentist' }] };
+  for (const query of ['where are emergency dentists in liberty village', 'where are dentists near parkdale in liberty village']) assert.equal(gscServedPage(query, category), null, 'meaningful qualifiers survive');
+});
+
+test('GSC property questions use condo editorial coverage rather than one rental listing', async () => {
+  const queries = ['is liberty village a good investment', 'best condo buildings in liberty village'];
+  const guide = { slug: 'condo-guide', title: 'Liberty Village Condo Guide', description: 'Buying and investment considerations, plus the best buildings.' };
+  const post = { ...guide, slug: 'liberty-village-condo-buying-renting-guide-2026' };
+  const listing = { slug: 'downtown-toronto-condo-liberty-village', name: 'Downtown Toronto Condo — Liberty Village', description: 'A compact condo for short-term stays.' };
+  for (const query of queries) {
+    for (const [inventory, url] of [[{ guides: [guide] }, '/guide/condo-guide'], [{ publishedPosts: [post] }, `/blog/${post.slug}`]]) {
+      assert.equal(gscServedPage(query, inventory), url);
+      assert.equal((await appendDiscoveredTopics({ version: 1, topics: [] }, [{ kind: 'blog', title: query, source: 'gsc' }], { ...inventory, log: () => {} })).added.length, 0);
+    }
+    assert.equal(gscServedPage(query, { businesses: [listing] }), null, 'one rental listing does not answer a neighbourhood-wide condo question');
+  }
 });
 
 test('one primary dentist intent blocks new posts across best/category, blog and guide pages', async () => {

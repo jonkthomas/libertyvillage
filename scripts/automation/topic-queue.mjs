@@ -392,11 +392,17 @@ export function gscEditorialTitle(query) {
   if (!/\bliberty village\b/i.test(raw) || !/\b(?:what|how|is|are|where|best|things|near|guide|cost|worth)\b/i.test(raw)) return null;
   const subject = raw.toLowerCase().replace(/\bliberty village\b|\btoronto\b|\b(?:what|how|is|are|where|best|things|near|guide|cost|worth|about|in|the|a|an|to|of)\b/g, '').replace(/[^a-z0-9]/g, '');
   if (!subject) return null;
-  // Question words are already ignored by the existing intent screen. Avoid
-  // adding editorial filler that would disguise an already served query.
-  const question = /^(?:what|how|is|are|where)\b/i.test(raw) ? raw
-    : /\bnear\b/i.test(raw) ? `Where are ${raw}`
-      : /\b(?:best|things)\b/i.test(raw) ? `What are ${raw}` : `What is ${raw}`;
+  // Preserve complete question wording. Only a few bounded search fragments
+  // have templates; rejecting an unfamiliar fragment beats inventing grammar.
+  let question = /^(?:what|how|is|are|where)\b/i.test(raw) ? raw : null;
+  const nearby = /^(dentists?|hotels|bars|food|parking)\s+near\s+(liberty village(?:\s*,?\s*toronto)?)$/i.exec(raw);
+  if (!question && nearby) question = `Where near ${nearby[2]} can I find ${nearby[1].toLowerCase() === 'dentist' ? 'a ' : ''}${nearby[1]}`;
+  const best = /^best (breakfast|condo buildings)(?: in)? (liberty village(?:\s*,?\s*toronto)?)$/i.exec(raw);
+  if (!question && best) question = best[1].toLowerCase() === 'breakfast'
+    ? `Where in ${best[2]} can I get the best breakfast` : `What are the best condo buildings in ${best[2]}`;
+  const membership = /^(.+\bliberty village(?:\s*,?\s*toronto)?) membership cost$/i.exec(raw);
+  if (!question && membership) question = `What does ${/^[aeiou]/i.test(membership[1]) ? 'an' : 'a'} ${membership[1]} membership cost`;
+  if (!question) return null;
   return qualifyLibertyVillageToronto(titleFromQuery(question.replace(/[?!.,:;]+$/, ''))) + '?';
 }
 
@@ -771,6 +777,43 @@ function existingIntentPage(title, pages) {
   return existingIntentKeys(title).map((key) => pages.get(key)).find(Boolean);
 }
 
+// Additional GSC coverage keys use the same live category/guide/post inventory
+// and primary aliases. Only generic local lookup modifiers are discarded;
+// emergency, cuisine, occasion, outside-area and other qualifiers survive.
+function gscCoverageKey(value) {
+  const text = String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\bcan i (?:find|get)\b/g, ' ')
+    .replace(/\bnear\s+(?=liberty village\b)/g, 'in ')
+    .replace(/\bnear me\b/g, ' ')
+    .replace(/\b(?:hotels?|where to stay)\b/g, ' stay ')
+    .replace(/\bsafe\b/g, ' safety ')
+    .replace(/\b(?:breakfast|brunch)(?: spots?)?\b/g, ' brunch ');
+  const key = aliasedIntentKey(text);
+  return key.replace(/\|good investment$/, '|condo investment').replace(/\|building condo$/, '|condo building');
+}
+
+function gscEditorialCoverageKeys(record) {
+  const identity = [record.slug, record.title, record.name].filter(Boolean).join(' ').replace(/-/g, ' ');
+  if (!/\bcondos?\b/i.test(identity)) return [];
+  const metadata = [identity, record.description, record.answerBlock, ...(Array.isArray(record.keyTakeaways) ? record.keyTakeaways : [])].join(' ');
+  const area = primaryIntentKey(identity).split('|')[0];
+  return [
+    /\b(?:market|buying|investment|investors?)\b/i.test(metadata) && `gsc:${area}|condo investment`,
+    /\b(?:best|top|which) buildings\b/i.test(metadata) && `gsc:${area}|condo building`,
+  ].filter(Boolean);
+}
+
+function existingGscIntentPage(query, pages) {
+  return [query, gscEditorialTitle(query)].filter(Boolean).map(value => {
+    const coverage = gscCoverageKey(value);
+    return existingIntentPage(value, pages) || (coverage && pages.get(`gsc:${coverage}`));
+  }).find(Boolean);
+}
+
+export function gscServedPage(query, { services = [], guides = [], publishedPosts = [], redirects = [] } = {}) {
+  return existingGscIntentPage(query, primaryIntentPages({ services, guides, publishedPosts, redirects })) ?? null;
+}
+
 function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }) {
   const primary = new Map();
   // Directory category links resolve to /best/:service, not separate category URLs
@@ -782,9 +825,13 @@ function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }
         || (record.liveRev ?? record.live_rev) != null && Number(record.liveRev ?? record.live_rev) <= 0
         || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(record.slug ?? '')) continue;
       for (const value of [record.slug, record.title, record.name, record.pluralName]) {
-        for (const key of existingIntentKeys(value)) {
+        const coverage = gscCoverageKey(value);
+        for (const key of [...existingIntentKeys(value), ...(coverage ? [`gsc:${coverage}`] : [])]) {
           if (!primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
         }
+      }
+      for (const key of gscEditorialCoverageKeys(record)) {
+        if (!primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
       }
     }
   }
@@ -794,7 +841,7 @@ function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }
     for (const url of [redirect.source, redirect.destination]) {
       const slug = /^\/(?:blog|guide|best|directory|vs)\/([a-z0-9-]+)$/.exec(url ?? '')?.[1];
       if (!slug) continue;
-      for (const key of existingIntentKeys(slug)) {
+      for (const key of [...existingIntentKeys(slug), `gsc:${gscCoverageKey(slug)}`]) {
         if (!primary.has(key)) primary.set(key, redirect.destination);
       }
     }
@@ -815,7 +862,8 @@ export async function appendDiscoveredTopics(queue, discoveries, { publishedPost
   ]);
   for (const discovery of discoveries) {
     if (added.length >= 25) break;
-    const primary = discovery?.kind === 'blog' && existingIntentPage(discovery.title, primaryPages);
+    const primary = discovery?.kind === 'blog' && (existingIntentPage(discovery.title, primaryPages)
+      || discovery.source === 'gsc' && existingGscIntentPage(discovery.title, primaryPages));
     if (primary) {
       // The ledger records completed actions, not suggestions. There is no
       // suggestion writer in this branch: keep the existing URL and log the skip.
