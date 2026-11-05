@@ -340,8 +340,19 @@ function titleFromPath(pathValue) {
 
 function qualifyLibertyVillageToronto(title) {
   const cleaned = String(title ?? '').trim();
-  if (!cleaned || /\btoronto\b/i.test(cleaned)) return cleaned;
-  return cleaned.replace(/\bliberty village\b/i, (place) => `${place}, Toronto`);
+  const qualified = !cleaned || /\btoronto\b/i.test(cleaned) ? cleaned
+    : cleaned.replace(/\bliberty village\b/i, (place) => `${place}, Toronto`);
+  return canonicalizeEmbeddedLocality(qualified);
+}
+
+// Only one embedded, explicitly qualified neighbourhood clause is equivalent
+// to the unqualified editorial question. Leave malformed forms for admission
+// to reject. Never rewrite existing queue rows, durable keys or fingerprints.
+function canonicalizeEmbeddedLocality(title) {
+  const places = [...title.matchAll(/\bliberty village\b/ig)].length;
+  const cities = [...title.matchAll(/\btoronto\b/ig)].length;
+  return places === 1 && cities === 1
+    ? title.replace(/\b(liberty village)\s*,\s*toronto\b(?=\s+\w)/i, '$1') : title;
 }
 
 function normalizeDiscovery(discovery) {
@@ -375,9 +386,24 @@ export function gscEditorialTitle(query) {
   // A bare category or category question is useful; a brand + category is a
   // navigational lookup and stays out. Never imply current prices or hours.
   const residual = text.replace(/\b(?:best|good|cheap|near|me|in|the|a|an|what|where|are|is|can|i|find|which|open|now|for|with|and|to|of|happy|hour|patios?|brunch|coffee|shops?|cafes?|gyms?|fitness|restaurants?|dining|bakeries|bakery|hair|salons?|haircuts?|stadium)\b/g, '').replace(/[^a-z0-9]/g, '');
-  if (residual) return null;
-  const found = themes.find(([pattern]) => pattern.test(text));
-  return found ? `${found[1]} in Liberty Village, Toronto` : null;
+  const found = !residual && themes.find(([pattern]) => pattern.test(text));
+  if (found) return `${found[1]} in Liberty Village, Toronto`;
+  const raw = String(query ?? '').replace(/\s+/g, ' ').trim();
+  if (!/\bliberty village\b/i.test(raw) || !/\b(?:what|how|is|are|where|best|things|near|guide|cost|worth)\b/i.test(raw)) return null;
+  const subject = raw.toLowerCase().replace(/\bliberty village\b|\btoronto\b|\b(?:what|how|is|are|where|best|things|near|guide|cost|worth|about|in|the|a|an|to|of)\b/g, '').replace(/[^a-z0-9]/g, '');
+  if (!subject) return null;
+  // Preserve complete question wording. Only a few bounded search fragments
+  // have templates; rejecting an unfamiliar fragment beats inventing grammar.
+  let question = /^(?:what|how|is|are|where)\b/i.test(raw) ? raw : null;
+  const nearby = /^(dentists?|hotels|bars|food|parking)\s+near\s+(liberty village(?:\s*,?\s*toronto)?)$/i.exec(raw);
+  if (!question && nearby) question = `Where near ${nearby[2]} can I find ${nearby[1].toLowerCase() === 'dentist' ? 'a ' : ''}${nearby[1]}`;
+  const best = /^best (breakfast|condo buildings)(?: in)? (liberty village(?:\s*,?\s*toronto)?)$/i.exec(raw);
+  if (!question && best) question = best[1].toLowerCase() === 'breakfast'
+    ? `Where in ${best[2]} can I get the best breakfast` : `What are the best condo buildings in ${best[2]}`;
+  const membership = /^(.+\bliberty village(?:\s*,?\s*toronto)?) membership cost$/i.exec(raw);
+  if (!question && membership) question = `What does ${/^[aeiou]/i.test(membership[1]) ? 'an' : 'a'} ${membership[1]} membership cost`;
+  if (!question) return null;
+  return qualifyLibertyVillageToronto(titleFromQuery(question.replace(/[?!.,:;]+$/, ''))) + '?';
 }
 
 export function intentFingerprint(title) {
@@ -421,13 +447,14 @@ function groundingFingerprint(title) {
 
 export function checkTopicGroundability({ title, kind, businesses = [], livePosts = [], services = [], guides = [], redirects = [], consumedFingerprints = [] } = {}) {
   const cleaned = String(title ?? '').replace(/\s+/g, ' ').trim();
-  const suffix = cleaned.match(TRAILING_GEO);
-  const editorialTitle = suffix ? `${suffix[1].trim()}${suffix[2]}` : cleaned;
+  const canonical = canonicalizeEmbeddedLocality(cleaned);
+  const suffix = canonical.match(TRAILING_GEO);
+  const editorialTitle = suffix ? `${suffix[1].trim()}${suffix[2]}` : canonical;
   const fingerprint = groundingFingerprint(editorialTitle);
   const reject = (reason) => ({ ok: false, reason, fingerprint, editorialTitle, supportingRecordIds: [] });
   if (!cleaned || kind !== 'blog') return reject('invalid topic');
   const placeCount = [...cleaned.matchAll(/\bliberty village\b/ig)].length;
-  if (!editorialTitle || placeCount > 1 || /\btoronto\s+toronto\b/i.test(cleaned)
+  if (!editorialTitle || /^liberty village[?!.,:;]*$/i.test(editorialTitle) || placeCount > 1 || /\btoronto\s+toronto\b/i.test(cleaned)
     || /\bliberty village\s*,?\s*toronto\b/i.test(editorialTitle)
     || /\btoronto\s+liberty village\b/i.test(editorialTitle)) return reject('malformed geo suffix');
   if (OUTSIDE_PLACES.test(editorialTitle)) return reject('outside Liberty Village');
@@ -437,7 +464,8 @@ export function checkTopicGroundability({ title, kind, businesses = [], livePost
   const postFingerprints = (livePosts ?? []).flatMap((post) => [post?.title, post?.slug?.replace(/-/g, ' ')]
     .filter(Boolean).map(groundingFingerprint));
   if ([...postFingerprints, ...consumedFingerprints].includes(fingerprint)
-    || consumedFingerprints.includes(intentFingerprint(cleaned))) return reject('duplicate intent');
+    || consumedFingerprints.includes(intentFingerprint(cleaned))
+    || consumedFingerprints.some((value) => nearDuplicateKey(value) === nearDuplicateKey(editorialTitle))) return reject('duplicate intent');
   const premises = PREMISES.filter((entry) => entry.pattern.test(editorialTitle));
   if (!premises.length) return { ok: true, reason: 'groundable', fingerprint, editorialTitle, supportingRecordIds: [] };
   const supportingRecordIds = [...new Set((businesses ?? []).filter(liveBusiness)
@@ -504,7 +532,7 @@ export function localEvidenceHints(entry, businesses = []) {
   }));
 }
 
-export function candidatesFromGsc(current, previous = [], { publishedPosts = [] } = {}) {
+export function candidatesFromGsc(current, previous = [], { publishedPosts = [], candidateRows = current } = {}) {
   const aggregate = (rows) => {
     const byQuery = new Map();
     for (const row of rows) {
@@ -519,11 +547,13 @@ export function candidatesFromGsc(current, previous = [], { publishedPosts = [] 
     return [...byQuery.values()].map((row) => ({ ...row, position: row.impressions ? row.weightedPosition / row.impressions : null }));
   };
   const previousByQuery = new Map(aggregate(previous).map((r) => [r.query, r]));
-  return aggregate(current).flatMap((row) => {
+  const currentByQuery = new Map(aggregate(current).map((r) => [r.query, r]));
+  return aggregate(candidateRows).flatMap((row) => {
     const title = gscEditorialTitle(row.query);
     if (!title || row.impressions <= 0) return [];
     const old = previousByQuery.get(row.query)?.impressions ?? 0;
-    const growth = old > 0 ? (row.impressions - old) / old : row.impressions > 0 ? 1 : 0;
+    const weeklyImpressions = currentByQuery.get(row.query)?.impressions ?? 0;
+    const growth = old > 0 ? (weeklyImpressions - old) / old : weeklyImpressions > 0 ? 1 : 0;
     const noMatchingPage = !publishedTitles(publishedPosts).some((t) => existingNearKeys(t).includes(nearDuplicateKey(title)));
     return [{ kind: 'blog', title: row.query, source: 'gsc',
       rationale: `GSC demand (${row.clicks} clicks, ${row.impressions} impressions, position ${row.position?.toFixed(1) ?? 'unknown'})`,
@@ -539,11 +569,13 @@ async function discoverFromGsc({ now, publishedPosts }) {
     const { fetchGscRows, lastFullWeek } = await import('../content/ledger.mjs');
     const week = lastFullWeek(now);
     const previousNow = new Date(new Date(now).getTime() - 7 * 24 * HOUR_MS);
-    const [current, previous] = await Promise.all([
+    const window = { start: new Date(new Date(`${week.end}T00:00:00Z`).getTime() - 27 * 24 * HOUR_MS).toISOString().slice(0, 10), end: week.end };
+    const [current, previous, candidateRows] = await Promise.all([
       fetchGscRows({ ...week, dimensions: ['page', 'query'] }),
       fetchGscRows({ ...lastFullWeek(previousNow), dimensions: ['page', 'query'] }),
+      fetchGscRows({ ...window, dimensions: ['page', 'query'] }),
     ]);
-    return candidatesFromGsc(current, previous, { publishedPosts });
+    return candidatesFromGsc(current, previous, { publishedPosts, candidateRows });
   } catch {
     console.warn('topic discovery: GSC demand unavailable');
     return [];
@@ -745,6 +777,43 @@ function existingIntentPage(title, pages) {
   return existingIntentKeys(title).map((key) => pages.get(key)).find(Boolean);
 }
 
+// Additional GSC coverage keys use the same live category/guide/post inventory
+// and primary aliases. Only generic local lookup modifiers are discarded;
+// emergency, cuisine, occasion, outside-area and other qualifiers survive.
+function gscCoverageKey(value) {
+  const text = String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\bcan i (?:find|get)\b/g, ' ')
+    .replace(/\bnear\s+(?=liberty village\b)/g, 'in ')
+    .replace(/\bnear me\b/g, ' ')
+    .replace(/\b(?:hotels?|where to stay)\b/g, ' stay ')
+    .replace(/\bsafe\b/g, ' safety ')
+    .replace(/\b(?:breakfast|brunch)(?: spots?)?\b/g, ' brunch ');
+  const key = aliasedIntentKey(text);
+  return key.replace(/\|good investment$/, '|condo investment').replace(/\|building condo$/, '|condo building');
+}
+
+function gscEditorialCoverageKeys(record) {
+  const identity = [record.slug, record.title, record.name].filter(Boolean).join(' ').replace(/-/g, ' ');
+  if (!/\bcondos?\b/i.test(identity)) return [];
+  const metadata = [identity, record.description, record.answerBlock, ...(Array.isArray(record.keyTakeaways) ? record.keyTakeaways : [])].join(' ');
+  const area = primaryIntentKey(identity).split('|')[0];
+  return [
+    /\b(?:market|buying|investment|investors?)\b/i.test(metadata) && `gsc:${area}|condo investment`,
+    /\b(?:best|top|which) buildings\b/i.test(metadata) && `gsc:${area}|condo building`,
+  ].filter(Boolean);
+}
+
+function existingGscIntentPage(query, pages) {
+  return [query, gscEditorialTitle(query)].filter(Boolean).map(value => {
+    const coverage = gscCoverageKey(value);
+    return existingIntentPage(value, pages) || (coverage && pages.get(`gsc:${coverage}`));
+  }).find(Boolean);
+}
+
+export function gscServedPage(query, { services = [], guides = [], publishedPosts = [], redirects = [] } = {}) {
+  return existingGscIntentPage(query, primaryIntentPages({ services, guides, publishedPosts, redirects })) ?? null;
+}
+
 function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }) {
   const primary = new Map();
   // Directory category links resolve to /best/:service, not separate category URLs
@@ -756,9 +825,13 @@ function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }
         || (record.liveRev ?? record.live_rev) != null && Number(record.liveRev ?? record.live_rev) <= 0
         || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(record.slug ?? '')) continue;
       for (const value of [record.slug, record.title, record.name, record.pluralName]) {
-        for (const key of existingIntentKeys(value)) {
+        const coverage = gscCoverageKey(value);
+        for (const key of [...existingIntentKeys(value), ...(coverage ? [`gsc:${coverage}`] : [])]) {
           if (!primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
         }
+      }
+      for (const key of gscEditorialCoverageKeys(record)) {
+        if (!primary.has(key)) primary.set(key, `/${route}/${record.slug}`);
       }
     }
   }
@@ -768,7 +841,7 @@ function primaryIntentPages({ services, guides, publishedPosts, redirects = [] }
     for (const url of [redirect.source, redirect.destination]) {
       const slug = /^\/(?:blog|guide|best|directory|vs)\/([a-z0-9-]+)$/.exec(url ?? '')?.[1];
       if (!slug) continue;
-      for (const key of existingIntentKeys(slug)) {
+      for (const key of [...existingIntentKeys(slug), `gsc:${gscCoverageKey(slug)}`]) {
         if (!primary.has(key)) primary.set(key, redirect.destination);
       }
     }
@@ -789,7 +862,8 @@ export async function appendDiscoveredTopics(queue, discoveries, { publishedPost
   ]);
   for (const discovery of discoveries) {
     if (added.length >= 25) break;
-    const primary = discovery?.kind === 'blog' && existingIntentPage(discovery.title, primaryPages);
+    const primary = discovery?.kind === 'blog' && (existingIntentPage(discovery.title, primaryPages)
+      || discovery.source === 'gsc' && existingGscIntentPage(discovery.title, primaryPages));
     if (primary) {
       // The ledger records completed actions, not suggestions. There is no
       // suggestion writer in this branch: keep the existing URL and log the skip.
