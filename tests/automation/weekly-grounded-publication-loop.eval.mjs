@@ -12,7 +12,7 @@
 //   Sunday timestamp, immutable gate profile, and three seeded candidate IDs.
 //   The first seeded candidate MUST be rejected. The journey MUST then publish
 //   either a distinct candidate or the seeded Sunday grounded fallback. Every
-//   attempt MUST retain model=claude-opus-5, scoreThreshold=8, blocking
+//   attempt MUST retain model=moonshotai/kimi-k2-thinking (the OpenRouter gate), scoreThreshold=8, blocking
 //   severities critical/high, and bind its gate evidence to its exact commit.
 //   Success exists only when the returned exact final article commit is actually
 //   contained in refs/heads/<targetBranch>; a terminal/status claim is evidence
@@ -46,7 +46,7 @@ const FROZEN_GIT_ENV = Object.freeze({
   GIT_COMMITTER_DATE: FROZEN_SUNDAY,
 });
 const FROZEN_GATE = Object.freeze({
-  model: 'claude-opus-5',
+  model: 'moonshotai/kimi-k2-thinking',
   scoreThreshold: 8,
   blockingSeverities: Object.freeze(['critical', 'high']),
 });

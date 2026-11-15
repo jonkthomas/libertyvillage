@@ -152,7 +152,7 @@ test('local staging harness clones pinned code absent from the default branch an
       LV_INGEST_CODE_SHA: codeSha, GH_TOKEN: 'fixture-secret', CONTENT_DB_NAME: 'lv_staging',
         CONTENT_DATABASE_URL: 'postgres://fixture', CONTENT_DATABASE_URL_UNPOOLED: 'postgres://fixture',
         CONTENT_DEPLOY_HOOK_URL: 'https://fixture.invalid/hook', CONTENT_SITE_URL: 'https://fixture.invalid',
-        CONTENT_SITE_BYPASS: 'fixture-bypass', ANTHROPIC_API_KEY: 'fixture-model-secret',
+        CONTENT_SITE_BYPASS: 'fixture-bypass', OPENROUTER_API_KEY: 'fixture-model-secret',
         SLACK_WEBHOOK_URL: 'https://fixture.invalid/slack' };
     assert.throws(() => startLocalStagingIngest({ repoRoot: host, stateDir, repo: 'fixture/local', payload,
       codeSha, env: { ...operatorEnv, LV_INGEST_CODE_SHA: 'b'.repeat(40) } }), /pinned staging SHA/);

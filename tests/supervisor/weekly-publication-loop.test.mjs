@@ -49,7 +49,7 @@ const RECORDS = [
 test('the frozen gate profile stays threshold 8 with critical/high blocking severities', () => {
   assert.equal(SCORE_THRESHOLD, 8);
   assert.deepEqual([...BLOCKING_SEVERITIES], ['critical', 'high']);
-  assert.equal(GATE_MODEL, 'claude-opus-5');
+  assert.equal(GATE_MODEL, 'moonshotai/kimi-k2-thinking');
   assert.equal(MAX_WEEKLY_FRESH_CANDIDATES, 3);
 });
 
