@@ -24,7 +24,7 @@ function createRunLog() {
     seoDataSummary: null,
     errors: [],
     duration_ms: 0,
-    model: 'claude-sonnet-4-5-20250929',
+    model: 'z-ai/glm-5.3-flash',
     dryRun: process.env.DRY_RUN === 'true',
     topicOverride: process.env.TOPIC_OVERRIDE || null
   };

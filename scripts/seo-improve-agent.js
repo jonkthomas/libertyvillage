@@ -140,6 +140,8 @@ function refreshFileDiagnostic(phase, sequence) {
 }
 
 async function runStage(label, opts) {
+  const { applyOpenRouterSdkEnv } = await import('./lib/agent-sdk-openrouter.mjs');
+  applyOpenRouterSdkEnv();
   const { query } = await import('@anthropic-ai/claude-agent-sdk');
   const systemPrompt = fs.readFileSync(opts.systemPromptPath, 'utf8')
     + (process.env.REFRESH_SLUG ? '\n\n' + fs.readFileSync(P('lv-voice.md'), 'utf8') : '');
@@ -149,7 +151,7 @@ async function runStage(label, opts) {
   const conversation = query({
     prompt: opts.prompt,
     options: {
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'z-ai/glm-5.3-flash',
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       maxTurns: opts.maxTurns,

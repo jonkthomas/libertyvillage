@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { applyOpenRouterSdkEnv } from '../lib/agent-sdk-openrouter.mjs';
 import { BLOCKING_SEVERITIES, FIXER_MODEL, GATE_MODEL, SCORE_THRESHOLD } from './constants.mjs';
 import { github, mergeBaseSha, paged, writeOutput } from './github.mjs';
 import {
@@ -17,6 +18,9 @@ import { buildRepairHistory, classifyRunFailure } from './recovery.mjs';
 import { evaluateRepairRound, routeFailedGate } from '../supervisor/weekly-publication-loop.mjs';
 
 export { selectReferenceRecords };
+
+// Route the Claude Code child through OpenRouter before any query() runs.
+applyOpenRouterSdkEnv();
 
 export const VERDICT_SCHEMA = {
   // No `passed` field: the outcome is recomputed server-side from overall +

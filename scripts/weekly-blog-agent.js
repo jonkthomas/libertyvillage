@@ -184,7 +184,7 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
     const conversation = query({
       prompt,
       options: {
-        model: "claude-sonnet-4-5-20250929",
+        model: "z-ai/glm-5.3-flash",
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         maxTurns: 75,
@@ -377,6 +377,8 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
 
 async function main() {
   // Dynamic import since the SDK is ESM and the project is CJS.
+  const { applyOpenRouterSdkEnv } = await import("./lib/agent-sdk-openrouter.mjs");
+  applyOpenRouterSdkEnv();
   const { query } = await import("@anthropic-ai/claude-agent-sdk");
   const result = await runPipeline({ query });
   process.exit(result.postWritten && result.stopReason === "post-written" ? 0 : 1);
