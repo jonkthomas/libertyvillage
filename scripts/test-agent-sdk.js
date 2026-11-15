@@ -9,8 +9,8 @@
 
 async function main() {
   // Dynamic import since the SDK is ESM and the project is CJS
-  const { applyOpenRouterSdkEnv } = await import('./lib/agent-sdk-openrouter.mjs');
-  applyOpenRouterSdkEnv();
+  const { assertOpenRouterSdkEnv } = await import('./lib/agent-sdk-openrouter.mjs');
+  assertOpenRouterSdkEnv();
   const { query } = await import('@anthropic-ai/claude-agent-sdk');
 
   console.log('=== Claude Agent SDK Verification Spike ===\n');

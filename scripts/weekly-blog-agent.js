@@ -21,6 +21,9 @@
 const fs = require("fs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require("path");
+// Shared OpenRouter budget scale (require(esm) needs node >= 22.12; host runs 22.22, CI 26).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { writerBudget } = require("./lib/agent-sdk-openrouter.mjs");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
@@ -190,7 +193,11 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
         maxTurns: 75,
         // Headroom: clean runs land ~$2.01-$2.05, so a $2.00 cap tripped every
         // run since 2026-05-20 (exited non-zero even after the post completed).
-        maxBudgetUsd: 3.5,
+        // Claude-equivalent accounting: the CLI prices unknown models on its
+        // $5/$25 fallback table, so scale the legacy sonnet-era $3.5 cap to keep
+        // the old token allowance (reported cost is the same estimate, not
+        // OpenRouter spend).
+        maxBudgetUsd: writerBudget(3.5),
         systemPrompt,
         mcpServers,
         cwd: root,
@@ -349,7 +356,7 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
     if (runLog.detailReason) {
       console.log(`[outcome-detail] ${JSON.stringify({ detailReason: runLog.detailReason, validationCodes: runLog.validationCodes || [] })}`);
     }
-    console.log(`Cost: $${runLog.costUsd.toFixed(4)}`);
+    console.log(`Cost (Claude-equiv est., not OpenRouter spend): $${runLog.costUsd.toFixed(4)}`);
     console.log(`Turns: ${runLog.turnsUsed}`);
     console.log(`Duration: ${(runLog.durationMs / 1000).toFixed(1)}s`);
     console.log(`Log saved: ${logPath}`);
@@ -364,7 +371,7 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
         `| Status | ${runLog.success ? "Success" : "Failed"} |`,
         `| Topic | ${runLog.topicSelected || "N/A"} |`,
         `| Post Slug | ${runLog.postSlug || "N/A"} |`,
-        `| Cost | $${runLog.costUsd.toFixed(4)} |`,
+        `| Cost (Claude-equiv est.) | $${runLog.costUsd.toFixed(4)} |`,
         `| Turns | ${runLog.turnsUsed} |`,
         `| Duration | ${(runLog.durationMs / 1000).toFixed(1)}s |`,
         "",
@@ -377,8 +384,8 @@ async function runPipeline({ query, env = process.env, root = PROJECT_ROOT, now 
 
 async function main() {
   // Dynamic import since the SDK is ESM and the project is CJS.
-  const { applyOpenRouterSdkEnv } = await import("./lib/agent-sdk-openrouter.mjs");
-  applyOpenRouterSdkEnv();
+  const { assertOpenRouterSdkEnv } = await import("./lib/agent-sdk-openrouter.mjs");
+  assertOpenRouterSdkEnv();
   const { query } = await import("@anthropic-ai/claude-agent-sdk");
   const result = await runPipeline({ query });
   process.exit(result.postWritten && result.stopReason === "post-written" ? 0 : 1);
