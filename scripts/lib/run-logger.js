@@ -24,7 +24,7 @@ function createRunLog() {
     seoDataSummary: null,
     errors: [],
     duration_ms: 0,
-    model: 'claude-sonnet-4-5-20250929',
+    model: 'z-ai/glm-5.3-flash',
     dryRun: process.env.DRY_RUN === 'true',
     topicOverride: process.env.TOPIC_OVERRIDE || null
   };
@@ -67,7 +67,7 @@ function writeGitHubSummary(runLog) {
     `| Status | ${runLog.success ? '✅ Success' : '❌ Failed'} |`,
     `| Topic | ${runLog.topicSelected || 'N/A'} |`,
     `| Post Slug | ${runLog.postSlug || 'N/A'} |`,
-    `| Cost | $${runLog.costUsd.toFixed(4)} |`,
+    `| Cost (Claude-equiv est.) | $${runLog.costUsd.toFixed(4)} |`,
     `| Turns | ${runLog.turnsUsed} |`,
     `| Duration | ${(runLog.duration_ms / 1000).toFixed(1)}s |`,
     `| Dry Run | ${runLog.dryRun ? 'Yes' : 'No'} |`,

@@ -107,7 +107,7 @@ export function invoke(t, refresh, throughRunner = false, scenario = 'edit', { t
   fs.mkdirSync(path.join(state, 'generator-requests'));
   fs.mkdirSync(path.join(run, 'agent-secrets'), { recursive: true });
   fs.writeFileSync(path.join(state, 'generator-requests/test-slot.json'), JSON.stringify({ dryRun: false, ...(refresh ? { refresh } : {}) }));
-  fs.writeFileSync(path.join(run, 'agent-secrets/test-slot.json'), '{}');
+  fs.writeFileSync(path.join(run, 'agent-secrets/test-slot.json'), JSON.stringify({ OPENROUTER_API_KEY: 'fixture-openrouter-key' }));
   const logs = path.join(root, 'logs');
   fs.mkdirSync(logs);
   const block = launcher.replaceAll('/var/lib/lv-runner', state).replaceAll('/run/lv-runner', run).replaceAll('/var/log/lv-generator', logs);

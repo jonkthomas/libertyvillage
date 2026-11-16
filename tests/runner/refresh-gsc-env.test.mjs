@@ -46,7 +46,7 @@ await deps.plan(); return { refreshed: 0, attempted: 0 };
     CONTENT_DATABASE_URL_UNPOOLED: 'postgres://postgres@127.0.0.1:55432/lv_staging',
     CONTENT_DB_NAME: 'lv_staging', CONTENT_TARGET: 'staging', CONTENT_SITE_URL: 'https://staging.invalid',
     CONTENT_SITE_BYPASS: 'fixture-bypass', CONTENT_DEPLOY_HOOK_URL: 'https://staging.invalid/hook',
-    ANTHROPIC_API_KEY: 'fixture-agent',
+    OPENROUTER_API_KEY: 'fixture-agent',
   };
   const credentials = path.join(root, 'fixture-gsc.json');
   const child = spawnSync(process.execPath, [new URL('../../ops/exedev-runner/runner.mjs', import.meta.url).pathname,

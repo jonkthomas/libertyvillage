@@ -258,7 +258,7 @@ test('reviewer selection probes a current model and never uses a failed provider
   assert.equal(gemini.model, 'gemini-3.6-flash');
   assert.ok(gemini.baseUrl.includes('/gemini-3.6-flash:generateContent'));
   const attempted = [];
-  const chosen = await selectRoundupReviewer({ author: { provider: { id: 'anthropic' } }, env: {},
+  const chosen = await selectRoundupReviewer({ author: { provider: { id: 'openrouter' } }, env: {},
     resolve: async (_env, { prefer }) => ({ ok: true, provider: { id: prefer } }),
     callModel: async ({ resolved }) => {
       attempted.push(resolved.provider.id);

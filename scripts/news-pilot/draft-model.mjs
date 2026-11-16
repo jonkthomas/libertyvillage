@@ -29,13 +29,20 @@ const KIMI_CLI_CRED_PATH = path.join(
 /**
  * Ordered preference for drafting credentials.
  *
- * Anthropic is first because the failure mode that matters here is fabricating a
- * quote, number or closure about a real local business, and faithfulness to the
- * evidence pack outweighs cost at roughly 1-3 published stories per week. The
- * remaining providers are fallbacks so a single provider outage or quota
+ * OpenRouter is first: it is the cheapest reliable writer and the same key the
+ * Claude Agent SDK consumers already use (scripts/lib/agent-sdk-openrouter.mjs).
+ * The remaining providers are fallbacks so a single provider outage or quota
  * exhaustion degrades the run rather than failing it.
  */
 export const MODEL_PROVIDERS = Object.freeze([
+  {
+    id: 'openrouter',
+    envVars: ['OPENROUTER_API_KEY'],
+    api: 'openai-completions',
+    baseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'z-ai/glm-5.3-flash',
+    headers: {},
+  },
   {
     id: 'anthropic',
     envVars: ['ANTHROPIC_API_KEY'],
@@ -390,8 +397,7 @@ export async function resolveModelProvider(env = process.env, opts = {}) {
   return {
     ok: false,
     error: 'no_model_credential',
-    message:
-      'No usable model API credential in process.env (checked ANTHROPIC_API_KEY, KIMI_CODER_API_KEY, BYTEPLUS_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, VENICE_API_KEY).',
+    message: `No usable model API credential in process.env (checked ${MODEL_PROVIDERS.flatMap((p) => p.envVars).join(', ')}).`,
     available,
   };
 }

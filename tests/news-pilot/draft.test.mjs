@@ -1587,13 +1587,19 @@ test('credentialed search APIs never follow redirects with secrets', async () =>
   }
 });
 
-test('anthropic is preferred and authenticates with x-api-key, not bearer', async () => {
+test('openrouter is preferred, anthropic authenticates with x-api-key, not bearer', async () => {
   const mod = await import('../../scripts/news-pilot/draft-model.mjs');
   const first = mod.MODEL_PROVIDERS[0];
-  assert.equal(first.id, 'anthropic');
-  assert.deepEqual(first.envVars, ['ANTHROPIC_API_KEY']);
-  assert.equal(first.api, 'anthropic-messages');
-  assert.ok(Object.prototype.hasOwnProperty.call(first.headers, 'x-api-key'));
+  assert.equal(first.id, 'openrouter');
+  assert.deepEqual(first.envVars, ['OPENROUTER_API_KEY']);
+  assert.equal(first.api, 'openai-completions');
+  assert.equal(first.baseUrl, 'https://openrouter.ai/api/v1/chat/completions');
+  assert.ok(!Object.prototype.hasOwnProperty.call(first.headers, 'x-api-key'), 'openrouter must keep bearer auth');
+
+  const anthropic = mod.MODEL_PROVIDERS.find((p) => p.id === 'anthropic');
+  assert.deepEqual(anthropic.envVars, ['ANTHROPIC_API_KEY']);
+  assert.equal(anthropic.api, 'anthropic-messages');
+  assert.ok(Object.prototype.hasOwnProperty.call(anthropic.headers, 'x-api-key'));
 
   const kimi = mod.MODEL_PROVIDERS.find((p) => p.id === 'kimi-coder');
   assert.ok(
@@ -1613,7 +1619,7 @@ test('anthropic is preferred and authenticates with x-api-key, not bearer', asyn
   };
 
   await mod.generateDraftWithModel({
-    resolved: { provider: first, apiKey: 'test-key-anthropic' },
+    resolved: { provider: anthropic, apiKey: 'test-key-anthropic' },
     system: 's',
     userText: 'u',
     maxTokens: 16,

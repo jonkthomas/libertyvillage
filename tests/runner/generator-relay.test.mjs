@@ -23,7 +23,7 @@ function sandbox(t) {
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const dirs = { varlib: path.join(temp, 'varlib'), run: path.join(temp, 'run'), log: path.join(temp, 'log'), bin: path.join(temp, 'bin') };
   for (const dir of [path.join(dirs.varlib, 'scratch', SLOT), path.join(dirs.varlib, 'generator-requests'), path.join(dirs.run, 'agent-secrets'), dirs.log, dirs.bin]) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dirs.run, 'agent-secrets', `${SLOT}.json`), JSON.stringify({ ANTHROPIC_API_KEY: 'sk-PRIVATE' }));
+  fs.writeFileSync(path.join(dirs.run, 'agent-secrets', `${SLOT}.json`), JSON.stringify({ OPENROUTER_API_KEY: 'sk-PRIVATE' }));
   fs.writeFileSync(path.join(dirs.varlib, 'generator-requests', `${SLOT}.json`), JSON.stringify({ topic: 'Candidate Topic', dryRun: false }));
   // Fake unit: replay FAKE_OUT to the captured pipe, then exit FAKE_CODE (or hang).
   fs.writeFileSync(path.join(dirs.bin, 'systemd-run'), '#!/usr/bin/env bash\n[[ "${FAKE_HANG:-}" == 1 ]] && exec sleep 30\ncat "$FAKE_OUT"\nexit "${FAKE_CODE:-0}"\n', { mode: 0o755 });

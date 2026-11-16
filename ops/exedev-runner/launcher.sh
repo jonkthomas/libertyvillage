@@ -19,7 +19,7 @@ if not scratch.is_dir() or scratch.is_symlink() or scratch.resolve().parent != r
 secrets = json.loads(pathlib.Path(f'/run/lv-runner/agent-secrets/{slot}.json').read_text())
 request = json.loads(pathlib.Path(f'/var/lib/lv-runner/generator-requests/{slot}.json').read_text())
 script = 'scripts/weekly-blog-agent.js' if job == 'weekly-blog' else 'scripts/seo-improve-agent.js'
-keys = ('ANTHROPIC_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'GA_PROPERTY_ID', 'PEXELS_API_KEY') if job == 'weekly-blog' else ('ANTHROPIC_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'GA_PROPERTY_ID', 'DATAFORSEO_LOGIN', 'DATAFORSEO_PASSWORD', 'SERPER_API_KEY')
+keys = ('OPENROUTER_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'GA_PROPERTY_ID', 'PEXELS_API_KEY') if job == 'weekly-blog' else ('OPENROUTER_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'GA_PROPERTY_ID', 'DATAFORSEO_LOGIN', 'DATAFORSEO_PASSWORD', 'SERPER_API_KEY')
 env = {key: secrets[key] for key in keys if secrets.get(key)}
 env.update(HOME='/var/cache/lv-generator', PATH='/usr/local/bin:/usr/bin:/bin', NODE_ENV='production', PLAYWRIGHT_BROWSERS_PATH='/opt/lv-runner/chromium', GIT_TERMINAL_PROMPT='0', GIT_CONFIG_COUNT='2', GIT_CONFIG_KEY_0='credential.helper', GIT_CONFIG_VALUE_0='', GIT_CONFIG_KEY_1='remote.origin.pushurl', GIT_CONFIG_VALUE_1='https://invalid.invalid/denied', DRY_RUN='true' if request.get('dryRun') else 'false')
 if job == 'weekly-blog' and request.get('topic'):
@@ -240,7 +240,7 @@ if raw:
         fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w') as file: file.write(raw)
         os.chown(dest, pwd.getpwnam(user).pw_uid, grp.getgrnam(user).gr_gid)
-shared = {key: os.environ[key] for key in ('ANTHROPIC_API_KEY', 'GA_PROPERTY_ID', 'PEXELS_API_KEY', 'DATAFORSEO_LOGIN', 'DATAFORSEO_PASSWORD', 'SERPER_API_KEY') if os.environ.get(key)}
+shared = {key: os.environ[key] for key in ('OPENROUTER_API_KEY', 'GA_PROPERTY_ID', 'PEXELS_API_KEY', 'DATAFORSEO_LOGIN', 'DATAFORSEO_PASSWORD', 'SERPER_API_KEY') if os.environ.get(key)}
 if raw: shared['GOOGLE_APPLICATION_CREDENTIALS'] = f'{root}/gsa-generator-{slot}.json'
 dest = f'{root}/agent-secrets/{slot}.json'
 fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
