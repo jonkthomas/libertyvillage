@@ -2,6 +2,11 @@
 // agent SDK to fake-agent-sdk.mjs for this test process.
 import { registerHooks } from 'node:module';
 
+// The fail-closed guard (scripts/lib/agent-sdk-openrouter.mjs) must see an
+// OpenRouter key before review-agent reaches query(); these tests fake the SDK
+// transport itself and never call OpenRouter, so a fixture key satisfies it.
+process.env.OPENROUTER_API_KEY ||= 'fixture-openrouter-key';
+
 const FAKE_URL = new URL('./fake-agent-sdk.mjs', import.meta.url).href;
 registerHooks({
   resolve(specifier, context, nextResolve) {

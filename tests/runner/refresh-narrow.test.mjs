@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { extractRefreshedPost } from '../../scripts/content/refresh.mjs';
 import { REFRESH_RUNTIME_FILES } from '../../ops/exedev-runner/runner.mjs';
 import { invoke } from './fixtures/refresh-writer.mjs';
+import { writerBudget } from '../../scripts/lib/agent-sdk-openrouter.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
 
@@ -45,7 +46,7 @@ test('malformed writer JSON gets one syntax-only repair within the original caps
   assert.equal(repaired.probes.length, 2);
   const repair = repaired.probes[1].input;
   assert.equal(repair.options.maxTurns, 19);
-  assert.equal(repair.options.maxBudgetUsd, 0.9);
+  assert.equal(repair.options.maxBudgetUsd, writerBudget(1) - 0.1);
   assert.deepEqual(repair.options.tools, ['Read', 'Edit', 'Write']);
   assert.deepEqual(repair.options.settingSources, []);
   assert.deepEqual(repair.options.skills, []);
@@ -115,7 +116,7 @@ test('refresh constructed launcher/SDK invocation has the refresh prompt, one re
   assert.deepEqual(input.options.skills, []);
   assert.deepEqual(input.options.tools, ['Read', 'Edit', 'Write']);
   assert.equal(input.options.maxTurns, 20);
-  assert.equal(input.options.maxBudgetUsd, 1);
+  assert.equal(input.options.maxBudgetUsd, writerBudget(1));
   assert.equal(input.options.mcpServers, undefined);
   assert.deepEqual(refresh.files.filter((f) => !f.startsWith('node_modules')).sort(), [
     ...new Set([...REFRESH_RUNTIME_FILES, 'scripts/refresh-businesses.json', 'scripts/refresh-learnings.md', 'scripts/refresh-preflight.json', 'data/posts.json']
@@ -135,7 +136,7 @@ test('refresh constructed launcher/SDK invocation has the refresh prompt, one re
   assert.deepEqual(legacy.probes[0].input.options.settingSources, ['project']);
   assert.ok(legacy.probes[0].input.options.skills.includes('internal-linker'));
   assert.equal(legacy.probes[0].input.options.maxTurns, 110);
-  assert.equal(legacy.probes[0].input.options.maxBudgetUsd, 4);
+  assert.equal(legacy.probes[0].input.options.maxBudgetUsd, writerBudget(4));
   assert.ok(legacy.probes[0].input.options.mcpServers.gsc);
   assert.equal(legacy.probes[0].input.options.tools, undefined);
   assert.equal(legacy.probes[0].posts.length, 2);
@@ -217,7 +218,7 @@ test('unsupported address gets one grounded revision; persistent findings and sh
   assert.match(second.prompt, /47 Jefferson Ave/);
   assert.match(second.prompt, /content/);
   assert.equal(second.options.maxTurns, 19);
-  assert.equal(second.options.maxBudgetUsd, 0.9);
+  assert.equal(second.options.maxBudgetUsd, writerBudget(1) - 0.1);
   assert.match(fixed.observed.result.after[0].content, /^GoodLife Fitness Liberty Village is at 85 Hanna Ave/);
   const checks = fixed.stdout.split('\n').filter((line) => line.startsWith('[refresh-self-check] '))
     .map((line) => JSON.parse(line.slice('[refresh-self-check] '.length)));
@@ -243,7 +244,7 @@ test('title binding gets the single revision; repeated unbound title or JSON-fir
   assert.match(repair.prompt, /title must keep at least 4 of these words from the original: goodlife, fitnes, honest, review, price, hour, 2026/);
   assert.match(fixed.probes[0].input.options.systemPrompt, /keep at least half of the original title's key words/);
   assert.equal(repair.options.maxTurns, 19);
-  assert.equal(repair.options.maxBudgetUsd, 0.9);
+  assert.equal(repair.options.maxBudgetUsd, writerBudget(1) - 0.1);
   assert.deepEqual(fixed.diagnostics.filter((e) => e.event === 'refresh-self-check'), [
     { event: 'refresh-self-check', attempt: 1, ok: false, ruleCodes: ['draft-changed-topic'] },
     { event: 'refresh-self-check', attempt: 2, ok: true, ruleCodes: [] },

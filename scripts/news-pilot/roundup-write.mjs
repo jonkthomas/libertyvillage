@@ -54,7 +54,7 @@ export function checkRoundupDraft(draft, units) {
 
 export async function selectRoundupReviewer({ author, env = process.env, callModel = generateDraftWithModel,
   deadline = Date.now() + 600_000, resolve = resolveModelProvider } = {}) {
-  const candidates = [...new Set([env.ROUNDUP_REVIEW_PROVIDER, 'google-gemini', 'deepseek', 'anthropic'].filter(Boolean))];
+  const candidates = [...new Set([env.ROUNDUP_REVIEW_PROVIDER, 'openrouter', 'google-gemini', 'deepseek', 'anthropic'].filter(Boolean))];
   for (const id of candidates) {
     if (id === author.provider?.id) continue;
     const selected = await resolve(env, { prefer: id });

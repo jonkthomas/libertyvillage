@@ -188,8 +188,8 @@ test('blog acceptance refuses generator FIFO before reading any post JSON', (t) 
 });
 
 test('generator environment is limited and push has an invalid destination', () => {
-  const source = { PATH: '/usr/bin', ANTHROPIC_API_KEY: 'agent', CONTENT_DATABASE_URL: 'db-secret', SLACK_WEBHOOK_URL: 'slack-secret', GH_TOKEN: 'write-token' };
-  assert.deepEqual(childEnv(source, ['PATH', 'ANTHROPIC_API_KEY']), { PATH: '/usr/bin', ANTHROPIC_API_KEY: 'agent' });
+  const source = { PATH: '/usr/bin', OPENROUTER_API_KEY: 'agent', CONTENT_DATABASE_URL: 'db-secret', SLACK_WEBHOOK_URL: 'slack-secret', GH_TOKEN: 'write-token' };
+  assert.deepEqual(childEnv(source, ['PATH', 'OPENROUTER_API_KEY']), { PATH: '/usr/bin', OPENROUTER_API_KEY: 'agent' });
   const helper = read('launcher.sh').split("if [[ \"$mode\" == lv-runner-service ]]")[0];
   assert.doesNotMatch(helper, /CONTENT_DATABASE_URL|SLACK_WEBHOOK_URL|GH_TOKEN|GITHUB_TOKEN/);
   assert.match(helper, /GIT_CONFIG_VALUE_1='https:\/\/invalid\.invalid\/denied'/);
@@ -310,7 +310,7 @@ test('scheduled and on-demand slot names stay valid for every job, including wee
 });
 
 test('APIFY_API_TOKEN reaches only sourceEnv(weekly-roundup): never trustedEnv, the generator, the gate/CLI or any other job', () => {
-  const env = { PATH: '/bin', HOME: '/root', APIFY_API_TOKEN: 'apify-secret-token', SERPER_API_KEY: 'serper', SERPAPI_API_KEY: 'serpapi', ANTHROPIC_API_KEY: 'anthropic',
+  const env = { PATH: '/bin', HOME: '/root', APIFY_API_TOKEN: 'apify-secret-token', SERPER_API_KEY: 'serper', SERPAPI_API_KEY: 'serpapi', OPENROUTER_API_KEY: 'openrouter',
     CONTENT_DATABASE_URL: 'postgres://db', CONTENT_DEPLOY_HOOK_URL: 'https://hook', SLACK_WEBHOOK_URL: 'https://slack' };
   const roundup = sourceEnv(env, 'weekly-roundup');
   assert.equal(roundup.APIFY_API_TOKEN, 'apify-secret-token');
@@ -327,10 +327,11 @@ test('APIFY_API_TOKEN reaches only sourceEnv(weekly-roundup): never trustedEnv, 
 test('staging and production source generators receive configured model providers without leaking into trusted actions', () => {
   for (const target of ['staging', 'production']) {
     const env = { PATH: '/bin', HOME: '/home/runner', CONTENT_TARGET: target,
-      ANTHROPIC_API_KEY: 'anthropic-test', DEEPSEEK_API_KEY: 'deepseek-test', GOOGLE_API_KEY: 'google-test',
+      OPENROUTER_API_KEY: 'openrouter-test', DEEPSEEK_API_KEY: 'deepseek-test', GOOGLE_API_KEY: 'google-test',
       ROUNDUP_REASON_PROVIDER: 'deepseek', ROUNDUP_REVIEW_PROVIDER: 'google-gemini', APIFY_API_TOKEN: 'apify-test' };
     for (const job of ['weekly-roundup', 'news']) {
       const source = sourceEnv(env, job);
+      assert.equal(source.OPENROUTER_API_KEY, 'openrouter-test', `${target}/${job}`);
       assert.equal(source.DEEPSEEK_API_KEY, 'deepseek-test', `${target}/${job}`);
       assert.equal(source.GOOGLE_API_KEY, 'google-test', `${target}/${job}`);
     }

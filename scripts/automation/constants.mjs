@@ -1,5 +1,8 @@
-export const GATE_MODEL = 'claude-opus-5';
-export const FIXER_MODEL = 'claude-sonnet-4-5-20250929';
+// Models run through OpenRouter (scripts/lib/agent-sdk-openrouter.mjs), selected
+// from the live catalog 2026-11-15: gate = mid-price reasoning model (strict
+// evidence verdicts), fixer/writer = low-cost open writer with tool use.
+export const GATE_MODEL = 'moonshotai/kimi-k2-thinking';
+export const FIXER_MODEL = 'z-ai/glm-5.3-flash';
 export const SCORE_THRESHOLD = 8;
 export const MAX_REPAIRS = 3;
 // Bounded redispatches of one coordinator run after a transient infrastructure or

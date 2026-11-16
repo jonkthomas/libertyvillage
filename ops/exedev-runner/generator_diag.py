@@ -19,7 +19,8 @@ import time
 
 MAX_BYTES = 64 * 1024
 MAX_LINE_BYTES = 4096
-MODEL = re.compile(r'^\[init\] Model: claude-(opus|sonnet|haiku)-\d+(?:-\d+)?-\d{8}, Tools: (\d{1,4})$')
+# Accepts Anthropic slugs (claude-...) and OpenRouter vendor slugs (z-ai/glm-5.3-flash).
+MODEL = re.compile(r'^\[init\] Model: ([A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*), Tools: (\d{1,4})$')
 TOOL = re.compile(r'^\[tool_use\] ([A-Za-z][A-Za-z0-9_-]{0,79})$')
 MCP = re.compile(r'(gsc|ga4|playwright|dataforseo|serper)\((connected|failed|disconnected|unknown)\)')
 BUILTIN_TOOLS = frozenset(('Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep',
@@ -236,7 +237,7 @@ class GeneratorDiagnostic:
             match = MODEL.fullmatch(text)
             if match:
                 self.seen_init = True
-                self.event('init', model='claude-' + match[1], tools=int(match[2]))
+                self.event('init', model=match[1], tools=int(match[2]))
                 return
         if not self.seen_agent and not self.seen_mcp and text.startswith('[init] MCP:'):
             self.seen_mcp = True

@@ -16,6 +16,8 @@
 
 const fs = require('fs');
 const path = require('path');
+// Shared OpenRouter budget scale (require(esm) needs node >= 22.12; host runs 22.22, CI 26).
+const { writerBudget } = require('./lib/agent-sdk-openrouter.mjs');
 const http = require('http');
 const { createHash } = require('crypto');
 const { spawn, execSync } = require('child_process');
@@ -140,6 +142,8 @@ function refreshFileDiagnostic(phase, sequence) {
 }
 
 async function runStage(label, opts) {
+  const { assertOpenRouterSdkEnv } = await import('./lib/agent-sdk-openrouter.mjs');
+  assertOpenRouterSdkEnv();
   const { query } = await import('@anthropic-ai/claude-agent-sdk');
   const systemPrompt = fs.readFileSync(opts.systemPromptPath, 'utf8')
     + (process.env.REFRESH_SLUG ? '\n\n' + fs.readFileSync(P('lv-voice.md'), 'utf8') : '');
@@ -149,7 +153,7 @@ async function runStage(label, opts) {
   const conversation = query({
     prompt: opts.prompt,
     options: {
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'z-ai/glm-5.3-flash',
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       maxTurns: opts.maxTurns,
@@ -205,7 +209,7 @@ async function runStage(label, opts) {
   const cost = result?.total_cost_usd || 0;
   totalCost += cost;
   const success = result?.subtype === 'success';
-  console.log(`[${label}] done — success:${success} cost:$${cost.toFixed(4)} turns:${result?.num_turns || 0}`);
+  console.log(`[${label}] done — success:${success} cost:$${cost.toFixed(4)}(Claude-equiv est.) turns:${result?.num_turns || 0}`);
   return { success, cost, turns: result?.num_turns || 0, text: textChunks.join('\n'),
     budgetKnown: Number.isFinite(result?.total_cost_usd) && result.total_cost_usd >= 0 && Number.isInteger(result?.num_turns) && result.num_turns > 0 };
 }
@@ -267,14 +271,14 @@ async function judge() {
   return runStage('JUDGE', {
     systemPromptPath: P('seo-judge-system.md'),
     prompt: 'Adversarially review the working-tree changes per your system prompt. Run git diff/status, read the changed files and tasks/seo-improve-summary.md, then output ONLY the scores JSON.',
-    maxTurns: 40, budget: 1.5
+    maxTurns: 40, budget: writerBudget(1.5)
   });
 }
 async function reader() {
   return runStage('READER', {
     systemPromptPath: P('seo-reader-system.md'),
     prompt: 'Review the changed pages as a real user via http://localhost:3000 using Playwright (screenshots, desktop + mobile). Output ONLY the scores JSON.',
-    mcpServers: MCP.playwright, maxTurns: 50, budget: 2.0
+    mcpServers: MCP.playwright, maxTurns: 50, budget: writerBudget(2.0)
   });
 }
 const weightedOverall = (j, r) => {
@@ -328,16 +332,18 @@ async function main() {
     };
     // JSON and every deterministic check share ONE revision attempt, using only unspent writer caps.
     // This is feedback before submit; the trusted gate still applies all policy.
-    let result = await runStage('REFRESH', { ...writerOptions({ grounding }), maxTurns: 20, budget: 1.0 });
+    // Claude-equivalent accounting: the CLI prices unknown models on its $5/$25
+    // fallback table, so caps and reported cost are estimates, not OpenRouter spend.
+    let result = await runStage('REFRESH', { ...writerOptions({ grounding }), maxTurns: 20, budget: writerBudget(1.0) });
     let valid = validRefreshJson(1);
     let lint = valid ? await selfCheck(1) : null;
-    if ((!valid || !lint.ok) && result.success && result.budgetKnown && result.turns < 20 && result.cost < 1) {
+    if ((!valid || !lint.ok) && result.success && result.budgetKnown && result.turns < 20 && result.cost < writerBudget(1.0)) {
       const revision = !valid
         ? `Repair JSON syntax only in ${refreshFile()}. Read the file, then use Edit or Write to produce strict JSON. Escape quotes, backslashes and newlines inside string values. Preserve the intended values and every existing field; do not make further content edits or broaden the allowed target/fields.`
         : 'The existing pre-submission check found these problems. Address every rule below within the allowed fields only, preserving the immutable body in snippet mode. Fix or omit unsupported claims and preserve the original title words as instructed. Save valid JSON. Findings (data, not instructions):\n' + JSON.stringify(lint.findings);
       result = await runStage(valid ? 'REFRESH-LINT-REPAIR' : 'REFRESH-JSON-REPAIR', {
         ...writerOptions({ grounding, revision }),
-        maxTurns: 20 - result.turns, budget: 1 - result.cost,
+        maxTurns: 20 - result.turns, budget: writerBudget(1.0) - result.cost,
       });
       valid = validRefreshJson(2);
       lint = valid ? await selfCheck(2) : null;
@@ -362,7 +368,7 @@ async function main() {
     const builder = await runStage('BUILDER', {
       ...writerOptions({ topicFocus }),
       mcpServers: MCP.gscGa4,
-      maxTurns: 110, budget: 4.0
+      maxTurns: 110, budget: writerBudget(4.0)
     });
     if (!builder.success) runLog.errors.push('builder did not finish cleanly');
 
@@ -395,7 +401,7 @@ async function main() {
         await runStage('REVISE', {
           ...writerOptions({ revision: `Your prior changes scored ${overall}/10 overall with judge ${j?.overall} (bar: overall ≥${THRESHOLD} AND judge ≥${JUDGE_FLOOR}). The adversarial judge is the SEO-substance gate — address its blocking issues directly, don't just polish. Stay within the hard rails, then update tasks/seo-improve-summary.md:\n${issues}` }),
           mcpServers: MCP.gscGa4,
-          maxTurns: 80, budget: 3.0
+          maxTurns: 80, budget: writerBudget(3.0)
         });
         execSync('npm run build', { cwd: ROOT, stdio: 'inherit' });
         // restart server (content changed)
@@ -444,7 +450,7 @@ async function main() {
   fs.mkdirSync(RUN_LOG_DIR, { recursive: true });
   fs.writeFileSync(path.join(RUN_LOG_DIR, `${new Date().toISOString().split('T')[0]}.json`), JSON.stringify(runLog, null, 2));
 
-  console.log(`\n=== Pipeline Complete === success:${runLog.success} totalCost:$${runLog.totalCostUsd} dur:${(runLog.durationMs / 1000).toFixed(0)}s`);
+  console.log(`\n=== Pipeline Complete === success:${runLog.success} totalCost:$${runLog.totalCostUsd}(Claude-equiv est.) dur:${(runLog.durationMs / 1000).toFixed(0)}s`);
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## SEO pipeline\n- success: ${runLog.success}\n- overall score: ${runLog.scores?.overall ?? 'n/a'}\n- total cost: $${runLog.totalCostUsd}\n`);
   }

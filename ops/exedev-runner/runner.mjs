@@ -32,12 +32,12 @@ const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTEN
 const SOURCE_ENV = {
   'topic-discovery': ['CONTENT_DATABASE_URL', 'CONTENT_DB_NAME', 'GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE', 'SERPAPI_API_KEY'],
   'discover-businesses': ['SERPAPI_API_KEY', 'PEXELS_API_KEY'],
-  news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY', 'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY'],
+  news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'OPENROUTER_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY', 'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY'],
   'weekly-growth-report': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE'],
   'seo-improvements': ['GOOGLE_APPLICATION_CREDENTIALS'],
   // APIFY_API_TOKEN (Instagram provider) is scoped to this source process only:
   // never trustedEnv, the generator, the gate or any other job (spec §4.4).
-  'weekly-roundup': ['SERPER_API_KEY', 'APIFY_API_TOKEN', 'ANTHROPIC_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY',
+  'weekly-roundup': ['SERPER_API_KEY', 'APIFY_API_TOKEN', 'OPENROUTER_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY',
     'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY', 'ROUNDUP_REASON_PROVIDER', 'ROUNDUP_REVIEW_PROVIDER'],
 };
 
@@ -231,7 +231,7 @@ export function summarizeNewsDecision(result) {
   }
   return { published: result.published === 1 ? 1 : 0, considered: Number(result.considered) || 0, refusals };
 }
-export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'ANTHROPIC_API_KEY']);
+export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'OPENROUTER_API_KEY']);
 export const refreshCommandEnv = (env, args) => ({ ...trustedEnv(env),
   ...(args[0] === 'refresh' && args[1] === 'submit' ? childEnv(env, ['DEEPSEEK_API_KEY']) : {}) });
 export const sourceEnv = (env, job) => childEnv(env, [...BASE_ENV, ...(SOURCE_ENV[job] ?? [])]);
@@ -400,6 +400,7 @@ export function copyScratchTree(from, to) {
 
 export const REFRESH_RUNTIME_FILES = [
   'scripts/seo-improve-agent.js',
+  'scripts/lib/agent-sdk-openrouter.mjs',
   'scripts/prompts/seo-refresh-system.md',
   'scripts/prompts/lv-voice.md',
   'scripts/lib/lv-voice-lint.mjs',

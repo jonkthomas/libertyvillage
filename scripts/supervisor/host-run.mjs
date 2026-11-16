@@ -24,7 +24,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const STAGING_CHILD_ENV = [
   'GITHUB_REPOSITORY', 'GH_TOKEN', 'CONTENT_DB_NAME', 'CONTENT_TARGET',
   'CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTENT_DEPLOY_HOOK_URL',
-  'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'ANTHROPIC_API_KEY', 'SLACK_WEBHOOK_URL',
+  'CONTENT_SITE_URL', 'CONTENT_SITE_BYPASS', 'OPENROUTER_API_KEY', 'SLACK_WEBHOOK_URL',
 ];
 
 export function validateHostContentMode(env = process.env) {

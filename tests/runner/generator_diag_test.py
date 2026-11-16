@@ -148,6 +148,15 @@ class GeneratorDiagnosticTest(unittest.TestCase):
             self.assertIn({'event': 'outcome', 'postWritten': False, 'stopReason': 'unsupported-grounding'}, rows)
             self.assertIn({'event': 'tools', 'counts': {'Bash': 1}}, rows)
 
+    def test_init_model_accepts_openrouter_slugs(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
+            path = pathlib.Path(directory) / 'slot.jsonl'
+            log = diag.GeneratorDiagnostic(str(path))
+            log.feed_lines(b'[init] Model: z-ai/glm-5.3-flash, Tools: 69\n')
+            log.close()
+            rows = [json.loads(row) for row in path.read_text().splitlines()]
+            self.assertIn({'event': 'init', 'model': 'z-ai/glm-5.3-flash', 'tools': 69}, rows)
+
     def test_multiline_preview_and_tool_names_cannot_spoof_diagnostic_fields(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(diag.os, 'geteuid', return_value=0):
             path = pathlib.Path(directory) / 'slot.jsonl'
