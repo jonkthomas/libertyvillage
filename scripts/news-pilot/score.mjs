@@ -840,7 +840,12 @@ export function detectRiskFlags(candidate, opts = {}) {
   const text = candidateText(candidate, opts.limit ?? SCORE_CONFIG.textLimit);
   const flags = [];
   for (const p of RISK_PATTERNS) {
-    if (p.re.test(text)) flags.push(p.flag);
+    // An explicit absence of injuries is not an injury claim. Strip only this
+    // narrow complete phrase; any other injury/crime language remains visible.
+    const checked = p.flag === 'safety'
+      ? text.replace(/\bno injuries (?:were |have been )?reported\b/gi, ' ')
+      : text;
+    if (p.re.test(checked)) flags.push(p.flag);
   }
   return flags;
 }
