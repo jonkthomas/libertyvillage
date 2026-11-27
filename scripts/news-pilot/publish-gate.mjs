@@ -40,15 +40,17 @@ import {
  * So eligibility is CATEGORICAL: a conjunction of facts about the story (no risk
  * flags, corroborated or official sourcing, a real event rather than a record or
  * landing page, current, has a real image, not already covered, draft validates).
- * score.total survives only as a coarse sanity floor at the review threshold.
+ * score.total survives only as a coarse sanity floor. November 27 calibration
+ * found real openings, outages and tower proposals at 0.39–0.41; use 0.39 while
+ * retaining all categorical and fetched-source requirements.
  */
 export const AUTO_PUBLISH_CONFIG = Object.freeze({
   /**
-   * Coarse sanity floor only, NOT the gate. Matches SCORE_CONFIG.reviewMin so
-   * anything an editor would not even see cannot publish. Real eligibility is
-   * decided by the categorical conditions below.
+   * NRG Haus Opens, Grandma Loves You opening and Toronto Hydro outage (.397),
+   * and the 51-storey rental proposal (.4046) reach the evidence gate.
+   * Junk below .39 stays refused; categorical and sourcing rules still apply.
    */
-  minScore: 0.42,
+  minScore: 0.39,
   /** Hard cap: at most one autonomous publish per calendar run-date. */
   maxPerDay: 1,
   /** Risk flags that always force human review (never auto). */
@@ -226,6 +228,23 @@ export function countAutoPublishesOnRunDate(
  * @param {object} candidate
  * @param {{ nowMs: number, posts?: object[], config?: typeof AUTO_PUBLISH_CONFIG }} opts
  */
+function categoricalAutoPublishRefusal(candidate) {
+  if (candidate?.score?.concludedEvent === true || candidate?.concludedEvent === true) {
+    return { ok: false, code: 'concluded_event', reasons: ['Concluded/stale time-bound event cannot auto-publish.'] };
+  }
+  const municipalLabels = candidate?.score?.municipalProjectLabels || [];
+  if (Array.isArray(municipalLabels) && municipalLabels.length > 0) {
+    return { ok: false, code: 'municipal_page', reasons: [`Municipal project/landing page is not a news event: ${municipalLabels.join(', ')}.`], detail: { municipalLabels } };
+  }
+  if (looksLikeDevelopmentApplication(candidate)) {
+    return { ok: false, code: 'development_application', reasons: ['Development application rows are human-review only.'] };
+  }
+  if (candidate?.urlUsable === false || candidate?.clusterHasUsableUrl === false) {
+    return { ok: false, code: 'unusable_url', reasons: ['Cluster has no usable URL.'] };
+  }
+  return null;
+}
+
 export function prefilterAutoPublishCandidate(candidate, opts) {
   const config = opts.config || AUTO_PUBLISH_CONFIG;
   const reasons = [];
@@ -237,6 +256,11 @@ export function prefilterAutoPublishCandidate(candidate, opts) {
       reasons: ['Injectable clock nowMs is required.'],
     };
   }
+
+  // These exclusions also run before the evidence-processing cap. Check them
+  // before score/risk so a low-scoring raw row cannot occupy that budget.
+  const categorical = categoricalAutoPublishRefusal(candidate);
+  if (categorical) return categorical;
 
   const riskFlags = collectRiskFlags(candidate);
   const blockedRisks = riskFlags.filter((f) =>
@@ -280,14 +304,6 @@ export function prefilterAutoPublishCandidate(candidate, opts) {
     };
   }
 
-  if (candidate?.score?.concludedEvent === true || candidate?.concludedEvent === true) {
-    return {
-      ok: false,
-      code: 'concluded_event',
-      reasons: ['Concluded/stale time-bound event cannot auto-publish.'],
-    };
-  }
-
   const total = Number(candidate?.score?.total);
   if (!Number.isFinite(total) || total < config.minScore) {
     return {
@@ -300,20 +316,6 @@ export function prefilterAutoPublishCandidate(candidate, opts) {
     };
   }
 
-  // A municipal facility/strategy landing page is a standing reference page, not
-  // a dated news event, however well it scores.
-  const municipalLabels = candidate?.score?.municipalProjectLabels || [];
-  if (Array.isArray(municipalLabels) && municipalLabels.length > 0) {
-    return {
-      ok: false,
-      code: 'municipal_page',
-      reasons: [
-        `Municipal project/landing page is not a news event: ${municipalLabels.join(', ')}.`,
-      ],
-      detail: { municipalLabels },
-    };
-  }
-
   // Video segments, listicles and opinion pieces are not reportable events.
   const nonEventLabels = candidate?.score?.nonEventLabels || [];
   if (Array.isArray(nonEventLabels) && nonEventLabels.length > 0) {
@@ -322,23 +324,6 @@ export function prefilterAutoPublishCandidate(candidate, opts) {
       code: 'non_event',
       reasons: [`Not a reportable news event: ${nonEventLabels.join(', ')}.`],
       detail: { nonEventLabels },
-    };
-  }
-
-  // Development applications are never auto (mirrors score.mjs force-to-review).
-  if (looksLikeDevelopmentApplication(candidate)) {
-    return {
-      ok: false,
-      code: 'development_application',
-      reasons: ['Development application rows are human-review only.'],
-    };
-  }
-
-  if (candidate?.urlUsable === false || candidate?.clusterHasUsableUrl === false) {
-    return {
-      ok: false,
-      code: 'unusable_url',
-      reasons: ['Cluster has no usable URL.'],
     };
   }
 
@@ -543,6 +528,7 @@ export function evaluatePublishReadyDraft({
  * @param {object} candidate
  */
 export function looksLikeDevelopmentApplication(candidate) {
+  if (candidate?.applicationNumber) return true;
   const text = `${candidate?.title || ''} ${candidate?.snippet || ''}`;
   return /\bdevelopment application\b/i.test(text) || /\b\d{2}\s+\d{6}\s+STE\b/i.test(text);
 }

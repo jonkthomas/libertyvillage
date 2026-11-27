@@ -23,6 +23,47 @@ import {
   SCORE_CONFIG,
 } from '../../scripts/news-pilot/score.mjs';
 
+test('exact newer construction and park milestones can follow up existing topic coverage', () => {
+  const posts = extractPostIndex(JSON.parse(fs.readFileSync(path.join(ROOT, 'data/posts.json'), 'utf8')));
+  const nowMs = Date.parse('2026-11-27T18:00:00Z');
+  const events = [
+    { title: "'Crazy how loud it is': 24-7 Ontario Line construction has Liberty Village residents losing sleep",
+      snippet: 'Round-the-clock construction is underway near Exhibition Station.',
+      slug: 'ontario-line-construction-liberty-village-2026' },
+    { title: 'Five competing designs revealed for new Liberty Village park at Hanna Avenue',
+      snippet: 'The new park design concepts have been unveiled for public viewing.',
+      slug: 'hanna-avenue-liberty-street-park-design-shortlist-2026' },
+  ];
+  for (const [index, event] of events.entries()) {
+    const candidate = cand({ id: `dated-event-${index}`, title: event.title, snippet: event.snippet,
+      url: `https://news.example/event-${index}`, publishedAt: '2026-11-26T12:00:00Z', dateConfidence: 'exact' });
+    const hit = matchExistingPost(candidate, posts.filter((p) => p.slug === event.slug), { nowMs });
+    assert.equal(hit.coverageRelation, 'follow-up', `${event.title}: ${hit.reason}`);
+    assert.equal(hit.relatedPostSlug, event.slug);
+    assert.equal(hit.alreadyCovered, false);
+    for (const date of [
+      { publishedAt: '2026-11-26T12:00:00Z', dateConfidence: 'approximate' },
+      { publishedAt: '2026-01-01T12:00:00Z', dateConfidence: 'exact' },
+    ]) {
+      const unproven = matchExistingPost({ ...candidate, ...date }, posts.filter((p) => p.slug === event.slug), { nowMs });
+      assert.notEqual(unproven.coverageRelation, 'follow-up', 'untrusted or older date cannot establish the new dated milestone');
+    }
+  }
+});
+
+test('a renewed publication date does not release same-URL or same-title duplicates', () => {
+  const post = { slug: 'ontario-line-construction-liberty-village-2026',
+    title: 'Ontario Line Construction in Liberty Village: 2026 Update',
+    publishedAt: '2026-02-07', body: 'Construction timelines and transit information.' };
+  const nowMs = Date.parse('2026-11-27T18:00:00Z');
+  for (const candidate of [
+    cand({ title: post.title, url: 'https://news.example/rehash', publishedAt: '2026-11-26T12:00:00Z', snippet: '24-7 construction is underway.' }),
+    cand({ title: 'New overnight tunnelling milestone in Liberty Village', url: `https://libertyvillage.co/blog/${post.slug}`, publishedAt: '2026-11-26T12:00:00Z' }),
+  ]) {
+    assert.equal(matchExistingPost(candidate, [post], { nowMs }).coverageRelation, 'duplicate');
+  }
+});
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 function cand(partial) {
@@ -727,7 +768,10 @@ test('title/slug topic match still suppresses a true same-angle rehash', () => {
 
 test('new development on a previously unpublished park topic is not body-suppressed', () => {
   const postsPath = path.join(ROOT, 'data', 'posts.json');
-  const posts = extractPostIndex(JSON.parse(fs.readFileSync(postsPath, 'utf8')));
+  // Isolate the unpublished-topic scenario from the dedicated park article
+  // now present in posts.json; its title/slug is actual coverage, not a mention.
+  const posts = extractPostIndex(JSON.parse(fs.readFileSync(postsPath, 'utf8')))
+    .filter((post) => post.slug !== 'hanna-avenue-liberty-street-park-design-shortlist-2026');
   const nowMs = Date.parse('2026-08-08T18:00:00.000Z');
 
   // Genuinely new construction start; evergreen bodies only mention 34 Hanna in passing.

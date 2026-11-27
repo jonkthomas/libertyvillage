@@ -4,6 +4,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { isUnusableUrl } from './url-guard.mjs';
 
 export const SNIPPET_MAX = 280;
 
@@ -177,26 +178,32 @@ export function isGoogleGotoUrl(url) {
 }
 
 /**
- * Attempt to resolve a usable publisher URL. Google goto protobuf tokens cannot
- * be decoded offline — those stay unusable.
+ * Unwrap explicit publisher targets in Google redirects. Opaque Google goto
+ * tokens cannot be decoded offline and remain unusable.
  * @param {string} url
  * @returns {{ url: string, canonicalUrl: string, urlUsable: boolean }}
  */
 export function resolveArticleUrl(url) {
-  const raw = String(url || '').trim();
+  let raw = String(url || '').trim();
   if (!raw) {
     return { url: '', canonicalUrl: '', urlUsable: false };
   }
-  if (isGoogleGotoUrl(raw)) {
-    return {
-      url: stripTrackingParams(raw) || raw,
-      canonicalUrl: canonicalUrl(raw),
-      urlUsable: false,
-    };
+  // Resolve only explicit HTTP targets, never infer a publisher from a source
+  // name, favicon or opaque token. The fetch path still applies the DNS guard.
+  for (let hop = 0; hop < 3; hop++) {
+    try {
+      const redirect = new URL(raw);
+      const host = redirect.hostname.toLowerCase().replace(/^www\./, '');
+      if (host !== 'google.com' && !host.endsWith('.google.com')) break;
+      const target = ['url', 'q', 'u'].map((key) => redirect.searchParams.get(key))
+        .find((value) => value && /^https?:\/\//i.test(value) && !isUnusableUrl(value));
+      if (!target || target === raw) break;
+      raw = target;
+    } catch { break; }
   }
   const stripped = stripTrackingParams(raw);
   const canon = canonicalUrl(stripped || raw);
-  let usable = Boolean(canon);
+  let usable = Boolean(canon) && !isUnusableUrl(canon);
   try {
     const host = new URL(canon || stripped || raw).hostname.toLowerCase();
     if (!host || host === 'google.com' || host.endsWith('.google.com')) {
@@ -467,7 +474,15 @@ function normalizeSerper(source, data) {
 }
 
 function normalizeSerpApi(source, data) {
-  const news = Array.isArray(data?.news_results) ? data.news_results : [];
+  // Google News groups contain article records in highlight/stories, each with
+  // its own publisher link. The group title alone is not a fetchable article.
+  // Contract: https://serpapi.com/google-news-api (JSON structure overview).
+  const groups = Array.isArray(data?.news_results) ? data.news_results : [];
+  const news = groups.flatMap((group) => [
+    ...(group.link ? [group] : []),
+    ...(group.highlight?.link ? [group.highlight] : []),
+    ...(Array.isArray(group.stories) ? group.stories : []),
+  ]);
   const out = [];
   for (const n of news) {
     const sourceName = typeof n.source === 'object' ? n.source?.name : n.source;
@@ -476,7 +491,7 @@ function normalizeSerpApi(source, data) {
       sourceTier: source.tier,
       title: n.title,
       url: n.link,
-      publishedAt: n.date || n.published_at,
+      publishedAt: n.iso_date || n.date || n.published_at,
       snippet: n.snippet || n.content || '',
       rawTextSample: [sourceName, n.snippet].filter(Boolean).join(' — '),
       idSeed: n.link,

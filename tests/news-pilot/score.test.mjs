@@ -18,6 +18,13 @@ import { makeCandidate } from '../../scripts/news-pilot/normalize.mjs';
 
 const NOW = Date.parse('2026-08-07T18:00:00.000Z');
 
+test('explicit no-injuries report permits transit disruption, but actual injury claims still block', () => {
+  const title = "TTC's King streetcar diverted after truck crash cut off power in Liberty Village";
+  assert.deepEqual(detectRiskFlags({ title, snippet: 'No injuries were reported.' }), []);
+  assert.ok(detectRiskFlags({ title, snippet: 'No injuries were reported initially. A passenger was later injured.' }).includes('safety'));
+  assert.ok(detectRiskFlags({ title, snippet: 'No injuries were reported. Police arrested the driver.' }).includes('crime'));
+});
+
 function cand(overrides = {}) {
   return {
     id: 't1',
@@ -571,17 +578,10 @@ test('municipal facility project page ranks below comparable dated news', async 
   }
 });
 
-test('production default horizon keeps concluded stale fixture rejected', async () => {
+test('daily default horizon admits recent news and excludes old topic coverage', async () => {
   const { RUN_CONFIG, withinSince } = await import('../../scripts/news-pilot/run.mjs');
 
-  assert.ok(
-    RUN_CONFIG.defaultSinceHours >= 4320,
-    `default horizon should cover multi-month civic stories, got ${RUN_CONFIG.defaultSinceHours}`,
-  );
-  assert.ok(
-    RUN_CONFIG.defaultSinceHours >= SCORE_CONFIG.freshnessMaxAgeHours,
-    'run horizon should not be tighter than freshness max-age by default',
-  );
+  assert.equal(RUN_CONFIG.defaultSinceHours, 336);
 
   const nowMs = Date.parse('2026-08-08T18:00:00.000Z');
   const staleFixture = cand({
@@ -594,14 +594,14 @@ test('production default horizon keeps concluded stale fixture rejected', async 
     sourceTier: 'lead',
   });
 
-  // Inside the longer production window (not structurally dropped)...
+  // A month-old event is outside the daily discovery window.
   assert.equal(
     withinSince(staleFixture, RUN_CONFIG.defaultSinceHours, nowMs),
-    true,
-    'stale fixture is inside the long horizon window',
+    false,
+    'stale fixture is outside the daily horizon window',
   );
 
-  // ...but concluded-event protection still hard-rejects.
+  // Concluded-event protection independently still hard-rejects.
   const concluded = detectConcludedTimeBoundEvent(staleFixture, nowMs);
   assert.equal(concluded.concluded, true);
   const scored = scoreCandidate(staleFixture, {
@@ -612,7 +612,7 @@ test('production default horizon keeps concluded stale fixture rejected', async 
   assert.equal(scored.concludedEvent, true);
   assert.equal(scored.autoPublishEligible, false);
 
-  // Slow civic park competition is NOT concluded and is inside the default window.
+  // Slow civic topic coverage is excluded until it has a fresh development.
   const parkCompetition = cand({
     title: 'Five Design Teams Shortlisted for Park Competition in Liberty Village',
     snippet:
@@ -620,7 +620,9 @@ test('production default horizon keeps concluded stale fixture rejected', async 
     publishedAt: '2026-03-18T12:00:00.000Z',
     dateConfidence: 'exact',
   });
-  assert.equal(withinSince(parkCompetition, RUN_CONFIG.defaultSinceHours, nowMs), true);
+  assert.equal(withinSince(parkCompetition, RUN_CONFIG.defaultSinceHours, nowMs), false);
+  assert.equal(withinSince({ ...parkCompetition, publishedAt: '2026-08-07T12:00:00.000Z' }, RUN_CONFIG.defaultSinceHours, nowMs), true);
+  assert.equal(withinSince(parkCompetition, 8760, nowMs), true, 'explicit historical window remains available');
   assert.equal(detectConcludedTimeBoundEvent(parkCompetition, nowMs).concluded, false);
 });
 
@@ -877,5 +879,19 @@ test('ordinary local stories do not trip the safety flag', () => {
       !result.riskFlags.includes('safety'),
       `"${title}" should not carry a safety flag, got [${result.riskFlags.join(', ')}]`,
     );
+  }
+});
+
+
+test('transit disruption without crime or injury is not a human-risk story', () => {
+  const title = "TTC's King streetcar diverted after truck crash cut off power in Liberty Village";
+  assert.deepEqual(detectRiskFlags(cand({ title, snippet: 'A truck collision damaged overhead wires. Streetcars are diverting while power is restored.' })), []);
+  for (const [snippet, expected] of [
+    ['A passenger was injured in the collision.', 'safety'],
+    ['The truck was stolen and the driver was arrested.', 'crime'],
+    ['A judge finds police stole money during a Liberty Village search.', 'legal'],
+    ['Residents protest a controversial decision.', 'civic-controversy'],
+  ]) {
+    assert.ok(detectRiskFlags(cand({ title, snippet })).includes(expected));
   }
 });

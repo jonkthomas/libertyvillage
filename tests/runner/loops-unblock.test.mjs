@@ -97,7 +97,11 @@ test('CLI validation and gate rejection retain a bounded redacted explanation; n
   const failure = classifyCliFailure('node', ['scripts/content/cli.mjs', 'submit'], { status: 2, stdout: JSON.stringify({ error: 'ValidationError', message: 'unknown field: relatedBusinesses' }) });
   assert.equal(failure.message, 'unknown field: relatedBusinesses');
   assert.deepEqual(gateDiagnostic({ code: 2, stdout: JSON.stringify({ decision: 'unrepairable', message: 'malformed query' }) }), { decision: 'unrepairable', message: 'malformed query' });
-  assert.deepEqual(summarizeNewsDecision({ published: 0, considered: 2, evaluations: [{ title: 'private title', prefilter: { ok: false, code: 'risk_flags' } }, { prefilter: { ok: true }, gate: { ok: false, code: 'extraction_empty' } }] }), { published: 0, considered: 2, refusals: { risk_flags: 1, extraction_empty: 1 } });
+  const news = summarizeNewsDecision({ published: 0, considered: 2, evaluations: [{ title: 'private title', prefilter: { ok: false, code: 'risk_flags' } }, { prefilter: { ok: true }, gate: { ok: false, code: 'extraction_empty' } }] });
+  assert.equal(news.published, 0);
+  assert.equal(news.considered, 2);
+  assert.deepEqual(news.refusals, { risk_flags: 1, extraction_empty: 1 });
+  assert.doesNotMatch(JSON.stringify(news), /private title/);
 });
 
 test('early draft schema rejection logs an actionable bounded message before submit', (t) => {

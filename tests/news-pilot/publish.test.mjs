@@ -557,7 +557,7 @@ test('homepage and news route degrade gracefully and list news posts', () => {
 
   assert.match(home, /getNewsPosts/);
   assert.match(home, /Latest News/);
-  assert.match(home, /newsPosts\.length > 0/);
+  assert.match(home, /latestPosts\.length > 0/);
   assert.doesNotMatch(home, /No news yet/); // empty state = hide section, not empty box
 
   assert.match(news, /getNewsPosts/);
@@ -588,6 +588,38 @@ test('score floor is a coarse sanity filter, not the gate', async () => {
   // Eligibility is decided by the categorical conditions, because score.total
   // ranks a review queue and cannot express publish confidence: real stories
   // peak near 0.50 while raw permit rows reach 0.836.
-  assert.equal(AUTO_PUBLISH_CONFIG.minScore, scoreMod.SCORE_CONFIG.reviewMin);
+  assert.equal(AUTO_PUBLISH_CONFIG.minScore, 0.39);
+  assert.ok(AUTO_PUBLISH_CONFIG.minScore < scoreMod.SCORE_CONFIG.reviewMin);
   assert.ok(AUTO_PUBLISH_CONFIG.minScore < scoreMod.SCORE_CONFIG.autoEligibleMin);
+});
+
+test('November local stories reach evidence without admitting junk or human-only subjects', () => {
+  for (const title of ['Grandma Loves You is opening in Liberty Village, first 210 sandwiches free', 'NRG Haus Social Wellness Space Opens', 'Toronto Hydro is responding to a power outage in Liberty Village', '12-Storey Office Plan Flips to 51-Storey Rental Proposal']) {
+    const candidate = baseCandidate({ title, score: { total: 0.397, riskFlags: [] } });
+    assert.equal(prefilterAutoPublishCandidate(candidate, { nowMs: NOW }).ok, true, title);
+    assert.equal(evaluateSourceQuality({ sources: [] }).ok, false);
+  }
+  assert.equal(prefilterAutoPublishCandidate(baseCandidate({ score: { total: 0.38 } }), { nowMs: NOW }).code, 'score_below_bar');
+  for (const flag of ['crime', 'legal', 'civic-controversy']) {
+    assert.equal(prefilterAutoPublishCandidate(baseCandidate({ score: { total: 0.8, riskFlags: [flag] } }), { nowMs: NOW }).code, 'risk_flags');
+  }
+});
+
+test('categorical rejects do not starve an eligible story behind the cap', async () => {
+  const root = makeTempRoot();
+  const run = path.join(root, '.news-pilot/runs/t');
+  const rejects = Array.from({ length: 28 }, (_, i) => baseCandidate({ id: `r${i}`, clusterId: `r${i}`, applicationNumber: `26-${i}`, score: { total: 0.9 } }));
+  const story = baseCandidate({ score: { total: 0.397, riskFlags: [] } });
+  const result = await runPublish({ root, run, out: path.join(root, '.news-pilot/publish/t'), now: new Date(NOW).toISOString(), skipGenerate: true, dryRun: true }, {
+    loadRunArtifact: () => ({ candidates: [...rejects, story] }),
+    buildEvidencePack: async () => evidencePack(),
+    log: { log() {}, error() {} }, env: {},
+  });
+  assert.equal(result.status, 'eligible_skip_generate');
+  assert.equal(result.discovered, 29);
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.categoricalRefused, 28);
+  assert.equal(result.passedPrefilter, 1);
+  assert.equal(result.passedEvidence, 1);
+  assert.equal(result.tregFallbackCalls, 0);
 });

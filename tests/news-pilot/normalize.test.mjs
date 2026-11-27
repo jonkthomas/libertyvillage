@@ -171,3 +171,40 @@ test('publisherDomain strips www and common subdomains', () => {
   assert.equal(publisherDomain('https://torontolife.com/city/x'), 'torontolife.com');
   assert.equal(publisherDomain('https://www.google.com/goto?url=CAES'), '');
 });
+
+test('embedded Google redirect targets resolve to publisher articles, opaque tokens stay unusable', () => {
+  const article = 'https://www.cbc.ca/news/canada/toronto/liberty-village-park?utm_source=google';
+  for (const redirect of [
+    `https://www.google.com/goto?url=${encodeURIComponent(article)}`,
+    `https://www.google.com/url?q=${encodeURIComponent(article)}`,
+    `https://news.google.com/articles/token?url=${encodeURIComponent(article)}`,
+  ]) {
+    const resolved = resolveArticleUrl(redirect);
+    assert.equal(resolved.urlUsable, true);
+    assert.equal(resolved.canonicalUrl, 'https://cbc.ca/news/canada/toronto/liberty-village-park');
+  }
+  for (const target of ['CAESABC', 'javascript:alert(1)', 'http://127.0.0.1/private']) {
+    assert.equal(resolveArticleUrl(`https://www.google.com/goto?url=${encodeURIComponent(target)}`).urlUsable, false);
+  }
+});
+
+test('SerpApi documented nested articles preserve their publisher links and ISO dates', () => {
+  const source = { id: 'serpapi-q-liberty-village', tier: 'lead', type: 'serpapi' };
+  const out = normalizeSourceResult(source, { ok: true, data: { kind: 'serpapi', news_results: [{
+    title: 'Liberty Village park coverage',
+    highlight: {
+      title: 'Liberty Village residents demanded a public park. Here are the five competing designs',
+      link: 'https://www.cbc.ca/news/toronto/liberty-village-park',
+      iso_date: '2026-11-26T12:00:00Z',
+      date: '11/26/2026, 07:00 AM, -0500 EST', source: { name: 'CBC' },
+    },
+    stories: [{ title: 'Five Design Teams Shortlisted for Park Competition',
+      link: 'https://urbantoronto.ca/news/2026/11/liberty-village-park',
+      iso_date: '2026-11-25T12:00:00Z', source: { name: 'UrbanToronto' } }],
+  }] } });
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((c) => c.publisherDomain), ['cbc.ca', 'urbantoronto.ca']);
+  assert.equal(out[0].publishedAt, '2026-11-26T12:00:00.000Z');
+  assert.equal(out[0].dateConfidence, 'exact');
+  assert.ok(out.every((c) => c.urlUsable));
+});

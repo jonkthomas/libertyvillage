@@ -216,6 +216,11 @@ export const COVERAGE_ANGLES = Object.freeze([
  * Matched on candidate text; only counts when absent from the covering post text.
  */
 export const NEW_DEVELOPMENT_PATTERNS = Object.freeze([
+  // These event milestones require an exact recent date after the prior post;
+  // a newly indexed restatement of a long-running topic is not a new event.
+  { id: 'continuous-construction', requiresNewerDate: true, re: /\b(?:24[ -]7|round[ -]the[ -]clock)\b.{0,80}\b(?:construction|work|noise)\b/i },
+  { id: 'tunnelling-underway', requiresNewerDate: true, re: /\b(?:tunnell?ing|tunnel boring)\s+(?:is\s+)?(?:underway|has begun|has started)\b/i },
+  { id: 'designs-unveiled', requiresNewerDate: true, re: /\b(?:designs?|concepts?|proposals?)\s+(?:(?:are|were|have been)\s+)?(?:unveiled|revealed|released|published)\b/i },
   { id: 'temporal-imminent', re: /\b(?:tonight|today|tomorrow|this weekend|overnight|starting monday|starting tuesday|starting wednesday|starting thursday|starting friday)\b/i },
   { id: 'calendar-date', re: /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:,?\s*20\d{2})?\b/i },
   { id: 'iso-date', re: /\b20\d{2}-\d{2}-\d{2}\b/ },
@@ -621,6 +626,11 @@ export function extractCoverageTopics(text) {
   for (const topic of COVERAGE_TOPICS) {
     if (topic.phrases.some((p) => lower.includes(p))) hits.push(topic.id);
   }
+  if (
+    /\bpark\b/.test(lower) &&
+    /\b(?:design|designs|competition|competing|shortlisted)\b/.test(lower) &&
+    /\bhanna\b|\bliberty village\b/.test(lower)
+  ) hits.push('hanna-park-design');
   // Matchup framing at BMO/LV/Exhibition is World Cup coverage even without the words.
   if (
     !hits.includes('world-cup') &&
@@ -792,6 +802,11 @@ export function extractNewDevelopmentSignals(candText, postText, opts = {}) {
     const inPost = p.re ? p.re.test(post) : p.test ? p.test(post) : false;
     if (inPost) continue;
     if (relativeIds.has(p.id) && !trustedRecent) continue;
+    if (p.requiresNewerDate && (
+      !trustedRecent ||
+      !isMateriallyNewer(opts.publishedAt, opts.postPublishedAt, 1) ||
+      Date.parse(opts.publishedAt) > nowMs
+    )) continue;
     hits.push(p.id);
   }
   return hits;
@@ -1010,6 +1025,7 @@ function classifyAgainstPost(candidate, indexed, config) {
       const newSignals = extractNewDevelopmentSignals(candText, postText, {
         dateConfidence: candidate?.dateConfidence,
         publishedAt: candidate?.publishedAt,
+        postPublishedAt: post.publishedAt,
         nowMs,
         relativeNoveltyMaxAgeHours: config.relativeNoveltyMaxAgeHours,
         relativeNoveltySignalIds: config.relativeNoveltySignalIds,
