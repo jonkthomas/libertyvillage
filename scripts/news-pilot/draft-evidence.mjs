@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { fetchWithRetry, FETCH_DEFAULTS } from './fetch.mjs';
+import { classifyBlockedResponse } from './url-guard.mjs';
 import {
   stripHtml,
   truncateSnippet,
@@ -165,7 +166,11 @@ export function resolveSelectedCluster(candidates, selection = {}) {
  * @param {string} html
  */
 export function extractMainHtml(html) {
-  const raw = String(html || '');
+  // Related headlines and site navigation can contain crime/injury claims that
+  // have nothing to do with the article. Never use them as article evidence.
+  const raw = String(html || '')
+    .replace(/<(script|style|nav|aside)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<(div|section)\b[^>]*(?:class|id)=["'][^"']*\b(?:related|recommended|recirculation|sidebar|comments|share-tools)\b[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi, ' ');
   const article = raw.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
   if (article) return article[1];
   const main = raw.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i);
@@ -268,15 +273,17 @@ export function selectPassages(text, config = EVIDENCE_CONFIG) {
  * @param {typeof EVIDENCE_CONFIG} [config]
  */
 export function buildSourceEvidence(member, fetchResult, config = EVIDENCE_CONFIG) {
-  const url = member.canonicalUrl || member.url || '';
+  const originalUrl = member.canonicalUrl || member.url || '';
+  const url = fetchResult?.finalUrl || originalUrl;
+  const changedPublisher = publisherDomain(url) !== publisherDomain(originalUrl);
   const base = {
     candidateId: member.id || null,
     sourceId: member.sourceId || null,
-    sourceTier: member.sourceTier || null,
+    sourceTier: changedPublisher ? 'lead' : member.sourceTier || null,
     url,
     canonicalUrl: canonicalUrl(url) || url,
-    publisherDomain: member.publisherDomain || publisherDomain(url),
-    publisher: member.publisherDomain || publisherDomain(url),
+    publisherDomain: publisherDomain(url),
+    publisher: publisherDomain(url),
     publishDate: member.publishedAt || null,
     dateConfidence: member.dateConfidence || null,
     urlUsable: member.urlUsable !== false && Boolean(url) && !isUnusableUrl(url),
@@ -287,6 +294,9 @@ export function buildSourceEvidence(member, fetchResult, config = EVIDENCE_CONFI
     passages: /** @type {string[]} */ ([]),
     bodyExcerpt: '',
     supports: /** @type {string[]} */ ([]),
+    // Discovery descriptions remain useful leads, never fetched corroboration.
+    leadText: member.snippet || '',
+    extractionProvider: fetchResult?.extractionProvider || 'direct',
   };
 
   if (!base.urlUsable) {
@@ -299,11 +309,16 @@ export function buildSourceEvidence(member, fetchResult, config = EVIDENCE_CONFI
   }
 
   const html = fetchResult.rawText || '';
+  if (classifyBlockedResponse(fetchResult.status, html)) {
+    base.fetchError = 'blocked_response';
+    return base;
+  }
   const mainHtml = extractMainHtml(html);
-  const text = stripHtml(mainHtml);
+  const text = fetchResult.articleText || stripHtml(mainHtml);
   Object.assign(base, reportingOrigin(html, url, text));
   const metaDate = extractMetaPublishDate(html);
   if (metaDate) base.publishDate = metaDate;
+  if (fetchResult.publishDate) base.publishDate = parseToIsoDate(fetchResult.publishDate)?.iso || base.publishDate;
   const pub = extractMetaPublisher(html, url);
   if (pub) base.publisher = pub;
 
@@ -369,6 +384,7 @@ export async function buildEvidencePack({
   nowMs = Date.now(),
   config = EVIDENCE_CONFIG,
   fetchFn = fetchWithRetry,
+  tregExtractor = null,
 }) {
   const uniqueMembers = dedupeMembersByUrl(members || [representative]);
   const sources = [];
@@ -396,7 +412,12 @@ export async function buildEvidencePack({
       guardPublicHttp: true,
       isBlockedUrl: isUnusableUrl,
     });
-    sources.push(buildSourceEvidence(member, fetchResult, config));
+    let source = buildSourceEvidence(member, fetchResult, config);
+    if (!source.extractionSubstantive && tregExtractor) {
+      const fallback = await tregExtractor.extract(url);
+      if (fallback) source = buildSourceEvidence(member, fallback, config);
+    }
+    sources.push(source);
   }
 
   // Re-run risk detection across extracted article evidence, not only discovery

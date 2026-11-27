@@ -16,7 +16,7 @@ export const FETCH_DEFAULTS = Object.freeze({
   maxRequestsPerRun: 80,
   /** Hard cap on CKAN datastore fanout so search sources retain capacity. */
   ckanMaxRequestsPerRun: 32,
-  userAgent: 'LibertyVillageNewsPilot/0.1 (+local-shadow-eval; no-publish)',
+  userAgent: 'LibertyVillageNewsPilot/1.0 (+https://libertyvillage.co; article evidence)',
 });
 
 /**
@@ -374,6 +374,7 @@ export async function fetchWithRetry(url, opts = {}) {
       return {
         ok: true,
         status: res.status,
+        finalUrl: res.url || currentUrl,
         rawText,
         contentType,
         attempts,

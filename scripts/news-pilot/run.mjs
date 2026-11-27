@@ -34,20 +34,10 @@ const ROOT = path.resolve(__dirname, '../..');
  */
 export const RUN_CONFIG = Object.freeze({
   /**
-   * Production default discovery horizon (hours) when --since-hours is omitted.
-   *
-   * Intent: a short ops window (e.g. 720h / 30d) is fine for breaking-news
-   * checks, but it structurally hides slow civic/development stories such as
-   * multi-month park design competitions. Scoring already contemplates a long
-   * tail via SCORE_CONFIG.freshnessMaxAgeHours (2160h); the run window should
-   * not be the tighter bottleneck by default.
-   *
-   * 8760h = 365 days. Older items still enter scoring, then:
-   *   - freshness decay + reviewRankMetric rank them BELOW current news
-   *   - detectConcludedTimeBoundEvent still rejects stale fixture previews
-   * Override: --since-hours=720 (comparability) or any finite N.
+   * Daily news discovery horizon: 14 days. Older civic topics remain available
+   * through the explicit --since-hours override, but should not re-rank daily.
    */
-  defaultSinceHours: 8760,
+  defaultSinceHours: 336,
   /**
    * Approximate dates get a generous but FINITE multiple of --since-hours.
    * They previously bypassed the window entirely (unconditional pass).
@@ -655,7 +645,7 @@ async function main() {
   --max-sources=N    limit enabled sources
   --since-hours=N    drop candidates older than N hours (undated kept).
                      Default when omitted: ${RUN_CONFIG.defaultSinceHours}h
-                     (${RUN_CONFIG.defaultSinceHours / 24}d slow-civic lane).
+                     (${RUN_CONFIG.defaultSinceHours / 24}d daily-news window).
                      Use e.g. 720 for a short comparability window.
   --out=PATH         artifact directory
   --vault=PATH       optional pi vault env file (or set PI_TOOL_VAULT_PATH)`);

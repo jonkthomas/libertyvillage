@@ -32,7 +32,7 @@ const DB_ENV = ['CONTENT_DATABASE_URL', 'CONTENT_DATABASE_URL_UNPOOLED', 'CONTEN
 const SOURCE_ENV = {
   'topic-discovery': ['CONTENT_DATABASE_URL', 'CONTENT_DB_NAME', 'GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE', 'SERPAPI_API_KEY'],
   'discover-businesses': ['SERPAPI_API_KEY', 'PEXELS_API_KEY'],
-  news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'OPENROUTER_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY', 'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY'],
+  news: ['SERPAPI_API_KEY', 'SERPER_API_KEY', 'TREG_TOKEN', 'LV_NEWS_TREG_MAX_CALLS', 'OPENROUTER_API_KEY', 'BYTEPLUS_API_KEY', 'ARK_API_KEY', 'DEEPSEEK_API_KEY', 'GOOGLE_API_KEY'],
   'weekly-growth-report': ['GOOGLE_APPLICATION_CREDENTIALS', 'POSTHOG_PERSONAL_API_KEY_LIBERTYVILLAGE'],
   'seo-improvements': ['GOOGLE_APPLICATION_CREDENTIALS'],
   // APIFY_API_TOKEN (Instagram provider) is scoped to this source process only:
@@ -222,14 +222,38 @@ export function gateDiagnostic(result) {
     return { ...(typeof receipt.decision === 'string' && /^[a-z-]{1,40}$/.test(receipt.decision) ? { decision: receipt.decision } : {}), ...(message ? { message } : {}) };
   } catch { return {}; }
 }
-export function summarizeNewsDecision(result) {
-  const refusals = {};
-  for (const row of (Array.isArray(result.evaluations) ? result.evaluations : []).slice(0, 100)) {
+export function summarizeNewsDecision(result, discovery = null) {
+  const count = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const code = (value) => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/i.test(value) ? value : null;
+  const codes = (values) => [...new Set((Array.isArray(values) ? values : []).slice(0, 100).map((value) => code(value?.code ?? value)).filter(Boolean))];
+  const evaluations = Array.isArray(result.evaluations) ? result.evaluations : null;
+  const knownErrors = new Set(['no_model_credential', 'json_parse_failed', 'empty_model_text', 'invalid_json_response',
+    'payload_not_object', 'missing_post_object', 'run_dir_missing', 'missing_--run', 'kimi_no_refresh_token', 'kimi_refresh_failed']);
+  const errorCode = result.error == null ? null : knownErrors.has(result.error) || /^http_[45]\d\d$/.test(result.error) ? result.error
+    : /^timeout_after_\d{1,9}ms$/.test(result.error) ? 'model_timeout'
+    : /^unsupported_provider_api:/.test(result.error) ? 'unsupported_provider_api' : 'other';
+  const refusals = new Map();
+  for (const row of (evaluations ?? []).slice(0, 1000)) {
     const stage = [row.prefilter, row.gate, row.eligibility].find((item) => item?.ok === false);
-    const code = typeof stage?.code === 'string' && /^[a-z_]{1,64}$/.test(stage.code) ? stage.code : 'other';
-    refusals[code] = (refusals[code] ?? 0) + 1;
+    if (!stage) continue;
+    const refusal = code(stage.code) ?? 'other';
+    refusals.set(refusal, (refusals.get(refusal) ?? 0) + 1);
   }
-  return { published: result.published === 1 ? 1 : 0, considered: Number(result.considered) || 0, refusals };
+  return {
+    published: result.published === 1 ? 1 : 0,
+    discovered: count(result.discovered) ?? (Array.isArray(discovery?.candidates) ? discovery.candidates.length : null),
+    evaluated: count(result.evaluated) ?? count(result.considered) ?? (evaluations ? evaluations.length : null),
+    considered: count(result.considered) ?? (evaluations ? evaluations.length : null),
+    passedPrefilter: count(result.passedPrefilter),
+    passedEvidence: count(result.passedEvidence),
+    refusals: Object.fromEntries(refusals),
+    status: code(result.status),
+    errorCode,
+    finalGateCode: code(result.ready?.code),
+    validationFailureCodes: codes(result.validation?.failureCodes ?? result.validation?.failures),
+    humanGates: codes(result.validation?.humanGates),
+    tregFallbackCalls: count(result.tregFallbackCalls),
+  };
 }
 export const trustedEnv = (env) => childEnv(env, [...BASE_ENV, ...DB_ENV, 'OPENROUTER_API_KEY']);
 export const refreshCommandEnv = (env, args) => ({ ...trustedEnv(env),
@@ -341,6 +365,20 @@ function source(script, args, job, log) {
   const warnings = sourceWarnings(result.stderr);
   logLine(log, 'source-complete', { script, exit: result.code, ...(warnings.length ? { warnings } : {}) });
   return result;
+}
+
+export function runNewsPublish({ discovery, publish, discovered, dryRun = false, log }, execute = source) {
+  try {
+    return execute('scripts/news-pilot/publish.mjs', [`--run=${discovery}`, `--out=${publish}`, '--vault=/dev/null', ...(dryRun ? ['--dry-run'] : [])], 'news', log);
+  } catch (error) {
+    // The publisher persists its funnel before exiting on model/schema failures.
+    // Preserve that decision, then retain the original failing command outcome.
+    try {
+      const result = readJson(path.join(publish, 'result.json'));
+      logLine(log, 'news-decision', summarizeNewsDecision(result, discovered));
+    } catch { /* Missing/malformed artifact or failed logging must not mask the source failure. */ }
+    throw error;
+  }
 }
 
 export function parseDiscoveryOutcome(stdout, category) {
@@ -1964,9 +2002,9 @@ async function runJob(job, target, slot, request, log, notifications = {}) {
     const publishStarted = path.join(run, 'publish-started.flag');
     if (generatedNow && fs.existsSync(publishStarted)) throw new Error('news publish interrupted; manual recovery required');
     if (generatedNow) fs.writeFileSync(publishStarted, '1', { mode: 0o600 });
-    if (generatedNow) source('scripts/news-pilot/publish.mjs', [`--run=${discovery}`, `--out=${publish}`, '--vault=/dev/null', ...(request.dryRun ? ['--dry-run'] : [])], job, log);
+    if (generatedNow) runNewsPublish({ discovery, publish, discovered, dryRun: request.dryRun, log });
     const published = readJson(path.join(publish, 'result.json'));
-    logLine(log, 'news-decision', summarizeNewsDecision(published));
+    logLine(log, 'news-decision', summarizeNewsDecision(published, discovered));
     if (request.dryRun) return { dryRun: true };
     if (published.published !== 1) return { noChanges: true };
     if (!fs.existsSync(postsPath)) {

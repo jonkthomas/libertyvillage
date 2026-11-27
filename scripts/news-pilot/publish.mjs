@@ -66,6 +66,7 @@ import {
 } from './publish-gate.mjs';
 
 import { isAggregatorUrl } from './independent-reporting.mjs';
+import { createTregExtractor } from './treg-extract.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -335,8 +336,12 @@ export async function runPublish(args, deps = {}) {
   const log = deps.log || console;
   const config = deps.config || AUTO_PUBLISH_CONFIG;
   const outDir = ensurePublishOutDir(root, args.out, nowMs);
+  const tregExtractor = deps.tregExtractor ?? createTregExtractor({ env: deps.env ?? process.env });
 
   const baseResult = {
+    discovered: null, evaluated: 0, considered: 0, passedPrefilter: 0, passedEvidence: 0,
+    get tregFallbackCalls() { return tregExtractor.calls; },
+    get tregFallbackCostMicro() { return tregExtractor.costMicro; },
     ok: true,
     exitCode: 0,
     status: 'no_publish',
@@ -396,7 +401,20 @@ export async function runPublish(args, deps = {}) {
   }
 
   const artifact = (deps.loadRunArtifact || loadRunArtifact)(runDir);
-  const ranked = rankAutoPublishCandidates(artifact.candidates).slice(
+  baseResult.discovered = artifact.candidates.length;
+  const evaluations = [];
+  // Cheap categorical refusals must not consume the bounded extraction budget.
+  const categoricalCodes = new Set(['development_application', 'municipal_page', 'unusable_url', 'concluded_event']);
+  const readyToEvaluate = rankAutoPublishCandidates(artifact.candidates).filter((candidate) => {
+    const pre = prefilterAutoPublishCandidate(candidate, { nowMs, posts, config });
+    if (!categoricalCodes.has(pre.code)) return true;
+    evaluations.push({ clusterId: candidate.clusterId, title: candidate.title,
+      score: candidate.score?.total ?? null, prefilter: pre, eligibility: null, gate: null,
+      categoricalPrefilter: true });
+    return false;
+  });
+  baseResult.categoricalRefused = evaluations.length;
+  const ranked = readyToEvaluate.slice(
     0,
     Math.max(1, Number(args.maxCandidates) || 25),
   );
@@ -414,14 +432,14 @@ export async function runPublish(args, deps = {}) {
     })),
   });
 
-  /** @type {object[]} */
-  const evaluations = [];
   const corroborationBudget = createRequestBudget(4);
   let selected = null;
   let selectedEvidence = null;
   let selectedEligibility = null;
 
   for (const candidate of ranked) {
+    baseResult.evaluated += 1;
+    baseResult.considered = baseResult.evaluated;
     const pre = prefilterAutoPublishCandidate(candidate, {
       nowMs,
       posts,
@@ -440,6 +458,7 @@ export async function runPublish(args, deps = {}) {
       continue;
     }
 
+    baseResult.passedPrefilter += 1;
     log.log(
       `Considering ${candidate.clusterId} score=${candidate.score?.total} — building evidence…`,
     );
@@ -453,6 +472,7 @@ export async function runPublish(args, deps = {}) {
       rank: evaluations.length + 1,
       nowMs,
       fetchFn: deps.fetchFn,
+      tregExtractor,
     });
     writeJson(
       path.join(outDir, `evidence-${candidate.clusterId}.json`),
@@ -463,7 +483,7 @@ export async function runPublish(args, deps = {}) {
     if (['extraction_empty', 'single_lead_consequential'].includes(gate.code) || (gate.ok && evaluateSourceQuality(evidencePack, config).code === 'insufficient_source_quality')) {
       const extra = await (deps.findCorroboratingMembers || findCorroboratingMembers)(candidate, { budget: corroborationBudget, env: deps.env ?? process.env });
       if (extra.length) {
-        evidencePack = await (deps.buildEvidencePack || buildEvidencePack)({ representative: candidate, members: [...members, ...extra], clusterId: candidate.clusterId, rank: evaluations.length + 1, nowMs, fetchFn: deps.fetchFn });
+        evidencePack = await (deps.buildEvidencePack || buildEvidencePack)({ representative: candidate, members: [...members, ...extra], clusterId: candidate.clusterId, rank: evaluations.length + 1, nowMs, fetchFn: deps.fetchFn, tregExtractor });
         writeJson(path.join(outDir, `evidence-${candidate.clusterId}.json`), evidencePack);
         gate = (deps.evaluateEvidenceGate || evaluateEvidenceGate)(evidencePack);
       }
@@ -490,6 +510,7 @@ export async function runPublish(args, deps = {}) {
     evaluations.push(row);
 
     if (eligibility.ok) {
+      baseResult.passedEvidence += 1;
       selected = candidate;
       selectedEvidence = evidencePack;
       selectedEligibility = eligibility;
@@ -497,6 +518,7 @@ export async function runPublish(args, deps = {}) {
     }
   }
 
+  baseResult.evaluations = evaluations;
   writeJson(path.join(outDir, 'evaluations.json'), evaluations);
 
   if (!selected) {
@@ -506,7 +528,7 @@ export async function runPublish(args, deps = {}) {
       message:
         'No story met the autonomous publish bar. Publishing zero is success.',
       evaluations,
-      considered: evaluations.length,
+      considered: baseResult.considered,
     };
     writeJson(path.join(outDir, 'result.json'), result);
     log.log(result.message);
