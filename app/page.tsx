@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { getAllServices, getAllTopics, getBusinessesByCategory, getNewsPosts, getRecentPosts } from "@/lib/data";
+import { getAllServices, getAllTopics, getBusinessesByCategory, getNewsPosts, getRecentPosts, selectHomePosts } from "@/lib/data";
+import type { BlogPost } from "@/lib/types";
 import { generateHomePageMeta } from "@/lib/meta";
 import { generateBreadcrumbSchema, generateOrganizationSchema } from "@/lib/schema";
 import HeroAnimation from "@/components/HeroAnimation";
@@ -94,14 +95,14 @@ export default function Home() {
     // topics.json may not exist yet during build
   }
 
-  let recentPosts: { slug: string; title: string; description: string; category: string; image?: string }[] = [];
+  let recentPosts: BlogPost[] = [];
   try {
     recentPosts = getRecentPosts(3);
   } catch {
     // posts.json may not exist yet during build
   }
 
-  let newsPosts: { slug: string; title: string; description: string; category: string; publishedAt: string; image?: string }[] = [];
+  let newsPosts: BlogPost[] = [];
   try {
     newsPosts = getNewsPosts(3);
   } catch {
@@ -123,7 +124,7 @@ export default function Home() {
 
   /* Featured editorial content */
   const featuredTopic = topics[0] ?? null;
-  const editorialPosts = recentPosts.slice(0, 2);
+  const { hasFreshNews, latestPosts, editorialPosts } = selectHomePosts(newsPosts, recentPosts);
 
   return (
     <div className="bg-lv-cream">
@@ -251,30 +252,30 @@ export default function Home() {
 
 
       {/* ═══════════════════════════════════════════
-          3b. LATEST NEWS — hide entirely when empty
+          3b. LATEST NEWS / ARTICLES — hide entirely when empty
           ═══════════════════════════════════════════ */}
-      {newsPosts.length > 0 && (
-        <section className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-16" aria-label="Latest news">
+      {latestPosts.length > 0 && (
+        <section className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-16" aria-label={hasFreshNews ? "Latest news" : "Latest articles"}>
           <SectionReveal>
             <p className="text-sm font-semibold uppercase tracking-widest text-lv-brick">
-              Neighbourhood Updates
+              {hasFreshNews ? "Neighbourhood Updates" : "Neighbourhood Reads"}
             </p>
             <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
               <h2 className="font-display text-[clamp(24px,3vw,36px)] font-bold text-lv-warm-black">
-                Latest News
+                {hasFreshNews ? "Latest News" : "Latest articles"}
               </h2>
               <Link
-                href="/news"
+                href={hasFreshNews ? "/news" : "/blog"}
                 className="text-sm font-semibold text-lv-brick transition-colors hover:text-lv-brick-dark"
               >
-                All news
+                {hasFreshNews ? "All news" : "All articles"}
                 <span aria-hidden="true"> →</span>
               </Link>
             </div>
           </SectionReveal>
 
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {newsPosts.map((post, idx) => (
+            {latestPosts.map((post, idx) => (
               <SectionReveal key={post.slug} delay={idx * 0.08}>
                 <Link
                   href={`/blog/${post.slug}`}
@@ -293,7 +294,7 @@ export default function Home() {
                   )}
                   <div className="p-5">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-lv-sage">
-                      <span>News</span>
+                      <span>{hasFreshNews ? "News" : post.category.replace(/-/g, " ")}</span>
                       <span aria-hidden="true">·</span>
                       <time dateTime={post.publishedAt}>
                         {new Date(post.publishedAt).toLocaleDateString("en-CA", {
