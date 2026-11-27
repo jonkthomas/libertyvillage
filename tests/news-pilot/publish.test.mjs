@@ -557,7 +557,7 @@ test('homepage and news route degrade gracefully and list news posts', () => {
 
   assert.match(home, /getNewsPosts/);
   assert.match(home, /Latest News/);
-  assert.match(home, /newsPosts\.length > 0/);
+  assert.match(home, /latestPosts\.length > 0/);
   assert.doesNotMatch(home, /No news yet/); // empty state = hide section, not empty box
 
   assert.match(news, /getNewsPosts/);
