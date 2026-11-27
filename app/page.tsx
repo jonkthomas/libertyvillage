@@ -97,7 +97,7 @@ export default function Home() {
 
   let recentPosts: BlogPost[] = [];
   try {
-    recentPosts = getRecentPosts(3);
+    recentPosts = getRecentPosts(5);
   } catch {
     // posts.json may not exist yet during build
   }

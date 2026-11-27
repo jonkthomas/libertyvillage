@@ -11,12 +11,13 @@ const recent = [
   post('transit-guide', 'transit', '2026-11-24'),
 ];
 
-test('stale news falls back to recent articles without duplicating editorial cards', () => {
+test('stale news falls back to recent articles and fills editorial with the next posts', () => {
   const news = [post('old-news', 'news', '2026-08-15')];
-  const result = selectHomePosts(news, recent, now);
+  const older = [post('park-guide', 'community', '2026-11-20'), post('gym-guide', 'lifestyle', '2026-11-18')];
+  const result = selectHomePosts(news, [...recent, ...older], now);
   assert.equal(result.hasFreshNews, false);
   assert.deepEqual(result.latestPosts, recent);
-  assert.deepEqual(result.editorialPosts, []);
+  assert.deepEqual(result.editorialPosts, older);
   assert.equal(result.latestPosts[0].category, 'lifestyle');
   assert.equal(news[0].publishedAt, '2026-08-15');
 });

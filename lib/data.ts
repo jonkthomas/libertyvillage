@@ -99,7 +99,7 @@ export function getNewsPosts(limit: number = 10): BlogPost[] {
 export function selectHomePosts(newsPosts: BlogPost[], recentPosts: BlogPost[], now: number = Date.now()) {
   const newestNewsDate = Date.parse(newsPosts[0]?.publishedAt ?? "");
   const hasFreshNews = now - newestNewsDate <= 30 * 24 * 60 * 60 * 1000;
-  const latestPosts = hasFreshNews ? newsPosts : recentPosts;
+  const latestPosts = hasFreshNews ? newsPosts : recentPosts.slice(0, 3);
   const editorialPosts = recentPosts
     .filter((post) => !latestPosts.some((latest) => latest.slug === post.slug))
     .slice(0, 2);
